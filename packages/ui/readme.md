@@ -2,6 +2,23 @@
 
 Shared UI component library for `apps/admin` and `apps/portal`.
 
+## Status (Phase 0)
+
+Core primitives are implemented against `docs/Enzo_Interiors_UI_UX_Brief_v6.md`:
+Button, TextLink, Badge (status tags), Card, DashboardCard, Input, Textarea,
+Label, Separator, Skeleton, Switch, Tabs, Table, Dialog, Tooltip, Toaster,
+plus `useDarkMode` and the `tokens.css` token file.
+
+**Deferred to Phase 3 (Admin) / Phase 4 (Portal):** the admin sidebar / client
+portal dock navigation and bento dashboard layout primitives — these are
+large, route-shaped components better built against real routes than
+speculatively now. Add components on demand as each module needs them rather
+than porting the full legacy set upfront.
+
+**Dark mode:** `tokens.css`'s `.dark` values are carried from the pre-brief
+boilerplate and are a placeholder — Brief v6 only specifies a light palette.
+Get sign-off before shipping a dark-mode screen.
+
 ## Purpose
 
 Provides reusable components and visual primitives for the two authenticated applications, reducing duplication and keeping the Admin and Client Portal experiences consistent.
