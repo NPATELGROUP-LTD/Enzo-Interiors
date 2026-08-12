@@ -6,6 +6,21 @@ import { XIcon } from 'lucide-react';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Modal dialog — confirmations and focused single-task forms.
+ *
+ * Used by: apps/admin (edit forms, non-destructive confirmations —
+ * destructive confirmations should use `AlertDialog` once ported),
+ * apps/portal (document preview, settings sub-forms).
+ * Variants: none; sizing via `className` on `DialogContent` (defaults to
+ * `sm:max-w-lg`).
+ * A11y: Radix provides a focus trap (focus moves into the dialog on open,
+ * returns to the trigger on close) and closes on `Escape` — don't
+ * reimplement either. The zoom/fade entrance animation is suppressed for
+ * `prefers-reduced-motion` users by the global rule in tokens.css, not by
+ * anything in this file.
+ * Brief v6 deviations: none.
+ */
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
 }

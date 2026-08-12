@@ -3,11 +3,18 @@ import * as React from 'react';
 import { cn } from '../lib/utils';
 
 /**
- * Brief v6 §Text links / tertiary actions: lightweight and stable — never a
- * button container. No background, box, shadow or movement at any state.
- * Use for navigational/tertiary actions ("View projects", "Open inbox");
- * use <Button variant="primary|secondary|destructive"> for committing
- * actions (booking, sending, saving, approving, deleting).
+ * Text link — lightweight navigational/tertiary action, not a button.
+ *
+ * Used by: apps/admin (DashboardCard bottom slots, "View projects"/"Open
+ * inbox"), apps/portal (same pattern), apps/web (secondary nav CTAs).
+ * Variants: none; states: default, hover, focus, `disabled` (renders a
+ * non-interactive `<span>`, not a disabled `<a>`).
+ * A11y: focus uses a real `outline` (2px, offset 2px) which stays visible
+ * alongside the underline — don't remove either.
+ * Brief v6 deviations: none — lightweight and stable per §Text links /
+ * tertiary actions: no background, box, shadow, or movement at any state.
+ * Use `<Button variant="primary|secondary|destructive">` instead for
+ * committing actions (booking, sending, saving, approving, deleting).
  */
 function TextLink({
   className,

@@ -5,6 +5,18 @@ import * as SeparatorPrimitive from '@radix-ui/react-separator';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Thin dividing line — horizontal or vertical.
+ *
+ * Used by: apps/admin and apps/portal — section dividers, between
+ * `DropdownMenu`/`Command` groups (once ported), Accordion items.
+ * Variants: `orientation` (horizontal/vertical); states: none.
+ * A11y: `decorative` (default `true`) marks it `aria-hidden` and excludes
+ * it from the accessibility tree — set `decorative={false}` only if the
+ * separator carries real semantic meaning (rare; Radix then renders it
+ * with `role="separator"`).
+ * Brief v6 deviations: none — uses `--border`.
+ */
 function Separator({
   className,
   orientation = 'horizontal',

@@ -4,6 +4,31 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Data table — the primary pattern for every admin list view.
+ *
+ * Used by: apps/admin (Clients, Quotes, Invoices, Bookings, Projects list
+ * views), apps/portal (My Quotes, My Invoices — read-only).
+ * Variants: none (structural primitive); states are a REQUIRED composition,
+ * not a prop — the brief explicitly mandates loading/empty/error states
+ * and a labelled mobile card view for every admin table:
+ *   - loading: render `Skeleton` rows inside `TableBody` (same column
+ *     count) while a fetch is in flight, OR swap the whole table for
+ *     `<EmptyState variant="loading">` if rows can't be reused (e.g. after
+ *     a filter change).
+ *   - empty: swap `TableBody`'s content for `<EmptyState variant="empty">`
+ *     with a create-first-record action.
+ *   - error: swap for `<EmptyState variant="error">` with a Retry action.
+ *   - mobile: this component only handles horizontal scroll
+ *     (`overflow-x-auto` on its wrapper) — the brief requires a genuine
+ *     "labelled card view" fallback below a breakpoint, which means the
+ *     consuming screen renders a different, non-`Table` layout on mobile,
+ *     not a CSS trick on this component. Plan for that at the screen level.
+ * A11y: `TableHead` cells are the sort/column labels — keep them as `<th>`
+ * (never repurpose `TableCell` for headers) so assistive tech gets correct
+ * table semantics.
+ * Brief v6 deviations: none.
+ */
 function Table({ className, ...props }: React.ComponentProps<'table'>) {
   return (
     <div data-slot="table-container" className="relative w-full overflow-x-auto">
