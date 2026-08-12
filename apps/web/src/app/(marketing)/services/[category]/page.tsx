@@ -41,7 +41,7 @@ export default async function ServiceDetailPage({
   }
 
   return (
-    <QuoteModalRoot serviceTitle={service.title}>
+    <QuoteModalRoot serviceTitle={service.title} category={category}>
       <div>
         {/* Hero */}
         <section className="relative h-[60vh] min-h-[500px] flex items-end overflow-hidden">
