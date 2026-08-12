@@ -10,8 +10,14 @@
 // https://react.dev/reference/react/use-client#serializable-types) and a
 // `QuoteTriggerButton` that opens it via context. Same mock behavior as the
 // boilerplate: no real submission endpoint exists yet, this is the
-// lead-capture form's UI only — a `toast.success(...)` no-op. Real
-// quote-calculation logic is a separate `web-quote-calculator` branch.
+// lead-capture form's UI only — a `toast.success(...)` no-op.
+//
+// `QuoteRequestInfo` lets callers (namely `./QuoteEstimator.tsx`) attach
+// which tier and instant-estimate range was selected, so the modal — and
+// its mock submission toast — reflects the actual selection instead of just
+// the bare service title. This is additive/backward-compatible: existing
+// `QuoteTriggerButton` usages that pass no `quoteInfo` behave exactly as
+// before.
 import {
   createContext,
   useContext,
@@ -22,8 +28,15 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 
+export interface QuoteRequestInfo {
+  /** Pricing tier the visitor selected, e.g. "Premium". */
+  tier?: string;
+  /** Pre-formatted instant estimate range, e.g. "£8,000 – £10,800". */
+  estimateLabel?: string;
+}
+
 interface QuoteModalContextValue {
-  open: () => void;
+  open: (info?: QuoteRequestInfo) => void;
 }
 
 const QuoteModalContext = createContext<QuoteModalContextValue | null>(null);
@@ -39,16 +52,26 @@ export function QuoteModalRoot({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [requestInfo, setRequestInfo] = useState<QuoteRequestInfo>({});
+
+  const handleOpen = (info?: QuoteRequestInfo) => {
+    setRequestInfo(info ?? {});
+    setIsOpen(true);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Quote request submitted! We'll be in touch within 24 hours.");
+    const suffix = requestInfo.tier ? ` (${requestInfo.tier} tier)` : "";
+    toast.success(
+      `Quote request submitted for ${serviceTitle}${suffix}! We'll be in touch within 24 hours.`
+    );
     setIsOpen(false);
     setForm(EMPTY_FORM);
+    setRequestInfo({});
   };
 
   return (
-    <QuoteModalContext.Provider value={{ open: () => setIsOpen(true) }}>
+    <QuoteModalContext.Provider value={{ open: handleOpen }}>
       {children}
 
       <AnimatePresence>
@@ -74,7 +97,13 @@ export function QuoteModalRoot({
                   </h3>
                   <p className="text-secondary text-[13px] mt-1">
                     {serviceTitle}
+                    {requestInfo.tier ? ` — ${requestInfo.tier}` : ""}
                   </p>
+                  {requestInfo.estimateLabel && (
+                    <p className="text-primary text-[13px] mt-1" style={{ fontWeight: 600 }}>
+                      Estimated {requestInfo.estimateLabel}
+                    </p>
+                  )}
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
@@ -181,14 +210,15 @@ export function QuoteModalRoot({
 export function QuoteTriggerButton({
   children,
   className,
+  quoteInfo,
   ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement>) {
+}: ButtonHTMLAttributes<HTMLButtonElement> & { quoteInfo?: QuoteRequestInfo }) {
   const ctx = useContext(QuoteModalContext);
   if (!ctx) {
     throw new Error("QuoteTriggerButton must be rendered within QuoteModalRoot");
   }
   return (
-    <button onClick={ctx.open} className={className} {...rest}>
+    <button onClick={() => ctx.open(quoteInfo)} className={className} {...rest}>
       {children}
     </button>
   );
