@@ -1,4 +1,8 @@
 @import 'tailwindcss';
+/* Provides animate-in, animate-out, fade-in, zoom-in, slide-in-from, and
+   accordion-down/accordion-up utilities used by Dialog, AlertDialog,
+   Popover, Tooltip, and Accordion — not native Tailwind v4 utilities. */
+@import 'tw-animate-css';
 
 /**
  * Enzo Interiors — Admin + Portal design tokens.

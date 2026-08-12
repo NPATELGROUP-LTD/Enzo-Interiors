@@ -18,3 +18,12 @@ export * from './components/table';
 export * from './components/dialog';
 export * from './components/tooltip';
 export * from './components/toaster';
+
+export * from './components/accordion';
+export * from './components/alert';
+export * from './components/alert-dialog';
+export * from './components/avatar';
+export * from './components/breadcrumb';
+export * from './components/pagination';
+export * from './components/popover';
+export * from './components/progress';
