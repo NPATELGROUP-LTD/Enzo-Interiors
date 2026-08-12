@@ -5,12 +5,22 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '../lib/utils';
 
 /**
- * Status tag per Brief v6's dashboard card rules: "written labels only —
- * no dots or bullets". Render text content only; don't prefix with an icon
- * or dot to indicate status.
+ * Status tag — table statuses (invoice/quote/booking), card bottom slots.
+ *
+ * Used by: apps/admin (Clients/Quotes/Invoices/Bookings tables), apps/portal
+ * (My Quotes, My Invoices), `DashboardCard`/`StatWidget` bottom slots.
+ * Variants: neutral (draft/default), success (paid/approved), warning
+ * (pending/awaiting decision), danger (overdue/error).
+ * A11y: colour is never the only signal — always pair with a written label
+ * (never render this with icon-only or dot-only content).
+ * Brief v6 deviations: none — sentence-case, 12px, 600 weight, 8px radius,
+ * matching `.tag` in docs/Enzo_Interiors_UI_UX_Visual_Brief_v6.html exactly.
+ * (Not the uppercase/700-weight/letter-spaced "eyebrow" style — that's a
+ * different pattern, used for section/card eyebrow labels, e.g.
+ * `DashboardCard`'s eyebrow slot.)
  */
 const badgeVariants = cva(
-  "inline-flex items-center justify-center rounded-sm border px-2 py-0.5 text-xs font-bold uppercase tracking-[0.08em] w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden",
+  'inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-semibold w-fit whitespace-nowrap shrink-0 gap-1 overflow-hidden',
   {
     variants: {
       variant: {

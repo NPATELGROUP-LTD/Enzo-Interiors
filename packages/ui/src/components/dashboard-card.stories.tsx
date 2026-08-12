@@ -8,20 +8,34 @@ const meta: Meta<typeof DashboardCard> = {
   title: 'Components/DashboardCard',
   component: DashboardCard,
   argTypes: {
-    accent: { control: 'select', options: ['primary', 'success', 'warning', 'danger', 'neutral'] },
+    accent: { control: 'select', options: ['tint', 'success', 'warning', 'danger', 'neutral'] },
   },
 };
 export default meta;
 
 type Story = StoryObj<typeof DashboardCard>;
 
-export const ActiveProjects: Story = {
+export const Priority: Story = {
   args: {
     eyebrow: 'Active projects',
     metric: '24',
     context: '16 on track; 3 need a decision',
     bottom: <TextLink href="#">View projects</TextLink>,
-    accent: 'primary',
+    priority: true,
+  },
+  render: (args) => (
+    <div style={{ width: 280 }}>
+      <DashboardCard {...args} />
+    </div>
+  ),
+};
+
+export const DefaultTint: Story = {
+  args: {
+    eyebrow: 'Unread messages',
+    metric: '07',
+    context: '3 conversations require a reply today',
+    bottom: <TextLink href="#">Open inbox</TextLink>,
   },
   render: (args) => (
     <div style={{ width: 280 }}>
@@ -51,7 +65,7 @@ export const Interactive: Story = {
     metric: '06',
     context: 'First appointment at 09:30',
     bottom: <Badge variant="warning">2 awaiting confirmation</Badge>,
-    accent: 'success',
+    accent: 'warning',
     interactive: true,
   },
   render: (args) => (

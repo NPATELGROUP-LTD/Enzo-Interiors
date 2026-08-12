@@ -30,6 +30,10 @@ export const Disabled: Story = {
   args: { children: 'Book consultation', variant: 'primary', disabled: true },
 };
 
+export const Loading: Story = {
+  args: { children: 'Send quote', variant: 'primary', loading: true },
+};
+
 export const Sizes: Story = {
   render: (args) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
