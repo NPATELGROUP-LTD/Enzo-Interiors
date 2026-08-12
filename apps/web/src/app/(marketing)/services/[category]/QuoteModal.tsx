@@ -18,6 +18,11 @@
 // the bare service title. This is additive/backward-compatible: existing
 // `QuoteTriggerButton` usages that pass no `quoteInfo` behave exactly as
 // before.
+//
+// Additive: the modal also links to /booking?service=<category>&tier=<tier>
+// (see ../../../booking/page.tsx) — the Quote-to-Booking Handoff from
+// docs/Enzo_Interiors_App_Flow_v4.md, for visitors who'd rather book a free
+// consultation than submit the quote-request form.
 import {
   createContext,
   useContext,
@@ -25,6 +30,7 @@ import {
   type ReactNode,
   type ButtonHTMLAttributes,
 } from "react";
+import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 
@@ -43,11 +49,20 @@ const QuoteModalContext = createContext<QuoteModalContextValue | null>(null);
 
 const EMPTY_FORM = { name: "", email: "", phone: "", budget: "", details: "" };
 
+function bookingHref(category: string, tier?: string) {
+  const params = new URLSearchParams({ service: category });
+  if (tier) params.set("tier", tier);
+  return `/booking?${params.toString()}`;
+}
+
 export function QuoteModalRoot({
   serviceTitle,
+  category,
   children,
 }: {
   serviceTitle: string;
+  /** Service slug, e.g. "kitchens" — feeds the "Book a Consultation" link. */
+  category: string;
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -199,6 +214,13 @@ export function QuoteModalRoot({
                   Submit Quote Request
                 </button>
               </form>
+              <Link
+                href={bookingHref(category, requestInfo.tier)}
+                onClick={() => setIsOpen(false)}
+                className="mt-3 block w-full text-center py-3 rounded-full border border-border text-primary text-[14px] hover:border-primary transition-all duration-300"
+              >
+                Prefer a face-to-face chat? Book a free consultation instead
+              </Link>
             </motion.div>
           </motion.div>
         )}
