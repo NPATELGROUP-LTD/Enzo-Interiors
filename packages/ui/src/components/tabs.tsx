@@ -5,6 +5,20 @@ import * as TabsPrimitive from '@radix-ui/react-tabs';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Tabbed navigation within a single screen.
+ *
+ * Used by: apps/admin (Client Detail sub-tabs), apps/portal (Project Detail:
+ * Timeline/Mood boards/Documents/Messages).
+ * Variants: none; states: active/inactive (Radix-managed), disabled
+ * (`<TabsTrigger disabled>` — already styled via `disabled:opacity-50`,
+ * just pass the prop), loading content — don't disable the trigger, keep
+ * tabs switchable and render `Skeleton` placeholders inside the not-yet-
+ * loaded `TabsContent` instead.
+ * A11y: Radix handles roving tabindex and arrow-key navigation; don't
+ * override `role`/`aria-*` on these primitives.
+ * Brief v6 deviations: none.
+ */
 function Tabs({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Root>) {
   return <TabsPrimitive.Root data-slot="tabs" className={cn('flex flex-col gap-2', className)} {...props} />;
 }

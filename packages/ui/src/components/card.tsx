@@ -2,6 +2,19 @@ import * as React from 'react';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Generic content container — header/title/description/action/content/footer.
+ *
+ * Used by: apps/admin (project cards, settings panels), apps/portal
+ * (project detail sections). For metric/KPI tiles use `DashboardCard`
+ * instead — this is the general-purpose container.
+ * Variants: none; compose the slots you need (`CardHeader`, `CardTitle`,
+ * `CardDescription`, `CardAction`, `CardContent`, `CardFooter`).
+ * A11y: `CardTitle` renders an `<h4>` — make sure it's a genuine heading in
+ * context (don't nest another heading level improperly around it).
+ * Brief v6 deviations: none — 12px corners (`rounded-xl`) per the card/tile/
+ * modal radius rule.
+ */
 function Card({ className, ...props }: React.ComponentProps<'div'>) {
   return (
     <div

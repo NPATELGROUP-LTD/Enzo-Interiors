@@ -5,6 +5,22 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 
 import { cn } from '../lib/utils';
 
+/**
+ * Hover-triggered supplementary text — icon-only button labels, truncated
+ * values.
+ *
+ * Used by: apps/admin (icon-only row actions, truncated table cells),
+ * apps/portal (any icon-only control).
+ * Variants: none; `side`/`align`/`sideOffset` control placement (Radix
+ * passthrough).
+ * A11y: this is a HOVER-only pattern — Radix does trigger it on focus too
+ * (keyboard-accessible), but there is no touch equivalent (no hover on
+ * touch devices). Never put information here that's unavailable any other
+ * way: pair icon-only triggers with an `aria-label`, and if the content is
+ * genuinely important on mobile, surface it visibly instead of behind a
+ * tooltip (e.g. inline text, or a tap-to-open `Popover` once ported).
+ * Brief v6 deviations: none.
+ */
 function TooltipProvider({ delayDuration = 0, ...props }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return <TooltipPrimitive.Provider data-slot="tooltip-provider" delayDuration={delayDuration} {...props} />;
 }

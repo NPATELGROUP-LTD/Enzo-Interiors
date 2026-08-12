@@ -7,7 +7,14 @@ export default tseslint.config(
   ...tseslint.configs.recommended,
   prettier,
   {
-    ignores: ['**/dist/**', '**/build/**', '**/.next/**', '**/node_modules/**', '**/.turbo/**'],
+    ignores: [
+      '**/dist/**',
+      '**/build/**',
+      '**/.next/**',
+      '**/node_modules/**',
+      '**/.turbo/**',
+      '**/storybook-static/**',
+    ],
   },
   {
     rules: {
