@@ -41,3 +41,9 @@ export * from './components/stat-widget';
 export * from './components/stepper';
 export * from './components/timeline';
 export * from './components/offline-banner';
+
+export * from './components/message-bubble';
+export * from './components/message-thread';
+export * from './components/kanban';
+export * from './components/file-upload';
+export * from './components/gallery';
