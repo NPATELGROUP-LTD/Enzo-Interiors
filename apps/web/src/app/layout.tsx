@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "@/styles/theme.css";
+import { Toaster } from "@/components/ui/sonner";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
 // CSS variables on <html> that src/styles/theme.css reads as --font-heading
@@ -38,7 +39,10 @@ export default function RootLayout({
       className={`${cormorantGaramond.variable} ${inter.variable}`}
       data-scroll-behavior="smooth"
     >
-      <body>{children}</body>
+      <body>
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
