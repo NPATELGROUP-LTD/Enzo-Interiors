@@ -20,6 +20,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { FAQAccordion } from "@/components/shared/FAQAccordion";
 import { SERVICE_DETAILS, SERVICE_SLUGS } from "./data";
 import { QuoteModalRoot, QuoteTriggerButton } from "./QuoteModal";
+import { QuoteEstimator } from "./QuoteEstimator";
 
 export const revalidate = 3600;
 
@@ -208,59 +209,11 @@ export default async function ServiceDetailPage({
               </h2>
               <p className="text-center text-muted-foreground mt-3 text-[15px]">
                 Every project is unique — these are starting prices for
-                guidance.
+                guidance. Pick a room size below for an instant estimate.
               </p>
             </ScrollReveal>
-            <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
-              {service.pricing.map((p, i) => (
-                <ScrollReveal key={p.tier} delay={i * 0.1}>
-                  <div
-                    className={`rounded-2xl p-8 h-full flex flex-col ${
-                      i === 1
-                        ? "bg-primary text-primary-foreground ring-2 ring-primary scale-[1.02]"
-                        : "bg-background border border-border/30"
-                    }`}
-                  >
-                    <span className="text-[11px] uppercase tracking-[0.2em] text-enzo-sage">
-                      {p.tier}
-                    </span>
-                    <h3
-                      className={`mt-2 ${i === 1 ? "text-primary-foreground" : "text-primary"}`}
-                      style={{ fontSize: "1.3rem" }}
-                    >
-                      From {p.from}
-                    </h3>
-                    <p
-                      className={`mt-2 text-[14px] ${i === 1 ? "text-primary-foreground/70" : "text-muted-foreground"}`}
-                    >
-                      {p.desc}
-                    </p>
-                    <ul className="mt-6 space-y-2.5 flex-1">
-                      {p.features.map((f) => (
-                        <li
-                          key={f}
-                          className={`flex items-center gap-2 text-[13px] ${i === 1 ? "text-primary-foreground/80" : "text-foreground"}`}
-                        >
-                          <Check
-                            size={14}
-                            className={i === 1 ? "text-enzo-sage" : "text-primary"}
-                          />
-                          {f}
-                        </li>
-                      ))}
-                    </ul>
-                    <QuoteTriggerButton
-                      className={`mt-8 w-full py-3 rounded-full text-[14px] transition-all duration-300 ${
-                        i === 1
-                          ? "bg-enzo-cream text-primary hover:bg-white"
-                          : "bg-primary text-primary-foreground hover:bg-enzo-forest-light"
-                      }`}
-                    >
-                      Get Quote
-                    </QuoteTriggerButton>
-                  </div>
-                </ScrollReveal>
-              ))}
+            <div className="mt-12">
+              <QuoteEstimator category={category} pricing={service.pricing} />
             </div>
           </div>
         </section>
