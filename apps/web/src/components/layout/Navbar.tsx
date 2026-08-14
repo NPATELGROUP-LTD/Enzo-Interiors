@@ -150,18 +150,8 @@ export function Navbar() {
             ))}
           </div>
 
-          {/* Desktop CTA + Portal Link */}
+          {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <Link
-              href="/portal"
-              className={`text-[13px] tracking-wide transition-colors duration-300 ${
-                scrolled || !isHeroPage
-                  ? "text-[#8A9E8C] hover:text-[#1C4A3A]"
-                  : "text-[#F2F0EB]/60 hover:text-[#F2F0EB]"
-              }`}
-            >
-              Client Portal
-            </Link>
             <Link
               href="/booking"
               className={`inline-flex items-center px-6 py-2.5 rounded-full text-[13px] tracking-wide transition-all duration-300 ${
@@ -224,12 +214,6 @@ export function Navbar() {
               transition={{ delay: 0.4, duration: 0.4 }}
               className="flex flex-col items-center gap-3 mt-6"
             >
-              <Link
-                href="/portal"
-                className="text-[#8A9E8C] text-[15px] hover:text-[#1C4A3A] transition-colors"
-              >
-                Client Portal
-              </Link>
               <Link
                 href="/booking"
                 className="px-8 py-3 rounded-full bg-[#1C4A3A] text-[#F2F0EB] text-[15px] tracking-wide"

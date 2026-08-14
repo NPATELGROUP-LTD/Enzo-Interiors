@@ -1,3 +1,4 @@
 packages:
-  - "apps/*"
-  - "packages/*"
+  - "apps/web"
+  # Note: Currently focused on apps/web for public-facing frontend development.
+  # Other apps (admin, portal, api) are kept in repo for reference but not actively developed.
