@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
@@ -120,6 +120,8 @@ export function Navbar() {
   const [activePath, setActivePath] = useState<string | null>(null);
   const pathname = usePathname();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logoRef = useRef<HTMLAnchorElement>(null);
+  const ctaRef = useRef<HTMLDivElement>(null);
 
   // The dock's "closed" width has to be a real measured pixel value, not a
   // CSS keyword like `fit-content` — animating `width` between a keyword
@@ -137,6 +139,55 @@ export function Navbar() {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
+  }, []);
+
+  // The dock's horizontal position/width must be derived from the REAL
+  // rendered gap between the logo and CTA, not a guessed inset — the logo
+  // and CTA are asymmetric in width (the CTA's label is much wider than the
+  // logo mark), and that asymmetry shifts with viewport width too, so no
+  // fixed inset can ever be correct for both. useLayoutEffect (not
+  // useEffect) avoids a one-frame flash of the dock at its fallback
+  // position before the real measurement lands.
+  const [dockBox, setDockBox] = useState<{ left: number; width: number } | null>(null);
+  useLayoutEffect(() => {
+    const logoEl = logoRef.current;
+    const ctaEl = ctaRef.current;
+    if (!logoEl || !ctaEl) return;
+
+    // Fixed breathing room kept clear between the dock and each neighbour,
+    // on top of their real measured edges.
+    const BREATHING_ROOM = 20;
+
+    const measure = () => {
+      const logoRect = logoEl.getBoundingClientRect();
+      const ctaRect = ctaEl.getBoundingClientRect();
+      // Below md the CTA wrapper is `hidden` (display:none), which reports
+      // a zero-size rect — bail out rather than computing garbage insets
+      // from it (the dock is hidden below md too, so this only guards
+      // against poisoning state with nonsense values).
+      if (ctaRect.width === 0) return;
+
+      const left = logoRect.right + BREATHING_ROOM;
+      const width = Math.max(0, ctaRect.left - logoRect.right - BREATHING_ROOM * 2);
+      setDockBox({ left, width });
+    };
+
+    measure();
+
+    // Observe the logo and CTA themselves — NOT the dock. The dock's own
+    // width changes as a *result* of the state this effect sets (closed
+    // <-> expanded), so observing it would create a feedback loop:
+    // resize -> setDockBox -> render -> dock resizes -> resize -> ...
+    // Logo/CTA size only changes from viewport width, never from dockBox
+    // itself, so they're safe permanent observation targets.
+    const ro2 = new ResizeObserver(measure);
+    ro2.observe(logoEl);
+    ro2.observe(ctaEl);
+    window.addEventListener("resize", measure);
+    return () => {
+      ro2.disconnect();
+      window.removeEventListener("resize", measure);
+    };
   }, []);
 
   // Reset mobile menu + hover panel when navigating, per React's "adjusting
@@ -195,6 +246,7 @@ export function Navbar() {
               on desktop (md: overrides + swapped image). Fully rounded on
               all sides now that it floats clear of the frame. */}
           <Link
+            ref={logoRef}
             href="/"
             className={cn(
               "relative flex items-center overflow-hidden px-5 pointer-events-auto",
@@ -214,7 +266,7 @@ export function Navbar() {
             />
           </Link>
 
-          <div className="pointer-events-auto hidden md:block">
+          <div ref={ctaRef} className="pointer-events-auto hidden md:block">
             {/* variant="outline" gives a bold, unambiguous hover: it
                 inverts to a solid forest fill + cream text, rather than a
                 translucent tint layered over our custom colors (which was
@@ -234,7 +286,9 @@ export function Navbar() {
               size="sm"
               className={cn(
                 "border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
+                "transition-all duration-300 ease-out",
                 "hover:bg-enzo-forest hover:text-enzo-cream hover:border-enzo-forest",
+                "hover:shadow-[0_8px_24px_rgba(28,74,58,0.25)] hover:scale-105",
                 PIECE_HEIGHT,
                 PIECE_RADIUS,
               )}
@@ -268,10 +322,23 @@ export function Navbar() {
             desktop it docks against the frame's top edge only
             (md:top-[12px], matching the row above's 2px safety overlap) —
             floating centered, not touching the left/right frame edges. */}
-        <div className="pointer-events-none absolute inset-x-0 top-4 hidden justify-center px-4 md:flex md:top-[12px]">
+        <div
+          className="pointer-events-none absolute left-0 right-0 top-4 hidden justify-center px-4 md:flex md:top-[12px] md:left-[7.5rem] md:right-[7.5rem] md:px-0"
+          style={
+            dockBox
+              ? { left: `${dockBox.left}px`, right: "auto", width: `${dockBox.width}px` }
+              : undefined
+          }
+        >
           <nav
             onMouseLeave={scheduleClose}
-            style={{ width: activeLink ? "100%" : (closedWidth ?? undefined) }}
+            style={{
+              width: activeLink
+                ? (dockBox?.width ?? "100%")
+                : closedWidth != null && dockBox != null
+                  ? Math.min(closedWidth, dockBox.width)
+                  : (closedWidth ?? undefined),
+            }}
             className={cn(
               "pointer-events-auto relative max-w-3xl overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
               PIECE_RADIUS,
@@ -283,7 +350,10 @@ export function Navbar() {
           >
             <div
               ref={linksRowRef}
-              className={cn("relative z-10 mx-auto flex w-fit items-center justify-center gap-1 px-3", PIECE_HEIGHT)}
+              className={cn(
+                "relative z-10 mx-auto flex w-fit items-center justify-center gap-0.5 px-2 lg:gap-1 lg:px-3",
+                PIECE_HEIGHT,
+              )}
             >
               {navLinks.map((link) => {
                 const isActive = pathname === link.path;
@@ -293,7 +363,7 @@ export function Navbar() {
                     key={link.path}
                     href={link.path}
                     onMouseEnter={() => openPanel(link.path)}
-                    className="relative rounded-2xl px-4 py-2 text-[13px] font-medium tracking-wide whitespace-nowrap text-enzo-forest/80 transition-colors duration-200 hover:text-enzo-forest"
+                    className="relative rounded-2xl px-3 py-2 text-[13px] font-medium tracking-wide whitespace-nowrap text-enzo-forest/80 transition-colors duration-200 hover:text-enzo-forest lg:px-4"
                   >
                     {isHovered && (
                       <motion.span
@@ -335,25 +405,29 @@ export function Navbar() {
                       activeLink ? "opacity-100" : "opacity-0",
                     )}
                   >
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-[1fr_2fr] md:gap-0">
-                      <div className="md:pr-10">
-                        <motion.div
-                          key={displayedLink.path}
-                          initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
-                          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                          transition={{ type: "spring", stiffness: 320, damping: 20 }}
-                          className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
-                        >
-                          <displayedLink.icon className="h-5 w-5" />
-                        </motion.div>
-                        <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.15em] text-enzo-forest/60">
-                          Explore
-                        </p>
-                        <p className="text-[14px] leading-snug text-enzo-forest/70">
-                          {displayedLink.panel.tagline}
-                        </p>
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr] lg:gap-0">
+                      <div className="pb-6 border-b border-enzo-forest/10 lg:pb-0 lg:border-b-0 lg:pr-10">
+                        <div className="flex items-start gap-4">
+                          <motion.div
+                            key={displayedLink.path}
+                            initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
+                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                            transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
+                          >
+                            <displayedLink.icon className="h-5 w-5" />
+                          </motion.div>
+                          <div className="flex-1 min-w-0">
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest/50">
+                              Explore {displayedLink.label}
+                            </p>
+                            <p className="text-[14px] leading-snug font-medium text-enzo-forest/75">
+                              {displayedLink.panel.tagline}
+                            </p>
+                          </div>
+                        </div>
                       </div>
-                      <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 md:grid-cols-3 md:border-l md:border-enzo-forest/10 md:pl-10">
+                      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3 lg:border-l lg:border-enzo-forest/10 lg:pl-10 pt-6 lg:pt-0">
                         {displayedLink.panel.links.map((pl, i) => (
                           <Link
                             key={pl.href + pl.label}
@@ -362,7 +436,7 @@ export function Navbar() {
                             className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
                           >
                             <span className="flex items-baseline gap-2">
-                              <span className="text-[10px] font-medium tabular-nums text-enzo-forest/40">
+                              <span className="text-[10px] font-medium tabular-nums text-enzo-forest/40 transition-colors duration-200 group-hover:text-enzo-forest/70">
                                 0{i + 1}
                               </span>
                               <span className="flex items-center gap-1 text-[14px] font-medium text-enzo-forest">
@@ -371,7 +445,7 @@ export function Navbar() {
                               </span>
                             </span>
                             {pl.description && (
-                              <span className="pl-[22px] text-[12px] leading-snug text-enzo-forest/55">
+                              <span className="pl-[22px] text-[12px] leading-snug text-enzo-forest/55 transition-colors duration-200 group-hover:text-enzo-forest/80">
                                 {pl.description}
                               </span>
                             )}

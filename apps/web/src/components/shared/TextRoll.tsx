@@ -52,7 +52,7 @@ export const TextRoll: React.FC<TextRollProps> = ({
       className={cn("relative inline-block overflow-hidden", className)}
       style={{ lineHeight: 1 }}
     >
-      <div>
+      <div className="flex select-none">
         {letters.map((letter, i) => {
           const delay = center
             ? STAGGER * Math.abs(i - (letters.length - 1) / 2)
@@ -65,12 +65,12 @@ export const TextRoll: React.FC<TextRollProps> = ({
               className="inline-block"
               key={i}
             >
-              {letter === " " ? " " : letter}
+              {letter === " " ? "\u00A0" : letter}
             </motion.span>
           );
         })}
       </div>
-      <div className="absolute inset-0">
+      <div className="absolute inset-0 flex select-none" aria-hidden="true">
         {letters.map((letter, i) => {
           const delay = center
             ? STAGGER * Math.abs(i - (letters.length - 1) / 2)
@@ -83,7 +83,7 @@ export const TextRoll: React.FC<TextRollProps> = ({
               className="inline-block"
               key={i}
             >
-              {letter === " " ? " " : letter}
+              {letter === " " ? "\u00A0" : letter}
             </motion.span>
           );
         })}
