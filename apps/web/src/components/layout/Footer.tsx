@@ -1,29 +1,15 @@
 "use client";
 
-import { useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { MessageCircle, MapPin, Phone, Mail } from "lucide-react";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { Button } from "@/components/ui/Button";
+import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
 
-// lucide-react dropped trademarked brand glyphs (Instagram/Facebook) from
-// its icon set — these are minimal local stand-ins so the footer doesn't
-// need an extra icon-pack dependency for two glyphs.
-function InstagramIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  );
-}
-
-function FacebookIcon({ size = 18 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" />
-    </svg>
-  );
-}
+gsap.registerPlugin(ScrollTrigger);
 
 const serviceLinks = [
   { label: "Bespoke Kitchens", path: "/services" },
@@ -40,13 +26,7 @@ const companyLinks = [
 ];
 
 // SVG Text Hover Effect inspired by 21st.dev hover-footer
-function TextHoverEffect({
-  text,
-  className = "",
-}: {
-  text: string;
-  className?: string;
-}) {
+function TextHoverEffect({ text, className = "" }: { text: string; className?: string }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const [hovered, setHovered] = useState(false);
   const [maskPos, setMaskPos] = useState({ cx: "50%", cy: "50%" });
@@ -72,14 +52,7 @@ function TextHoverEffect({
       className={`select-none cursor-default ${className}`}
     >
       <defs>
-        <linearGradient
-          id="textGradient"
-          gradientUnits="userSpaceOnUse"
-          x1="0"
-          y1="0"
-          x2="900"
-          y2="300"
-        >
+        <linearGradient id="textGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="900" y2="300">
           <stop offset="0%" stopColor="#1C4A3A" />
           <stop offset="30%" stopColor="#8A9E8C" />
           <stop offset="60%" stopColor="#3D6347" />
@@ -96,17 +69,10 @@ function TextHoverEffect({
           <stop offset="100%" stopColor="black" />
         </radialGradient>
         <mask id="textMask">
-          <rect
-            x="0"
-            y="0"
-            width="100%"
-            height="100%"
-            fill="url(#revealMask)"
-          />
+          <rect x="0" y="0" width="100%" height="100%" fill="url(#revealMask)" />
         </mask>
       </defs>
 
-      {/* Base text - very dim */}
       <text
         x="50%"
         y="55%"
@@ -116,16 +82,11 @@ function TextHoverEffect({
         className="fill-transparent"
         stroke="#2A5A4A"
         strokeOpacity={0.08}
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "180px",
-          fontWeight: 700,
-        }}
+        style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "180px", fontWeight: 700 }}
       >
         {text}
       </text>
 
-      {/* Hover reveal text */}
       <text
         x="50%"
         y="55%"
@@ -136,11 +97,7 @@ function TextHoverEffect({
         stroke="url(#textGradient)"
         strokeOpacity={0.5}
         mask="url(#textMask)"
-        style={{
-          fontFamily: "'Cormorant Garamond', serif",
-          fontSize: "180px",
-          fontWeight: 700,
-        }}
+        style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "180px", fontWeight: 700 }}
       >
         {text}
       </text>
@@ -150,12 +107,11 @@ function TextHoverEffect({
 
 function FooterBackgroundGradient() {
   return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
       <div
-        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] opacity-20 blur-[120px]"
+        className="absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 opacity-20 blur-[120px]"
         style={{
-          background:
-            "radial-gradient(ellipse at center, #1C4A3A 0%, #3D6347 40%, transparent 70%)",
+          background: "radial-gradient(ellipse at center, #1C4A3A 0%, #3D6347 40%, transparent 70%)",
         }}
       />
     </div>
@@ -164,26 +120,51 @@ function FooterBackgroundGradient() {
 
 export function Footer() {
   const [newsletter, setNewsletter] = useState("");
+  const footerRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const footer = footerRef.current;
+    if (!footer) return;
+    const tween = gsap.fromTo(
+      footer,
+      { opacity: 0, y: 24 },
+      {
+        opacity: 1,
+        y: 0,
+        duration: 0.8,
+        ease: "power3.out",
+        scrollTrigger: { trigger: footer, start: "top 92%", once: true },
+      },
+    );
+    return () => {
+      tween.scrollTrigger?.kill();
+      tween.kill();
+    };
+  }, []);
 
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newsletter) {
-      alert(`Thank you for subscribing with: ${newsletter}`);
+      toast.success(`Thank you for subscribing with ${newsletter}`);
       setNewsletter("");
     }
   };
 
   return (
-    <footer className="relative bg-[#0F0F11] rounded-t-3xl overflow-hidden">
+    <footer
+      ref={footerRef}
+      className="relative overflow-hidden rounded-t-3xl bg-enzo-footer-dark"
+      style={{ opacity: 0 }}
+    >
       <FooterBackgroundGradient />
 
-      <div className="max-w-7xl mx-auto p-8 md:p-14 z-40 relative">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 md:gap-16 pb-12">
+      <div className="relative z-40 mx-auto max-w-7xl p-8 md:p-14">
+        <div className="grid grid-cols-1 gap-12 pb-12 md:grid-cols-3 md:gap-16">
           {/* Brand + Newsletter Column */}
           <div className="flex flex-col space-y-6">
             <div className="flex items-center space-x-2">
               <span
-                className="font-[Cormorant_Garamond] italic text-[#F2F0EB]"
+                className="font-serif italic text-enzo-cream"
                 style={{ fontSize: "1.75rem", fontWeight: 600 }}
               >
                 Enzo{" "}
@@ -199,32 +180,24 @@ export function Footer() {
                 </span>
               </span>
             </div>
-            <p className="text-[#6B6B65] text-[14px] leading-relaxed">
-              Bespoke fitted furniture, designed and handcrafted in Leicester.
-              Every space we create is entirely unique.
+            <p className="text-[14px] leading-relaxed text-enzo-sage/70">
+              Bespoke fitted furniture, designed and handcrafted in Leicester. Every space we
+              create is entirely unique.
             </p>
             <div>
-              <h4
-                className="text-[#F2F0EB] text-[14px] mb-3"
-                style={{ fontWeight: 600 }}
-              >
-                Newsletter
-              </h4>
+              <h4 className="mb-3 text-[14px] font-semibold text-enzo-cream">Newsletter</h4>
               <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
                 <input
                   type="email"
                   value={newsletter}
                   onChange={(e) => setNewsletter(e.target.value)}
                   placeholder="Your email"
-                  className="flex-1 px-4 py-2 rounded-lg bg-[#1A1A1C] border border-[#2A2A28] text-[#F2F0EB] text-[13px] focus:outline-none focus:border-[#8A9E8C] transition-colors"
+                  className="flex-1 rounded-lg border border-enzo-footer-border bg-enzo-footer-surface px-4 py-2 text-[13px] text-enzo-cream transition-colors focus:border-enzo-sage focus:outline-none"
                   required
                 />
-                <button
-                  type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#1C4A3A] text-[#F2F0EB] text-[13px] hover:bg-[#3D6347] transition-colors"
-                >
+                <Button type="submit" size="sm" className="rounded-lg">
                   Subscribe
-                </button>
+                </Button>
               </form>
             </div>
           </div>
@@ -232,18 +205,13 @@ export function Footer() {
           {/* Services + Company Column */}
           <div className="grid grid-cols-2 gap-8">
             <div>
-              <h4
-                className="text-[#F2F0EB] text-[16px] mb-6"
-                style={{ fontWeight: 600 }}
-              >
-                Services
-              </h4>
+              <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Services</h4>
               <ul className="space-y-3">
                 {serviceLinks.map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.path}
-                      className="text-[#6B6B65] text-[14px] hover:text-[#8A9E8C] transition-colors duration-300"
+                      className="text-[14px] text-enzo-sage/70 transition-colors duration-300 hover:text-enzo-sage"
                     >
                       {link.label}
                     </Link>
@@ -252,18 +220,13 @@ export function Footer() {
               </ul>
             </div>
             <div>
-              <h4
-                className="text-[#F2F0EB] text-[16px] mb-6"
-                style={{ fontWeight: 600 }}
-              >
-                Company
-              </h4>
+              <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Company</h4>
               <ul className="space-y-3">
                 {companyLinks.map((link) => (
                   <li key={link.label}>
                     <Link
                       href={link.path}
-                      className="text-[#6B6B65] text-[14px] hover:text-[#8A9E8C] transition-colors duration-300"
+                      className="text-[14px] text-enzo-sage/70 transition-colors duration-300 hover:text-enzo-sage"
                     >
                       {link.label}
                     </Link>
@@ -275,63 +238,54 @@ export function Footer() {
 
           {/* Contact + Social Column */}
           <div>
-            <h4
-              className="text-[#F2F0EB] text-[16px] mb-6"
-              style={{ fontWeight: 600 }}
-            >
-              Contact Us
-            </h4>
-            <ul className="space-y-4 mb-6">
+            <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Contact Us</h4>
+            <ul className="mb-6 space-y-4">
               <li className="flex items-center gap-3">
-                <Mail size={16} className="text-[#8A9E8C] flex-shrink-0" />
+                <Mail size={16} className="flex-shrink-0 text-enzo-sage" />
                 <a
                   href="mailto:hello@enzointeriors.co.uk"
-                  className="text-[#6B6B65] text-[14px] hover:text-[#8A9E8C] transition-colors"
+                  className="text-[14px] text-enzo-sage/70 transition-colors hover:text-enzo-sage"
                 >
                   hello@enzointeriors.co.uk
                 </a>
               </li>
               <li className="flex items-center gap-3">
-                <Phone size={16} className="text-[#8A9E8C] flex-shrink-0" />
+                <Phone size={16} className="flex-shrink-0 text-enzo-sage" />
                 <a
                   href="tel:+441160000000"
-                  className="text-[#6B6B65] text-[14px] hover:text-[#8A9E8C] transition-colors"
+                  className="text-[14px] text-enzo-sage/70 transition-colors hover:text-enzo-sage"
                 >
                   0116 XXX XXXX
                 </a>
               </li>
               <li className="flex items-center gap-3">
-                <MapPin size={16} className="text-[#8A9E8C] flex-shrink-0" />
-                <span className="text-[#6B6B65] text-[14px]">
-                  Leicester &amp; Leicestershire
-                </span>
+                <MapPin size={16} className="flex-shrink-0 text-enzo-sage" />
+                <span className="text-[14px] text-enzo-sage/70">Leicester &amp; Leicestershire</span>
               </li>
             </ul>
             <div>
-              <h4
-                className="text-[#F2F0EB] text-[14px] mb-3"
-                style={{ fontWeight: 600 }}
-              >
-                Follow Us
-              </h4>
+              <h4 className="mb-3 text-[14px] font-semibold text-enzo-cream">Follow Us</h4>
               <div className="flex gap-4">
                 <a
                   href="https://instagram.com/enzo.interiors"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-10 h-10 rounded-full bg-[#1A1A1C] border border-[#2A2A28] flex items-center justify-center text-[#8A9E8C] hover:text-[#F2F0EB] hover:border-[#8A9E8C] transition-all"
+                  data-cursor="view"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
                 >
                   <InstagramIcon size={18} />
                 </a>
                 <a
                   href="#"
-                  className="w-10 h-10 rounded-full bg-[#1A1A1C] border border-[#2A2A28] flex items-center justify-center text-[#8A9E8C] hover:text-[#F2F0EB] hover:border-[#8A9E8C] transition-all"
+                  data-cursor="view"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
                 >
                   <FacebookIcon size={18} />
                 </a>
                 <a
                   href="#"
-                  className="w-10 h-10 rounded-full bg-[#1A1A1C] border border-[#2A2A28] flex items-center justify-center text-[#8A9E8C] hover:text-[#F2F0EB] hover:border-[#8A9E8C] transition-all"
+                  data-cursor="view"
+                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
                 >
                   <MessageCircle size={18} />
                 </a>
@@ -340,19 +294,18 @@ export function Footer() {
           </div>
         </div>
 
-        <hr className="border-t border-[#2A2A28] my-8" />
+        <hr className="my-8 border-t border-enzo-footer-border" />
 
         {/* Bottom bar */}
-        <div className="flex flex-col md:flex-row justify-between items-center text-[13px] space-y-4 md:space-y-0">
-          <p className="text-[#6B6B65]">
-            &copy; {new Date().getFullYear()} Enzo Interiors. All rights
-            reserved.
+        <div className="flex flex-col items-center justify-between space-y-4 text-[13px] md:flex-row md:space-y-0">
+          <p className="text-enzo-sage/70">
+            &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
           </p>
-          <div className="flex gap-6 text-[#6B6B65] text-[12px]">
-            <a href="#" className="hover:text-[#8A9E8C] transition-colors">
+          <div className="flex gap-6 text-[12px] text-enzo-sage/70">
+            <a href="#" className="transition-colors hover:text-enzo-sage">
               Privacy Policy
             </a>
-            <a href="#" className="hover:text-[#8A9E8C] transition-colors">
+            <a href="#" className="transition-colors hover:text-enzo-sage">
               Terms of Service
             </a>
           </div>
@@ -360,7 +313,7 @@ export function Footer() {
       </div>
 
       {/* Text hover effect */}
-      <div className="hidden lg:flex h-[22rem] -mt-44 -mb-28 relative z-50">
+      <div className="relative z-50 -mb-28 -mt-44 hidden h-[22rem] lg:flex">
         <TextHoverEffect text="ENZO" />
       </div>
     </footer>

@@ -5,8 +5,9 @@ import { Footer } from "@/components/layout/Footer";
 // used react-router's <Outlet/> + a useScrollToTop hook; the App Router
 // gives us route nesting and scroll restoration natively, so this layout
 // is just the Navbar/Footer shell. It stays a Server Component — Navbar
-// and Footer are the only pieces that need "use client" (scroll listeners
-// / local form state).
+// and Footer are the only pieces that need "use client" (scroll listeners /
+// local form state). CustomCursor is disabled for now — see
+// components/shared/CustomCursor.tsx — re-add it here to bring it back.
 export default function MarketingLayout({
   children,
 }: {

@@ -16,6 +16,8 @@ interface TestimonialsColumnProps {
   duration?: number;
   className?: string;
   reverse?: boolean;
+  /** Renders a plain non-looping list instead of the infinite marquee — used on mobile. */
+  static?: boolean;
 }
 
 export function TestimonialsColumn({
@@ -23,26 +25,26 @@ export function TestimonialsColumn({
   duration = 20,
   className = "",
   reverse = false,
+  static: isStatic = false,
 }: TestimonialsColumnProps) {
-  const doubled = [...testimonials, ...testimonials];
+  const items = isStatic ? testimonials : [...testimonials, ...testimonials];
 
   return (
     <div className={`overflow-hidden ${className}`}>
       <motion.div
         className="flex flex-col gap-4"
-        animate={{
-          y: reverse ? ["-50%", "0%"] : ["0%", "-50%"],
-        }}
-        transition={{
-          y: {
-            duration,
-            repeat: Infinity,
-            repeatType: "loop",
-            ease: "linear",
-          },
-        }}
+        animate={
+          isStatic
+            ? undefined
+            : { y: reverse ? ["-50%", "0%"] : ["0%", "-50%"] }
+        }
+        transition={
+          isStatic
+            ? undefined
+            : { y: { duration, repeat: Infinity, repeatType: "loop", ease: "linear" } }
+        }
       >
-        {doubled.map((t, i) => (
+        {items.map((t, i) => (
           <div
             key={`${t.name}-${i}`}
             className="bg-card rounded-2xl p-6 shadow-[0_2px_16px_rgba(0,0,0,0.04)] break-inside-avoid"

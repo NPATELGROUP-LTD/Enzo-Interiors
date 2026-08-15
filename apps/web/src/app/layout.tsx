@@ -28,6 +28,7 @@ export const metadata: Metadata = {
     "Bespoke interior design & fitted furniture, designed and handcrafted in Leicester.",
 };
 
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -40,6 +41,14 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body>
+        {/* Desktop-only decorative frame around the whole site — completely
+            square, no rounded corners. Hidden on mobile entirely. The navbar
+            (Navbar.tsx) docks against this frame's edge on desktop — it
+            intentionally positions its pieces a couple of px *inside* the
+            14px band (rather than exactly at 14px) so the frame's own paint
+            (it's a higher z-index) always covers the seam, guaranteeing no
+            gap regardless of sub-pixel rounding. */}
+        <div aria-hidden className="pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
         {children}
         <Toaster />
       </body>
