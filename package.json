@@ -3,20 +3,18 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "Enzo Interiors Platform — public site, admin CRM, client portal, and API",
+  "description": "Enzo Interiors Platform — public-facing Next.js marketing website (current focus)",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20.0.0"
   },
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build",
-    "typecheck": "pnpm -r run typecheck",
-    "lint": "pnpm -r run lint",
-    "lint:fix": "pnpm -r run lint:fix",
-    "test": "pnpm -r run test",
-    "test:watch": "pnpm -r run test:watch",
-    "clean": "pnpm -r run clean"
+    "dev": "pnpm --filter=web dev",
+    "build": "pnpm --filter=web build",
+    "start": "pnpm --filter=web start",
+    "typecheck": "pnpm --filter=web typecheck",
+    "lint": "pnpm --filter=web lint",
+    "lint:fix": "pnpm --filter=web lint:fix"
   },
   "devDependencies": {
     "@eslint/js": "^9.15.0",

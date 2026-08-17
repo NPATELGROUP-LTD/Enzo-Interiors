@@ -6,6 +6,7 @@
 // replaced with the design-token classes from src/styles/theme.css.
 import { useRef, useState } from "react";
 import { motion } from "motion/react";
+import { cn } from "@/lib/utils";
 
 interface GlareCardProps {
   image: string;
@@ -13,6 +14,9 @@ interface GlareCardProps {
   description: string;
   category: string;
   onClick?: () => void;
+  className?: string;
+  /** Overrides the image container's height classes (default h-56 md:h-64) — used for larger bento tiles. */
+  imageClassName?: string;
 }
 
 export function GlareCard({
@@ -21,6 +25,8 @@ export function GlareCard({
   description,
   category,
   onClick,
+  className,
+  imageClassName,
 }: GlareCardProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [rotateX, setRotateX] = useState(0);
@@ -51,7 +57,11 @@ export function GlareCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={handleMouseLeave}
       onClick={onClick}
-      className="relative rounded-[20px] bg-card overflow-hidden cursor-pointer group"
+      data-cursor="view"
+      className={cn(
+        "group relative cursor-pointer overflow-hidden rounded-[20px] bg-card",
+        className,
+      )}
       style={{
         transformStyle: "preserve-3d",
         perspective: 1000,
@@ -65,7 +75,7 @@ export function GlareCard({
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
     >
       {/* Image */}
-      <div className="relative h-56 md:h-64 overflow-hidden">
+      <div className={cn("relative h-56 overflow-hidden md:h-64", imageClassName)}>
         <img
           src={image}
           alt={title}

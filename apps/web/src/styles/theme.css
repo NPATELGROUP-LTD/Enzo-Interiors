@@ -69,6 +69,9 @@
   --enzo-sand: #D4C9B5;
   --enzo-white: #FAFAF7;
   --enzo-dark: #1E1E1C;
+  --enzo-footer-dark: #0F0F11;
+  --enzo-footer-surface: #1A1A1C;
+  --enzo-footer-border: #2A2A28;
 
   /* Font stacks — populated by next/font CSS variables set on <html> */
   --font-heading: var(--font-cormorant-garamond), serif;
@@ -145,6 +148,9 @@
   --color-enzo-sand: var(--enzo-sand);
   --color-enzo-white: var(--enzo-white);
   --color-enzo-dark: var(--enzo-dark);
+  --color-enzo-footer-dark: var(--enzo-footer-dark);
+  --color-enzo-footer-surface: var(--enzo-footer-surface);
+  --color-enzo-footer-border: var(--enzo-footer-border);
 
   --font-sans: var(--font-body);
   --font-serif: var(--font-heading);
@@ -222,5 +228,15 @@
 @media (min-width: 1920px) {
   html {
     font-size: 18.5px;
+  }
+}
+
+/* Hero caption progress-dot fill sweep (HeroCaption.tsx) */
+@keyframes hero-dot-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
   }
 }
