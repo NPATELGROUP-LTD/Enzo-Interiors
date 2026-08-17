@@ -1,45 +1,59 @@
 "use client";
 
 // Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom)
-// connected by two transition videos, all driven by a single master
-// ScrollTrigger pin+scrub (one continuous scroll-position timeline, same
-// pattern as the old single-sequence hero, just with more segments).
+// connected by two transition videos, ending in a parallax CTA — all one
+// continuous story on a single master ScrollTrigger pin+scrub. The CTA is
+// deliberately NOT a separate section below the hero: it's the final
+// segment of this same timeline, so it stays pinned/fixed with the rest of
+// the sequence rather than scrolling in as its own thing.
 //
-// Frame segments are always fully scroll-scrubbed both directions. Video
-// segments are asymmetric by design: scrolling *down* into one locks
-// further forward scroll and auto-plays it in real time (so the transition
-// gets its own cinematic pacing, not the user's scroll speed); scrolling
-// *up* through one is a plain scroll-scrub in reverse, exactly like a frame
-// segment. This needs one ScrollTrigger clamping its own scroll position
-// during a forward video lock (via self.scroll()) rather than two separate
-// systems.
+// Segment order: room -> pause (glass blocks) -> video -> room -> pause ->
+// video -> room -> pause -> cta. Frame segments are always fully
+// scroll-scrubbed both directions. Pause segments hold the room's last
+// frame and fade the glass blocks in/out. Video segments are asymmetric:
+// scrolling *down* into one locks further forward scroll and auto-plays it
+// in real time; scrolling *up* through one is a plain scroll-scrub in
+// reverse, exactly like a frame segment. The cta segment cross-fades in
+// and drives its 3 parallax layers directly off local scroll progress.
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
+import { Button } from "@/components/ui/Button";
+import { HeroGlassBlocks } from "./HeroGlassBlocks";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
 const PX_PER_FRAME = 75;
 const PX_PER_VIDEO = 550;
+const PAUSE_PX = 400;
+const CTA_PX = 2200;
 const MAX_DPR = 1.5;
 const SCRUB_SMOOTHING = 1.1;
 
+const CTA_BG =
+  "https://images.unsplash.com/photo-1765434669956-afcd50058d69?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBiZWRyb29tJTIwaW50ZXJpb3IlMjB3YXJtfGVufDF8fHx8MTc3MjM5ODIzZF8w&ixlib=rb-4.1.0&q=80&w=1080";
+
 let scrollTriggerRegistered = false;
 
-// One ordered list of segments makes up the master timeline: a room-scrub
-// segment per room, a video segment per transition, interleaved in story
-// order (room0, video0, room1, video1, room2).
+// One ordered list of segments makes up the master timeline.
 type Segment =
   | { type: "room"; roomIndex: number; px: number }
-  | { type: "video"; transitionIndex: number; px: number };
+  | { type: "pause"; roomIndex: number; px: number }
+  | { type: "video"; transitionIndex: number; px: number }
+  | { type: "cta"; px: number };
 
-const SEGMENTS: Segment[] = HERO_ROOMS.flatMap((_, roomIndex) => {
-  const segs: Segment[] = [{ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME }];
+const SEGMENTS: Segment[] = [];
+HERO_ROOMS.forEach((_, roomIndex) => {
+  SEGMENTS.push({ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME });
+  SEGMENTS.push({ type: "pause", roomIndex, px: PAUSE_PX });
   if (roomIndex < HERO_TRANSITIONS.length) {
-    segs.push({ type: "video", transitionIndex: roomIndex, px: PX_PER_VIDEO });
+    SEGMENTS.push({ type: "video", transitionIndex: roomIndex, px: PX_PER_VIDEO });
   }
-  return segs;
 });
+SEGMENTS.push({ type: "cta", px: CTA_PX });
+
 const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
 
 function segmentStartPx(target: Segment): number {
@@ -58,10 +72,15 @@ export function HeroSequence() {
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const loaderFillRef = useRef<HTMLDivElement | null>(null);
   const loaderPctRef = useRef<HTMLSpanElement | null>(null);
+  const ctaBgRef = useRef<HTMLDivElement | null>(null);
+  const ctaWatermarkRef = useRef<HTMLDivElement | null>(null);
+  const ctaContentRef = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
   const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
+  const [pausedRoomIndex, setPausedRoomIndex] = useState<number | null>(null);
+  const [ctaActive, setCtaActive] = useState(false);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -81,6 +100,9 @@ export function HeroSequence() {
     let lastDrawnKey = "";
     let lastRoomIndex = -1;
     let lastVideoIndex: number | null = null;
+    let lastPausedRoomIndex: number | null = null;
+    let lastCtaActive = false;
+    let ctaEntered = false;
 
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
@@ -183,7 +205,7 @@ export function HeroSequence() {
       ScrollTrigger.refresh();
       // Background-warm the rest of the journey once the first room is
       // interactive, so later rooms/videos are ready by the time scroll
-      // reaches them without blocking first paint on ~21MB of assets.
+      // reaches them without blocking first paint.
       preloadTransitionVideo(0);
       preloadRoom(1).then(() => {
         preloadTransitionVideo(1);
@@ -203,16 +225,36 @@ export function HeroSequence() {
       setActiveVideoIndex(transitionIndex);
     }
 
+    function setPaused(roomIndex: number | null) {
+      if (roomIndex === lastPausedRoomIndex) return;
+      lastPausedRoomIndex = roomIndex;
+      setPausedRoomIndex(roomIndex);
+    }
+
+    function setCta(active: boolean) {
+      if (active === lastCtaActive) return;
+      lastCtaActive = active;
+      setCtaActive(active);
+    }
+
     function updateProgressUI(px: number) {
       if (progressBarRef.current) {
         progressBarRef.current.style.width = Math.max(0, Math.min(100, (px / TOTAL_PX) * 100)) + "%";
       }
     }
 
+    // Uses `<` (not `<=`) so an exact segment boundary resolves into the
+    // NEXT segment rather than the tail end of the current one — matters
+    // most right when a video's onEnded snaps scroll to its end px: without
+    // this, that exact position re-resolved into the video segment itself
+    // (at localProgress 1), leaving its last frame stuck on screen for one
+    // extra scroll tick instead of handing off to the next room immediately.
     function findSegmentAt(px: number) {
       let acc = 0;
-      for (const seg of SEGMENTS) {
-        if (px <= acc + seg.px || seg === SEGMENTS[SEGMENTS.length - 1]) {
+      for (let i = 0; i < SEGMENTS.length; i++) {
+        const seg = SEGMENTS[i]!;
+        const isLast = i === SEGMENTS.length - 1;
+        if (px < acc + seg.px || isLast) {
           const localPx = Math.max(0, Math.min(seg.px, px - acc));
           return { seg, localProgress: seg.px === 0 ? 0 : localPx / seg.px };
         }
@@ -225,7 +267,7 @@ export function HeroSequence() {
     // Engages the forward auto-play lock for a video segment: clamps the
     // master ScrollTrigger's scroll position at the segment's start and
     // plays the video in real time. On completion, snaps the scroll
-    // position forward past the segment and releases the lock so ordinary
+    // position past the segment and releases the lock so ordinary
     // scrubbing continues into the next room.
     function lockAndPlayForward(transitionIndex: number, seg: Segment) {
       const video = videoRefs.current[transitionIndex];
@@ -234,9 +276,10 @@ export function HeroSequence() {
       lockedTransitionIndex = transitionIndex;
       setActiveRoom(transitionIndex);
       setActiveVideo(transitionIndex);
+      setPaused(null);
       video.currentTime = 0;
       // A legitimate quick reversal can still abort this play() call via
-      // the pause() in the release branch above — that's expected, not an
+      // the pause() in the release branch below — that's expected, not an
       // error worth surfacing as an unhandled rejection.
       video.play().catch(() => {});
       trigger.scroll(trigger.start + start);
@@ -253,8 +296,38 @@ export function HeroSequence() {
       video.addEventListener("ended", onEnded);
     }
 
+    function renderCta(localProgress: number) {
+      setActiveRoom(HERO_ROOMS.length - 1);
+      setActiveVideo(null);
+      setPaused(null);
+      setCta(true);
+
+      const bg = ctaBgRef.current;
+      const watermark = ctaWatermarkRef.current;
+      const content = ctaContentRef.current;
+      const bgYPercent = -10 + localProgress * 20;
+      const wmYPercent = 22 - localProgress * 44;
+      const wmScale = 0.94 + localProgress * 0.08;
+      const contentYPercent = 14 - localProgress * 28;
+      if (bg) bg.style.transform = `translateY(${bgYPercent}%)`;
+      if (watermark) {
+        watermark.style.transform = `translateY(calc(-50% + ${wmYPercent}%)) scale(${wmScale})`;
+      }
+      if (content) content.style.transform = `translateY(${contentYPercent}%)`;
+
+      if (!ctaEntered && content) {
+        ctaEntered = true;
+        gsap.fromTo(
+          content,
+          { opacity: 0, y: 40, scale: 0.97 },
+          { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: "power3.out", overwrite: true },
+        );
+      }
+    }
+
     // Master render: resolves the current segment from raw scroll pixels
-    // and either draws a frame or scrubs/locks the relevant video.
+    // and either draws a frame, holds on a pause, scrubs/locks a video, or
+    // drives the CTA's parallax layers.
     //
     // Direction is tracked by comparing against our own last-seen position
     // rather than ScrollTrigger's self.direction — the forward-lock clamp
@@ -292,17 +365,28 @@ export function HeroSequence() {
         const videoSeg = SEGMENTS.find((s) => s.type === "video" && s.transitionIndex === i)!;
         if (rawPx < segmentStartPx(videoSeg)) videoStates[i]!.forwardDone = false;
       }
+      if (rawPx < segmentStartPx(SEGMENTS[SEGMENTS.length - 1]!)) ctaEntered = false;
 
       const { seg, localProgress } = findSegmentAt(rawPx);
 
       if (seg.type === "room") {
         setActiveRoom(seg.roomIndex);
         setActiveVideo(null);
+        setPaused(null);
+        setCta(false);
         renderRoomFrame(seg.roomIndex, 1 + localProgress * (FRAME_COUNT - 1));
-      } else {
+      } else if (seg.type === "pause") {
+        setActiveRoom(seg.roomIndex);
+        setActiveVideo(null);
+        setPaused(seg.roomIndex);
+        setCta(false);
+        renderRoomFrame(seg.roomIndex, FRAME_COUNT);
+      } else if (seg.type === "video") {
         const ti = seg.transitionIndex;
         const video = videoRefs.current[ti];
         const state = videoStates[ti]!;
+        setPaused(null);
+        setCta(false);
         if (!video || !video.duration) {
           setActiveRoom(ti);
           setActiveVideo(null);
@@ -315,6 +399,8 @@ export function HeroSequence() {
           setActiveVideo(ti);
           video.currentTime = localProgress * video.duration;
         }
+      } else {
+        renderCta(localProgress);
       }
 
       lastRawPx = rawPx;
@@ -375,6 +461,8 @@ export function HeroSequence() {
     };
   }, []);
 
+  const pausedRoom = pausedRoomIndex !== null ? HERO_ROOMS[pausedRoomIndex]! : null;
+
   return (
     <section
       ref={sectionRef}
@@ -387,8 +475,8 @@ export function HeroSequence() {
 
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 block h-full w-full"
-        style={{ opacity: activeVideoIndex === null ? 1 : 0 }}
+        className="absolute inset-0 block h-full w-full transition-opacity duration-150 ease-linear"
+        style={{ opacity: activeVideoIndex === null && !ctaActive ? 1 : 0 }}
       />
 
       {HERO_TRANSITIONS.map((transition, i) => (
@@ -400,7 +488,7 @@ export function HeroSequence() {
           muted
           playsInline
           preload="auto"
-          className="absolute inset-0 block h-full w-full object-cover"
+          className="absolute inset-0 block h-full w-full object-cover transition-opacity duration-150 ease-linear"
           style={{ opacity: activeVideoIndex === i ? 1 : 0 }}
         />
       ))}
@@ -408,11 +496,62 @@ export function HeroSequence() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
+        style={{ opacity: ctaActive ? 0 : 1 }}
       />
 
+      <HeroGlassBlocks room={pausedRoom} visible={pausedRoomIndex !== null} />
+
+      {/* CTA — the final segment of this same timeline, not a separate
+          section; cross-fades in over the canvas/video and drives its own
+          3-layer parallax directly off local scroll progress within its
+          allotted range. */}
+      <div
+        className="absolute inset-0 z-[6] flex min-h-full items-center justify-center overflow-hidden transition-opacity duration-500 ease-out"
+        style={{ opacity: ctaActive ? 1 : 0, pointerEvents: ctaActive ? "auto" : "none" }}
+      >
+        <div className="absolute inset-0">
+          <div ref={ctaBgRef} className="absolute inset-[-10%]">
+            <ImageWithFallback src={CTA_BG} alt="" className="h-full w-full object-cover" />
+          </div>
+          <div className="absolute inset-0 bg-enzo-dark/80" />
+        </div>
+
+        <div
+          ref={ctaWatermarkRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-0 top-1/2 select-none text-center font-serif leading-none text-enzo-cream/[0.06]"
+          style={{ fontSize: "clamp(6rem, 22vw, 20rem)" }}
+        >
+          Enzo
+        </div>
+
+        <div ref={ctaContentRef} className="relative z-10 px-6 text-center opacity-0">
+          <span className="mb-5 block text-[12px] uppercase tracking-[0.3em] text-enzo-sage">
+            Start Your Project
+          </span>
+          <h2
+            className="mx-auto max-w-3xl text-enzo-cream"
+            style={{ fontSize: "clamp(2.25rem, 5.5vw, 4rem)" }}
+          >
+            Let&apos;s Build Something Beautiful, Together
+          </h2>
+          <p className="mx-auto mt-5 max-w-md text-[16px] text-enzo-cream/70 md:text-[18px]">
+            A free, no-obligation design consultation — in your home, on your terms.
+          </p>
+          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <Button asChild size="lg">
+              <Link href="/booking">Book a Free Consultation</Link>
+            </Button>
+            <Button asChild variant="secondary" size="lg" className="border-2">
+              <Link href="/portfolio">View Our Work</Link>
+            </Button>
+          </div>
+        </div>
+      </div>
 
       <div
-        className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2"
+        className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2 transition-opacity duration-300"
+        style={{ opacity: ctaActive ? 0 : 1 }}
         role="presentation"
       >
         {HERO_ROOMS.map((room, i) => (
