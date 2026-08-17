@@ -93,6 +93,7 @@ export function HeroSequence() {
   // CTA — asymmetric layout: left-aligned kinetic headline + right-side
   // highlight chips over a blended (not flat/solid) photographic backdrop.
   const ctaBgRef = useRef<HTMLDivElement | null>(null);
+  const ctaStatRef = useRef<HTMLDivElement | null>(null);
   const ctaEyebrowRef = useRef<HTMLSpanElement | null>(null);
   const ctaLine1Ref = useRef<HTMLSpanElement | null>(null);
   const ctaLine2Ref = useRef<HTMLSpanElement | null>(null);
@@ -307,17 +308,23 @@ export function HeroSequence() {
       }
     }
 
-    // CTA: one consolidated left column — badge+eyebrow, masked
-    // line-by-line headline reveal, subtext, buttons, then a row of
-    // highlight chips — over a photographic backdrop blended into dark
-    // charcoal, with the right two-fifths of the screen left as clean,
-    // unobstructed photograph.
+    // CTA: one consolidated left column — eyebrow, masked line-by-line
+    // headline reveal (with key words picked out in sage), subtext,
+    // buttons, then a row of highlight chips — over a photographic
+    // backdrop blended into dark charcoal. The right side isn't left as
+    // bare dimmed photo: a large "03" ties back to the 3-room journey just
+    // scrolled through, giving that side of the frame real content.
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
       setLayer("cta");
       if (ctaBgRef.current) {
         ctaBgRef.current.style.transform =
           `scale(${1.18 - localProgress * 0.08}) translateX(${(0.5 - localProgress) * -4}%)`;
+      }
+      const statReveal = clamp01((localProgress - 0.15) / 0.25);
+      if (ctaStatRef.current) {
+        ctaStatRef.current.style.opacity = String(statReveal);
+        ctaStatRef.current.style.transform = `translateY(calc(-50% + ${(1 - statReveal) * 20}px))`;
       }
       if (ctaEyebrowRef.current) {
         ctaEyebrowRef.current.style.opacity = String(clamp01(localProgress / 0.1));
@@ -569,8 +576,24 @@ export function HeroSequence() {
             className="h-full w-full object-cover"
           />
         </div>
-        <div className="absolute inset-0 bg-enzo-charcoal/58" />
-        <div className="absolute inset-0 bg-gradient-to-t from-enzo-charcoal/85 via-enzo-charcoal/10 to-enzo-charcoal/55" />
+        <div className="absolute inset-0 bg-gradient-to-r from-enzo-charcoal/85 via-enzo-charcoal/45 to-enzo-charcoal/10" />
+        <div className="absolute inset-0 bg-gradient-to-t from-enzo-charcoal/70 via-transparent to-enzo-charcoal/35" />
+
+        {/* Right-side anchor: ties back to the 3-room journey the user just
+            scrolled through (a true count, not an invented stat) instead of
+            leaving the right of the frame as unbroken dim photo. */}
+        <div
+          ref={ctaStatRef}
+          aria-hidden="true"
+          className="absolute right-[8%] top-1/2 hidden -translate-y-1/2 text-right opacity-0 lg:block"
+        >
+          <span className="block font-serif font-medium leading-none text-enzo-cream" style={{ fontSize: "9rem" }}>
+            03
+          </span>
+          <span className="mt-2 block font-sans text-[13px] font-semibold uppercase tracking-[0.25em] text-enzo-sage">
+            Rooms. One Vision.
+          </span>
+        </div>
 
         <div className="relative z-10 flex h-full flex-col justify-center px-8 md:px-16">
           <span
@@ -583,12 +606,12 @@ export function HeroSequence() {
             className="max-w-5xl font-serif font-medium leading-[1.02] text-enzo-cream"
             style={{ fontSize: "clamp(3rem, 8.5vw, 7rem)" }}
           >
-            <span className="block overflow-hidden">
+            <span className="block overflow-hidden pb-[0.18em] -mb-[0.18em]">
               <span ref={ctaLine1Ref} className="block" style={{ transform: "translateY(100%)" }}>
                 Stop <em className="text-enzo-sage not-italic">Dreaming</em>.
               </span>
             </span>
-            <span className="block overflow-hidden">
+            <span className="block overflow-hidden pb-[0.18em] -mb-[0.18em]">
               <span ref={ctaLine2Ref} className="block" style={{ transform: "translateY(100%)" }}>
                 Start <em className="text-enzo-sage not-italic">Building</em>.
               </span>
