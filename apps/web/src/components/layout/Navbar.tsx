@@ -205,6 +205,48 @@ export function Navbar() {
     };
   }, []);
 
+  // Lock body scroll while the full-screen mobile menu is open — this is a
+  // real full-viewport takeover, not a floating card, so the page behind it
+  // must not scroll independently.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const { overflow } = document.body.style;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = overflow;
+    };
+  }, [mobileOpen]);
+
+  // Escape closes the menu, matching the panel's dialog-like takeover of
+  // the screen.
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setMobileOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mobileOpen]);
+
+  // "exit" mirrors "hidden" but staggers in reverse (last row leaves
+  // first) with a quicker, delay-free transition — closing should feel
+  // snappier than the opening reveal, not just play it backwards.
+  const menuListVariants = {
+    hidden: {},
+    show: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } },
+    exit: { transition: { staggerChildren: 0.04, staggerDirection: -1 } },
+  };
+  const menuItemVariants = {
+    hidden: { opacity: 0, y: 24 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] as const } },
+    exit: { opacity: 0, y: 16, transition: { duration: 0.22, ease: [0.32, 0.72, 0, 1] as const } },
+  };
+  const ctaVariants = {
+    hidden: { opacity: 0, y: 24 },
+    show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1] as const, delay: 0.3 } },
+    exit: { opacity: 0, y: 16, transition: { duration: 0.2, ease: [0.32, 0.72, 0, 1] as const } },
+  };
+
   const openPanel = (path: string) => {
     if (closeTimer.current) clearTimeout(closeTimer.current);
     setActivePath(path);
@@ -229,7 +271,7 @@ export function Navbar() {
 
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-50">
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-[70]">
         {/* Logo (left) + CTA / mobile toggle (right) — independent row so
             the center dock below can grow without shifting these. On
             mobile this is a floating gapped row like the dock. On desktop
@@ -461,63 +503,89 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu — a plain, direct list. Every main page is one
-          full-width row (the whole row is the Link, big label + a "go"
-          badge) with nothing else competing for attention — no taglines,
-          no chip clutter — so tapping straight through to Home/Services/
-          Portfolio/etc. is unmistakable. */}
+      {/* Mobile menu — a full-viewport takeover rather than a floating card,
+          so it reads as its own screen: large tappable rows front and
+          center, no page content bleeding through underneath. Sits at
+          z-[60], below the fixed top row's z-[70] so the logo + the same
+          toggle button (now showing X) stay visible and usable as the
+          close control throughout. */}
       <AnimatePresence>
         {mobileOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.25 }}
-              onClick={() => setMobileOpen(false)}
-              className="fixed inset-0 z-[55] bg-enzo-dark/60 backdrop-blur-sm md:hidden"
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1, transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] } }}
+            exit={{ opacity: 0, transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1], delay: 0.1 } }}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Mobile navigation"
+            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-enzo-forest md:hidden"
+          >
+            {/* Ambient texture so the full-bleed forest fill doesn't read
+                as a flat block of color — matches the glass treatment used
+                elsewhere in the nav (soft radial glow, subtle top vignette). */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-0 opacity-70"
+              style={{
+                background:
+                  "radial-gradient(120% 60% at 85% 0%, rgba(243,235,220,0.10), transparent 60%), radial-gradient(90% 50% at 0% 100%, rgba(243,235,220,0.06), transparent 55%)",
+              }}
             />
-            <motion.div
-              initial={{ opacity: 0, y: -16 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -16 }}
-              transition={{ duration: 0.3, ease: [0.32, 0.72, 0, 1] }}
-              className={cn(
-                "fixed inset-x-4 top-[4.5rem] z-[60] overflow-hidden md:hidden",
-                PIECE_RADIUS,
-                GLASS,
-              )}
-            >
-              <div className="flex flex-col divide-y divide-enzo-cream/10">
-                {navLinks.map((link) => {
+
+            <div className="relative flex flex-1 flex-col px-6 pt-28 pb-8">
+              <motion.nav
+                variants={menuListVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="flex flex-1 flex-col justify-center divide-y divide-enzo-cream/10"
+              >
+                {navLinks.map((link, i) => {
                   const isActive = pathname === link.path;
                   return (
-                    <Link
-                      key={link.path}
-                      href={link.path}
-                      onClick={() => setMobileOpen(false)}
-                      className={cn(
-                        "flex items-center justify-between gap-3 px-5 py-4 active:bg-enzo-cream/[0.08]",
-                        isActive && "bg-enzo-cream/[0.06]",
-                      )}
-                    >
-                      <span className="font-serif italic text-[22px] text-enzo-cream">{link.label}</span>
-                      <span className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-enzo-cream/10">
-                        <ArrowUpRight className="h-4 w-4 text-enzo-cream" />
-                      </span>
-                    </Link>
+                    <motion.div key={link.path} variants={menuItemVariants}>
+                      <Link
+                        href={link.path}
+                        onClick={() => setMobileOpen(false)}
+                        className="group flex items-center justify-between gap-4 py-5 active:opacity-70"
+                      >
+                        <span className="flex items-baseline gap-4">
+                          <span className="text-[13px] font-medium tabular-nums text-enzo-cream/40">
+                            0{i + 1}
+                          </span>
+                          <span
+                            className={cn(
+                              "font-serif italic text-[34px] leading-none text-enzo-cream transition-colors duration-200",
+                              isActive ? "text-enzo-cream" : "text-enzo-cream/90",
+                            )}
+                          >
+                            {link.label}
+                          </span>
+                        </span>
+                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-cream/10 transition-transform duration-200 group-active:scale-90">
+                          <ArrowUpRight className="h-4 w-4 text-enzo-cream" />
+                        </span>
+                      </Link>
+                    </motion.div>
                   );
                 })}
-              </div>
-              <div className="p-3">
-                <Button asChild size="md" className="w-full justify-center">
+              </motion.nav>
+
+              <motion.div
+                variants={ctaVariants}
+                initial="hidden"
+                animate="show"
+                exit="exit"
+                className="pt-6"
+              >
+                <Button asChild size="lg" className="w-full justify-center">
                   <Link href="/booking" onClick={() => setMobileOpen(false)}>
                     Book a Consultation
                   </Link>
                 </Button>
-              </div>
-            </motion.div>
-          </>
+              </motion.div>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </>
