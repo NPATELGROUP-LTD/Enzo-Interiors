@@ -3,11 +3,18 @@
 // Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom), each
 // separated by a bespoke parallax "chapter" (no video, no floating
 // glassmorphism cards — that copy now lives inside the parallax chapters
-// themselves), ending in a redesigned parallax CTA. Everything is one
+// themselves), ending in a split-panel parallax CTA. Everything is one
 // continuous story on a single master ScrollTrigger pin+scrub: since
 // nothing here plays back in real time anymore, every segment is purely
 // scroll-position-driven and therefore trivially, exactly reversible —
 // no locking, no direction tricks, no boundary hand-off bugs.
+//
+// Chapters are given generous scroll distance and a heavy scrub smoothing
+// factor specifically so a fast flick-scroll still gets time to visibly
+// play out the parallax rather than blowing through it in a frame or two —
+// scrub adds lag between raw scroll position and the value ScrollTrigger
+// reports, so even an instant huge scroll delta "catches up" over ~2.4s of
+// real time instead of snapping straight there.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
@@ -17,10 +24,10 @@ import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
 const PX_PER_FRAME = 75;
-const TRANSITION_PX = 1500;
-const CTA_PX = 2200;
+const TRANSITION_PX = 2000;
+const CTA_PX = 2600;
 const MAX_DPR = 1.5;
-const SCRUB_SMOOTHING = 1.1;
+const SCRUB_SMOOTHING = 2.4;
 
 let scrollTriggerRegistered = false;
 
@@ -71,10 +78,11 @@ export function HeroSequence() {
   const loaderFillRef = useRef<HTMLDivElement | null>(null);
   const loaderPctRef = useRef<HTMLSpanElement | null>(null);
 
-  // Chapter 1 — diagonal wipe (mediawall -> kitchen).
+  // Chapter 1 — double-door reveal (mediawall -> kitchen).
   const t0BgRef = useRef<HTMLDivElement | null>(null);
-  const t0WipeRef = useRef<HTMLDivElement | null>(null);
-  const t0AccentRef = useRef<HTMLDivElement | null>(null);
+  const t0DoorLeftRef = useRef<HTMLDivElement | null>(null);
+  const t0DoorRightRef = useRef<HTMLDivElement | null>(null);
+  const t0SeamRef = useRef<HTMLDivElement | null>(null);
   const t0ContentRef = useRef<HTMLDivElement | null>(null);
 
   // Chapter 2 — horizontal marquee + drifting card (kitchen -> bedroom).
@@ -83,10 +91,9 @@ export function HeroSequence() {
   const t1CardRef = useRef<HTMLDivElement | null>(null);
   const t1ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // CTA — layered depth stack with a glass panel.
-  const ctaBgRef = useRef<HTMLDivElement | null>(null);
-  const ctaWatermarkRef = useRef<HTMLDivElement | null>(null);
-  const ctaPanelRef = useRef<HTMLDivElement | null>(null);
+  // CTA — editorial split panel: solid content panel + parallax image panel.
+  const ctaImageRef = useRef<HTMLDivElement | null>(null);
+  const ctaContentRef = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
@@ -110,8 +117,6 @@ export function HeroSequence() {
     let lastDrawnKey = "";
     let lastRoomIndex = -1;
     let lastLayer: Layer = "room";
-    let t0Entered = false;
-    let t1Entered = false;
     let ctaEntered = false;
 
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
@@ -238,30 +243,28 @@ export function HeroSequence() {
       return { seg: last, localProgress: 1 };
     }
 
-    // Chapter 1: mediawall's last frame wipes diagonally off-screen,
-    // revealing kitchen's first frame underneath, with an accent line
-    // moving at a different rate for depth and the transition copy fading
-    // in over the middle of the range.
+    // Chapter 1: mediawall's last frame splits down the middle and opens
+    // like double doors, revealing kitchen's first frame behind — the
+    // seam line collapses as the doors finish opening, and the copy
+    // arrives centered only once the reveal has fully settled.
     function renderTransition0(localProgress: number) {
       setActiveRoom(0);
       setLayer("transition0");
-      const xOffset = localProgress * 160;
-      if (t0WipeRef.current) {
-        t0WipeRef.current.style.clipPath =
-          `polygon(${-xOffset}% 0%, ${120 - xOffset}% 0%, ${100 - xOffset}% 100%, ${-xOffset}% 100%)`;
-      }
+      const doorOpen = clamp01(localProgress / 0.62);
       if (t0BgRef.current) {
-        t0BgRef.current.style.transform = `scale(${1.08 - localProgress * 0.08}) translateY(${(1 - localProgress) * 3}%)`;
+        t0BgRef.current.style.transform = `scale(${1.1 - doorOpen * 0.1})`;
       }
-      if (t0AccentRef.current) {
-        t0AccentRef.current.style.transform = `translateX(${(localProgress - 0.5) * 40}%) rotate(-8deg)`;
+      if (t0DoorLeftRef.current) t0DoorLeftRef.current.style.transform = `translateX(${-doorOpen * 100}%)`;
+      if (t0DoorRightRef.current) t0DoorRightRef.current.style.transform = `translateX(${doorOpen * 100}%)`;
+      if (t0SeamRef.current) {
+        t0SeamRef.current.style.opacity = String(1 - doorOpen);
+        t0SeamRef.current.style.transform = `scaleY(${1 - doorOpen * 0.5})`;
       }
-      const textOpacity = windowed(localProgress, 0.12, 0.32, 0.72, 0.92);
+      const textOpacity = windowed(localProgress, 0.42, 0.6, 0.84, 0.98);
       if (t0ContentRef.current) {
         t0ContentRef.current.style.opacity = String(textOpacity);
-        t0ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
+        t0ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 20}px) scale(${0.98 + textOpacity * 0.02})`;
       }
-      if (!t0Entered && textOpacity > 0.05) t0Entered = true;
     }
 
     // Chapter 2: a different mechanic entirely — bedroom's frame drifts in
@@ -277,42 +280,38 @@ export function HeroSequence() {
         t1MarqueeRef.current.style.transform = `translateX(${(0.5 - localProgress) * 30}%)`;
       }
       if (t1CardRef.current) {
-        const cardProgress = clamp01(localProgress / 0.6);
+        const cardProgress = clamp01((localProgress - 0.05) / 0.55);
         t1CardRef.current.style.transform =
-          `translateY(${-cardProgress * 60}px) scale(${1 - cardProgress * 0.15}) rotate(${-cardProgress * 4}deg)`;
-        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.35) / 0.35));
+          `translateY(${-cardProgress * 70}px) scale(${1 - cardProgress * 0.15}) rotate(${-cardProgress * 4}deg)`;
+        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.55) / 0.35));
       }
-      const textOpacity = windowed(localProgress, 0.18, 0.4, 0.75, 0.95);
+      const textOpacity = windowed(localProgress, 0.2, 0.4, 0.8, 0.97);
       if (t1ContentRef.current) {
         t1ContentRef.current.style.opacity = String(textOpacity);
         t1ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
       }
-      if (!t1Entered && textOpacity > 0.05) t1Entered = true;
     }
 
-    // CTA: layered depth stack — blurred backdrop (slowest), oversized
-    // rotated watermark (mid), glass panel with the actual offer (fastest
-    // + one-time spring entrance).
+    // CTA: editorial split panel — solid forest-green content panel on the
+    // left with a thin sage seam, a parallax-panned bedroom photo on the
+    // right. A deliberately calmer, more confident layout than a floating
+    // card over a blurred backdrop.
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
       setLayer("cta");
-      if (ctaBgRef.current) {
-        ctaBgRef.current.style.transform = `scale(${1.12 - localProgress * 0.06}) translateY(${-10 + localProgress * 20}%)`;
+      if (ctaImageRef.current) {
+        ctaImageRef.current.style.transform =
+          `scale(${1.16 - localProgress * 0.08}) translateX(${(0.5 - localProgress) * -5}%)`;
       }
-      if (ctaWatermarkRef.current) {
-        const wm = -22 + localProgress * 44;
-        ctaWatermarkRef.current.style.transform = `translateY(calc(-50% + ${wm}%)) rotate(-6deg) scale(${0.94 + localProgress * 0.1})`;
+      if (ctaContentRef.current) {
+        ctaContentRef.current.style.transform = `translateY(${18 - localProgress * 18}px)`;
       }
-      if (ctaPanelRef.current) {
-        const py = 16 - localProgress * 32;
-        ctaPanelRef.current.style.transform = `translateY(${py}px)`;
-      }
-      if (!ctaEntered && ctaPanelRef.current) {
+      if (!ctaEntered && ctaContentRef.current) {
         ctaEntered = true;
         gsap.fromTo(
-          ctaPanelRef.current,
-          { opacity: 0, y: 48, scale: 0.96 },
-          { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: "power3.out", overwrite: true },
+          Array.from(ctaContentRef.current.children),
+          { opacity: 0, y: 28 },
+          { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.08, overwrite: true },
         );
       }
     }
@@ -320,12 +319,6 @@ export function HeroSequence() {
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
 
-      if (rawPx < segmentStartPx(SEGMENTS.find((s) => s.type === "transition" && s.transitionIndex === 0)!)) {
-        t0Entered = false;
-      }
-      if (rawPx < segmentStartPx(SEGMENTS.find((s) => s.type === "transition" && s.transitionIndex === 1)!)) {
-        t1Entered = false;
-      }
       if (rawPx < segmentStartPx(SEGMENTS[SEGMENTS.length - 1]!)) ctaEntered = false;
 
       const { seg, localProgress } = findSegmentAt(rawPx);
@@ -420,7 +413,8 @@ export function HeroSequence() {
         style={{ opacity: activeLayer === "room" ? 1 : 0 }}
       />
 
-      {/* Chapter 1 — diagonal wipe: mediawall recedes, kitchen emerges. */}
+      {/* Chapter 1 — double doors: mediawall's last frame splits and opens,
+          revealing kitchen behind. */}
       <div
         className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
         style={{ opacity: activeLayer === "transition0" ? 1 : 0 }}
@@ -430,28 +424,43 @@ export function HeroSequence() {
           <img
             src={roomFrameUrl(kitchenRoom, 1)}
             alt=""
-            className="h-full w-full scale-110 object-cover blur-[2px]"
+            className="h-full w-full scale-110 object-cover"
           />
-          <div className="absolute inset-0 bg-enzo-dark/55" />
+          <div className="absolute inset-0 bg-enzo-dark/45" />
         </div>
-        <div ref={t0WipeRef} className="absolute inset-0">
-          <img src={roomFrameUrl(mediawallRoom, FRAME_COUNT)} alt="" className="h-full w-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/5 to-black/45" />
+
+        <div ref={t0DoorLeftRef} className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
+          <img
+            src={roomFrameUrl(mediawallRoom, FRAME_COUNT)}
+            alt=""
+            className="absolute inset-y-0 left-0 h-full w-[200%] max-w-none object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/35" />
         </div>
+        <div ref={t0DoorRightRef} className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
+          <img
+            src={roomFrameUrl(mediawallRoom, FRAME_COUNT)}
+            alt=""
+            className="absolute inset-y-0 right-0 h-full w-[200%] max-w-none object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-l from-black/10 via-transparent to-black/35" />
+        </div>
+
         <div
-          ref={t0AccentRef}
+          ref={t0SeamRef}
           aria-hidden="true"
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[2px] w-[160%] -translate-x-1/2 -translate-y-1/2 bg-enzo-sage/40"
+          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-enzo-sage/60"
         />
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-start px-8 md:px-16">
-          <div ref={t0ContentRef} className="max-w-md opacity-0">
+
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 text-center">
+          <div ref={t0ContentRef} className="max-w-lg opacity-0">
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
               {transition0.copy.eyebrow}
             </span>
             <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
               {transition0.copy.heading}
             </h2>
-            <p className="max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+            <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
               {transition0.copy.body}
             </p>
           </div>
@@ -485,7 +494,7 @@ export function HeroSequence() {
           <div
             ref={t1CardRef}
             aria-hidden="true"
-            className="absolute right-[8%] top-[18%] hidden w-[240px] overflow-hidden rounded-[14px] border-2 border-enzo-sand shadow-[0_20px_50px_rgba(0,0,0,0.5)] md:block"
+            className="absolute right-[10%] top-[16%] hidden w-[280px] overflow-hidden rounded-[16px] border-2 border-enzo-sand shadow-[0_24px_60px_rgba(0,0,0,0.55)] md:block"
           >
             <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
           </div>
@@ -503,55 +512,49 @@ export function HeroSequence() {
         </div>
       </div>
 
-      {/* CTA — final segment, layered depth stack with a signature glass
-          panel (this is where the glassmorphism language ends up living). */}
+      {/* CTA — final segment, editorial split panel: solid content panel +
+          parallax-panned photo panel, not a floating card. */}
       <div
-        className="absolute inset-0 flex items-center justify-center overflow-hidden transition-opacity duration-500 ease-out"
+        className="absolute inset-0 flex flex-col overflow-hidden transition-opacity duration-500 ease-out md:flex-row"
         style={{ opacity: activeLayer === "cta" ? 1 : 0, pointerEvents: activeLayer === "cta" ? "auto" : "none" }}
         aria-hidden={activeLayer !== "cta"}
       >
-        <div ref={ctaBgRef} className="absolute inset-0">
-          <img
-            src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
-            alt=""
-            className="h-full w-full scale-110 object-cover blur-[6px]"
-          />
-          <div className="absolute inset-0 bg-enzo-dark/78" />
-        </div>
-
-        <div
-          ref={ctaWatermarkRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-1/2 select-none text-center font-serif leading-none text-enzo-cream/[0.055]"
-          style={{ fontSize: "clamp(5rem, 18vw, 16rem)" }}
-        >
-          Enzo
-        </div>
-
-        <div
-          ref={ctaPanelRef}
-          className="relative z-10 mx-6 w-[min(560px,90vw)] rounded-[24px] border border-enzo-cream/15 bg-enzo-forest/60 p-[clamp(28px,5vw,56px)] text-center opacity-0 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
-        >
-          <span className="mb-5 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-            Start Your Project
-          </span>
-          <h2
-            className="mx-auto font-serif font-medium text-enzo-cream"
-            style={{ fontSize: "clamp(1.9rem, 4.5vw, 3rem)" }}
-          >
-            Let&apos;s Build Something Beautiful, Together
-          </h2>
-          <p className="mx-auto mt-5 max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/72 md:text-[16px]">
-            A free, no-obligation design consultation — in your home, on your terms.
-          </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <Button asChild size="lg">
-              <Link href="/booking">Book a Free Consultation</Link>
-            </Button>
-            <Button asChild variant="secondary" size="lg" className="border-2">
-              <Link href="/portfolio">View Our Work</Link>
-            </Button>
+        <div className="relative flex w-full flex-1 items-center bg-enzo-forest px-8 py-16 md:w-[56%] md:px-16">
+          <div ref={ctaContentRef} className="max-w-lg">
+            <span className="mb-5 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage opacity-0">
+              04 — Start Your Project
+            </span>
+            <h2
+              className="font-serif font-medium text-enzo-cream opacity-0"
+              style={{ fontSize: "clamp(2rem, 4.2vw, 3.25rem)" }}
+            >
+              Let&apos;s Build Something Beautiful, Together
+            </h2>
+            <p className="mt-5 max-w-[40ch] text-[15px] leading-[1.6] text-enzo-cream/72 opacity-0 md:text-[16px]">
+              A free, no-obligation design consultation — in your home, on your terms.
+            </p>
+            <div className="mt-9 flex flex-col items-start gap-4 opacity-0 sm:flex-row">
+              <Button asChild size="lg">
+                <Link href="/booking">Book a Free Consultation</Link>
+              </Button>
+              <Button asChild variant="secondary" size="lg" className="border-2">
+                <Link href="/portfolio">View Our Work</Link>
+              </Button>
+            </div>
           </div>
+        </div>
+
+        <div className="hidden w-px bg-enzo-sage/30 md:block" />
+
+        <div className="relative hidden flex-1 overflow-hidden md:block md:w-[44%]">
+          <div ref={ctaImageRef} className="absolute inset-0">
+            <img
+              src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
+              alt="A finished bespoke bedroom by Enzo Interiors"
+              className="h-full w-full object-cover"
+            />
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-r from-enzo-forest/35 via-transparent to-transparent" />
         </div>
       </div>
 
