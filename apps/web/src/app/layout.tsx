@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import "@/styles/theme.css";
+import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
@@ -49,7 +50,7 @@ export default function RootLayout({
             (it's a higher z-index) always covers the seam, guaranteeing no
             gap regardless of sub-pixel rounding. */}
         <div aria-hidden className="pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
-        {children}
+        <SmoothScroll>{children}</SmoothScroll>
         <Toaster />
       </body>
     </html>

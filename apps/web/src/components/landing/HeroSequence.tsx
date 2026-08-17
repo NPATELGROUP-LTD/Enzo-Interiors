@@ -49,15 +49,6 @@ SEGMENTS.push({ type: "cta", px: CTA_PX });
 
 const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
 
-function segmentStartPx(target: Segment): number {
-  let acc = 0;
-  for (const seg of SEGMENTS) {
-    if (seg === target) return acc;
-    acc += seg.px;
-  }
-  return 0;
-}
-
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
 }
@@ -85,15 +76,21 @@ export function HeroSequence() {
   const t0SeamRef = useRef<HTMLDivElement | null>(null);
   const t0ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // Chapter 2 — horizontal marquee + drifting card (kitchen -> bedroom).
-  const t1BgRef = useRef<HTMLDivElement | null>(null);
-  const t1MarqueeRef = useRef<HTMLDivElement | null>(null);
-  const t1CardRef = useRef<HTMLDivElement | null>(null);
+  // Chapter 2 — zoom-through cross-dissolve (kitchen -> bedroom).
+  const t1OutgoingRef = useRef<HTMLDivElement | null>(null);
+  const t1IncomingRef = useRef<HTMLDivElement | null>(null);
+  const t1VignetteRef = useRef<HTMLDivElement | null>(null);
   const t1ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // CTA — editorial split panel: solid content panel + parallax image panel.
-  const ctaImageRef = useRef<HTMLDivElement | null>(null);
-  const ctaContentRef = useRef<HTMLDivElement | null>(null);
+  // CTA — kinetic typography manifesto: masked line reveals + a slowly
+  // rotating seal badge, no image panel or floating card.
+  const ctaBgRef = useRef<HTMLDivElement | null>(null);
+  const ctaBadgeRef = useRef<HTMLDivElement | null>(null);
+  const ctaEyebrowRef = useRef<HTMLSpanElement | null>(null);
+  const ctaLine1Ref = useRef<HTMLSpanElement | null>(null);
+  const ctaLine2Ref = useRef<HTMLSpanElement | null>(null);
+  const ctaSubRef = useRef<HTMLParagraphElement | null>(null);
+  const ctaButtonsRef = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
@@ -117,7 +114,6 @@ export function HeroSequence() {
     let lastDrawnKey = "";
     let lastRoomIndex = -1;
     let lastLayer: Layer = "room";
-    let ctaEntered = false;
 
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
@@ -267,60 +263,70 @@ export function HeroSequence() {
       }
     }
 
-    // Chapter 2: a different mechanic entirely — bedroom's frame drifts in
-    // behind an oversized horizontal marquee word, while kitchen's last
-    // frame recedes as a bordered photo card.
+    // Chapter 2: a different mechanic entirely — kitchen's last frame
+    // zooms in and dissolves away while bedroom's first frame zooms in
+    // from an oversized start and settles to normal scale, crossing paths
+    // around the local midpoint with a soft vignette pulse for a "passing
+    // through a doorway" feel. Content stays centered and scales in with
+    // the crossover instead of sliding from an edge.
     function renderTransition1(localProgress: number) {
       setActiveRoom(1);
       setLayer("transition1");
-      if (t1BgRef.current) {
-        t1BgRef.current.style.transform = `scale(${1.1 - localProgress * 0.1}) translateY(${(localProgress - 0.5) * -4}%)`;
+      const outProgress = clamp01(localProgress / 0.55);
+      if (t1OutgoingRef.current) {
+        t1OutgoingRef.current.style.transform = `scale(${1 + outProgress * 0.55})`;
+        t1OutgoingRef.current.style.opacity = String(1 - clamp01((localProgress - 0.32) / 0.32));
       }
-      if (t1MarqueeRef.current) {
-        t1MarqueeRef.current.style.transform = `translateX(${(0.5 - localProgress) * 30}%)`;
+      const inProgress = clamp01((localProgress - 0.3) / 0.62);
+      if (t1IncomingRef.current) {
+        t1IncomingRef.current.style.transform = `scale(${1.4 - inProgress * 0.4})`;
+        t1IncomingRef.current.style.opacity = String(inProgress);
       }
-      if (t1CardRef.current) {
-        const cardProgress = clamp01((localProgress - 0.05) / 0.55);
-        t1CardRef.current.style.transform =
-          `translateY(${-cardProgress * 70}px) scale(${1 - cardProgress * 0.15}) rotate(${-cardProgress * 4}deg)`;
-        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.55) / 0.35));
+      if (t1VignetteRef.current) {
+        const crossover = clamp01(1 - Math.abs(localProgress - 0.5) / 0.32);
+        t1VignetteRef.current.style.opacity = String(crossover * 0.55);
       }
-      const textOpacity = windowed(localProgress, 0.2, 0.4, 0.8, 0.97);
+      const textOpacity = windowed(localProgress, 0.08, 0.28, 0.72, 0.94);
       if (t1ContentRef.current) {
         t1ContentRef.current.style.opacity = String(textOpacity);
-        t1ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
+        t1ContentRef.current.style.transform = `scale(${0.94 + textOpacity * 0.06})`;
       }
     }
 
-    // CTA: editorial split panel — solid forest-green content panel on the
-    // left with a thin sage seam, a parallax-panned bedroom photo on the
-    // right. A deliberately calmer, more confident layout than a floating
-    // card over a blurred backdrop.
+    // CTA: kinetic typography manifesto — no image panel, no floating
+    // card. The headline reveals line by line through a masked wipe as
+    // the user scrolls, a slowly rotating seal badge adds a boutique
+    // touch, and the offer/buttons arrive last.
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
       setLayer("cta");
-      if (ctaImageRef.current) {
-        ctaImageRef.current.style.transform =
-          `scale(${1.16 - localProgress * 0.08}) translateX(${(0.5 - localProgress) * -5}%)`;
+      if (ctaBgRef.current) {
+        ctaBgRef.current.style.transform = `scale(${1.15 - localProgress * 0.06})`;
       }
-      if (ctaContentRef.current) {
-        ctaContentRef.current.style.transform = `translateY(${18 - localProgress * 18}px)`;
+      if (ctaEyebrowRef.current) {
+        ctaEyebrowRef.current.style.opacity = String(clamp01(localProgress / 0.12));
       }
-      if (!ctaEntered && ctaContentRef.current) {
-        ctaEntered = true;
-        gsap.fromTo(
-          Array.from(ctaContentRef.current.children),
-          { opacity: 0, y: 28 },
-          { opacity: 1, y: 0, duration: 0.7, ease: "power3.out", stagger: 0.08, overwrite: true },
-        );
+      const line1 = clamp01((localProgress - 0.06) / 0.22);
+      const line2 = clamp01((localProgress - 0.2) / 0.22);
+      if (ctaLine1Ref.current) ctaLine1Ref.current.style.transform = `translateY(${(1 - line1) * 100}%)`;
+      if (ctaLine2Ref.current) ctaLine2Ref.current.style.transform = `translateY(${(1 - line2) * 100}%)`;
+      const subReveal = clamp01((localProgress - 0.42) / 0.18);
+      if (ctaSubRef.current) {
+        ctaSubRef.current.style.opacity = String(subReveal);
+        ctaSubRef.current.style.transform = `translateY(${(1 - subReveal) * 14}px)`;
+      }
+      const btnReveal = clamp01((localProgress - 0.58) / 0.2);
+      if (ctaButtonsRef.current) {
+        ctaButtonsRef.current.style.opacity = String(btnReveal);
+        ctaButtonsRef.current.style.transform = `translateY(${(1 - btnReveal) * 14}px)`;
+      }
+      if (ctaBadgeRef.current) {
+        ctaBadgeRef.current.style.opacity = String(clamp01((localProgress - 0.1) / 0.25) * 0.9);
       }
     }
 
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
-
-      if (rawPx < segmentStartPx(SEGMENTS[SEGMENTS.length - 1]!)) ctaEntered = false;
-
       const { seg, localProgress } = findSegmentAt(rawPx);
 
       if (seg.type === "room") {
@@ -467,94 +473,108 @@ export function HeroSequence() {
         </div>
       </div>
 
-      {/* Chapter 2 — horizontal marquee + drifting card: kitchen recedes,
-          bedroom emerges. Deliberately a different mechanic from Chapter 1. */}
+      {/* Chapter 2 — zoom-through cross-dissolve: kitchen zooms in and
+          dissolves away, bedroom zooms in from oversized and settles.
+          Deliberately a different mechanic from Chapter 1's door reveal. */}
       <div
         className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
         style={{ opacity: activeLayer === "transition1" ? 1 : 0 }}
         aria-hidden={activeLayer !== "transition1"}
       >
-        <div ref={t1BgRef} className="absolute inset-0">
-          <img
-            src={roomFrameUrl(bedroomRoom, 1)}
-            alt=""
-            className="h-full w-full scale-110 object-cover blur-[3px]"
-          />
-          <div className="absolute inset-0 bg-enzo-dark/60" />
+        <div ref={t1OutgoingRef} className="absolute inset-0">
+          <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="h-full w-full object-cover" />
+        </div>
+        <div ref={t1IncomingRef} className="absolute inset-0 opacity-0">
+          <img src={roomFrameUrl(bedroomRoom, 1)} alt="" className="h-full w-full object-cover" />
         </div>
         <div
-          ref={t1MarqueeRef}
+          ref={t1VignetteRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-serif leading-none text-enzo-cream/[0.07]"
-          style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
-        >
-          Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom&nbsp;&nbsp;·&nbsp;&nbsp;Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom
-        </div>
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-end px-8 md:px-16">
-          <div
-            ref={t1CardRef}
-            aria-hidden="true"
-            className="absolute right-[10%] top-[16%] hidden w-[280px] overflow-hidden rounded-[16px] border-2 border-enzo-sand shadow-[0_24px_60px_rgba(0,0,0,0.55)] md:block"
-          >
-            <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
-          </div>
-          <div ref={t1ContentRef} className="max-w-md text-right opacity-0">
+          className="pointer-events-none absolute inset-0 opacity-0"
+          style={{ background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,0.65) 100%)" }}
+        />
+        <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center px-8 text-center">
+          <div ref={t1ContentRef} className="max-w-lg opacity-0">
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
               {transition1.copy.eyebrow}
             </span>
             <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
               {transition1.copy.heading}
             </h2>
-            <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+            <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
               {transition1.copy.body}
             </p>
           </div>
         </div>
       </div>
 
-      {/* CTA — final segment, editorial split panel: solid content panel +
-          parallax-panned photo panel, not a floating card. */}
+      {/* CTA — final segment, kinetic typography manifesto: no image
+          panel, no floating card. Headline reveals line by line through a
+          masked wipe as the user scrolls; a slowly rotating seal badge
+          adds a boutique touch. */}
       <div
-        className="absolute inset-0 flex flex-col overflow-hidden transition-opacity duration-500 ease-out md:flex-row"
+        className="absolute inset-0 flex items-center justify-center overflow-hidden bg-enzo-forest transition-opacity duration-500 ease-out"
         style={{ opacity: activeLayer === "cta" ? 1 : 0, pointerEvents: activeLayer === "cta" ? "auto" : "none" }}
         aria-hidden={activeLayer !== "cta"}
       >
-        <div className="relative flex w-full flex-1 items-center bg-enzo-forest px-8 py-16 md:w-[56%] md:px-16">
-          <div ref={ctaContentRef} className="max-w-lg">
-            <span className="mb-5 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage opacity-0">
-              04 — Start Your Project
-            </span>
-            <h2
-              className="font-serif font-medium text-enzo-cream opacity-0"
-              style={{ fontSize: "clamp(2rem, 4.2vw, 3.25rem)" }}
-            >
-              Let&apos;s Build Something Beautiful, Together
-            </h2>
-            <p className="mt-5 max-w-[40ch] text-[15px] leading-[1.6] text-enzo-cream/72 opacity-0 md:text-[16px]">
-              A free, no-obligation design consultation — in your home, on your terms.
-            </p>
-            <div className="mt-9 flex flex-col items-start gap-4 opacity-0 sm:flex-row">
-              <Button asChild size="lg">
-                <Link href="/booking">Book a Free Consultation</Link>
-              </Button>
-              <Button asChild variant="secondary" size="lg" className="border-2">
-                <Link href="/portfolio">View Our Work</Link>
-              </Button>
-            </div>
+        <div ref={ctaBgRef} className="absolute inset-0 opacity-[0.16]">
+          <img
+            src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-enzo-forest/40 via-enzo-forest/75 to-enzo-forest" />
+
+        <div
+          ref={ctaBadgeRef}
+          aria-hidden="true"
+          className="absolute right-[10%] top-[16%] hidden h-28 w-28 opacity-0 md:block"
+        >
+          <div className="absolute inset-0 rounded-full border border-enzo-sage/40" />
+          <div className="absolute inset-2 animate-[spin_16s_linear_infinite] rounded-full border border-dashed border-enzo-sage/30" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
+            <span className="font-serif text-[10px] uppercase tracking-[0.2em] text-enzo-sage">Est.</span>
+            <span className="font-serif text-[10px] uppercase tracking-[0.2em] text-enzo-sage">Leicester</span>
           </div>
         </div>
 
-        <div className="hidden w-px bg-enzo-sage/30 md:block" />
-
-        <div className="relative hidden flex-1 overflow-hidden md:block md:w-[44%]">
-          <div ref={ctaImageRef} className="absolute inset-0">
-            <img
-              src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
-              alt="A finished bespoke bedroom by Enzo Interiors"
-              className="h-full w-full object-cover"
-            />
+        <div className="relative z-10 max-w-4xl px-8 text-center">
+          <span
+            ref={ctaEyebrowRef}
+            className="mb-6 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage opacity-0"
+          >
+            04 — Start Your Project
+          </span>
+          <h2
+            className="font-serif font-medium leading-[1.05] text-enzo-cream"
+            style={{ fontSize: "clamp(2.5rem, 7vw, 5.5rem)" }}
+          >
+            <span className="block overflow-hidden">
+              <span ref={ctaLine1Ref} className="block" style={{ transform: "translateY(100%)" }}>
+                Let&apos;s Build Something
+              </span>
+            </span>
+            <span className="block overflow-hidden">
+              <span ref={ctaLine2Ref} className="block" style={{ transform: "translateY(100%)" }}>
+                Beautiful, Together
+              </span>
+            </span>
+          </h2>
+          <p
+            ref={ctaSubRef}
+            className="mx-auto mt-6 max-w-[42ch] text-[16px] leading-[1.6] text-enzo-cream/70 opacity-0"
+          >
+            A free, no-obligation design consultation — in your home, on your terms.
+          </p>
+          <div ref={ctaButtonsRef} className="mt-10 flex flex-col items-center justify-center gap-4 opacity-0 sm:flex-row">
+            <Button asChild size="lg">
+              <Link href="/booking">Book a Free Consultation</Link>
+            </Button>
+            <Button asChild variant="secondary" size="lg" className="border-2">
+              <Link href="/portfolio">View Our Work</Link>
+            </Button>
           </div>
-          <div className="absolute inset-0 bg-gradient-to-r from-enzo-forest/35 via-transparent to-transparent" />
         </div>
       </div>
 
