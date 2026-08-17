@@ -1,63 +1,85 @@
-// One-time asset pipeline for the Hero scroll-sequence component.
+// Asset pipeline for the Hero v3 multi-room scroll sequence.
 //
-// Source: 192 full-resolution PNG frames (~139MB) from the standalone
-// "Video Scroll Effect" project. We keep every 2nd frame (96 total),
-// downscale to a max width of 1920px, and re-encode as WebP — cutting the
-// payload by ~90% before it ships to `apps/web/public/frames/hero/`.
+// Source: three 144-frame WebP room sequences (Mediawall, Kitchen, Bedroom,
+// already 1280x720) plus two MP4 transition videos connecting them, from the
+// "v3 of scroll animation" export. Frames are re-encoded at a lower WebP
+// quality to trim payload (no resize needed, source is already web-sized);
+// videos are copied through as-is since they're already small.
 //
 // Not part of the app build — run manually after (re)exporting new source
-// frames: `node scripts/process-hero-frames.mjs`
-import { readdir, mkdir } from "fs/promises";
+// assets: `node scripts/process-hero-frames.mjs`
+import { readdir, mkdir, copyFile, rm } from "fs/promises";
 import path from "path";
 import sharp from "sharp";
 
-const SOURCE_DIR =
-  "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Standalone Designs\\Video Scroll Effect\\public\\frames";
-const OUTPUT_DIR = path.join(process.cwd(), "public", "frames", "hero");
-const SOURCE_FRAME_COUNT = 192;
-const OUTPUT_WIDTH = 1920;
-const WEBP_QUALITY = 75;
+const FRAMES_SOURCE_ROOT =
+  "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Assets\\v3 of scroll animation\\Frames";
+const VIDEO_SOURCE_ROOT =
+  "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Assets\\v3 of scroll animation\\Scene transistion";
+
+const FRAMES_OUTPUT_ROOT = path.join(process.cwd(), "public", "frames", "hero");
+const VIDEO_OUTPUT_ROOT = path.join(process.cwd(), "public", "videos", "hero");
+
+const FRAME_COUNT = 144;
+const WEBP_QUALITY = 72;
+
+const ROOMS = [
+  { id: "mediawall", sourceDir: "Mediawall Room" },
+  { id: "kitchen", sourceDir: "Kitchen" },
+  { id: "bedroom", sourceDir: "Bedroom" },
+];
+
+const VIDEOS = [
+  { sourceFile: "mediawall to kitchen.mp4", outputFile: "mediawall-to-kitchen.mp4" },
+  { sourceFile: "kitchen to bedroom.mp4", outputFile: "kitchen-to-bedroom.mp4" },
+];
 
 function sourceFrameName(n) {
-  return `frame_${String(n).padStart(6, "0")}.png`;
+  return `frame_${String(n).padStart(6, "0")}.webp`;
 }
 
 function outputFrameName(n) {
   return `frame_${String(n).padStart(4, "0")}.webp`;
 }
 
-async function main() {
-  await mkdir(OUTPUT_DIR, { recursive: true });
+async function processRoom(room) {
+  const sourceDir = path.join(FRAMES_SOURCE_ROOT, room.sourceDir);
+  const outputDir = path.join(FRAMES_OUTPUT_ROOT, room.id);
+  await rm(outputDir, { recursive: true, force: true });
+  await mkdir(outputDir, { recursive: true });
 
-  const files = await readdir(SOURCE_DIR);
-  if (files.length < SOURCE_FRAME_COUNT) {
-    throw new Error(
-      `Expected ${SOURCE_FRAME_COUNT} source frames in ${SOURCE_DIR}, found ${files.length}`,
-    );
+  const files = await readdir(sourceDir);
+  if (files.length < FRAME_COUNT) {
+    throw new Error(`Expected ${FRAME_COUNT} frames in ${sourceDir}, found ${files.length}`);
   }
 
-  // Keep every 2nd frame (1, 3, 5, ...) but always keep the last frame so
-  // the sequence still ends on the fully-styled final scene.
-  const keep = [];
-  for (let i = 1; i <= SOURCE_FRAME_COUNT; i += 2) keep.push(i);
-  if (keep[keep.length - 1] !== SOURCE_FRAME_COUNT) keep.push(SOURCE_FRAME_COUNT);
-
-  let outIndex = 0;
-  for (const sourceN of keep) {
-    outIndex++;
-    const inputPath = path.join(SOURCE_DIR, sourceFrameName(sourceN));
-    const outputPath = path.join(OUTPUT_DIR, outputFrameName(outIndex));
-    await sharp(inputPath)
-      .resize({ width: OUTPUT_WIDTH, withoutEnlargement: true })
-      .webp({ quality: WEBP_QUALITY })
-      .toFile(outputPath);
-    if (outIndex % 16 === 0 || outIndex === keep.length) {
-      console.log(`  ${outIndex}/${keep.length} frames processed`);
+  for (let n = 1; n <= FRAME_COUNT; n++) {
+    const inputPath = path.join(sourceDir, sourceFrameName(n));
+    const outputPath = path.join(outputDir, outputFrameName(n));
+    await sharp(inputPath).webp({ quality: WEBP_QUALITY }).toFile(outputPath);
+    if (n % 24 === 0 || n === FRAME_COUNT) {
+      console.log(`  [${room.id}] ${n}/${FRAME_COUNT} frames processed`);
     }
   }
+}
 
+async function copyVideos() {
+  await mkdir(VIDEO_OUTPUT_ROOT, { recursive: true });
+  for (const video of VIDEOS) {
+    const inputPath = path.join(VIDEO_SOURCE_ROOT, video.sourceFile);
+    const outputPath = path.join(VIDEO_OUTPUT_ROOT, video.outputFile);
+    await copyFile(inputPath, outputPath);
+    console.log(`  copied ${video.sourceFile} -> videos/hero/${video.outputFile}`);
+  }
+}
+
+async function main() {
+  for (const room of ROOMS) {
+    await processRoom(room);
+  }
+  await copyVideos();
   console.log(
-    `\nDone. Wrote ${keep.length} frames to ${OUTPUT_DIR} (source frame ${SOURCE_FRAME_COUNT} -> output frame ${keep.length}).`,
+    `\nDone. Wrote ${ROOMS.length * FRAME_COUNT} frames to ${FRAMES_OUTPUT_ROOT} and ${VIDEOS.length} videos to ${VIDEO_OUTPUT_ROOT}.`,
   );
 }
 
