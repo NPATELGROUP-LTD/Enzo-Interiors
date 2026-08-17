@@ -2,15 +2,15 @@
 //
 // Source: three 144-frame WebP room sequences (Mediawall, Kitchen, Bedroom,
 // already 1280x720) plus two MP4 transition videos connecting them, from the
-// "v3 of scroll animation" export. Frames are re-encoded at a lower WebP
-// quality to trim payload (no resize needed, source is already web-sized);
-// videos are copied through as-is since they're already small.
+// "v3 of scroll animation" export. Frames are copied through as-is at their
+// original quality (just renamed to the 4-digit padded output convention) —
+// no re-encoding, no quality loss; videos are copied through as-is too
+// since they're already small.
 //
 // Not part of the app build — run manually after (re)exporting new source
 // assets: `node scripts/process-hero-frames.mjs`
 import { readdir, mkdir, copyFile, rm } from "fs/promises";
 import path from "path";
-import sharp from "sharp";
 
 const FRAMES_SOURCE_ROOT =
   "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Assets\\v3 of scroll animation\\Frames";
@@ -21,7 +21,6 @@ const FRAMES_OUTPUT_ROOT = path.join(process.cwd(), "public", "frames", "hero");
 const VIDEO_OUTPUT_ROOT = path.join(process.cwd(), "public", "videos", "hero");
 
 const FRAME_COUNT = 144;
-const WEBP_QUALITY = 72;
 
 const ROOMS = [
   { id: "mediawall", sourceDir: "Mediawall Room" },
@@ -56,9 +55,9 @@ async function processRoom(room) {
   for (let n = 1; n <= FRAME_COUNT; n++) {
     const inputPath = path.join(sourceDir, sourceFrameName(n));
     const outputPath = path.join(outputDir, outputFrameName(n));
-    await sharp(inputPath).webp({ quality: WEBP_QUALITY }).toFile(outputPath);
+    await copyFile(inputPath, outputPath);
     if (n % 24 === 0 || n === FRAME_COUNT) {
-      console.log(`  [${room.id}] ${n}/${FRAME_COUNT} frames processed`);
+      console.log(`  [${room.id}] ${n}/${FRAME_COUNT} frames copied`);
     }
   }
 }

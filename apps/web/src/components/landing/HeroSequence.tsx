@@ -19,7 +19,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
-const PX_PER_FRAME = 50;
+const PX_PER_FRAME = 75;
 const PX_PER_VIDEO = 550;
 const MAX_DPR = 1.5;
 const SCRUB_SMOOTHING = 1.1;
@@ -91,6 +91,7 @@ export function HeroSequence() {
     // Per-transition runtime state for the forward-lock/backward-scrub split.
     const videoStates = HERO_TRANSITIONS.map(() => ({ forwardDone: false }));
     let lockedTransitionIndex: number | null = null;
+    let lastRawPx = 0;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -234,41 +235,56 @@ export function HeroSequence() {
       setActiveRoom(transitionIndex);
       setActiveVideo(transitionIndex);
       video.currentTime = 0;
-      void video.play();
+      // A legitimate quick reversal can still abort this play() call via
+      // the pause() in the release branch above — that's expected, not an
+      // error worth surfacing as an unhandled rejection.
+      video.play().catch(() => {});
       trigger.scroll(trigger.start + start);
       updateProgressUI(start);
+      lastRawPx = start;
 
       const onEnded = () => {
         video.removeEventListener("ended", onEnded);
         videoStates[transitionIndex]!.forwardDone = true;
         lockedTransitionIndex = null;
         if (trigger) trigger.scroll(trigger.start + start + seg.px);
+        lastRawPx = start + seg.px;
       };
       video.addEventListener("ended", onEnded);
     }
 
     // Master render: resolves the current segment from raw scroll pixels
     // and either draws a frame or scrubs/locks the relevant video.
+    //
+    // Direction is tracked by comparing against our own last-seen position
+    // rather than ScrollTrigger's self.direction — the forward-lock clamp
+    // below calls trigger.scroll() to hold position, which is itself a
+    // backward scroll motion and would otherwise make self.direction
+    // falsely report "user scrolled up" on the very next tick, releasing
+    // the lock (and pausing the video) almost immediately after engaging it.
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
 
       if (lockedTransitionIndex !== null) {
-        if (self.direction === -1) {
-          // User reversed mid-playback — release the lock, pause, and let
-          // the normal scrub logic below take over from wherever it is.
+        const lockedSeg = SEGMENTS.find(
+          (s) => s.type === "video" && s.transitionIndex === lockedTransitionIndex,
+        )!;
+        const start = segmentStartPx(lockedSeg);
+        if (rawPx < start - 0.5) {
+          // Genuinely scrolled back above the lock point — release, pause,
+          // and let the normal scrub logic below take over from here.
           videoRefs.current[lockedTransitionIndex]?.pause();
           lockedTransitionIndex = null;
         } else {
           // Still locked: hold the scroll position, the video plays itself.
-          const lockedSeg = SEGMENTS.find(
-            (s) => s.type === "video" && s.transitionIndex === lockedTransitionIndex,
-          )!;
-          const start = segmentStartPx(lockedSeg);
           if (trigger && rawPx > start) trigger.scroll(trigger.start + start);
           updateProgressUI(start);
+          lastRawPx = start;
           return;
         }
       }
+
+      const movingForward = rawPx >= lastRawPx;
 
       // Re-arm any video the user has scrolled back above, so approaching
       // it forward again re-triggers the locked auto-play from the start.
@@ -291,7 +307,7 @@ export function HeroSequence() {
           setActiveRoom(ti);
           setActiveVideo(null);
           renderRoomFrame(ti, FRAME_COUNT);
-        } else if (self.direction === 1 && !state.forwardDone) {
+        } else if (movingForward && !state.forwardDone) {
           lockAndPlayForward(ti, seg);
           return;
         } else {
@@ -301,6 +317,7 @@ export function HeroSequence() {
         }
       }
 
+      lastRawPx = rawPx;
       updateProgressUI(rawPx);
     }
 
