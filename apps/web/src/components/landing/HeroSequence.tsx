@@ -1,55 +1,41 @@
 "use client";
 
-// Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom)
-// connected by two transition videos, ending in a parallax CTA — all one
-// continuous story on a single master ScrollTrigger pin+scrub. The CTA is
-// deliberately NOT a separate section below the hero: it's the final
-// segment of this same timeline, so it stays pinned/fixed with the rest of
-// the sequence rather than scrolling in as its own thing.
-//
-// Segment order: room -> pause (glass blocks) -> video -> room -> pause ->
-// video -> room -> pause -> cta. Frame segments are always fully
-// scroll-scrubbed both directions. Pause segments hold the room's last
-// frame and fade the glass blocks in/out. Video segments are asymmetric:
-// scrolling *down* into one locks further forward scroll and auto-plays it
-// in real time; scrolling *up* through one is a plain scroll-scrub in
-// reverse, exactly like a frame segment. The cta segment cross-fades in
-// and drives its 3 parallax layers directly off local scroll progress.
+// Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom), each
+// separated by a bespoke parallax "chapter" (no video, no floating
+// glassmorphism cards — that copy now lives inside the parallax chapters
+// themselves), ending in a redesigned parallax CTA. Everything is one
+// continuous story on a single master ScrollTrigger pin+scrub: since
+// nothing here plays back in real time anymore, every segment is purely
+// scroll-position-driven and therefore trivially, exactly reversible —
+// no locking, no direction tricks, no boundary hand-off bugs.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { Button } from "@/components/ui/Button";
-import { HeroGlassBlocks } from "./HeroGlassBlocks";
-import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
+import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
 const PX_PER_FRAME = 75;
-const PX_PER_VIDEO = 550;
-const PAUSE_PX = 400;
+const TRANSITION_PX = 1500;
 const CTA_PX = 2200;
 const MAX_DPR = 1.5;
 const SCRUB_SMOOTHING = 1.1;
 
-const CTA_BG =
-  "https://images.unsplash.com/photo-1765434669956-afcd50058d69?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBiZWRyb29tJTIwaW50ZXJpb3IlMjB3YXJtfGVufDF8fHx8MTc3MjM5ODIzZF8w&ixlib=rb-4.1.0&q=80&w=1080";
-
 let scrollTriggerRegistered = false;
 
-// One ordered list of segments makes up the master timeline.
+type Layer = "room" | "transition0" | "transition1" | "cta";
+
 type Segment =
   | { type: "room"; roomIndex: number; px: number }
-  | { type: "pause"; roomIndex: number; px: number }
-  | { type: "video"; transitionIndex: number; px: number }
+  | { type: "transition"; transitionIndex: number; px: number }
   | { type: "cta"; px: number };
 
 const SEGMENTS: Segment[] = [];
 HERO_ROOMS.forEach((_, roomIndex) => {
   SEGMENTS.push({ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME });
-  SEGMENTS.push({ type: "pause", roomIndex, px: PAUSE_PX });
   if (roomIndex < HERO_TRANSITIONS.length) {
-    SEGMENTS.push({ type: "video", transitionIndex: roomIndex, px: PX_PER_VIDEO });
+    SEGMENTS.push({ type: "transition", transitionIndex: roomIndex, px: TRANSITION_PX });
   }
 });
 SEGMENTS.push({ type: "cta", px: CTA_PX });
@@ -65,22 +51,46 @@ function segmentStartPx(target: Segment): number {
   return 0;
 }
 
+function clamp01(v: number): number {
+  return Math.max(0, Math.min(1, v));
+}
+
+// Linear ease-in/out window: 0 before `start`, 1 after `end`, ramping
+// between — used to fade transition-chapter copy in and back out as the
+// user scrubs through its local progress range.
+function windowed(p: number, inStart: number, inEnd: number, outStart: number, outEnd: number) {
+  const fadeIn = clamp01((p - inStart) / (inEnd - inStart));
+  const fadeOut = 1 - clamp01((p - outStart) / (outEnd - outStart));
+  return Math.min(fadeIn, fadeOut);
+}
+
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const videoRefs = useRef<Array<HTMLVideoElement | null>>([null, null]);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const loaderFillRef = useRef<HTMLDivElement | null>(null);
   const loaderPctRef = useRef<HTMLSpanElement | null>(null);
+
+  // Chapter 1 — diagonal wipe (mediawall -> kitchen).
+  const t0BgRef = useRef<HTMLDivElement | null>(null);
+  const t0WipeRef = useRef<HTMLDivElement | null>(null);
+  const t0AccentRef = useRef<HTMLDivElement | null>(null);
+  const t0ContentRef = useRef<HTMLDivElement | null>(null);
+
+  // Chapter 2 — horizontal marquee + drifting card (kitchen -> bedroom).
+  const t1BgRef = useRef<HTMLDivElement | null>(null);
+  const t1MarqueeRef = useRef<HTMLDivElement | null>(null);
+  const t1CardRef = useRef<HTMLDivElement | null>(null);
+  const t1ContentRef = useRef<HTMLDivElement | null>(null);
+
+  // CTA — layered depth stack with a glass panel.
   const ctaBgRef = useRef<HTMLDivElement | null>(null);
   const ctaWatermarkRef = useRef<HTMLDivElement | null>(null);
-  const ctaContentRef = useRef<HTMLDivElement | null>(null);
+  const ctaPanelRef = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
-  const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
-  const [pausedRoomIndex, setPausedRoomIndex] = useState<number | null>(null);
-  const [ctaActive, setCtaActive] = useState(false);
+  const [activeLayer, setActiveLayer] = useState<Layer>("room");
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -99,9 +109,9 @@ export function HeroSequence() {
     let dpr = 1;
     let lastDrawnKey = "";
     let lastRoomIndex = -1;
-    let lastVideoIndex: number | null = null;
-    let lastPausedRoomIndex: number | null = null;
-    let lastCtaActive = false;
+    let lastLayer: Layer = "room";
+    let t0Entered = false;
+    let t1Entered = false;
     let ctaEntered = false;
 
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
@@ -109,11 +119,6 @@ export function HeroSequence() {
     let room0LoadedCount = 0;
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
-
-    // Per-transition runtime state for the forward-lock/backward-scrub split.
-    const videoStates = HERO_TRANSITIONS.map(() => ({ forwardDone: false }));
-    let lockedTransitionIndex: number | null = null;
-    let lastRawPx = 0;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -184,14 +189,6 @@ export function HeroSequence() {
       });
     }
 
-    function preloadTransitionVideo(transitionIndex: number) {
-      const video = videoRefs.current[transitionIndex];
-      const transition = HERO_TRANSITIONS[transitionIndex]!;
-      if (!video || video.src) return;
-      video.src = transitionVideoUrl(transition);
-      video.load();
-    }
-
     function updateLoaderProgress() {
       const pct = Math.round((room0LoadedCount / FRAME_COUNT) * 100);
       if (loaderFillRef.current) loaderFillRef.current.style.width = pct + "%";
@@ -203,14 +200,7 @@ export function HeroSequence() {
       revealed = true;
       setIsRevealed(true);
       ScrollTrigger.refresh();
-      // Background-warm the rest of the journey once the first room is
-      // interactive, so later rooms/videos are ready by the time scroll
-      // reaches them without blocking first paint.
-      preloadTransitionVideo(0);
-      preloadRoom(1).then(() => {
-        preloadTransitionVideo(1);
-        void preloadRoom(2);
-      });
+      void preloadRoom(1).then(() => void preloadRoom(2));
     }
 
     function setActiveRoom(roomIndex: number) {
@@ -219,22 +209,10 @@ export function HeroSequence() {
       setActiveRoomIndex(roomIndex);
     }
 
-    function setActiveVideo(transitionIndex: number | null) {
-      if (transitionIndex === lastVideoIndex) return;
-      lastVideoIndex = transitionIndex;
-      setActiveVideoIndex(transitionIndex);
-    }
-
-    function setPaused(roomIndex: number | null) {
-      if (roomIndex === lastPausedRoomIndex) return;
-      lastPausedRoomIndex = roomIndex;
-      setPausedRoomIndex(roomIndex);
-    }
-
-    function setCta(active: boolean) {
-      if (active === lastCtaActive) return;
-      lastCtaActive = active;
-      setCtaActive(active);
+    function setLayer(layer: Layer) {
+      if (layer === lastLayer) return;
+      lastLayer = layer;
+      setActiveLayer(layer);
     }
 
     function updateProgressUI(px: number) {
@@ -244,11 +222,7 @@ export function HeroSequence() {
     }
 
     // Uses `<` (not `<=`) so an exact segment boundary resolves into the
-    // NEXT segment rather than the tail end of the current one — matters
-    // most right when a video's onEnded snaps scroll to its end px: without
-    // this, that exact position re-resolved into the video segment itself
-    // (at localProgress 1), leaving its last frame stuck on screen for one
-    // extra scroll tick instead of handing off to the next room immediately.
+    // NEXT segment rather than the tail end of the current one.
     function findSegmentAt(px: number) {
       let acc = 0;
       for (let i = 0; i < SEGMENTS.length; i++) {
@@ -264,106 +238,93 @@ export function HeroSequence() {
       return { seg: last, localProgress: 1 };
     }
 
-    // Engages the forward auto-play lock for a video segment: clamps the
-    // master ScrollTrigger's scroll position at the segment's start and
-    // plays the video in real time. On completion, snaps the scroll
-    // position past the segment and releases the lock so ordinary
-    // scrubbing continues into the next room.
-    function lockAndPlayForward(transitionIndex: number, seg: Segment) {
-      const video = videoRefs.current[transitionIndex];
-      if (!video || !trigger) return;
-      const start = segmentStartPx(seg);
-      lockedTransitionIndex = transitionIndex;
-      setActiveRoom(transitionIndex);
-      setActiveVideo(transitionIndex);
-      setPaused(null);
-      video.currentTime = 0;
-      // A legitimate quick reversal can still abort this play() call via
-      // the pause() in the release branch below — that's expected, not an
-      // error worth surfacing as an unhandled rejection.
-      video.play().catch(() => {});
-      trigger.scroll(trigger.start + start);
-      updateProgressUI(start);
-      lastRawPx = start;
-
-      const onEnded = () => {
-        video.removeEventListener("ended", onEnded);
-        videoStates[transitionIndex]!.forwardDone = true;
-        lockedTransitionIndex = null;
-        if (trigger) trigger.scroll(trigger.start + start + seg.px);
-        lastRawPx = start + seg.px;
-      };
-      video.addEventListener("ended", onEnded);
+    // Chapter 1: mediawall's last frame wipes diagonally off-screen,
+    // revealing kitchen's first frame underneath, with an accent line
+    // moving at a different rate for depth and the transition copy fading
+    // in over the middle of the range.
+    function renderTransition0(localProgress: number) {
+      setActiveRoom(0);
+      setLayer("transition0");
+      const xOffset = localProgress * 160;
+      if (t0WipeRef.current) {
+        t0WipeRef.current.style.clipPath =
+          `polygon(${-xOffset}% 0%, ${120 - xOffset}% 0%, ${100 - xOffset}% 100%, ${-xOffset}% 100%)`;
+      }
+      if (t0BgRef.current) {
+        t0BgRef.current.style.transform = `scale(${1.08 - localProgress * 0.08}) translateY(${(1 - localProgress) * 3}%)`;
+      }
+      if (t0AccentRef.current) {
+        t0AccentRef.current.style.transform = `translateX(${(localProgress - 0.5) * 40}%) rotate(-8deg)`;
+      }
+      const textOpacity = windowed(localProgress, 0.12, 0.32, 0.72, 0.92);
+      if (t0ContentRef.current) {
+        t0ContentRef.current.style.opacity = String(textOpacity);
+        t0ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
+      }
+      if (!t0Entered && textOpacity > 0.05) t0Entered = true;
     }
 
+    // Chapter 2: a different mechanic entirely — bedroom's frame drifts in
+    // behind an oversized horizontal marquee word, while kitchen's last
+    // frame recedes as a bordered photo card.
+    function renderTransition1(localProgress: number) {
+      setActiveRoom(1);
+      setLayer("transition1");
+      if (t1BgRef.current) {
+        t1BgRef.current.style.transform = `scale(${1.1 - localProgress * 0.1}) translateY(${(localProgress - 0.5) * -4}%)`;
+      }
+      if (t1MarqueeRef.current) {
+        t1MarqueeRef.current.style.transform = `translateX(${(0.5 - localProgress) * 30}%)`;
+      }
+      if (t1CardRef.current) {
+        const cardProgress = clamp01(localProgress / 0.6);
+        t1CardRef.current.style.transform =
+          `translateY(${-cardProgress * 60}px) scale(${1 - cardProgress * 0.15}) rotate(${-cardProgress * 4}deg)`;
+        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.35) / 0.35));
+      }
+      const textOpacity = windowed(localProgress, 0.18, 0.4, 0.75, 0.95);
+      if (t1ContentRef.current) {
+        t1ContentRef.current.style.opacity = String(textOpacity);
+        t1ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
+      }
+      if (!t1Entered && textOpacity > 0.05) t1Entered = true;
+    }
+
+    // CTA: layered depth stack — blurred backdrop (slowest), oversized
+    // rotated watermark (mid), glass panel with the actual offer (fastest
+    // + one-time spring entrance).
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
-      setActiveVideo(null);
-      setPaused(null);
-      setCta(true);
-
-      const bg = ctaBgRef.current;
-      const watermark = ctaWatermarkRef.current;
-      const content = ctaContentRef.current;
-      const bgYPercent = -10 + localProgress * 20;
-      const wmYPercent = 22 - localProgress * 44;
-      const wmScale = 0.94 + localProgress * 0.08;
-      const contentYPercent = 14 - localProgress * 28;
-      if (bg) bg.style.transform = `translateY(${bgYPercent}%)`;
-      if (watermark) {
-        watermark.style.transform = `translateY(calc(-50% + ${wmYPercent}%)) scale(${wmScale})`;
+      setLayer("cta");
+      if (ctaBgRef.current) {
+        ctaBgRef.current.style.transform = `scale(${1.12 - localProgress * 0.06}) translateY(${-10 + localProgress * 20}%)`;
       }
-      if (content) content.style.transform = `translateY(${contentYPercent}%)`;
-
-      if (!ctaEntered && content) {
+      if (ctaWatermarkRef.current) {
+        const wm = -22 + localProgress * 44;
+        ctaWatermarkRef.current.style.transform = `translateY(calc(-50% + ${wm}%)) rotate(-6deg) scale(${0.94 + localProgress * 0.1})`;
+      }
+      if (ctaPanelRef.current) {
+        const py = 16 - localProgress * 32;
+        ctaPanelRef.current.style.transform = `translateY(${py}px)`;
+      }
+      if (!ctaEntered && ctaPanelRef.current) {
         ctaEntered = true;
         gsap.fromTo(
-          content,
-          { opacity: 0, y: 40, scale: 0.97 },
+          ctaPanelRef.current,
+          { opacity: 0, y: 48, scale: 0.96 },
           { opacity: 1, y: 0, scale: 1, duration: 0.9, ease: "power3.out", overwrite: true },
         );
       }
     }
 
-    // Master render: resolves the current segment from raw scroll pixels
-    // and either draws a frame, holds on a pause, scrubs/locks a video, or
-    // drives the CTA's parallax layers.
-    //
-    // Direction is tracked by comparing against our own last-seen position
-    // rather than ScrollTrigger's self.direction — the forward-lock clamp
-    // below calls trigger.scroll() to hold position, which is itself a
-    // backward scroll motion and would otherwise make self.direction
-    // falsely report "user scrolled up" on the very next tick, releasing
-    // the lock (and pausing the video) almost immediately after engaging it.
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
 
-      if (lockedTransitionIndex !== null) {
-        const lockedSeg = SEGMENTS.find(
-          (s) => s.type === "video" && s.transitionIndex === lockedTransitionIndex,
-        )!;
-        const start = segmentStartPx(lockedSeg);
-        if (rawPx < start - 0.5) {
-          // Genuinely scrolled back above the lock point — release, pause,
-          // and let the normal scrub logic below take over from here.
-          videoRefs.current[lockedTransitionIndex]?.pause();
-          lockedTransitionIndex = null;
-        } else {
-          // Still locked: hold the scroll position, the video plays itself.
-          if (trigger && rawPx > start) trigger.scroll(trigger.start + start);
-          updateProgressUI(start);
-          lastRawPx = start;
-          return;
-        }
+      if (rawPx < segmentStartPx(SEGMENTS.find((s) => s.type === "transition" && s.transitionIndex === 0)!)) {
+        t0Entered = false;
       }
-
-      const movingForward = rawPx >= lastRawPx;
-
-      // Re-arm any video the user has scrolled back above, so approaching
-      // it forward again re-triggers the locked auto-play from the start.
-      for (let i = 0; i < HERO_TRANSITIONS.length; i++) {
-        const videoSeg = SEGMENTS.find((s) => s.type === "video" && s.transitionIndex === i)!;
-        if (rawPx < segmentStartPx(videoSeg)) videoStates[i]!.forwardDone = false;
+      if (rawPx < segmentStartPx(SEGMENTS.find((s) => s.type === "transition" && s.transitionIndex === 1)!)) {
+        t1Entered = false;
       }
       if (rawPx < segmentStartPx(SEGMENTS[SEGMENTS.length - 1]!)) ctaEntered = false;
 
@@ -371,39 +332,15 @@ export function HeroSequence() {
 
       if (seg.type === "room") {
         setActiveRoom(seg.roomIndex);
-        setActiveVideo(null);
-        setPaused(null);
-        setCta(false);
+        setLayer("room");
         renderRoomFrame(seg.roomIndex, 1 + localProgress * (FRAME_COUNT - 1));
-      } else if (seg.type === "pause") {
-        setActiveRoom(seg.roomIndex);
-        setActiveVideo(null);
-        setPaused(seg.roomIndex);
-        setCta(false);
-        renderRoomFrame(seg.roomIndex, FRAME_COUNT);
-      } else if (seg.type === "video") {
-        const ti = seg.transitionIndex;
-        const video = videoRefs.current[ti];
-        const state = videoStates[ti]!;
-        setPaused(null);
-        setCta(false);
-        if (!video || !video.duration) {
-          setActiveRoom(ti);
-          setActiveVideo(null);
-          renderRoomFrame(ti, FRAME_COUNT);
-        } else if (movingForward && !state.forwardDone) {
-          lockAndPlayForward(ti, seg);
-          return;
-        } else {
-          setActiveRoom(ti);
-          setActiveVideo(ti);
-          video.currentTime = localProgress * video.duration;
-        }
+      } else if (seg.type === "transition") {
+        if (seg.transitionIndex === 0) renderTransition0(localProgress);
+        else renderTransition1(localProgress);
       } else {
         renderCta(localProgress);
       }
 
-      lastRawPx = rawPx;
       updateProgressUI(rawPx);
     }
 
@@ -461,7 +398,11 @@ export function HeroSequence() {
     };
   }, []);
 
-  const pausedRoom = pausedRoomIndex !== null ? HERO_ROOMS[pausedRoomIndex]! : null;
+  const mediawallRoom = HERO_ROOMS[0]!;
+  const kitchenRoom = HERO_ROOMS[1]!;
+  const bedroomRoom = HERO_ROOMS[2]!;
+  const transition0 = HERO_TRANSITIONS[0]!;
+  const transition1 = HERO_TRANSITIONS[1]!;
 
   return (
     <section
@@ -475,70 +416,135 @@ export function HeroSequence() {
 
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 block h-full w-full transition-opacity duration-150 ease-linear"
-        style={{ opacity: activeVideoIndex === null && !ctaActive ? 1 : 0 }}
+        className="absolute inset-0 block h-full w-full transition-opacity duration-300 ease-linear"
+        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
       />
 
-      {HERO_TRANSITIONS.map((transition, i) => (
-        <video
-          key={transition.id}
-          ref={(el) => {
-            videoRefs.current[i] = el;
-          }}
-          muted
-          playsInline
-          preload="auto"
-          className="absolute inset-0 block h-full w-full object-cover transition-opacity duration-150 ease-linear"
-          style={{ opacity: activeVideoIndex === i ? 1 : 0 }}
-        />
-      ))}
-
+      {/* Chapter 1 — diagonal wipe: mediawall recedes, kitchen emerges. */}
       <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
-        style={{ opacity: ctaActive ? 0 : 1 }}
-      />
-
-      <HeroGlassBlocks room={pausedRoom} visible={pausedRoomIndex !== null} />
-
-      {/* CTA — the final segment of this same timeline, not a separate
-          section; cross-fades in over the canvas/video and drives its own
-          3-layer parallax directly off local scroll progress within its
-          allotted range. */}
-      <div
-        className="absolute inset-0 z-[6] flex min-h-full items-center justify-center overflow-hidden transition-opacity duration-500 ease-out"
-        style={{ opacity: ctaActive ? 1 : 0, pointerEvents: ctaActive ? "auto" : "none" }}
+        className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
+        style={{ opacity: activeLayer === "transition0" ? 1 : 0 }}
+        aria-hidden={activeLayer !== "transition0"}
       >
-        <div className="absolute inset-0">
-          <div ref={ctaBgRef} className="absolute inset-[-10%]">
-            <ImageWithFallback src={CTA_BG} alt="" className="h-full w-full object-cover" />
+        <div ref={t0BgRef} className="absolute inset-0">
+          <img
+            src={roomFrameUrl(kitchenRoom, 1)}
+            alt=""
+            className="h-full w-full scale-110 object-cover blur-[2px]"
+          />
+          <div className="absolute inset-0 bg-enzo-dark/55" />
+        </div>
+        <div ref={t0WipeRef} className="absolute inset-0">
+          <img src={roomFrameUrl(mediawallRoom, FRAME_COUNT)} alt="" className="h-full w-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/5 to-black/45" />
+        </div>
+        <div
+          ref={t0AccentRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute left-1/2 top-1/2 h-[2px] w-[160%] -translate-x-1/2 -translate-y-1/2 bg-enzo-sage/40"
+        />
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-start px-8 md:px-16">
+          <div ref={t0ContentRef} className="max-w-md opacity-0">
+            <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
+              {transition0.copy.eyebrow}
+            </span>
+            <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
+              {transition0.copy.heading}
+            </h2>
+            <p className="max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+              {transition0.copy.body}
+            </p>
           </div>
-          <div className="absolute inset-0 bg-enzo-dark/80" />
+        </div>
+      </div>
+
+      {/* Chapter 2 — horizontal marquee + drifting card: kitchen recedes,
+          bedroom emerges. Deliberately a different mechanic from Chapter 1. */}
+      <div
+        className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
+        style={{ opacity: activeLayer === "transition1" ? 1 : 0 }}
+        aria-hidden={activeLayer !== "transition1"}
+      >
+        <div ref={t1BgRef} className="absolute inset-0">
+          <img
+            src={roomFrameUrl(bedroomRoom, 1)}
+            alt=""
+            className="h-full w-full scale-110 object-cover blur-[3px]"
+          />
+          <div className="absolute inset-0 bg-enzo-dark/60" />
+        </div>
+        <div
+          ref={t1MarqueeRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-serif leading-none text-enzo-cream/[0.07]"
+          style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
+        >
+          Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom&nbsp;&nbsp;·&nbsp;&nbsp;Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom
+        </div>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-end px-8 md:px-16">
+          <div
+            ref={t1CardRef}
+            aria-hidden="true"
+            className="absolute right-[8%] top-[18%] hidden w-[240px] overflow-hidden rounded-[14px] border-2 border-enzo-sand shadow-[0_20px_50px_rgba(0,0,0,0.5)] md:block"
+          >
+            <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
+          </div>
+          <div ref={t1ContentRef} className="max-w-md text-right opacity-0">
+            <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
+              {transition1.copy.eyebrow}
+            </span>
+            <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
+              {transition1.copy.heading}
+            </h2>
+            <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+              {transition1.copy.body}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* CTA — final segment, layered depth stack with a signature glass
+          panel (this is where the glassmorphism language ends up living). */}
+      <div
+        className="absolute inset-0 flex items-center justify-center overflow-hidden transition-opacity duration-500 ease-out"
+        style={{ opacity: activeLayer === "cta" ? 1 : 0, pointerEvents: activeLayer === "cta" ? "auto" : "none" }}
+        aria-hidden={activeLayer !== "cta"}
+      >
+        <div ref={ctaBgRef} className="absolute inset-0">
+          <img
+            src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
+            alt=""
+            className="h-full w-full scale-110 object-cover blur-[6px]"
+          />
+          <div className="absolute inset-0 bg-enzo-dark/78" />
         </div>
 
         <div
           ref={ctaWatermarkRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 top-1/2 select-none text-center font-serif leading-none text-enzo-cream/[0.06]"
-          style={{ fontSize: "clamp(6rem, 22vw, 20rem)" }}
+          className="pointer-events-none absolute inset-x-0 top-1/2 select-none text-center font-serif leading-none text-enzo-cream/[0.055]"
+          style={{ fontSize: "clamp(5rem, 18vw, 16rem)" }}
         >
           Enzo
         </div>
 
-        <div ref={ctaContentRef} className="relative z-10 px-6 text-center opacity-0">
-          <span className="mb-5 block text-[12px] uppercase tracking-[0.3em] text-enzo-sage">
+        <div
+          ref={ctaPanelRef}
+          className="relative z-10 mx-6 w-[min(560px,90vw)] rounded-[24px] border border-enzo-cream/15 bg-enzo-forest/60 p-[clamp(28px,5vw,56px)] text-center opacity-0 shadow-[0_24px_80px_rgba(0,0,0,0.45)] backdrop-blur-2xl"
+        >
+          <span className="mb-5 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
             Start Your Project
           </span>
           <h2
-            className="mx-auto max-w-3xl text-enzo-cream"
-            style={{ fontSize: "clamp(2.25rem, 5.5vw, 4rem)" }}
+            className="mx-auto font-serif font-medium text-enzo-cream"
+            style={{ fontSize: "clamp(1.9rem, 4.5vw, 3rem)" }}
           >
             Let&apos;s Build Something Beautiful, Together
           </h2>
-          <p className="mx-auto mt-5 max-w-md text-[16px] text-enzo-cream/70 md:text-[18px]">
+          <p className="mx-auto mt-5 max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/72 md:text-[16px]">
             A free, no-obligation design consultation — in your home, on your terms.
           </p>
-          <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
+          <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Button asChild size="lg">
               <Link href="/booking">Book a Free Consultation</Link>
             </Button>
@@ -550,8 +556,14 @@ export function HeroSequence() {
       </div>
 
       <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
+        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+      />
+
+      <div
         className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2 transition-opacity duration-300"
-        style={{ opacity: ctaActive ? 0 : 1 }}
+        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
         role="presentation"
       >
         {HERO_ROOMS.map((room, i) => (

@@ -1,24 +1,23 @@
 // Asset pipeline for the Hero v3 multi-room scroll sequence.
 //
 // Source: three 144-frame WebP room sequences (Mediawall, Kitchen, Bedroom,
-// already 1280x720) plus two MP4 transition videos connecting them, from the
-// "v3 of scroll animation" export. Frames are copied through as-is at their
-// original quality (just renamed to the 4-digit padded output convention) —
-// no re-encoding, no quality loss; videos are copied through as-is too
-// since they're already small.
+// already 1280x720), from the "v3 of scroll animation" export. Frames are
+// copied through as-is at their original quality (just renamed to the
+// 4-digit padded output convention) — no re-encoding, no quality loss.
+//
+// The transition MP4s from that same export are no longer used — the hero
+// replaced its video transitions with pure-CSS/GSAP parallax chapters, so
+// there's nothing to copy for them here.
 //
 // Not part of the app build — run manually after (re)exporting new source
-// assets: `node scripts/process-hero-frames.mjs`
+// frames: `node scripts/process-hero-frames.mjs`
 import { readdir, mkdir, copyFile, rm } from "fs/promises";
 import path from "path";
 
 const FRAMES_SOURCE_ROOT =
   "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Assets\\v3 of scroll animation\\Frames";
-const VIDEO_SOURCE_ROOT =
-  "D:\\NPATEL GROUP LTD\\Projects\\Enzo\\Assets\\v3 of scroll animation\\Scene transistion";
 
 const FRAMES_OUTPUT_ROOT = path.join(process.cwd(), "public", "frames", "hero");
-const VIDEO_OUTPUT_ROOT = path.join(process.cwd(), "public", "videos", "hero");
 
 const FRAME_COUNT = 144;
 
@@ -26,11 +25,6 @@ const ROOMS = [
   { id: "mediawall", sourceDir: "Mediawall Room" },
   { id: "kitchen", sourceDir: "Kitchen" },
   { id: "bedroom", sourceDir: "Bedroom" },
-];
-
-const VIDEOS = [
-  { sourceFile: "mediawall to kitchen.mp4", outputFile: "mediawall-to-kitchen.mp4" },
-  { sourceFile: "kitchen to bedroom.mp4", outputFile: "kitchen-to-bedroom.mp4" },
 ];
 
 function sourceFrameName(n) {
@@ -62,24 +56,11 @@ async function processRoom(room) {
   }
 }
 
-async function copyVideos() {
-  await mkdir(VIDEO_OUTPUT_ROOT, { recursive: true });
-  for (const video of VIDEOS) {
-    const inputPath = path.join(VIDEO_SOURCE_ROOT, video.sourceFile);
-    const outputPath = path.join(VIDEO_OUTPUT_ROOT, video.outputFile);
-    await copyFile(inputPath, outputPath);
-    console.log(`  copied ${video.sourceFile} -> videos/hero/${video.outputFile}`);
-  }
-}
-
 async function main() {
   for (const room of ROOMS) {
     await processRoom(room);
   }
-  await copyVideos();
-  console.log(
-    `\nDone. Wrote ${ROOMS.length * FRAME_COUNT} frames to ${FRAMES_OUTPUT_ROOT} and ${VIDEOS.length} videos to ${VIDEO_OUTPUT_ROOT}.`,
-  );
+  console.log(`\nDone. Wrote ${ROOMS.length * FRAME_COUNT} frames to ${FRAMES_OUTPUT_ROOT}.`);
 }
 
 main().catch((err) => {
