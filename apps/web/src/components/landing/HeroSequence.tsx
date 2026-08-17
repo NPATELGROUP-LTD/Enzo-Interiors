@@ -16,7 +16,6 @@
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { HeroIntro } from "./HeroIntro";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
@@ -394,9 +393,6 @@ export function HeroSequence() {
         className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
       />
 
-      <div className="absolute inset-x-0 top-0 z-[2] flex justify-center px-6 pt-28 md:pt-32">
-        <HeroIntro />
-      </div>
 
       <div
         className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2"
