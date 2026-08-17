@@ -1,103 +1,79 @@
 "use client";
 
-// Full-bleed scroll-scrubbed hero: pins the section and draws the frame at
-// `public/frames/hero/frame_0001.webp`...`frame_0097.webp` matching current
-// scroll progress onto a canvas. Ported from the standalone "Video Scroll
-// Effect" project's ScrollSequence component — simplified to this app's
-// fixed frame-naming convention (no generic filePrefix/pad/ext props) and
-// with Lenis dropped in favor of native smooth scroll + GSAP's own `scrub`
-// interpolation (see plan: apps/web already proves this pattern works via
-// ScrollReveal/FullScreenScrollFX without a smooth-scroll library).
+// Hero v3 — three independently scroll-scrubbed room sequences (Mediawall,
+// Kitchen, Bedroom), connected by two real transition videos. Unlike the old
+// single-sequence hero (one continuous ScrollTrigger scrub), the videos here
+// must NOT be scroll-scrubbed: they auto-play in real time once triggered,
+// and are only reversible by scroll *direction*, not distance. That mix
+// (position-driven frame scrub + direction-driven real-time video) needs
+// native page scroll trapped for the section's whole duration rather than a
+// single ScrollTrigger pin+scrub — see plan: apps/hero-frame-scroll-v3.
 import { useEffect, useRef, useState } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { HeroCaption } from "./HeroCaption";
+import { HeroGlassBlocks } from "./HeroGlassBlocks";
 import { HeroIntro } from "./HeroIntro";
-import { HERO_SCENES, findSceneIndex } from "./hero-scenes";
+import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
-const FRAME_COUNT = 97;
-const FRAME_PATH = "/frames/hero";
-const PX_PER_FRAME = 64;
-const SCRUB = 0.8;
+const ROOM_COUNT = HERO_ROOMS.length;
+const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
+const LAST_ROOM_INDEX = ROOM_COUNT - 1;
+
+const PX_PER_FRAME = 46;
+const MAX_DELTA = 120;
+const PAUSE_THRESHOLD = 90;
 const MAX_DPR = 1.5;
+const ROOM_WEIGHT = FRAME_COUNT;
+const VIDEO_WEIGHT = 60;
+const TOTAL_UNITS = ROOM_COUNT * ROOM_WEIGHT + (ROOM_COUNT - 1) * VIDEO_WEIGHT;
 
-let scrollTriggerRegistered = false;
+type PhaseKind = "scrub" | "pause" | "video";
 
-function frameUrl(n: number) {
-  return `${FRAME_PATH}/frame_${String(n).padStart(4, "0")}.webp`;
+// A flat mutable struct rather than a discriminated union — this is written
+// in place many times per second during scrub/reverse, and re-allocating a
+// new union-typed object (or narrowing-then-casting an existing one) on
+// every wheel tick is both slower and messier than reading only the fields
+// that apply to the current `kind`.
+interface Phase {
+  kind: PhaseKind;
+  roomIndex: number; // meaningful for "scrub" / "pause"
+  frame: number; // meaningful for "scrub" (1..FRAME_COUNT)
+  transitionIndex: number; // meaningful for "video"
+  direction: 1 | -1; // meaningful for "video"
 }
 
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const videoRefs = useRef<Array<HTMLVideoElement | null>>([null, null]);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const loaderFillRef = useRef<HTMLDivElement | null>(null);
   const loaderPctRef = useRef<HTMLSpanElement | null>(null);
+
   const [isRevealed, setIsRevealed] = useState(false);
-  const [activeSceneIndex, setActiveSceneIndex] = useState(0);
+  const [activeRoomIndex, setActiveRoomIndex] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
 
   useEffect(() => {
     const section = sectionRef.current;
     const canvas = canvasRef.current;
     if (!section || !canvas) return;
-
     const ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
 
-    if (!scrollTriggerRegistered) {
-      gsap.registerPlugin(ScrollTrigger);
-      scrollTriggerRegistered = true;
-    }
-    ScrollTrigger.config({ ignoreMobileResize: true });
-
-    const images = new Array<HTMLImageElement>(FRAME_COUNT);
-    const loaded = new Array<boolean>(FRAME_COUNT).fill(false);
-    let loadedCount = 0;
-    let revealed = false;
-    let lastSceneIndex = -1;
-
-    let dpr = 1;
-    let targetIndex = 0;
-    let lastDrawnIndex = -1;
-    let rafPending = false;
     let disposed = false;
+    let dpr = 1;
+    let lastDrawnKey = "";
 
-    function revealIfReady() {
-      if (revealed || !loaded[0]) return;
-      revealed = true;
-      setIsRevealed(true);
-      ScrollTrigger.refresh();
-    }
+    // images[roomIndex][frameIndex0]
+    const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
+    const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
+    let room0LoadedCount = 0;
+    let revealed = false;
 
-    function updateLoaderProgress() {
-      const pct = Math.round((loadedCount / FRAME_COUNT) * 100);
-      if (loaderFillRef.current) loaderFillRef.current.style.width = pct + "%";
-      if (loaderPctRef.current) loaderPctRef.current.textContent = String(pct);
-    }
-
-    function preloadFrames() {
-      for (let i = 0; i < FRAME_COUNT; i++) {
-        const index = i;
-        const img = new Image();
-        img.decoding = "async";
-        img.onload = () => {
-          if (disposed) return;
-          loaded[index] = true;
-          loadedCount++;
-          updateLoaderProgress();
-          revealIfReady();
-          requestRender(targetIndex);
-        };
-        img.onerror = () => {
-          if (disposed) return;
-          loadedCount++;
-          updateLoaderProgress();
-          revealIfReady();
-        };
-        img.src = frameUrl(index + 1);
-        images[index] = img;
-      }
-    }
+    const phase: Phase = { kind: "scrub", roomIndex: 0, frame: 1, transitionIndex: 0, direction: 1 };
+    let pauseForwardAccum = 0;
+    let released = false;
+    let reverseRaf: number | null = null;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -114,30 +90,22 @@ export function HeroSequence() {
       ctx2d!.drawImage(img, dx, dy, dw, dh);
     }
 
-    function updateActiveScene(idx: number) {
-      const sceneIndex = findSceneIndex(HERO_SCENES, idx + 1);
-      if (sceneIndex !== lastSceneIndex) {
-        lastSceneIndex = sceneIndex;
-        setActiveSceneIndex(sceneIndex);
-      }
-    }
-
-    function renderFrame() {
-      rafPending = false;
-      const idx = targetIndex;
+    function renderRoomFrame(roomIndex: number, frame1: number) {
+      const key = `${roomIndex}:${frame1}`;
+      if (key === lastDrawnKey) return;
+      const idx = Math.max(0, Math.min(FRAME_COUNT - 1, Math.round(frame1) - 1));
       let drawIdx = idx;
-
-      if (!loaded[drawIdx]) {
+      if (!loaded[roomIndex]![drawIdx]) {
         let found = -1;
         for (let i = idx; i >= 0; i--) {
-          if (loaded[i]) {
+          if (loaded[roomIndex]![i]) {
             found = i;
             break;
           }
         }
         if (found === -1) {
           for (let j = idx; j < FRAME_COUNT; j++) {
-            if (loaded[j]) {
+            if (loaded[roomIndex]![j]) {
               found = j;
               break;
             }
@@ -146,21 +114,322 @@ export function HeroSequence() {
         if (found === -1) return;
         drawIdx = found;
       }
-
-      const img = images[drawIdx];
-      if (drawIdx !== lastDrawnIndex && img) {
-        lastDrawnIndex = drawIdx;
+      const img = images[roomIndex]![drawIdx];
+      if (img) {
+        lastDrawnKey = key;
         drawImageCover(img);
       }
-      updateActiveScene(idx);
     }
 
-    function requestRender(idx: number) {
-      targetIndex = idx;
-      if (!rafPending) {
-        rafPending = true;
-        requestAnimationFrame(renderFrame);
+    function preloadRoom(roomIndex: number, onProgress?: () => void): Promise<void> {
+      const room = HERO_ROOMS[roomIndex]!;
+      return new Promise((resolve) => {
+        let remaining = FRAME_COUNT;
+        for (let i = 0; i < FRAME_COUNT; i++) {
+          const frameIndex = i;
+          const img = new Image();
+          img.decoding = "async";
+          const onDone = () => {
+            if (disposed) return;
+            loaded[roomIndex]![frameIndex] = true;
+            remaining--;
+            onProgress?.();
+            if (roomIndex === 0 && phase.roomIndex === 0) {
+              renderRoomFrame(0, phase.kind === "scrub" ? phase.frame : FRAME_COUNT);
+            }
+            if (remaining === 0) resolve();
+          };
+          img.onload = onDone;
+          img.onerror = onDone;
+          img.src = roomFrameUrl(room, frameIndex + 1);
+          images[roomIndex]![frameIndex] = img;
+        }
+      });
+    }
+
+    function preloadTransitionVideo(transitionIndex: number) {
+      const video = videoRefs.current[transitionIndex];
+      const transition = HERO_TRANSITIONS[transitionIndex]!;
+      if (!video || video.src) return;
+      video.src = transitionVideoUrl(transition);
+      video.load();
+    }
+
+    function updateLoaderProgress() {
+      const pct = Math.round((room0LoadedCount / FRAME_COUNT) * 100);
+      if (loaderFillRef.current) loaderFillRef.current.style.width = pct + "%";
+      if (loaderPctRef.current) loaderPctRef.current.textContent = String(pct);
+    }
+
+    function revealIfReady() {
+      if (revealed) return;
+      revealed = true;
+      setIsRevealed(true);
+      // Background-warm the rest of the journey once the first room is
+      // interactive, so later rooms/videos are ready by the time the user
+      // scrolls that far without blocking first paint on ~21MB of assets.
+      preloadTransitionVideo(0);
+      preloadRoom(1).then(() => {
+        preloadTransitionVideo(1);
+        void preloadRoom(2);
+      });
+    }
+
+    function updateProgressUI(units: number) {
+      const pct = Math.max(0, Math.min(100, (units / TOTAL_UNITS) * 100));
+      if (progressBarRef.current) progressBarRef.current.style.width = pct + "%";
+    }
+
+    function unitsForPhase(): number {
+      const roomStride = ROOM_WEIGHT + VIDEO_WEIGHT;
+      if (phase.kind === "scrub") return phase.roomIndex * roomStride + (phase.frame - 1);
+      if (phase.kind === "pause") return phase.roomIndex * roomStride + (ROOM_WEIGHT - 1);
+      const video = videoRefs.current[phase.transitionIndex];
+      const fraction = video && video.duration ? video.currentTime / video.duration : 0;
+      return phase.transitionIndex * roomStride + ROOM_WEIGHT + VIDEO_WEIGHT * fraction;
+    }
+
+    function syncUI() {
+      updateProgressUI(unitsForPhase());
+    }
+
+    function setActiveRoom(roomIndex: number) {
+      setActiveRoomIndex((prev) => (prev === roomIndex ? prev : roomIndex));
+    }
+
+    function enterPause(roomIndex: number) {
+      phase.kind = "pause";
+      phase.roomIndex = roomIndex;
+      pauseForwardAccum = 0;
+      setActiveRoom(roomIndex);
+      setIsPaused(true);
+      setActiveVideoIndex(null);
+      renderRoomFrame(roomIndex, FRAME_COUNT);
+      syncUI();
+    }
+
+    function enterScrub(roomIndex: number, frame: number) {
+      phase.kind = "scrub";
+      phase.roomIndex = roomIndex;
+      phase.frame = frame;
+      setActiveRoom(roomIndex);
+      setIsPaused(false);
+      setActiveVideoIndex(null);
+      renderRoomFrame(roomIndex, frame);
+      syncUI();
+    }
+
+    function stopReverseLoop() {
+      if (reverseRaf !== null) {
+        cancelAnimationFrame(reverseRaf);
+        reverseRaf = null;
       }
+    }
+
+    function startReverseLoop(transitionIndex: number) {
+      stopReverseLoop();
+      const video = videoRefs.current[transitionIndex];
+      if (!video) return;
+      let last = performance.now();
+      const step = (now: number) => {
+        const dt = Math.min(0.05, (now - last) / 1000);
+        last = now;
+        const next = video.currentTime - dt;
+        if (next <= 0) {
+          video.currentTime = 0;
+          onVideoReversedToStart(transitionIndex);
+          return;
+        }
+        video.currentTime = next;
+        syncUI();
+        reverseRaf = requestAnimationFrame(step);
+      };
+      reverseRaf = requestAnimationFrame(step);
+    }
+
+    function onVideoEnded(transitionIndex: number) {
+      if (phase.kind !== "video" || phase.transitionIndex !== transitionIndex) return;
+      const nextRoomIndex = transitionIndex + 1;
+      enterScrub(nextRoomIndex, 1);
+    }
+
+    function onVideoReversedToStart(transitionIndex: number) {
+      if (phase.kind !== "video" || phase.transitionIndex !== transitionIndex) return;
+      const prevRoomIndex = transitionIndex;
+      enterPause(prevRoomIndex);
+    }
+
+    function startVideo(transitionIndex: number, direction: 1 | -1) {
+      const video = videoRefs.current[transitionIndex];
+      if (!video) return;
+      stopReverseLoop();
+      phase.kind = "video";
+      phase.transitionIndex = transitionIndex;
+      phase.direction = direction;
+      setIsPaused(false);
+      setActiveVideoIndex(transitionIndex);
+      if (direction === 1) {
+        void video.play();
+      } else {
+        video.pause();
+        startReverseLoop(transitionIndex);
+      }
+      syncUI();
+    }
+
+    function release() {
+      released = true;
+      removeTrap();
+      window.scrollBy({ top: 48, left: 0, behavior: "auto" });
+    }
+
+    function reengage() {
+      released = false;
+      pauseForwardAccum = 0;
+      enterPause(LAST_ROOM_INDEX);
+      addTrap();
+    }
+
+    function applyDelta(rawDelta: number) {
+      if (!revealed || released) return;
+      const delta = rawDelta;
+      let hops = 0;
+      while (hops < 4) {
+        hops++;
+        if (phase.kind === "scrub") {
+          const framesDelta = delta / PX_PER_FRAME;
+          const target = phase.frame + framesDelta;
+          if (target > FRAME_COUNT) {
+            enterPause(phase.roomIndex);
+            return;
+          }
+          if (target < 1) {
+            if (phase.roomIndex === 0) {
+              enterScrub(0, 1);
+              return;
+            }
+            const transitionIndex = phase.roomIndex - 1;
+            const video = videoRefs.current[transitionIndex];
+            if (video && !video.duration) return;
+            if (video) video.currentTime = video.duration;
+            startVideo(transitionIndex, -1);
+            return;
+          }
+          enterScrub(phase.roomIndex, target);
+          return;
+        }
+
+        if (phase.kind === "pause") {
+          if (delta > 0) {
+            pauseForwardAccum += delta;
+            if (pauseForwardAccum < PAUSE_THRESHOLD) return;
+            pauseForwardAccum = 0;
+            if (phase.roomIndex === LAST_ROOM_INDEX) {
+              release();
+              return;
+            }
+            startVideo(phase.roomIndex, 1);
+            return;
+          }
+          if (delta < 0) {
+            pauseForwardAccum = 0;
+            // Re-enter this room's own scrub at its last frame and let the
+            // loop reprocess the same delta so one up-scroll tick both
+            // wakes from pause and moves a frame, rather than needing two.
+            enterScrub(phase.roomIndex, FRAME_COUNT);
+            continue;
+          }
+          return;
+        }
+
+        if (phase.kind === "video") {
+          if (delta > 0 && phase.direction === -1) {
+            stopReverseLoop();
+            startVideo(phase.transitionIndex, 1);
+            return;
+          }
+          if (delta < 0 && phase.direction === 1) {
+            const video = videoRefs.current[phase.transitionIndex];
+            if (video) video.pause();
+            phase.direction = -1;
+            startReverseLoop(phase.transitionIndex);
+            return;
+          }
+          return;
+        }
+        return;
+      }
+    }
+
+    function onWheel(e: WheelEvent) {
+      e.preventDefault();
+      const d = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, e.deltaY));
+      applyDelta(d);
+    }
+
+    let touchStartY: number | null = null;
+    function onTouchStart(e: TouchEvent) {
+      touchStartY = e.touches[0]?.clientY ?? null;
+    }
+    function onTouchMove(e: TouchEvent) {
+      if (touchStartY === null) return;
+      const y = e.touches[0]?.clientY;
+      if (y === undefined) return;
+      e.preventDefault();
+      const d = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, touchStartY - y));
+      touchStartY = y;
+      applyDelta(d);
+    }
+    function onTouchEnd() {
+      touchStartY = null;
+    }
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (["ArrowDown", "PageDown", " "].includes(e.key)) {
+        e.preventDefault();
+        applyDelta(80);
+      } else if (["ArrowUp", "PageUp"].includes(e.key)) {
+        e.preventDefault();
+        applyDelta(-80);
+      }
+    }
+
+    // Defensive only: the Navbar's full-screen mobile menu (md:hidden) locks
+    // document.body.style.overflow while open. This component is desktop-only
+    // (see Hero.tsx's breakpoint switch) so the two shouldn't ever overlap in
+    // practice, but skip handling input if body scroll is locked by something
+    // else rather than fighting it.
+    function bodyScrollUnlocked() {
+      return document.body.style.overflow !== "hidden";
+    }
+
+    function onWheelGuarded(e: WheelEvent) {
+      if (!bodyScrollUnlocked()) return;
+      onWheel(e);
+    }
+    function onTouchMoveGuarded(e: TouchEvent) {
+      if (!bodyScrollUnlocked()) return;
+      onTouchMove(e);
+    }
+
+    function addTrap() {
+      window.addEventListener("wheel", onWheelGuarded, { passive: false });
+      window.addEventListener("touchstart", onTouchStart, { passive: true });
+      window.addEventListener("touchmove", onTouchMoveGuarded, { passive: false });
+      window.addEventListener("touchend", onTouchEnd, { passive: true });
+      window.addEventListener("keydown", onKeyDown);
+    }
+
+    function removeTrap() {
+      window.removeEventListener("wheel", onWheelGuarded);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMoveGuarded);
+      window.removeEventListener("touchend", onTouchEnd);
+      window.removeEventListener("keydown", onKeyDown);
+    }
+
+    function onDocScroll() {
+      if (released && window.scrollY <= 2) reengage();
     }
 
     function resizeCanvas() {
@@ -174,62 +443,79 @@ export function HeroSequence() {
       ctx2d!.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx2d!.imageSmoothingEnabled = true;
       ctx2d!.imageSmoothingQuality = "high";
-      lastDrawnIndex = -1;
-      renderFrame();
+      lastDrawnKey = "";
+      const currentFrame = phase.kind === "scrub" ? phase.frame : FRAME_COUNT;
+      const roomForRedraw = phase.kind === "video" ? phase.transitionIndex : phase.roomIndex;
+      renderRoomFrame(roomForRedraw, currentFrame);
     }
 
     let resizeTimer: number | null = null;
     function onWindowResize() {
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      resizeTimer = requestAnimationFrame(() => {
-        resizeCanvas();
-        ScrollTrigger.refresh();
-      });
+      resizeTimer = requestAnimationFrame(resizeCanvas);
     }
 
     resizeCanvas();
-    preloadFrames();
-
-    const trigger = ScrollTrigger.create({
-      trigger: section,
-      start: "top top",
-      end: "+=" + FRAME_COUNT * PX_PER_FRAME,
-      pin: true,
-      pinSpacing: true,
-      scrub: SCRUB,
-      anticipatePin: 1,
-      onUpdate: (self) => {
-        const idx = Math.round(self.progress * (FRAME_COUNT - 1));
-        requestRender(idx);
-        if (progressBarRef.current) {
-          progressBarRef.current.style.width = self.progress * 100 + "%";
-        }
-      },
-    });
-
+    addTrap();
     window.addEventListener("resize", onWindowResize);
-    window.addEventListener("orientationchange", onWindowResize);
+    window.addEventListener("scroll", onDocScroll, { passive: true });
+
+    const video0 = videoRefs.current[0];
+    const video1 = videoRefs.current[1];
+    const onEnded0 = () => onVideoEnded(0);
+    const onEnded1 = () => onVideoEnded(1);
+    video0?.addEventListener("ended", onEnded0);
+    video1?.addEventListener("ended", onEnded1);
+
+    void preloadRoom(0, () => {
+      room0LoadedCount++;
+      updateLoaderProgress();
+    }).then(revealIfReady);
 
     return () => {
       disposed = true;
+      removeTrap();
       window.removeEventListener("resize", onWindowResize);
-      window.removeEventListener("orientationchange", onWindowResize);
+      window.removeEventListener("scroll", onDocScroll);
+      video0?.removeEventListener("ended", onEnded0);
+      video1?.removeEventListener("ended", onEnded1);
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      trigger.kill();
+      stopReverseLoop();
     };
   }, []);
+
+  const activeRoom = HERO_ROOMS[activeRoomIndex] ?? null;
 
   return (
     <section
       ref={sectionRef}
       className="relative h-screen w-full overflow-hidden bg-enzo-dark"
+      style={{ overscrollBehavior: "none" }}
     >
       <div
         ref={progressBarRef}
         className="fixed left-0 top-0 z-[100] h-[3px] w-0 bg-gradient-to-r from-primary to-enzo-forest-light transition-[width] duration-100 ease-out"
       />
 
-      <canvas ref={canvasRef} className="absolute inset-0 block h-full w-full" />
+      <canvas
+        ref={canvasRef}
+        className="absolute inset-0 block h-full w-full transition-opacity duration-150 ease-linear"
+        style={{ opacity: activeVideoIndex === null ? 1 : 0 }}
+      />
+
+      {HERO_TRANSITIONS.map((transition, i) => (
+        <video
+          key={transition.id}
+          ref={(el) => {
+            videoRefs.current[i] = el;
+          }}
+          muted
+          playsInline
+          preload="auto"
+          className="absolute inset-0 block h-full w-full object-cover transition-opacity duration-150 ease-linear"
+          style={{ opacity: activeVideoIndex === i ? 1 : 0 }}
+        />
+      ))}
 
       <div
         aria-hidden="true"
@@ -240,7 +526,28 @@ export function HeroSequence() {
         <HeroIntro />
       </div>
 
-      <HeroCaption scenes={HERO_SCENES} activeIndex={activeSceneIndex} revealed={isRevealed} />
+      <HeroGlassBlocks room={activeRoom} visible={isPaused} />
+
+      <div
+        className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2"
+        role="presentation"
+      >
+        {HERO_ROOMS.map((room, i) => (
+          <span
+            key={room.id}
+            className="h-[3px] w-8 overflow-hidden rounded-full bg-enzo-cream/25"
+          >
+            <span
+              className="block h-full bg-enzo-cream transition-transform duration-300 ease-out"
+              style={{
+                transform: `scaleX(${i <= activeRoomIndex ? 1 : 0})`,
+                transformOrigin: "left",
+                opacity: i === activeRoomIndex ? 1 : i < activeRoomIndex ? 0.7 : 0.25,
+              }}
+            />
+          </span>
+        ))}
+      </div>
 
       <div
         aria-live="polite"
