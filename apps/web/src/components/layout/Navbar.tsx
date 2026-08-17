@@ -4,6 +4,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
+import gsap from "gsap";
 import {
   ArrowUpRight,
   Menu,
@@ -122,6 +123,7 @@ export function Navbar() {
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const logoRef = useRef<HTMLAnchorElement>(null);
   const ctaRef = useRef<HTMLDivElement>(null);
+  const dockRef = useRef<HTMLElement>(null);
 
   // The dock's "closed" width has to be a real measured pixel value, not a
   // CSS keyword like `fit-content` — animating `width` between a keyword
@@ -189,6 +191,67 @@ export function Navbar() {
       window.removeEventListener("resize", measure);
     };
   }, []);
+
+  // On the homepage only, the navbar starts hidden and HeroSequence
+  // reveals it (by flipping document.body's data-hero-chrome attribute)
+  // once its scroll sequence reaches the CTA — see .site-navbar in
+  // theme.css for the CSS-level instant-hide fallback and HeroSequence.tsx
+  // for what sets the attribute. This effect owns the actual reveal/hide
+  // *animation*: each piece gets its own distinct motion (the dock slides
+  // down sharply, the logo scales in with an overshoot, the CTA button
+  // slides in from the right) rather than a single uniform fade — a plain
+  // opacity transition read as flat for something meant to feel like the
+  // site "arriving". Transform is used only for the transient animation
+  // itself, never as the resting hidden state, so it can't skew the
+  // logo/CTA getBoundingClientRect() measurements the effect above depends
+  // on (that effect only re-measures on resize/size change, never on this
+  // transform, but keeping the resting state transform-free avoids any
+  // chance of a stale measurement if both ever raced).
+  useEffect(() => {
+    if (pathname !== "/") return;
+    const dock = dockRef.current;
+    const logo = logoRef.current;
+    const cta = ctaRef.current;
+    if (!dock || !logo || !cta) return;
+
+    gsap.set(dock, { yPercent: -130, opacity: 0 });
+    gsap.set(logo, { opacity: 0, scale: 0.8 });
+    gsap.set(cta, { opacity: 0, x: 28 });
+
+    let entered = false;
+
+    function reveal() {
+      if (entered) return;
+      entered = true;
+      gsap
+        .timeline()
+        .to(dock, { yPercent: 0, opacity: 1, duration: 0.55, ease: "power4.out" }, 0)
+        .to(logo, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.8)" }, 0.08)
+        .to(cta, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 0.18);
+    }
+
+    function hide() {
+      if (!entered) return;
+      entered = false;
+      gsap
+        .timeline()
+        .to(cta, { opacity: 0, x: 28, duration: 0.28, ease: "power2.in" }, 0)
+        .to(logo, { opacity: 0, scale: 0.8, duration: 0.28, ease: "power2.in" }, 0)
+        .to(dock, { yPercent: -130, opacity: 0, duration: 0.32, ease: "power2.in" }, 0);
+    }
+
+    function sync() {
+      const state = document.body.dataset.heroChrome;
+      if (state === "visible") reveal();
+      else if (state === "hidden") hide();
+    }
+
+    const observer = new MutationObserver(sync);
+    observer.observe(document.body, { attributes: true, attributeFilter: ["data-hero-chrome"] });
+    sync();
+
+    return () => observer.disconnect();
+  }, [pathname]);
 
   // Reset mobile menu + hover panel when navigating, per React's "adjusting
   // state on prop change" pattern (https://react.dev/learn/you-might-not-need-an-effect)
@@ -373,6 +436,7 @@ export function Navbar() {
           }
         >
           <nav
+            ref={dockRef}
             onMouseLeave={scheduleClose}
             style={{
               width: activeLink

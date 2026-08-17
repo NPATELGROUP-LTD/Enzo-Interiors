@@ -3,11 +3,17 @@
 // Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom), each
 // separated by a bespoke parallax "chapter" (no video, no floating
 // glassmorphism cards — that copy now lives inside the parallax chapters
-// themselves), ending in a split-panel parallax CTA. Everything is one
+// themselves), ending in an asymmetric parallax CTA. Everything is one
 // continuous story on a single master ScrollTrigger pin+scrub: since
 // nothing here plays back in real time anymore, every segment is purely
 // scroll-position-driven and therefore trivially, exactly reversible —
 // no locking, no direction tricks, no boundary hand-off bugs.
+//
+// The intro (rooms + chapters) reads as an unbranded cinematic teaser: no
+// Navbar, no site frame, just a "scroll to begin" cue — see the
+// data-hero-chrome toggling below and .site-navbar/.site-frame in
+// theme.css. Both fade in together only once the CTA segment arrives,
+// marking the shift from "intro" to "the site starts here."
 //
 // Chapters are given generous scroll distance and a heavy scrub smoothing
 // factor specifically so a fast flick-scroll still gets time to visibly
@@ -17,6 +23,7 @@
 // real time instead of snapping straight there.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, CalendarCheck, ChevronDown, MapPin, Ruler } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Button } from "@/components/ui/Button";
@@ -68,6 +75,7 @@ export function HeroSequence() {
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const loaderFillRef = useRef<HTMLDivElement | null>(null);
   const loaderPctRef = useRef<HTMLSpanElement | null>(null);
+  const scrollHintRef = useRef<HTMLDivElement | null>(null);
 
   // Chapter 1 — double-door reveal (mediawall -> kitchen).
   const t0BgRef = useRef<HTMLDivElement | null>(null);
@@ -76,21 +84,23 @@ export function HeroSequence() {
   const t0SeamRef = useRef<HTMLDivElement | null>(null);
   const t0ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // Chapter 2 — zoom-through cross-dissolve (kitchen -> bedroom).
-  const t1OutgoingRef = useRef<HTMLDivElement | null>(null);
-  const t1IncomingRef = useRef<HTMLDivElement | null>(null);
-  const t1VignetteRef = useRef<HTMLDivElement | null>(null);
+  // Chapter 2 — horizontal marquee + drifting photo card (kitchen -> bedroom).
+  const t1BgRef = useRef<HTMLDivElement | null>(null);
+  const t1MarqueeRef = useRef<HTMLDivElement | null>(null);
+  const t1CardRef = useRef<HTMLDivElement | null>(null);
   const t1ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // CTA — kinetic typography manifesto: masked line reveals + a slowly
-  // rotating seal badge, no image panel or floating card.
+  // CTA — asymmetric layout: left-aligned kinetic headline + right-side
+  // highlight chips over a blended (not flat/solid) photographic backdrop.
   const ctaBgRef = useRef<HTMLDivElement | null>(null);
-  const ctaBadgeRef = useRef<HTMLDivElement | null>(null);
   const ctaEyebrowRef = useRef<HTMLSpanElement | null>(null);
   const ctaLine1Ref = useRef<HTMLSpanElement | null>(null);
   const ctaLine2Ref = useRef<HTMLSpanElement | null>(null);
   const ctaSubRef = useRef<HTMLParagraphElement | null>(null);
   const ctaButtonsRef = useRef<HTMLDivElement | null>(null);
+  const ctaChip1Ref = useRef<HTMLDivElement | null>(null);
+  const ctaChip2Ref = useRef<HTMLDivElement | null>(null);
+  const ctaChip3Ref = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
@@ -120,6 +130,11 @@ export function HeroSequence() {
     let room0LoadedCount = 0;
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
+
+    // Intro (rooms/chapters) hides the Navbar + decorative frame entirely;
+    // both fade back in only once the CTA segment is reached. See
+    // .site-navbar/.site-frame + body[data-hero-chrome] in theme.css.
+    document.body.dataset.heroChrome = "hidden";
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -214,11 +229,15 @@ export function HeroSequence() {
       if (layer === lastLayer) return;
       lastLayer = layer;
       setActiveLayer(layer);
+      document.body.dataset.heroChrome = layer === "cta" ? "visible" : "hidden";
     }
 
     function updateProgressUI(px: number) {
       if (progressBarRef.current) {
         progressBarRef.current.style.width = Math.max(0, Math.min(100, (px / TOTAL_PX) * 100)) + "%";
+      }
+      if (scrollHintRef.current) {
+        scrollHintRef.current.style.opacity = String(1 - clamp01(px / 500));
       }
     }
 
@@ -263,66 +282,68 @@ export function HeroSequence() {
       }
     }
 
-    // Chapter 2: a different mechanic entirely — kitchen's last frame
-    // zooms in and dissolves away while bedroom's first frame zooms in
-    // from an oversized start and settles to normal scale, crossing paths
-    // around the local midpoint with a soft vignette pulse for a "passing
-    // through a doorway" feel. Content stays centered and scales in with
-    // the crossover instead of sliding from an edge.
+    // Chapter 2: kitchen's last frame is pinned to the wall as a framed,
+    // labeled photo card that drifts up and away, while an oversized
+    // horizontal marquee word and bedroom's first frame settle in behind
+    // it — a different mechanic from Chapter 1's door reveal.
     function renderTransition1(localProgress: number) {
       setActiveRoom(1);
       setLayer("transition1");
-      const outProgress = clamp01(localProgress / 0.55);
-      if (t1OutgoingRef.current) {
-        t1OutgoingRef.current.style.transform = `scale(${1 + outProgress * 0.55})`;
-        t1OutgoingRef.current.style.opacity = String(1 - clamp01((localProgress - 0.32) / 0.32));
+      if (t1BgRef.current) {
+        t1BgRef.current.style.transform = `scale(${1.1 - localProgress * 0.1}) translateY(${(localProgress - 0.5) * -4}%)`;
       }
-      const inProgress = clamp01((localProgress - 0.3) / 0.62);
-      if (t1IncomingRef.current) {
-        t1IncomingRef.current.style.transform = `scale(${1.4 - inProgress * 0.4})`;
-        t1IncomingRef.current.style.opacity = String(inProgress);
+      if (t1MarqueeRef.current) {
+        t1MarqueeRef.current.style.transform = `translateX(${(0.5 - localProgress) * 30}%)`;
       }
-      if (t1VignetteRef.current) {
-        const crossover = clamp01(1 - Math.abs(localProgress - 0.5) / 0.32);
-        t1VignetteRef.current.style.opacity = String(crossover * 0.55);
+      if (t1CardRef.current) {
+        const cardProgress = clamp01((localProgress - 0.05) / 0.55);
+        t1CardRef.current.style.transform = `translateY(${-cardProgress * 55}px) scale(${1 - cardProgress * 0.08})`;
+        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.62) / 0.3));
       }
-      const textOpacity = windowed(localProgress, 0.08, 0.28, 0.72, 0.94);
+      const textOpacity = windowed(localProgress, 0.2, 0.4, 0.8, 0.97);
       if (t1ContentRef.current) {
         t1ContentRef.current.style.opacity = String(textOpacity);
-        t1ContentRef.current.style.transform = `scale(${0.94 + textOpacity * 0.06})`;
+        t1ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
       }
     }
 
-    // CTA: kinetic typography manifesto — no image panel, no floating
-    // card. The headline reveals line by line through a masked wipe as
-    // the user scrolls, a slowly rotating seal badge adds a boutique
-    // touch, and the offer/buttons arrive last.
+    // CTA: one consolidated left column — badge+eyebrow, masked
+    // line-by-line headline reveal, subtext, buttons, then a row of
+    // highlight chips — over a photographic backdrop blended into dark
+    // charcoal, with the right two-fifths of the screen left as clean,
+    // unobstructed photograph.
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
       setLayer("cta");
       if (ctaBgRef.current) {
-        ctaBgRef.current.style.transform = `scale(${1.15 - localProgress * 0.06})`;
+        ctaBgRef.current.style.transform =
+          `scale(${1.18 - localProgress * 0.08}) translateX(${(0.5 - localProgress) * -4}%)`;
       }
       if (ctaEyebrowRef.current) {
-        ctaEyebrowRef.current.style.opacity = String(clamp01(localProgress / 0.12));
+        ctaEyebrowRef.current.style.opacity = String(clamp01(localProgress / 0.1));
       }
-      const line1 = clamp01((localProgress - 0.06) / 0.22);
-      const line2 = clamp01((localProgress - 0.2) / 0.22);
+      const line1 = clamp01((localProgress - 0.05) / 0.2);
+      const line2 = clamp01((localProgress - 0.16) / 0.2);
       if (ctaLine1Ref.current) ctaLine1Ref.current.style.transform = `translateY(${(1 - line1) * 100}%)`;
       if (ctaLine2Ref.current) ctaLine2Ref.current.style.transform = `translateY(${(1 - line2) * 100}%)`;
-      const subReveal = clamp01((localProgress - 0.42) / 0.18);
+      const subReveal = clamp01((localProgress - 0.32) / 0.16);
       if (ctaSubRef.current) {
         ctaSubRef.current.style.opacity = String(subReveal);
         ctaSubRef.current.style.transform = `translateY(${(1 - subReveal) * 14}px)`;
       }
-      const btnReveal = clamp01((localProgress - 0.58) / 0.2);
+      const btnReveal = clamp01((localProgress - 0.44) / 0.16);
       if (ctaButtonsRef.current) {
         ctaButtonsRef.current.style.opacity = String(btnReveal);
         ctaButtonsRef.current.style.transform = `translateY(${(1 - btnReveal) * 14}px)`;
       }
-      if (ctaBadgeRef.current) {
-        ctaBadgeRef.current.style.opacity = String(clamp01((localProgress - 0.1) / 0.25) * 0.9);
-      }
+      const chipRefs = [ctaChip1Ref, ctaChip2Ref, ctaChip3Ref];
+      chipRefs.forEach((ref, i) => {
+        const reveal = clamp01((localProgress - (0.56 + i * 0.06)) / 0.15);
+        if (ref.current) {
+          ref.current.style.opacity = String(reveal);
+          ref.current.style.transform = `translateY(${(1 - reveal) * 16}px)`;
+        }
+      });
     }
 
     function handleUpdate(self: ScrollTrigger) {
@@ -394,6 +415,7 @@ export function HeroSequence() {
       window.removeEventListener("orientationchange", onWindowResize);
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
       trigger?.kill();
+      delete document.body.dataset.heroChrome;
     };
   }, []);
 
@@ -473,107 +495,139 @@ export function HeroSequence() {
         </div>
       </div>
 
-      {/* Chapter 2 — zoom-through cross-dissolve: kitchen zooms in and
-          dissolves away, bedroom zooms in from oversized and settles.
-          Deliberately a different mechanic from Chapter 1's door reveal. */}
+      {/* Chapter 2 — horizontal marquee + drifting framed photo card:
+          kitchen recedes, bedroom emerges. Different mechanic from
+          Chapter 1's door reveal. */}
       <div
         className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
         style={{ opacity: activeLayer === "transition1" ? 1 : 0 }}
         aria-hidden={activeLayer !== "transition1"}
       >
-        <div ref={t1OutgoingRef} className="absolute inset-0">
-          <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="h-full w-full object-cover" />
-        </div>
-        <div ref={t1IncomingRef} className="absolute inset-0 opacity-0">
-          <img src={roomFrameUrl(bedroomRoom, 1)} alt="" className="h-full w-full object-cover" />
+        <div ref={t1BgRef} className="absolute inset-0">
+          <img
+            src={roomFrameUrl(bedroomRoom, 1)}
+            alt=""
+            className="h-full w-full scale-110 object-cover blur-[3px]"
+          />
+          <div className="absolute inset-0 bg-enzo-dark/60" />
         </div>
         <div
-          ref={t1VignetteRef}
+          ref={t1MarqueeRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-0"
-          style={{ background: "radial-gradient(circle at center, transparent 35%, rgba(0,0,0,0.65) 100%)" }}
-        />
-        <div className="pointer-events-none absolute inset-0 z-[2] flex items-center justify-center px-8 text-center">
-          <div ref={t1ContentRef} className="max-w-lg opacity-0">
+          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-serif leading-none text-enzo-cream/[0.07]"
+          style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
+        >
+          Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom&nbsp;&nbsp;·&nbsp;&nbsp;Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom
+        </div>
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-end px-8 md:px-16">
+          <div className="absolute right-[10%] top-[14%] hidden md:block">
+            <div
+              ref={t1CardRef}
+              className="w-[300px] overflow-hidden rounded-[18px] border-2 border-enzo-sand shadow-[0_28px_70px_rgba(0,0,0,0.55)]"
+            >
+              <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
+              <div className="bg-enzo-sand px-4 py-2.5">
+                <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest">
+                  Kitchen — Complete
+                </span>
+              </div>
+            </div>
+          </div>
+          <div ref={t1ContentRef} className="max-w-md text-right opacity-0">
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
               {transition1.copy.eyebrow}
             </span>
             <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
               {transition1.copy.heading}
             </h2>
-            <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+            <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
               {transition1.copy.body}
             </p>
           </div>
         </div>
       </div>
 
-      {/* CTA — final segment, kinetic typography manifesto: no image
-          panel, no floating card. Headline reveals line by line through a
-          masked wipe as the user scrolls; a slowly rotating seal badge
-          adds a boutique touch. */}
+      {/* CTA — final segment. One consolidated left content column
+          (eyebrow+badge, headline, subtext, buttons, highlight chips all
+          in a single flowing group) rather than pieces scattered to
+          separate corners. Content now spans the full width instead of a
+          narrow left column — a wide headline with key words picked out in
+          sage, then a full-width chip strip below a divider line, so the
+          composition uses the whole frame rather than leaving the right
+          side as a passive, empty-reading photo panel. Backdrop blends
+          into dark charcoal, not the room-green used everywhere else in
+          the sequence. */}
       <div
-        className="absolute inset-0 flex items-center justify-center overflow-hidden bg-enzo-forest transition-opacity duration-500 ease-out"
+        className="absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out"
         style={{ opacity: activeLayer === "cta" ? 1 : 0, pointerEvents: activeLayer === "cta" ? "auto" : "none" }}
         aria-hidden={activeLayer !== "cta"}
       >
-        <div ref={ctaBgRef} className="absolute inset-0 opacity-[0.16]">
+        <div ref={ctaBgRef} className="absolute inset-0">
           <img
             src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
             alt=""
             className="h-full w-full object-cover"
           />
         </div>
-        <div className="absolute inset-0 bg-gradient-to-b from-enzo-forest/40 via-enzo-forest/75 to-enzo-forest" />
+        <div className="absolute inset-0 bg-enzo-charcoal/58" />
+        <div className="absolute inset-0 bg-gradient-to-t from-enzo-charcoal/85 via-enzo-charcoal/10 to-enzo-charcoal/55" />
 
-        <div
-          ref={ctaBadgeRef}
-          aria-hidden="true"
-          className="absolute right-[10%] top-[16%] hidden h-28 w-28 opacity-0 md:block"
-        >
-          <div className="absolute inset-0 rounded-full border border-enzo-sage/40" />
-          <div className="absolute inset-2 animate-[spin_16s_linear_infinite] rounded-full border border-dashed border-enzo-sage/30" />
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-            <span className="font-serif text-[10px] uppercase tracking-[0.2em] text-enzo-sage">Est.</span>
-            <span className="font-serif text-[10px] uppercase tracking-[0.2em] text-enzo-sage">Leicester</span>
-          </div>
-        </div>
-
-        <div className="relative z-10 max-w-4xl px-8 text-center">
+        <div className="relative z-10 flex h-full flex-col justify-center px-8 md:px-16">
           <span
             ref={ctaEyebrowRef}
             className="mb-6 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage opacity-0"
           >
-            04 — Start Your Project
+            Ready When You Are
           </span>
           <h2
-            className="font-serif font-medium leading-[1.05] text-enzo-cream"
-            style={{ fontSize: "clamp(2.5rem, 7vw, 5.5rem)" }}
+            className="max-w-5xl font-serif font-medium leading-[1.02] text-enzo-cream"
+            style={{ fontSize: "clamp(3rem, 8.5vw, 7rem)" }}
           >
             <span className="block overflow-hidden">
               <span ref={ctaLine1Ref} className="block" style={{ transform: "translateY(100%)" }}>
-                Let&apos;s Build Something
+                Stop <em className="text-enzo-sage not-italic">Dreaming</em>.
               </span>
             </span>
             <span className="block overflow-hidden">
               <span ref={ctaLine2Ref} className="block" style={{ transform: "translateY(100%)" }}>
-                Beautiful, Together
+                Start <em className="text-enzo-sage not-italic">Building</em>.
               </span>
             </span>
           </h2>
           <p
             ref={ctaSubRef}
-            className="mx-auto mt-6 max-w-[42ch] text-[16px] leading-[1.6] text-enzo-cream/70 opacity-0"
+            className="mt-6 max-w-[52ch] text-[17px] leading-[1.6] text-enzo-cream/72 opacity-0 md:text-[19px]"
           >
-            A free, no-obligation design consultation — in your home, on your terms.
+            One <span className="text-enzo-cream">free</span> consultation. Zero pressure. Your space,{" "}
+            <span className="text-enzo-cream">transformed</span>.
           </p>
-          <div ref={ctaButtonsRef} className="mt-10 flex flex-col items-center justify-center gap-4 opacity-0 sm:flex-row">
+          <div ref={ctaButtonsRef} className="mt-9 flex flex-col items-start gap-4 opacity-0 sm:flex-row">
             <Button asChild size="lg">
-              <Link href="/booking">Book a Free Consultation</Link>
+              <Link href="/booking" className="group flex items-center justify-center gap-2">
+                Book My Free Consultation
+                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+              </Link>
             </Button>
             <Button asChild variant="secondary" size="lg" className="border-2">
-              <Link href="/portfolio">View Our Work</Link>
+              <Link href="/portfolio">See Our Work</Link>
             </Button>
+          </div>
+
+          <div className="mt-12 flex w-full max-w-4xl flex-wrap items-center gap-x-10 gap-y-4 border-t border-enzo-cream/15 pt-6">
+            <div ref={ctaChip1Ref} className="flex items-center gap-2.5 opacity-0">
+              <CalendarCheck className="h-4 w-4 shrink-0 text-enzo-sage" />
+              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">
+                Free Consultation
+              </span>
+            </div>
+            <div ref={ctaChip2Ref} className="flex items-center gap-2.5 opacity-0">
+              <Ruler className="h-4 w-4 shrink-0 text-enzo-sage" />
+              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">Fully Bespoke</span>
+            </div>
+            <div ref={ctaChip3Ref} className="flex items-center gap-2.5 opacity-0">
+              <MapPin className="h-4 w-4 shrink-0 text-enzo-sage" />
+              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">Leicester-Based</span>
+            </div>
           </div>
         </div>
       </div>
@@ -583,6 +637,16 @@ export function HeroSequence() {
         className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
         style={{ opacity: activeLayer === "room" ? 1 : 0 }}
       />
+
+      {/* Scroll cue — the only UI visible at the very start, since Navbar
+          and the site frame are both hidden until the CTA arrives. */}
+      <div
+        ref={scrollHintRef}
+        className="pointer-events-none absolute inset-x-0 bottom-20 z-[4] flex flex-col items-center gap-2 text-enzo-cream/70"
+      >
+        <span className="text-[11px] uppercase tracking-[0.3em]">Scroll to Begin</span>
+        <ChevronDown className="h-4 w-4 animate-bounce" />
+      </div>
 
       <div
         className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2 transition-opacity duration-300"

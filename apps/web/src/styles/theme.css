@@ -242,3 +242,32 @@
     transform: scaleX(1);
   }
 }
+
+/* Decorative frame border hides while HeroSequence's intro is playing and
+ * fades back in once the CTA segment arrives — the intro reads as a clean,
+ * unbranded cinematic teaser; the chrome's arrival marks "the site"
+ * starting for real. HeroSequence sets this attribute on <body> only
+ * while mounted (i.e. only on the homepage) and removes it on unmount, so
+ * every other page is unaffected by default.
+ *
+ * The Navbar itself (.site-navbar) is NOT controlled here — its individual
+ * pieces (dock/logo/CTA button) each get their own distinct GSAP entrance
+ * animation instead of a uniform fade, driven directly off this same
+ * attribute via a MutationObserver in Navbar.tsx.
+ *
+ * Wrapped in `@layer utilities` (Tailwind's own last/highest-priority
+ * layer here) rather than left unlayered — empirically, in this Turbopack
+ * + Tailwind v4 build, unlayered rules in this file were losing to
+ * Tailwind's layered utility rules despite matching and despite no
+ * competing opacity declaration existing anywhere, which cascade-layer
+ * semantics say shouldn't happen; layering it explicitly is what actually
+ * wins the cascade in practice. */
+@layer utilities {
+  .site-frame {
+    transition: opacity 0.7s ease;
+  }
+  body[data-hero-chrome="hidden"] .site-frame {
+    opacity: 0;
+    pointer-events: none;
+  }
+}

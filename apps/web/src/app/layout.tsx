@@ -55,7 +55,7 @@ export default function RootLayout({
             14px band (rather than exactly at 14px) so the frame's own paint
             (it's a higher z-index) always covers the seam, guaranteeing no
             gap regardless of sub-pixel rounding. */}
-        <div aria-hidden className="pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
+        <div aria-hidden className="site-frame pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
         <SmoothScroll>{children}</SmoothScroll>
         <Toaster />
       </body>
