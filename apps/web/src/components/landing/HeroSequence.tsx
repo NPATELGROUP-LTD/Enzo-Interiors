@@ -1,44 +1,41 @@
 "use client";
 
-// Hero v3 — three independently scroll-scrubbed room sequences (Mediawall,
-// Kitchen, Bedroom), connected by two real transition videos. Unlike the old
-// single-sequence hero (one continuous ScrollTrigger scrub), the videos here
-// must NOT be scroll-scrubbed: they auto-play in real time once triggered,
-// and are only reversible by scroll *direction*, not distance. That mix
-// (position-driven frame scrub + direction-driven real-time video) needs
-// native page scroll trapped for the section's whole duration rather than a
-// single ScrollTrigger pin+scrub — see plan: apps/hero-frame-scroll-v3.
+// Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom)
+// connected by two transition videos, all driven by a single master
+// ScrollTrigger pin+scrub — one continuous scroll-position timeline, same
+// pattern as the old single-sequence hero, just with more segments. Frames
+// AND video currentTime are both mapped directly from scroll progress, so
+// reversing (scrolling back toward the top) naturally reverses everything
+// with zero custom state machine — no wheel/touch trapping, no manual
+// play()/reverse-rAF bookkeeping.
 import { useEffect, useRef, useState } from "react";
-import { HeroGlassBlocks } from "./HeroGlassBlocks";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { HeroIntro } from "./HeroIntro";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
-const ROOM_COUNT = HERO_ROOMS.length;
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
-const LAST_ROOM_INDEX = ROOM_COUNT - 1;
-
-const PX_PER_FRAME = 46;
-const MAX_DELTA = 120;
-const PAUSE_THRESHOLD = 90;
+const PX_PER_FRAME = 34;
+const PX_PER_VIDEO = 450;
 const MAX_DPR = 1.5;
-const ROOM_WEIGHT = FRAME_COUNT;
-const VIDEO_WEIGHT = 60;
-const TOTAL_UNITS = ROOM_COUNT * ROOM_WEIGHT + (ROOM_COUNT - 1) * VIDEO_WEIGHT;
 
-type PhaseKind = "scrub" | "pause" | "video";
+let scrollTriggerRegistered = false;
 
-// A flat mutable struct rather than a discriminated union — this is written
-// in place many times per second during scrub/reverse, and re-allocating a
-// new union-typed object (or narrowing-then-casting an existing one) on
-// every wheel tick is both slower and messier than reading only the fields
-// that apply to the current `kind`.
-interface Phase {
-  kind: PhaseKind;
-  roomIndex: number; // meaningful for "scrub" / "pause"
-  frame: number; // meaningful for "scrub" (1..FRAME_COUNT)
-  transitionIndex: number; // meaningful for "video"
-  direction: 1 | -1; // meaningful for "video"
-}
+// One ordered list of segments makes up the master timeline: a room-scrub
+// segment per room, a video segment per transition, interleaved in story
+// order (room0, video0, room1, video1, room2).
+type Segment =
+  | { type: "room"; roomIndex: number; px: number }
+  | { type: "video"; transitionIndex: number; px: number };
+
+const SEGMENTS: Segment[] = HERO_ROOMS.flatMap((_, roomIndex) => {
+  const segs: Segment[] = [{ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME }];
+  if (roomIndex < HERO_TRANSITIONS.length) {
+    segs.push({ type: "video", transitionIndex: roomIndex, px: PX_PER_VIDEO });
+  }
+  return segs;
+});
+const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
 
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -50,7 +47,6 @@ export function HeroSequence() {
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
   const [activeVideoIndex, setActiveVideoIndex] = useState<number | null>(null);
 
   useEffect(() => {
@@ -60,20 +56,23 @@ export function HeroSequence() {
     const ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
 
+    if (!scrollTriggerRegistered) {
+      gsap.registerPlugin(ScrollTrigger);
+      scrollTriggerRegistered = true;
+    }
+    ScrollTrigger.config({ ignoreMobileResize: true });
+
     let disposed = false;
     let dpr = 1;
     let lastDrawnKey = "";
+    let lastRoomIndex = -1;
+    let lastVideoIndex: number | null = null;
 
-    // images[roomIndex][frameIndex0]
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
     let room0LoadedCount = 0;
     let revealed = false;
-
-    const phase: Phase = { kind: "scrub", roomIndex: 0, frame: 1, transitionIndex: 0, direction: 1 };
-    let pauseForwardAccum = 0;
-    let released = false;
-    let reverseRaf: number | null = null;
+    let trigger: ScrollTrigger | null = null;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -134,9 +133,6 @@ export function HeroSequence() {
             loaded[roomIndex]![frameIndex] = true;
             remaining--;
             onProgress?.();
-            if (roomIndex === 0 && phase.roomIndex === 0) {
-              renderRoomFrame(0, phase.kind === "scrub" ? phase.frame : FRAME_COUNT);
-            }
             if (remaining === 0) resolve();
           };
           img.onload = onDone;
@@ -165,9 +161,10 @@ export function HeroSequence() {
       if (revealed) return;
       revealed = true;
       setIsRevealed(true);
+      ScrollTrigger.refresh();
       // Background-warm the rest of the journey once the first room is
-      // interactive, so later rooms/videos are ready by the time the user
-      // scrolls that far without blocking first paint on ~21MB of assets.
+      // interactive, so later rooms/videos are ready by the time scroll
+      // reaches them without blocking first paint on ~21MB of assets.
       preloadTransitionVideo(0);
       preloadRoom(1).then(() => {
         preloadTransitionVideo(1);
@@ -175,261 +172,49 @@ export function HeroSequence() {
       });
     }
 
-    function updateProgressUI(units: number) {
-      const pct = Math.max(0, Math.min(100, (units / TOTAL_UNITS) * 100));
-      if (progressBarRef.current) progressBarRef.current.style.width = pct + "%";
-    }
-
-    function unitsForPhase(): number {
-      const roomStride = ROOM_WEIGHT + VIDEO_WEIGHT;
-      if (phase.kind === "scrub") return phase.roomIndex * roomStride + (phase.frame - 1);
-      if (phase.kind === "pause") return phase.roomIndex * roomStride + (ROOM_WEIGHT - 1);
-      const video = videoRefs.current[phase.transitionIndex];
-      const fraction = video && video.duration ? video.currentTime / video.duration : 0;
-      return phase.transitionIndex * roomStride + ROOM_WEIGHT + VIDEO_WEIGHT * fraction;
-    }
-
-    function syncUI() {
-      updateProgressUI(unitsForPhase());
-    }
-
     function setActiveRoom(roomIndex: number) {
-      setActiveRoomIndex((prev) => (prev === roomIndex ? prev : roomIndex));
+      if (roomIndex === lastRoomIndex) return;
+      lastRoomIndex = roomIndex;
+      setActiveRoomIndex(roomIndex);
     }
 
-    function enterPause(roomIndex: number) {
-      phase.kind = "pause";
-      phase.roomIndex = roomIndex;
-      pauseForwardAccum = 0;
-      setActiveRoom(roomIndex);
-      setIsPaused(true);
-      setActiveVideoIndex(null);
-      renderRoomFrame(roomIndex, FRAME_COUNT);
-      syncUI();
-    }
-
-    function enterScrub(roomIndex: number, frame: number) {
-      phase.kind = "scrub";
-      phase.roomIndex = roomIndex;
-      phase.frame = frame;
-      setActiveRoom(roomIndex);
-      setIsPaused(false);
-      setActiveVideoIndex(null);
-      renderRoomFrame(roomIndex, frame);
-      syncUI();
-    }
-
-    function stopReverseLoop() {
-      if (reverseRaf !== null) {
-        cancelAnimationFrame(reverseRaf);
-        reverseRaf = null;
-      }
-    }
-
-    function startReverseLoop(transitionIndex: number) {
-      stopReverseLoop();
-      const video = videoRefs.current[transitionIndex];
-      if (!video) return;
-      let last = performance.now();
-      const step = (now: number) => {
-        const dt = Math.min(0.05, (now - last) / 1000);
-        last = now;
-        const next = video.currentTime - dt;
-        if (next <= 0) {
-          video.currentTime = 0;
-          onVideoReversedToStart(transitionIndex);
-          return;
-        }
-        video.currentTime = next;
-        syncUI();
-        reverseRaf = requestAnimationFrame(step);
-      };
-      reverseRaf = requestAnimationFrame(step);
-    }
-
-    function onVideoEnded(transitionIndex: number) {
-      if (phase.kind !== "video" || phase.transitionIndex !== transitionIndex) return;
-      const nextRoomIndex = transitionIndex + 1;
-      enterScrub(nextRoomIndex, 1);
-    }
-
-    function onVideoReversedToStart(transitionIndex: number) {
-      if (phase.kind !== "video" || phase.transitionIndex !== transitionIndex) return;
-      const prevRoomIndex = transitionIndex;
-      enterPause(prevRoomIndex);
-    }
-
-    function startVideo(transitionIndex: number, direction: 1 | -1) {
-      const video = videoRefs.current[transitionIndex];
-      if (!video) return;
-      stopReverseLoop();
-      phase.kind = "video";
-      phase.transitionIndex = transitionIndex;
-      phase.direction = direction;
-      setIsPaused(false);
+    function setActiveVideo(transitionIndex: number | null) {
+      if (transitionIndex === lastVideoIndex) return;
+      lastVideoIndex = transitionIndex;
       setActiveVideoIndex(transitionIndex);
-      if (direction === 1) {
-        void video.play();
-      } else {
-        video.pause();
-        startReverseLoop(transitionIndex);
-      }
-      syncUI();
     }
 
-    function release() {
-      released = true;
-      removeTrap();
-      window.scrollBy({ top: 48, left: 0, behavior: "auto" });
-    }
-
-    function reengage() {
-      released = false;
-      pauseForwardAccum = 0;
-      enterPause(LAST_ROOM_INDEX);
-      addTrap();
-    }
-
-    function applyDelta(rawDelta: number) {
-      if (!revealed || released) return;
-      const delta = rawDelta;
-      let hops = 0;
-      while (hops < 4) {
-        hops++;
-        if (phase.kind === "scrub") {
-          const framesDelta = delta / PX_PER_FRAME;
-          const target = phase.frame + framesDelta;
-          if (target > FRAME_COUNT) {
-            enterPause(phase.roomIndex);
-            return;
-          }
-          if (target < 1) {
-            if (phase.roomIndex === 0) {
-              enterScrub(0, 1);
-              return;
+    // Master render: given overall scroll progress (0..1), find which
+    // segment we're in and draw the frame or scrub the video accordingly.
+    function renderAtProgress(progress: number) {
+      let scrollPx = progress * TOTAL_PX;
+      for (const seg of SEGMENTS) {
+        if (scrollPx <= seg.px || seg === SEGMENTS[SEGMENTS.length - 1]) {
+          const localProgress = Math.max(0, Math.min(1, scrollPx / seg.px));
+          if (seg.type === "room") {
+            setActiveRoom(seg.roomIndex);
+            setActiveVideo(null);
+            const frame = 1 + localProgress * (FRAME_COUNT - 1);
+            renderRoomFrame(seg.roomIndex, frame);
+          } else {
+            const video = videoRefs.current[seg.transitionIndex];
+            const fromRoomIndex = seg.transitionIndex;
+            if (video && video.duration) {
+              setActiveRoom(fromRoomIndex);
+              setActiveVideo(seg.transitionIndex);
+              video.currentTime = localProgress * video.duration;
+            } else {
+              // Video not ready yet — hold on the source room's last frame
+              // rather than flashing a blank layer.
+              setActiveRoom(fromRoomIndex);
+              setActiveVideo(null);
+              renderRoomFrame(fromRoomIndex, FRAME_COUNT);
             }
-            const transitionIndex = phase.roomIndex - 1;
-            const video = videoRefs.current[transitionIndex];
-            if (video && !video.duration) return;
-            if (video) video.currentTime = video.duration;
-            startVideo(transitionIndex, -1);
-            return;
-          }
-          enterScrub(phase.roomIndex, target);
-          return;
-        }
-
-        if (phase.kind === "pause") {
-          if (delta > 0) {
-            pauseForwardAccum += delta;
-            if (pauseForwardAccum < PAUSE_THRESHOLD) return;
-            pauseForwardAccum = 0;
-            if (phase.roomIndex === LAST_ROOM_INDEX) {
-              release();
-              return;
-            }
-            startVideo(phase.roomIndex, 1);
-            return;
-          }
-          if (delta < 0) {
-            pauseForwardAccum = 0;
-            // Re-enter this room's own scrub at its last frame and let the
-            // loop reprocess the same delta so one up-scroll tick both
-            // wakes from pause and moves a frame, rather than needing two.
-            enterScrub(phase.roomIndex, FRAME_COUNT);
-            continue;
           }
           return;
         }
-
-        if (phase.kind === "video") {
-          if (delta > 0 && phase.direction === -1) {
-            stopReverseLoop();
-            startVideo(phase.transitionIndex, 1);
-            return;
-          }
-          if (delta < 0 && phase.direction === 1) {
-            const video = videoRefs.current[phase.transitionIndex];
-            if (video) video.pause();
-            phase.direction = -1;
-            startReverseLoop(phase.transitionIndex);
-            return;
-          }
-          return;
-        }
-        return;
+        scrollPx -= seg.px;
       }
-    }
-
-    function onWheel(e: WheelEvent) {
-      e.preventDefault();
-      const d = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, e.deltaY));
-      applyDelta(d);
-    }
-
-    let touchStartY: number | null = null;
-    function onTouchStart(e: TouchEvent) {
-      touchStartY = e.touches[0]?.clientY ?? null;
-    }
-    function onTouchMove(e: TouchEvent) {
-      if (touchStartY === null) return;
-      const y = e.touches[0]?.clientY;
-      if (y === undefined) return;
-      e.preventDefault();
-      const d = Math.max(-MAX_DELTA, Math.min(MAX_DELTA, touchStartY - y));
-      touchStartY = y;
-      applyDelta(d);
-    }
-    function onTouchEnd() {
-      touchStartY = null;
-    }
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (["ArrowDown", "PageDown", " "].includes(e.key)) {
-        e.preventDefault();
-        applyDelta(80);
-      } else if (["ArrowUp", "PageUp"].includes(e.key)) {
-        e.preventDefault();
-        applyDelta(-80);
-      }
-    }
-
-    // Defensive only: the Navbar's full-screen mobile menu (md:hidden) locks
-    // document.body.style.overflow while open. This component is desktop-only
-    // (see Hero.tsx's breakpoint switch) so the two shouldn't ever overlap in
-    // practice, but skip handling input if body scroll is locked by something
-    // else rather than fighting it.
-    function bodyScrollUnlocked() {
-      return document.body.style.overflow !== "hidden";
-    }
-
-    function onWheelGuarded(e: WheelEvent) {
-      if (!bodyScrollUnlocked()) return;
-      onWheel(e);
-    }
-    function onTouchMoveGuarded(e: TouchEvent) {
-      if (!bodyScrollUnlocked()) return;
-      onTouchMove(e);
-    }
-
-    function addTrap() {
-      window.addEventListener("wheel", onWheelGuarded, { passive: false });
-      window.addEventListener("touchstart", onTouchStart, { passive: true });
-      window.addEventListener("touchmove", onTouchMoveGuarded, { passive: false });
-      window.addEventListener("touchend", onTouchEnd, { passive: true });
-      window.addEventListener("keydown", onKeyDown);
-    }
-
-    function removeTrap() {
-      window.removeEventListener("wheel", onWheelGuarded);
-      window.removeEventListener("touchstart", onTouchStart);
-      window.removeEventListener("touchmove", onTouchMoveGuarded);
-      window.removeEventListener("touchend", onTouchEnd);
-      window.removeEventListener("keydown", onKeyDown);
-    }
-
-    function onDocScroll() {
-      if (released && window.scrollY <= 2) reengage();
     }
 
     function resizeCanvas() {
@@ -444,28 +229,38 @@ export function HeroSequence() {
       ctx2d!.imageSmoothingEnabled = true;
       ctx2d!.imageSmoothingQuality = "high";
       lastDrawnKey = "";
-      const currentFrame = phase.kind === "scrub" ? phase.frame : FRAME_COUNT;
-      const roomForRedraw = phase.kind === "video" ? phase.transitionIndex : phase.roomIndex;
-      renderRoomFrame(roomForRedraw, currentFrame);
+      renderAtProgress(trigger?.progress ?? 0);
     }
 
     let resizeTimer: number | null = null;
     function onWindowResize() {
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      resizeTimer = requestAnimationFrame(resizeCanvas);
+      resizeTimer = requestAnimationFrame(() => {
+        resizeCanvas();
+        ScrollTrigger.refresh();
+      });
     }
 
     resizeCanvas();
-    addTrap();
-    window.addEventListener("resize", onWindowResize);
-    window.addEventListener("scroll", onDocScroll, { passive: true });
 
-    const video0 = videoRefs.current[0];
-    const video1 = videoRefs.current[1];
-    const onEnded0 = () => onVideoEnded(0);
-    const onEnded1 = () => onVideoEnded(1);
-    video0?.addEventListener("ended", onEnded0);
-    video1?.addEventListener("ended", onEnded1);
+    trigger = ScrollTrigger.create({
+      trigger: section,
+      start: "top top",
+      end: "+=" + TOTAL_PX,
+      pin: true,
+      pinSpacing: true,
+      scrub: 0.5,
+      anticipatePin: 1,
+      onUpdate: (self) => {
+        renderAtProgress(self.progress);
+        if (progressBarRef.current) {
+          progressBarRef.current.style.width = self.progress * 100 + "%";
+        }
+      },
+    });
+
+    window.addEventListener("resize", onWindowResize);
+    window.addEventListener("orientationchange", onWindowResize);
 
     void preloadRoom(0, () => {
       room0LoadedCount++;
@@ -474,23 +269,17 @@ export function HeroSequence() {
 
     return () => {
       disposed = true;
-      removeTrap();
       window.removeEventListener("resize", onWindowResize);
-      window.removeEventListener("scroll", onDocScroll);
-      video0?.removeEventListener("ended", onEnded0);
-      video1?.removeEventListener("ended", onEnded1);
+      window.removeEventListener("orientationchange", onWindowResize);
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      stopReverseLoop();
+      trigger?.kill();
     };
   }, []);
-
-  const activeRoom = HERO_ROOMS[activeRoomIndex] ?? null;
 
   return (
     <section
       ref={sectionRef}
       className="relative h-screen w-full overflow-hidden bg-enzo-dark"
-      style={{ overscrollBehavior: "none" }}
     >
       <div
         ref={progressBarRef}
@@ -499,7 +288,7 @@ export function HeroSequence() {
 
       <canvas
         ref={canvasRef}
-        className="absolute inset-0 block h-full w-full transition-opacity duration-150 ease-linear"
+        className="absolute inset-0 block h-full w-full"
         style={{ opacity: activeVideoIndex === null ? 1 : 0 }}
       />
 
@@ -512,7 +301,7 @@ export function HeroSequence() {
           muted
           playsInline
           preload="auto"
-          className="absolute inset-0 block h-full w-full object-cover transition-opacity duration-150 ease-linear"
+          className="absolute inset-0 block h-full w-full object-cover"
           style={{ opacity: activeVideoIndex === i ? 1 : 0 }}
         />
       ))}
@@ -525,8 +314,6 @@ export function HeroSequence() {
       <div className="absolute inset-x-0 top-0 z-[2] flex justify-center px-6 pt-28 md:pt-32">
         <HeroIntro />
       </div>
-
-      <HeroGlassBlocks room={activeRoom} visible={isPaused} />
 
       <div
         className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2"
