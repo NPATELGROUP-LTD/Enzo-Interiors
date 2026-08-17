@@ -2,12 +2,17 @@
 
 // Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom)
 // connected by two transition videos, all driven by a single master
-// ScrollTrigger pin+scrub — one continuous scroll-position timeline, same
-// pattern as the old single-sequence hero, just with more segments. Frames
-// AND video currentTime are both mapped directly from scroll progress, so
-// reversing (scrolling back toward the top) naturally reverses everything
-// with zero custom state machine — no wheel/touch trapping, no manual
-// play()/reverse-rAF bookkeeping.
+// ScrollTrigger pin+scrub (one continuous scroll-position timeline, same
+// pattern as the old single-sequence hero, just with more segments).
+//
+// Frame segments are always fully scroll-scrubbed both directions. Video
+// segments are asymmetric by design: scrolling *down* into one locks
+// further forward scroll and auto-plays it in real time (so the transition
+// gets its own cinematic pacing, not the user's scroll speed); scrolling
+// *up* through one is a plain scroll-scrub in reverse, exactly like a frame
+// segment. This needs one ScrollTrigger clamping its own scroll position
+// during a forward video lock (via self.scroll()) rather than two separate
+// systems.
 import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -15,9 +20,10 @@ import { HeroIntro } from "./HeroIntro";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl, transitionVideoUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
-const PX_PER_FRAME = 34;
-const PX_PER_VIDEO = 450;
+const PX_PER_FRAME = 50;
+const PX_PER_VIDEO = 550;
 const MAX_DPR = 1.5;
+const SCRUB_SMOOTHING = 1.1;
 
 let scrollTriggerRegistered = false;
 
@@ -36,6 +42,15 @@ const SEGMENTS: Segment[] = HERO_ROOMS.flatMap((_, roomIndex) => {
   return segs;
 });
 const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
+
+function segmentStartPx(target: Segment): number {
+  let acc = 0;
+  for (const seg of SEGMENTS) {
+    if (seg === target) return acc;
+    acc += seg.px;
+  }
+  return 0;
+}
 
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
@@ -73,6 +88,10 @@ export function HeroSequence() {
     let room0LoadedCount = 0;
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
+
+    // Per-transition runtime state for the forward-lock/backward-scrub split.
+    const videoStates = HERO_TRANSITIONS.map(() => ({ forwardDone: false }));
+    let lockedTransitionIndex: number | null = null;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -184,37 +203,106 @@ export function HeroSequence() {
       setActiveVideoIndex(transitionIndex);
     }
 
-    // Master render: given overall scroll progress (0..1), find which
-    // segment we're in and draw the frame or scrub the video accordingly.
-    function renderAtProgress(progress: number) {
-      let scrollPx = progress * TOTAL_PX;
+    function updateProgressUI(px: number) {
+      if (progressBarRef.current) {
+        progressBarRef.current.style.width = Math.max(0, Math.min(100, (px / TOTAL_PX) * 100)) + "%";
+      }
+    }
+
+    function findSegmentAt(px: number) {
+      let acc = 0;
       for (const seg of SEGMENTS) {
-        if (scrollPx <= seg.px || seg === SEGMENTS[SEGMENTS.length - 1]) {
-          const localProgress = Math.max(0, Math.min(1, scrollPx / seg.px));
-          if (seg.type === "room") {
-            setActiveRoom(seg.roomIndex);
-            setActiveVideo(null);
-            const frame = 1 + localProgress * (FRAME_COUNT - 1);
-            renderRoomFrame(seg.roomIndex, frame);
-          } else {
-            const video = videoRefs.current[seg.transitionIndex];
-            const fromRoomIndex = seg.transitionIndex;
-            if (video && video.duration) {
-              setActiveRoom(fromRoomIndex);
-              setActiveVideo(seg.transitionIndex);
-              video.currentTime = localProgress * video.duration;
-            } else {
-              // Video not ready yet — hold on the source room's last frame
-              // rather than flashing a blank layer.
-              setActiveRoom(fromRoomIndex);
-              setActiveVideo(null);
-              renderRoomFrame(fromRoomIndex, FRAME_COUNT);
-            }
-          }
+        if (px <= acc + seg.px || seg === SEGMENTS[SEGMENTS.length - 1]) {
+          const localPx = Math.max(0, Math.min(seg.px, px - acc));
+          return { seg, localProgress: seg.px === 0 ? 0 : localPx / seg.px };
+        }
+        acc += seg.px;
+      }
+      const last = SEGMENTS[SEGMENTS.length - 1]!;
+      return { seg: last, localProgress: 1 };
+    }
+
+    // Engages the forward auto-play lock for a video segment: clamps the
+    // master ScrollTrigger's scroll position at the segment's start and
+    // plays the video in real time. On completion, snaps the scroll
+    // position forward past the segment and releases the lock so ordinary
+    // scrubbing continues into the next room.
+    function lockAndPlayForward(transitionIndex: number, seg: Segment) {
+      const video = videoRefs.current[transitionIndex];
+      if (!video || !trigger) return;
+      const start = segmentStartPx(seg);
+      lockedTransitionIndex = transitionIndex;
+      setActiveRoom(transitionIndex);
+      setActiveVideo(transitionIndex);
+      video.currentTime = 0;
+      void video.play();
+      trigger.scroll(trigger.start + start);
+      updateProgressUI(start);
+
+      const onEnded = () => {
+        video.removeEventListener("ended", onEnded);
+        videoStates[transitionIndex]!.forwardDone = true;
+        lockedTransitionIndex = null;
+        if (trigger) trigger.scroll(trigger.start + start + seg.px);
+      };
+      video.addEventListener("ended", onEnded);
+    }
+
+    // Master render: resolves the current segment from raw scroll pixels
+    // and either draws a frame or scrubs/locks the relevant video.
+    function handleUpdate(self: ScrollTrigger) {
+      const rawPx = self.progress * TOTAL_PX;
+
+      if (lockedTransitionIndex !== null) {
+        if (self.direction === -1) {
+          // User reversed mid-playback — release the lock, pause, and let
+          // the normal scrub logic below take over from wherever it is.
+          videoRefs.current[lockedTransitionIndex]?.pause();
+          lockedTransitionIndex = null;
+        } else {
+          // Still locked: hold the scroll position, the video plays itself.
+          const lockedSeg = SEGMENTS.find(
+            (s) => s.type === "video" && s.transitionIndex === lockedTransitionIndex,
+          )!;
+          const start = segmentStartPx(lockedSeg);
+          if (trigger && rawPx > start) trigger.scroll(trigger.start + start);
+          updateProgressUI(start);
           return;
         }
-        scrollPx -= seg.px;
       }
+
+      // Re-arm any video the user has scrolled back above, so approaching
+      // it forward again re-triggers the locked auto-play from the start.
+      for (let i = 0; i < HERO_TRANSITIONS.length; i++) {
+        const videoSeg = SEGMENTS.find((s) => s.type === "video" && s.transitionIndex === i)!;
+        if (rawPx < segmentStartPx(videoSeg)) videoStates[i]!.forwardDone = false;
+      }
+
+      const { seg, localProgress } = findSegmentAt(rawPx);
+
+      if (seg.type === "room") {
+        setActiveRoom(seg.roomIndex);
+        setActiveVideo(null);
+        renderRoomFrame(seg.roomIndex, 1 + localProgress * (FRAME_COUNT - 1));
+      } else {
+        const ti = seg.transitionIndex;
+        const video = videoRefs.current[ti];
+        const state = videoStates[ti]!;
+        if (!video || !video.duration) {
+          setActiveRoom(ti);
+          setActiveVideo(null);
+          renderRoomFrame(ti, FRAME_COUNT);
+        } else if (self.direction === 1 && !state.forwardDone) {
+          lockAndPlayForward(ti, seg);
+          return;
+        } else {
+          setActiveRoom(ti);
+          setActiveVideo(ti);
+          video.currentTime = localProgress * video.duration;
+        }
+      }
+
+      updateProgressUI(rawPx);
     }
 
     function resizeCanvas() {
@@ -229,7 +317,7 @@ export function HeroSequence() {
       ctx2d!.imageSmoothingEnabled = true;
       ctx2d!.imageSmoothingQuality = "high";
       lastDrawnKey = "";
-      renderAtProgress(trigger?.progress ?? 0);
+      if (trigger) handleUpdate(trigger);
     }
 
     let resizeTimer: number | null = null;
@@ -241,23 +329,18 @@ export function HeroSequence() {
       });
     }
 
-    resizeCanvas();
-
     trigger = ScrollTrigger.create({
       trigger: section,
       start: "top top",
       end: "+=" + TOTAL_PX,
       pin: true,
       pinSpacing: true,
-      scrub: 0.5,
+      scrub: SCRUB_SMOOTHING,
       anticipatePin: 1,
-      onUpdate: (self) => {
-        renderAtProgress(self.progress);
-        if (progressBarRef.current) {
-          progressBarRef.current.style.width = self.progress * 100 + "%";
-        }
-      },
+      onUpdate: handleUpdate,
     });
+
+    resizeCanvas();
 
     window.addEventListener("resize", onWindowResize);
     window.addEventListener("orientationchange", onWindowResize);
