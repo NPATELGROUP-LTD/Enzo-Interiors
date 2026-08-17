@@ -2,13 +2,15 @@
  * Enzo Interiors — public site design tokens.
  *
  * Ported from Boilerplate:src/styles/theme.css (+ fonts.css + tailwind.css).
- * These are the ORIGINAL PRD brand tokens (Cormorant Garamond + Inter,
- * forest-green primary) — deliberately different from packages/ui's
- * Brief-v6 tokens, which style admin/portal only. Do not reconcile the two.
+ * These are the ORIGINAL PRD brand tokens (Fraunces + Inter, forest-green
+ * primary) — deliberately different from packages/ui's Brief-v6 tokens,
+ * which style admin/portal only. Do not reconcile the two. Heading font
+ * was Cormorant Garamond; swapped to Fraunces for a more distinctive
+ * editorial feel (see src/app/layout.tsx for why).
  *
  * Fonts are loaded via next/font/google in src/app/layout.tsx rather than
  * the boilerplate's Google Fonts <link>/@import. next/font sets
- * --font-cormorant-garamond and --font-inter on <html>; --font-heading and
+ * --font-fraunces and --font-inter on <html>; --font-heading and
  * --font-body below simply alias those so this file stays the single
  * source of truth for "what font does X use".
  */
@@ -74,7 +76,7 @@
   --enzo-footer-border: #2A2A28;
 
   /* Font stacks — populated by next/font CSS variables set on <html> */
-  --font-heading: var(--font-cormorant-garamond), serif;
+  --font-heading: var(--font-fraunces), serif;
   --font-body: var(--font-inter), sans-serif;
 }
 

@@ -1,18 +1,24 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+import { Fraunces, Inter } from "next/font/google";
 import "@/styles/theme.css";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
 // CSS variables on <html> that src/styles/theme.css reads as --font-heading
-// / --font-body (see that file's --font-cormorant-garamond / --font-inter
-// aliases).
-const cormorantGaramond = Cormorant_Garamond({
+// / --font-body (see that file's --font-fraunces / --font-inter aliases).
+//
+// Fraunces replaces Cormorant Garamond as the heading face — the brief
+// asked for the distinctive editorial character of a paid boutique foundry
+// (notyourtype.nl), but their fonts aren't freely licensable for web
+// embedding. Fraunces is a free, properly-licensed variable serif with a
+// similarly expressive, high-contrast editorial feel (soft/wonk optical
+// variants), commonly used for exactly this kind of bespoke-brand look.
+const fraunces = Fraunces({
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
   style: ["normal", "italic"],
-  variable: "--font-cormorant-garamond",
+  variable: "--font-fraunces",
   display: "swap",
 });
 
@@ -38,7 +44,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${cormorantGaramond.variable} ${inter.variable}`}
+      className={`${fraunces.variable} ${inter.variable}`}
       data-scroll-behavior="smooth"
     >
       <body>

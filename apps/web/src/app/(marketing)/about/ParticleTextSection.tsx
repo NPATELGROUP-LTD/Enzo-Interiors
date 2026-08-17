@@ -39,7 +39,7 @@ export function ParticleTextSection() {
       const h = canvas.offsetHeight;
 
       ctx.fillStyle = "#F2F0EB";
-      ctx.font = `bold ${Math.min(w / 8, 80)}px 'Cormorant Garamond', serif`;
+      ctx.font = `bold ${Math.min(w / 8, 80)}px 'Fraunces', serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText("ENZO INTERIORS", w / 2, h / 2);
