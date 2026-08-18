@@ -245,17 +245,6 @@
   }
 }
 
-@keyframes launch-wordmark {
-  from {
-    opacity: 0;
-    transform: translateY(115%) skewY(8deg);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) skewY(0);
-  }
-}
-
 /* Decorative frame border hides while HeroSequence's intro is playing and
  * fades back in once the CTA segment arrives — the intro reads as a clean,
  * unbranded cinematic teaser; the chrome's arrival marks "the site"

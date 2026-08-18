@@ -21,7 +21,7 @@
 // scrub adds lag between raw scroll position and the value ScrollTrigger
 // reports, so even an instant huge scroll delta "catches up" over ~2.4s of
 // real time instead of snapping straight there.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -31,11 +31,32 @@ import { RotatingBadge } from "./RotatingBadge";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
-const PX_PER_FRAME = 75;
-const TRANSITION_PX = 2000;
-const CTA_PX = 2600;
+// Scroll distance mapped to each frame — lower is faster (less scrolling
+// needed to get through a room's 144 frames).
+const PX_PER_FRAME = 42;
+const TRANSITION_PX = 1400;
+const CTA_PX = 1800;
 const MAX_DPR = 1.5;
-const SCRUB_SMOOTHING = 2.4;
+// Lower = less lag between raw scroll and what's rendered (snappier feel);
+// still keeps SOME smoothing so a fast flick-scroll doesn't blow through
+// the parallax chapters in a single frame.
+const SCRUB_SMOOTHING = 1.6;
+
+// Set once the visitor has scrolled all the way to the CTA segment.
+// sessionStorage (not localStorage) so it's per-tab: a fresh tab always
+// starts at the top, but navigating to another page and back within the
+// same tab resumes at the CTA instead of replaying the whole intro.
+const HAS_SEEN_CTA_KEY = "enzo:hero-seen-cta";
+// Where "resume at the CTA" actually lands, as a fraction of the way
+// through the CTA segment — NOT 0 (that's the segment's start, where
+// renderCta()'s reveal thresholds haven't fired yet, i.e. still hidden)
+// and not exactly 1 either (right at the pin's boundary). renderCta()'s
+// own reveal thresholds all complete well before this, so anywhere in
+// this range renders identically fully-revealed — this same fraction is
+// used for the initial manual paint, the suppression cutoff, and the
+// actual scroll target below, so all three agree on the exact same
+// visual state and the handoff between them is invisible.
+const CTA_RESUME_FRACTION = 0.85;
 
 let scrollTriggerRegistered = false;
 
@@ -56,6 +77,10 @@ HERO_ROOMS.forEach((_, roomIndex) => {
 SEGMENTS.push({ type: "cta", px: CTA_PX });
 
 const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
+// The absolute (whole-timeline) px position CTA_RESUME_FRACTION resolves
+// to — i.e. how far into the pinned scroll range "resume at the CTA"
+// actually targets.
+const CTA_RESUME_RAW_PX = TOTAL_PX - CTA_PX * (1 - CTA_RESUME_FRACTION);
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -103,6 +128,28 @@ export function HeroSequence() {
 
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
   const [activeLayer, setActiveLayer] = useState<Layer>("room");
+  // Local loading state for the first room's frames — no cross-component
+  // event needed since the loader now lives inside this component instead
+  // of a separate global overlay.
+  const [framesReady, setFramesReady] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
+
+  // Split out from the main effect below and run as a layout effect (not a
+  // plain effect) specifically so it commits before the browser's first
+  // paint of a client-side navigation TO this page — otherwise the Navbar
+  // and decorative site-frame border would flash visible for a frame
+  // before being hidden. (The very first document load has its own fix:
+  // a blocking inline script in layout.tsx, since even a layout effect
+  // can't run before hydration.)
+  useLayoutEffect(() => {
+    // Intro (rooms/chapters) hides the Navbar + decorative frame entirely;
+    // both fade back in only once the CTA segment is reached. See
+    // .site-navbar/.site-frame + body[data-hero-chrome] in theme.css.
+    document.body.dataset.heroChrome = "hidden";
+    return () => {
+      delete document.body.dataset.heroChrome;
+    };
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -123,16 +170,34 @@ export function HeroSequence() {
     let lastRoomIndex = -1;
     let lastLayer: Layer = "room";
 
+    // Resume returning visitors at the CTA instead of replaying the whole
+    // intro — see setLayer() below for where this flag gets set, and the
+    // resumingAtCta handling in handleUpdate() for why. sessionStorage
+    // (not localStorage) so it's per-tab: a fresh tab always starts at the
+    // top, but navigating to another page and back within the same tab
+    // resumes at the CTA instead.
+    let hasSeenCta = false;
+    try {
+      hasSeenCta = window.sessionStorage.getItem(HAS_SEEN_CTA_KEY) === "true";
+    } catch {
+      // Ignore — falls back to playing the intro from the top.
+    }
+    // `scrub` deliberately lags self.progress behind the raw scroll
+    // position (see the file-header comment) — so once we jump scroll to
+    // the CTA's position below, ScrollTrigger's own progress takes ~2.4
+    // real seconds to visibly "catch up" to it, which would replay the
+    // whole intro fast-forwarded instead of landing instantly. This flag
+    // makes handleUpdate() ignore those catch-up ticks (leaving the
+    // CTA state we paint manually, further down, on screen) until real
+    // progress has actually reached the CTA on its own — at which point
+    // it hands off to normal scroll-driven rendering with no visible
+    // discontinuity, since both already agree on the same state.
+    let resumingAtCta = hasSeenCta;
+
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
-
-    // Intro (rooms/chapters) hides the Navbar + decorative frame entirely;
-    // both fade back in only once the CTA segment is reached. See
-    // .site-navbar/.site-frame + body[data-hero-chrome] in theme.css.
-    document.body.dataset.heroChrome = "hidden";
-    delete document.documentElement.dataset.enzoHeroReady;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -206,9 +271,15 @@ export function HeroSequence() {
     function revealIfReady() {
       if (disposed || revealed) return;
       revealed = true;
-      document.documentElement.dataset.enzoHeroReady = "true";
-      window.dispatchEvent(new Event("enzo:hero-ready"));
+      setFramesReady(true);
       ScrollTrigger.refresh();
+      // Recalculating trigger geometry above can itself reset the scroll
+      // position (GSAP briefly clears pins to remeasure natural layout) —
+      // so the resume-at-CTA jump has to happen AFTER this refresh, not
+      // before it, or refresh() just undoes it.
+      if (resumingAtCta && trigger) {
+        window.scrollTo({ top: trigger.start + CTA_RESUME_RAW_PX, behavior: "auto" });
+      }
       void preloadRoom(1).then(() => void preloadRoom(2));
     }
 
@@ -223,6 +294,15 @@ export function HeroSequence() {
       lastLayer = layer;
       setActiveLayer(layer);
       document.body.dataset.heroChrome = layer === "cta" ? "visible" : "hidden";
+      if (layer === "cta") {
+        try {
+          window.sessionStorage.setItem(HAS_SEEN_CTA_KEY, "true");
+        } catch {
+          // Privacy modes can disable storage — resuming at the CTA on a
+          // later visit just won't work in that case, which is a safe
+          // fallback (it degrades to always replaying the intro).
+        }
+      }
     }
 
     function updateProgressUI(px: number) {
@@ -345,6 +425,20 @@ export function HeroSequence() {
 
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
+
+      // See resumingAtCta's declaration above: while the eased scrub
+      // progress is still catching up to the scroll jump below, ignore
+      // its intermediate ticks entirely (they'd otherwise repaint the
+      // room/transition frames the visitor already skipped past) and keep
+      // showing the CTA state painted manually further down. Once real
+      // progress genuinely reaches the CTA on its own, hand off to normal
+      // rendering — both already agree on the same state at that point,
+      // so there's no visible jump.
+      if (resumingAtCta) {
+        if (rawPx < CTA_RESUME_RAW_PX) return;
+        resumingAtCta = false;
+      }
+
       const { seg, localProgress } = findSegmentAt(rawPx);
 
       if (seg.type === "room") {
@@ -386,6 +480,15 @@ export function HeroSequence() {
       });
     }
 
+    // Paint the finished CTA state immediately (handleUpdate will ignore
+    // the scrub's catch-up ticks until they genuinely reach it — see
+    // resumingAtCta above), so a returning visitor never sees the intro
+    // replay even for a moment. Uses CTA_RESUME_FRACTION (not 1) so this
+    // matches exactly what handleUpdate will render once real progress
+    // catches up to CTA_RESUME_RAW_PX — same input, same output, so the
+    // handoff between them can't produce even a subpixel jump.
+    if (resumingAtCta) renderCta(CTA_RESUME_FRACTION);
+
     trigger = ScrollTrigger.create({
       trigger: section,
       start: "top top",
@@ -402,7 +505,13 @@ export function HeroSequence() {
     window.addEventListener("resize", onWindowResize);
     window.addEventListener("orientationchange", onWindowResize);
 
-    void preloadRoom(0).then(revealIfReady);
+    // Drives the loader below directly with real decode progress instead
+    // of a fixed animation timeline.
+    let firstRoomLoaded = 0;
+    void preloadRoom(0, () => {
+      firstRoomLoaded += 1;
+      setLoadProgress(Math.round((firstRoomLoaded / FRAME_COUNT) * 100));
+    }).then(revealIfReady);
 
     return () => {
       disposed = true;
@@ -418,8 +527,6 @@ export function HeroSequence() {
         if (instance.trigger === section) instance.kill(true);
       });
       gsap.killTweensOf(section);
-      delete document.body.dataset.heroChrome;
-      delete document.documentElement.dataset.enzoHeroReady;
     };
   }, []);
 
@@ -444,6 +551,45 @@ export function HeroSequence() {
         className="absolute inset-0 block h-full w-full transition-opacity duration-300 ease-linear"
         style={{ opacity: activeLayer === "room" ? 1 : 0 }}
       />
+
+      {/* Frame loader — covers the canvas until the first room's 144
+          frames are actually decoded, so there's never a blank/empty
+          canvas before playback can start. Scoped to this section only
+          (not a site-wide splash) and driven by the real decode progress
+          tracked above, not a fixed timer. Also gated on activeLayer:
+          a returning visitor who's resumed at the CTA (see the
+          hasSeenCta scroll-jump above) is looking at the CTA content, not
+          the room canvas, so this must never cover that just because the
+          room frames are still finishing their preload in the background. */}
+      <div
+        aria-live="polite"
+        aria-label="Loading the showcase"
+        aria-hidden={framesReady || activeLayer !== "room"}
+        className="absolute inset-0 z-[20] grid place-items-center bg-enzo-dark transition-opacity duration-500 ease-out"
+        style={{
+          opacity: framesReady || activeLayer !== "room" ? 0 : 1,
+          pointerEvents: framesReady || activeLayer !== "room" ? "none" : "auto",
+        }}
+      >
+        <div className="flex w-full max-w-xs flex-col items-center px-6 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element -- tiny fixed loader mark, not worth next/image's overhead */}
+          <img src="/logo/enzo-white.png" alt="Enzo Interiors" className="h-10 w-auto sm:h-12" />
+          <div className="mt-8 w-full">
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-enzo-cream/15">
+              <div
+                className="h-full rounded-full bg-enzo-cream transition-[width] duration-150 ease-out"
+                style={{ width: `${loadProgress}%` }}
+              />
+            </div>
+            <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/60">
+              <span className="font-sans text-[11px] uppercase tracking-[0.22em]">Loading the showcase</span>
+              <span className="shrink-0 font-sans text-[11px] tabular-nums tracking-[0.08em] text-enzo-cream/75">
+                {loadProgress}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Chapter 1 — double doors: mediawall's last frame splits and opens,
           revealing kitchen behind. */}
@@ -665,13 +811,32 @@ export function HeroSequence() {
         style={{ opacity: activeLayer === "room" ? 1 : 0 }}
       />
 
-      {/* Scroll cue — the only UI visible at the very start, since Navbar
-          and the site frame are both hidden until the CTA arrives. */}
+      {/* Room label — fills the otherwise-empty top of the frame with the
+          same editorial eyebrow style used in the transition chapters
+          below, and doubles as a "which room am I in" cue while scrubbing
+          through the frame sequence, not just at idle. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute left-6 top-8 z-[4] flex items-center gap-3 text-enzo-cream/70 transition-opacity duration-300 sm:left-10 sm:top-10"
+        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+      >
+        <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.32em] text-enzo-sage">
+          {String(activeRoomIndex + 1).padStart(2, "0")}
+        </span>
+        <span className="h-px w-8 bg-enzo-cream/30" />
+        <span className="font-sans text-[11px] uppercase tracking-[0.32em]">{HERO_ROOMS[activeRoomIndex]!.label}</span>
+      </div>
+
+      {/* Scroll cue — the only other UI visible at the very start, since
+          Navbar and the site frame are both hidden until the CTA arrives.
+          The lead-in line gives it a bit more visual weight than type
+          alone. */}
       <div
         ref={scrollHintRef}
-        className="pointer-events-none absolute inset-x-0 bottom-20 z-[4] flex flex-col items-center gap-2 text-enzo-cream/70"
+        className="pointer-events-none absolute inset-x-0 bottom-20 z-[4] flex flex-col items-center gap-3 text-enzo-cream/70"
       >
-        <span className="text-[11px] uppercase tracking-[0.3em]">Scroll to Begin</span>
+        <span className="h-8 w-px bg-enzo-cream/30" />
+        <span className="text-[11px] uppercase tracking-[0.35em]">Scroll to Begin</span>
         <ChevronDown className="h-4 w-4 animate-bounce" />
       </div>
 
