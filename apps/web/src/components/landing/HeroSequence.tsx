@@ -101,6 +101,7 @@ export function HeroSequence() {
   const ctaSubRef = useRef<HTMLParagraphElement | null>(null);
   const ctaButtonsRef = useRef<HTMLDivElement | null>(null);
   const ctaChip1Ref = useRef<HTMLDivElement | null>(null);
+  const ctaChip2Ref = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
@@ -341,11 +342,13 @@ export function HeroSequence() {
         ctaCardRef.current.style.opacity = String(cardReveal);
         ctaCardRef.current.style.transform = `translateY(${(1 - cardReveal) * 20}px)`;
       }
-      const chipReveal = clamp01((localProgress - 0.2) / 0.12);
-      if (ctaChip1Ref.current) {
-        ctaChip1Ref.current.style.opacity = String(chipReveal);
-        ctaChip1Ref.current.style.transform = `translateY(${(1 - chipReveal) * 16}px)`;
-      }
+      [ctaChip1Ref, ctaChip2Ref].forEach((ref, i) => {
+        const chipReveal = clamp01((localProgress - (0.2 + i * 0.08)) / 0.12);
+        if (ref.current) {
+          ref.current.style.opacity = String(chipReveal);
+          ref.current.style.transform = `translateY(${(1 - chipReveal) * 16}px)`;
+        }
+      });
     }
 
     function handleUpdate(self: ScrollTrigger) {
@@ -629,7 +632,7 @@ export function HeroSequence() {
                   <p className="font-sans text-[12px] text-enzo-cream/50">Bespoke. Handcrafted.</p>
                 </div>
 
-                <div className="relative z-10 -mt-10 flex h-[150px] items-center opacity-100">
+                <div ref={ctaChip2Ref} className="relative z-10 -mt-10 flex h-[150px] items-center opacity-0">
                   <RotatingBadge label="View Portfolio" href="/portfolio" size={150} />
                 </div>
               </div>
