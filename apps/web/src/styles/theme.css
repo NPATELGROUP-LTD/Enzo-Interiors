@@ -78,6 +78,7 @@
   /* Font stacks — populated by next/font CSS variables set on <html> */
   --font-heading: var(--font-fraunces), serif;
   --font-body: var(--font-inter), sans-serif;
+  --font-display: var(--font-space-grotesk), sans-serif;
 }
 
 .dark {
@@ -156,6 +157,7 @@
 
   --font-sans: var(--font-body);
   --font-serif: var(--font-heading);
+  --font-display: var(--font-display);
 }
 
 @layer base {

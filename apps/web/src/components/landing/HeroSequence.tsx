@@ -22,11 +22,12 @@
 // reports, so even an instant huge scroll delta "catches up" over ~2.4s of
 // real time instead of snapping straight there.
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ArrowRight, CalendarCheck, ChevronDown, MapPin, Ruler } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Button } from "@/components/ui/Button";
+import { HeroCtaButton } from "./HeroCtaButton";
+import { HeroRotatingImage } from "./HeroRotatingImage";
+import { RotatingBadge } from "./RotatingBadge";
 import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
 
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
@@ -90,18 +91,16 @@ export function HeroSequence() {
   const t1CardRef = useRef<HTMLDivElement | null>(null);
   const t1ContentRef = useRef<HTMLDivElement | null>(null);
 
-  // CTA — asymmetric layout: left-aligned kinetic headline + right-side
-  // highlight chips over a blended (not flat/solid) photographic backdrop.
+  // CTA — high-end editorial layout: luminous kinetic typography on the left +
+  // interactive frosted consultation preview card on the right.
   const ctaBgRef = useRef<HTMLDivElement | null>(null);
-  const ctaStatRef = useRef<HTMLDivElement | null>(null);
-  const ctaEyebrowRef = useRef<HTMLSpanElement | null>(null);
+  const ctaCardRef = useRef<HTMLDivElement | null>(null);
+  const ctaEyebrowRef = useRef<HTMLDivElement | null>(null);
   const ctaLine1Ref = useRef<HTMLSpanElement | null>(null);
   const ctaLine2Ref = useRef<HTMLSpanElement | null>(null);
   const ctaSubRef = useRef<HTMLParagraphElement | null>(null);
   const ctaButtonsRef = useRef<HTMLDivElement | null>(null);
   const ctaChip1Ref = useRef<HTMLDivElement | null>(null);
-  const ctaChip2Ref = useRef<HTMLDivElement | null>(null);
-  const ctaChip3Ref = useRef<HTMLDivElement | null>(null);
 
   const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
@@ -213,7 +212,7 @@ export function HeroSequence() {
     }
 
     function revealIfReady() {
-      if (revealed) return;
+      if (disposed || revealed) return;
       revealed = true;
       setIsRevealed(true);
       ScrollTrigger.refresh();
@@ -308,49 +307,45 @@ export function HeroSequence() {
       }
     }
 
-    // CTA: one consolidated left column — eyebrow, masked line-by-line
-    // headline reveal (with key words picked out in sage), subtext,
-    // buttons, then a row of highlight chips — over a photographic
-    // backdrop blended into dark charcoal. The right side isn't left as
-    // bare dimmed photo: a large "03" ties back to the 3-room journey just
-    // scrolled through, giving that side of the frame real content.
+    // CTA: 2-column luxury editorial layout — eyebrow badge, masked line-by-line
+    // headline reveal (with luminous warm gradient text), subtext, buttons,
+    // trust chips, plus a floating frosted consultation preview card on the right.
     function renderCta(localProgress: number) {
       setActiveRoom(HERO_ROOMS.length - 1);
       setLayer("cta");
       if (ctaBgRef.current) {
         ctaBgRef.current.style.transform =
-          `scale(${1.18 - localProgress * 0.08}) translateX(${(0.5 - localProgress) * -4}%)`;
-      }
-      const statReveal = clamp01((localProgress - 0.15) / 0.25);
-      if (ctaStatRef.current) {
-        ctaStatRef.current.style.opacity = String(statReveal);
-        ctaStatRef.current.style.transform = `translateY(calc(-50% + ${(1 - statReveal) * 20}px))`;
+          `scale(${1.15 - localProgress * 0.06}) translateX(${(0.5 - localProgress) * -3}%)`;
       }
       if (ctaEyebrowRef.current) {
-        ctaEyebrowRef.current.style.opacity = String(clamp01(localProgress / 0.1));
+        const eyebrowReveal = clamp01(localProgress / 0.1);
+        ctaEyebrowRef.current.style.opacity = String(eyebrowReveal);
+        ctaEyebrowRef.current.style.transform = `translateY(${(1 - eyebrowReveal) * 12}px)`;
       }
       const line1 = clamp01((localProgress - 0.05) / 0.2);
-      const line2 = clamp01((localProgress - 0.16) / 0.2);
+      const line2 = clamp01((localProgress - 0.14) / 0.2);
       if (ctaLine1Ref.current) ctaLine1Ref.current.style.transform = `translateY(${(1 - line1) * 100}%)`;
       if (ctaLine2Ref.current) ctaLine2Ref.current.style.transform = `translateY(${(1 - line2) * 100}%)`;
-      const subReveal = clamp01((localProgress - 0.32) / 0.16);
+      const subReveal = clamp01((localProgress - 0.24) / 0.16);
       if (ctaSubRef.current) {
         ctaSubRef.current.style.opacity = String(subReveal);
         ctaSubRef.current.style.transform = `translateY(${(1 - subReveal) * 14}px)`;
       }
-      const btnReveal = clamp01((localProgress - 0.44) / 0.16);
+      const btnReveal = clamp01((localProgress - 0.34) / 0.16);
       if (ctaButtonsRef.current) {
         ctaButtonsRef.current.style.opacity = String(btnReveal);
         ctaButtonsRef.current.style.transform = `translateY(${(1 - btnReveal) * 14}px)`;
       }
-      const chipRefs = [ctaChip1Ref, ctaChip2Ref, ctaChip3Ref];
-      chipRefs.forEach((ref, i) => {
-        const reveal = clamp01((localProgress - (0.56 + i * 0.06)) / 0.15);
-        if (ref.current) {
-          ref.current.style.opacity = String(reveal);
-          ref.current.style.transform = `translateY(${(1 - reveal) * 16}px)`;
-        }
-      });
+      const cardReveal = clamp01((localProgress - 0.2) / 0.25);
+      if (ctaCardRef.current) {
+        ctaCardRef.current.style.opacity = String(cardReveal);
+        ctaCardRef.current.style.transform = `translateY(${(1 - cardReveal) * 20}px)`;
+      }
+      const chipReveal = clamp01((localProgress - 0.2) / 0.12);
+      if (ctaChip1Ref.current) {
+        ctaChip1Ref.current.style.opacity = String(chipReveal);
+        ctaChip1Ref.current.style.transform = `translateY(${(1 - chipReveal) * 16}px)`;
+      }
     }
 
     function handleUpdate(self: ScrollTrigger) {
@@ -390,6 +385,7 @@ export function HeroSequence() {
     function onWindowResize() {
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
       resizeTimer = requestAnimationFrame(() => {
+        if (disposed) return;
         resizeCanvas();
         ScrollTrigger.refresh();
       });
@@ -421,7 +417,15 @@ export function HeroSequence() {
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener("orientationchange", onWindowResize);
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
-      trigger?.kill();
+      // Revert the pin before React removes the section. Without the explicit
+      // revert flag, ScrollTrigger can leave its spacer/placeholder in the DOM
+      // during a desktop-to-mobile media-query swap, which causes React's
+      // removeChild error in development.
+      trigger?.kill(true);
+      ScrollTrigger.getAll().forEach((instance) => {
+        if (instance.trigger === section) instance.kill(true);
+      });
+      gsap.killTweensOf(section);
       delete document.body.dataset.heroChrome;
     };
   }, []);
@@ -554,103 +558,110 @@ export function HeroSequence() {
         </div>
       </div>
 
-      {/* CTA — final segment. One consolidated left content column
-          (eyebrow+badge, headline, subtext, buttons, highlight chips all
-          in a single flowing group) rather than pieces scattered to
-          separate corners. Content now spans the full width instead of a
-          narrow left column — a wide headline with key words picked out in
-          sage, then a full-width chip strip below a divider line, so the
-          composition uses the whole frame rather than leaving the right
-          side as a passive, empty-reading photo panel. Backdrop blends
-          into dark charcoal, not the room-green used everywhere else in
-          the sequence. */}
+      {/* CTA — final segment. A product-showcase composition: copy and a
+          compact project card on the left, with a rounded image feature on
+          the right — all kept in Enzo's existing dark palette. */}
       <div
-        className="absolute inset-0 overflow-hidden transition-opacity duration-500 ease-out"
+        className="absolute inset-0 overflow-hidden bg-enzo-dark transition-opacity duration-500 ease-out"
         style={{ opacity: activeLayer === "cta" ? 1 : 0, pointerEvents: activeLayer === "cta" ? "auto" : "none" }}
         aria-hidden={activeLayer !== "cta"}
       >
-        <div ref={ctaBgRef} className="absolute inset-0">
-          <img
-            src={roomFrameUrl(bedroomRoom, FRAME_COUNT)}
-            alt=""
-            className="h-full w-full object-cover"
-          />
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-r from-enzo-charcoal/85 via-enzo-charcoal/45 to-enzo-charcoal/10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-enzo-charcoal/70 via-transparent to-enzo-charcoal/35" />
-
-        {/* Right-side anchor: ties back to the 3-room journey the user just
-            scrolled through (a true count, not an invented stat) instead of
-            leaving the right of the frame as unbroken dim photo. */}
         <div
-          ref={ctaStatRef}
           aria-hidden="true"
-          className="absolute right-[8%] top-1/2 hidden -translate-y-1/2 text-right opacity-0 lg:block"
-        >
-          <span className="block font-serif font-medium leading-none text-enzo-cream" style={{ fontSize: "9rem" }}>
-            03
-          </span>
-          <span className="mt-2 block font-sans text-[13px] font-semibold uppercase tracking-[0.25em] text-enzo-sage">
-            Rooms. One Vision.
-          </span>
-        </div>
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(60% 55% at 10% 15%, rgba(138,158,140,0.16), transparent 60%), radial-gradient(55% 45% at 92% 90%, rgba(212,201,181,0.08), transparent 60%)",
+          }}
+        />
 
-        <div className="relative z-10 flex h-full flex-col justify-center px-8 md:px-16">
-          <span
-            ref={ctaEyebrowRef}
-            className="mb-6 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage opacity-0"
-          >
-            Ready When You Are
-          </span>
-          <h2
-            className="max-w-5xl font-serif font-medium leading-[1.02] text-enzo-cream"
-            style={{ fontSize: "clamp(3rem, 8.5vw, 7rem)" }}
-          >
-            <span className="block overflow-hidden pb-[0.18em] -mb-[0.18em]">
-              <span ref={ctaLine1Ref} className="block" style={{ transform: "translateY(100%)" }}>
-                Stop <em className="text-enzo-sage not-italic">Dreaming</em>.
-              </span>
-            </span>
-            <span className="block overflow-hidden pb-[0.18em] -mb-[0.18em]">
-              <span ref={ctaLine2Ref} className="block" style={{ transform: "translateY(100%)" }}>
-                Start <em className="text-enzo-sage not-italic">Building</em>.
-              </span>
-            </span>
-          </h2>
-          <p
-            ref={ctaSubRef}
-            className="mt-6 max-w-[52ch] text-[17px] leading-[1.6] text-enzo-cream/72 opacity-0 md:text-[19px]"
-          >
-            One <span className="text-enzo-cream">free</span> consultation. Zero pressure. Your space,{" "}
-            <span className="text-enzo-cream">transformed</span>.
-          </p>
-          <div ref={ctaButtonsRef} className="mt-9 flex flex-col items-start gap-4 opacity-0 sm:flex-row">
-            <Button asChild size="lg">
-              <Link href="/booking" className="group flex items-center justify-center gap-2">
-                Book My Free Consultation
-                <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-              </Link>
-            </Button>
-            <Button asChild variant="secondary" size="lg" className="border-2">
-              <Link href="/portfolio">See Our Work</Link>
-            </Button>
-          </div>
+        <div className="relative z-10 mx-auto flex h-full w-full max-w-[1200px] flex-col justify-center px-7 sm:px-10 lg:px-0">
+          <div className="grid grid-cols-1 items-center gap-14 lg:grid-cols-[500px_480px] lg:justify-center lg:gap-24">
 
-          <div className="mt-12 flex w-full max-w-4xl flex-wrap items-center gap-x-10 gap-y-4 border-t border-enzo-cream/15 pt-6">
-            <div ref={ctaChip1Ref} className="flex items-center gap-2.5 opacity-0">
-              <CalendarCheck className="h-4 w-4 shrink-0 text-enzo-sage" />
-              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">
-                Free Consultation
-              </span>
+            {/* ── Left ── */}
+            <div className="flex flex-col items-start">
+
+              {/* The CTA title deliberately uses the site's Space Grotesk
+                  display face: a distinctive sans-serif contrast to the
+                  editorial serif used elsewhere on the site. */}
+              <div ref={ctaEyebrowRef} className="hidden" aria-hidden="true" />
+              <h2
+                className="font-display font-semibold leading-[0.98] tracking-[-0.055em] text-enzo-cream"
+                style={{ fontSize: "clamp(3.15rem, 4.8vw, 4.25rem)" }}
+              >
+                <span className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
+                  <span ref={ctaLine1Ref} className="block whitespace-nowrap" style={{ transform: "translateY(100%)" }}>
+                    Stop <em className="text-enzo-sage not-italic">Dreaming</em>.
+                  </span>
+                </span>
+                <span className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
+                  <span ref={ctaLine2Ref} className="block whitespace-nowrap" style={{ transform: "translateY(100%)" }}>
+                    Start <em className="text-enzo-sage not-italic">Building</em>.
+                  </span>
+                </span>
+              </h2>
+
+              {/* Subtext */}
+              <p
+                ref={ctaSubRef}
+                className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/60 opacity-0"
+              >
+                One free consultation. Zero pressure. Built for you.
+              </p>
+
+              {/* Pill CTA — label + embedded arrow circle */}
+              <div ref={ctaButtonsRef} className="mt-9 opacity-0">
+                <HeroCtaButton href="/booking" label="Book Free Consultation" />
+              </div>
+
+              {/* Thumbnail card + rotating badge, inline row */}
+              <div className="mt-14 flex items-start gap-10">
+                <div ref={ctaChip1Ref} className="w-[260px] shrink-0 opacity-0">
+                  <div className="overflow-hidden rounded-2xl">
+                    <img
+                      src="/Wardrobes.jpeg"
+                      alt="Bespoke fitted wardrobes by Enzo Interiors"
+                      title="Bespoke Wardrobes"
+                      className="block aspect-[3/2] w-full object-cover"
+                    />
+                  </div>
+                  <p className="font-display mt-3 text-[13px] font-semibold text-enzo-cream">Wardrobe Suite</p>
+                  <p className="font-sans text-[12px] text-enzo-cream/50">Bespoke. Handcrafted.</p>
+                </div>
+
+                <div className="relative z-10 -mt-10 flex h-[150px] items-center opacity-100">
+                  <RotatingBadge label="View Portfolio" href="/portfolio" size={150} />
+                </div>
+              </div>
             </div>
-            <div ref={ctaChip2Ref} className="flex items-center gap-2.5 opacity-0">
-              <Ruler className="h-4 w-4 shrink-0 text-enzo-sage" />
-              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">Fully Bespoke</span>
+
+            {/* ── Right ── */}
+            <div ref={ctaCardRef} className="w-full max-w-[480px] opacity-0">
+              <HeroRotatingImage
+                imageRef={ctaBgRef}
+                className="max-w-[480px]"
+                images={[
+                  {
+                    src: "/Bedroom.jpeg",
+                    alt: "Bespoke bedroom interior by Enzo Interiors",
+                    title: "Bespoke Bedroom",
+                  },
+                  {
+                    src: "/centeredKitchen.jpeg",
+                    alt: "Bespoke kitchen interior by Enzo Interiors",
+                    title: "Bespoke Kitchen",
+                  },
+                  {
+                    src: "/fireplaceMediawall.jpeg",
+                    alt: "Bespoke media wall interior by Enzo Interiors",
+                    title: "Bespoke Media Wall",
+                  },
+                ]}
+                notchRadius={0}
+                notchFeather={0}
+              />
             </div>
-            <div ref={ctaChip3Ref} className="flex items-center gap-2.5 opacity-0">
-              <MapPin className="h-4 w-4 shrink-0 text-enzo-sage" />
-              <span className="whitespace-nowrap text-[13px] font-medium text-enzo-cream/90">Leicester-Based</span>
-            </div>
+
           </div>
         </div>
       </div>

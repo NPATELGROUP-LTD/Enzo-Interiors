@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter } from "next/font/google";
+import { Fraunces, Inter, Space_Grotesk } from "next/font/google";
 import "@/styles/theme.css";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
@@ -29,6 +29,16 @@ const inter = Inter({
   display: "swap",
 });
 
+// Distinctive geometric sans used sparingly for small display labels (hero
+// showcase captions) where Inter reads too neutral — see --font-display in
+// theme.css and the .font-display utility it generates.
+const spaceGrotesk = Space_Grotesk({
+  subsets: ["latin"],
+  weight: ["500", "600", "700"],
+  variable: "--font-space-grotesk",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "Enzo Interiors",
   description:
@@ -44,7 +54,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${inter.variable}`}
+      className={`${fraunces.variable} ${inter.variable} ${spaceGrotesk.variable}`}
       data-scroll-behavior="smooth"
     >
       <body>
