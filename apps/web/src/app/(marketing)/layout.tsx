@@ -8,6 +8,11 @@ import { Footer } from "@/components/layout/Footer";
 // and Footer are the only pieces that need "use client" (scroll listeners /
 // local form state). CustomCursor is disabled for now — see
 // components/shared/CustomCursor.tsx — re-add it here to bring it back.
+//
+// Smooth scroll (SmoothScroll, Lenis) is applied once at the root layout
+// rather than here — Lenis animates the real document scrollTop instead of
+// a transformed wrapper, so unlike GSAP's ScrollSmoother it doesn't need to
+// exempt <Navbar> from anything.
 export default function MarketingLayout({
   children,
 }: {

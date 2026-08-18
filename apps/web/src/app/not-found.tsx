@@ -29,7 +29,7 @@ export default function NotFound() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="relative z-10 text-center"
         >
-          <span className="font-[Cormorant_Garamond] block" style={{ fontSize: "clamp(7rem, 18vw, 14rem)", fontWeight: 300, lineHeight: 0.9, color: "#1C4A3A" }}>
+          <span className="font-serif block" style={{ fontSize: "clamp(7rem, 18vw, 14rem)", fontWeight: 300, lineHeight: 0.9, color: "#1C4A3A" }}>
             404
           </span>
           <motion.div
@@ -85,7 +85,7 @@ export default function NotFound() {
             transition={{ delay: 1 }}
             className="mt-20"
           >
-            <span className="font-[Cormorant_Garamond] italic text-[#C4B8A8]" style={{ fontSize: "1.1rem" }}>
+            <span className="font-serif italic text-[#C4B8A8]" style={{ fontSize: "1.1rem" }}>
               Enzo Interiors
             </span>
           </motion.div>

@@ -144,7 +144,7 @@ export function BookingWizard({
         </div>
         <div className="relative z-10">
           <span
-            className="font-[Cormorant_Garamond] italic text-primary-foreground"
+            className="font-serif italic text-primary-foreground"
             style={{ fontSize: "1.5rem", fontWeight: 600 }}
           >
             Enzo{" "}

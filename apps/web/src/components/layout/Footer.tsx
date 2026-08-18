@@ -82,7 +82,7 @@ function TextHoverEffect({ text, className = "" }: { text: string; className?: s
         className="fill-transparent"
         stroke="#2A5A4A"
         strokeOpacity={0.08}
-        style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "180px", fontWeight: 700 }}
+        style={{ fontFamily: "var(--font-heading)", fontSize: "180px", fontWeight: 700 }}
       >
         {text}
       </text>
@@ -97,7 +97,7 @@ function TextHoverEffect({ text, className = "" }: { text: string; className?: s
         stroke="url(#textGradient)"
         strokeOpacity={0.5}
         mask="url(#textMask)"
-        style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: "180px", fontWeight: 700 }}
+        style={{ fontFamily: "var(--font-heading)", fontSize: "180px", fontWeight: 700 }}
       >
         {text}
       </text>
