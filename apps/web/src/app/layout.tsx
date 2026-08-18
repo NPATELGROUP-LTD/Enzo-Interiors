@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Fraunces, Inter, Space_Grotesk } from "next/font/google";
 import "@/styles/theme.css";
+import { LaunchOverlay } from "@/components/shared/LaunchOverlay";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -58,6 +59,7 @@ export default function RootLayout({
       data-scroll-behavior="smooth"
     >
       <body>
+        <LaunchOverlay />
         {/* Desktop-only decorative frame around the whole site — completely
             square, no rounded corners. Hidden on mobile entirely. The navbar
             (Navbar.tsx) docks against this frame's edge on desktop — it

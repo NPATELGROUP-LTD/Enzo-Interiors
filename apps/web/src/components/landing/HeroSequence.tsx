@@ -74,8 +74,6 @@ export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
-  const loaderFillRef = useRef<HTMLDivElement | null>(null);
-  const loaderPctRef = useRef<HTMLSpanElement | null>(null);
   const scrollHintRef = useRef<HTMLDivElement | null>(null);
 
   // Chapter 1 — double-door reveal (mediawall -> kitchen).
@@ -103,7 +101,6 @@ export function HeroSequence() {
   const ctaChip1Ref = useRef<HTMLDivElement | null>(null);
   const ctaChip2Ref = useRef<HTMLDivElement | null>(null);
 
-  const [isRevealed, setIsRevealed] = useState(false);
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
   const [activeLayer, setActiveLayer] = useState<Layer>("room");
 
@@ -128,7 +125,6 @@ export function HeroSequence() {
 
     const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
-    let room0LoadedCount = 0;
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
 
@@ -136,6 +132,7 @@ export function HeroSequence() {
     // both fade back in only once the CTA segment is reached. See
     // .site-navbar/.site-frame + body[data-hero-chrome] in theme.css.
     document.body.dataset.heroChrome = "hidden";
+    delete document.documentElement.dataset.enzoHeroReady;
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -206,16 +203,11 @@ export function HeroSequence() {
       });
     }
 
-    function updateLoaderProgress() {
-      const pct = Math.round((room0LoadedCount / FRAME_COUNT) * 100);
-      if (loaderFillRef.current) loaderFillRef.current.style.width = pct + "%";
-      if (loaderPctRef.current) loaderPctRef.current.textContent = String(pct);
-    }
-
     function revealIfReady() {
       if (disposed || revealed) return;
       revealed = true;
-      setIsRevealed(true);
+      document.documentElement.dataset.enzoHeroReady = "true";
+      window.dispatchEvent(new Event("enzo:hero-ready"));
       ScrollTrigger.refresh();
       void preloadRoom(1).then(() => void preloadRoom(2));
     }
@@ -410,10 +402,7 @@ export function HeroSequence() {
     window.addEventListener("resize", onWindowResize);
     window.addEventListener("orientationchange", onWindowResize);
 
-    void preloadRoom(0, () => {
-      room0LoadedCount++;
-      updateLoaderProgress();
-    }).then(revealIfReady);
+    void preloadRoom(0).then(revealIfReady);
 
     return () => {
       disposed = true;
@@ -430,6 +419,7 @@ export function HeroSequence() {
       });
       gsap.killTweensOf(section);
       delete document.body.dataset.heroChrome;
+      delete document.documentElement.dataset.enzoHeroReady;
     };
   }, []);
 
@@ -707,32 +697,6 @@ export function HeroSequence() {
         ))}
       </div>
 
-      <div
-        aria-live="polite"
-        aria-hidden={isRevealed}
-        className="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-[18px] bg-enzo-dark transition-[opacity,transform] duration-700 ease-out"
-        style={{
-          opacity: isRevealed ? 0 : 1,
-          transform: isRevealed ? "scale(1.03)" : "scale(1)",
-          pointerEvents: isRevealed ? "none" : "auto",
-        }}
-      >
-        <div className="flex items-baseline gap-0.5 tabular-nums text-enzo-cream">
-          <span ref={loaderPctRef} className="text-[15px] font-semibold tracking-[-0.01em]">
-            0
-          </span>
-          <span className="text-[12px] opacity-55">%</span>
-        </div>
-        <div className="h-0.5 w-[140px] overflow-hidden rounded-full bg-enzo-cream/20">
-          <div
-            ref={loaderFillRef}
-            className="h-full w-0 bg-enzo-sage transition-[width] duration-150 ease-linear"
-          />
-        </div>
-        <div className="text-[11px] uppercase tracking-[0.2em] text-enzo-cream/55">
-          Preparing your space
-        </div>
-      </div>
     </section>
   );
 }
