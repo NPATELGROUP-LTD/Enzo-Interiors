@@ -14,6 +14,7 @@
     "meta-skills@claude-design-skillstack": true,
     "authoring-motion@claude-design-skillstack": true,
     "animation-components@claude-design-skillstack": true,
-    "extended-3d-scroll@claude-design-skillstack": true
+    "extended-3d-scroll@claude-design-skillstack": true,
+    "brag@brag": true
   }
 }

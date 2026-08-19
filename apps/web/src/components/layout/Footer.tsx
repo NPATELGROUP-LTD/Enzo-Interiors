@@ -1,151 +1,214 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { toast } from "sonner";
-import { MessageCircle, MapPin, Phone, Mail } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { ArrowUpRight, ArrowRight, Phone, Check } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { Button } from "@/components/ui/Button";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
+import { FooterMap } from "@/components/layout/FooterMap";
+import { TextRoll } from "@/components/shared/TextRoll";
+import { cn } from "@/lib/utils";
 
 gsap.registerPlugin(ScrollTrigger);
 
-const serviceLinks = [
-  { label: "Bespoke Kitchens", path: "/services" },
-  { label: "Fitted Bedrooms", path: "/services" },
-  { label: "Media Walls", path: "/services" },
-  { label: "Fitted Wardrobes", path: "/services" },
+// Exactly one more than socialLinks below — on any of these four pages the
+// current one gets filtered out (see filteredPageLinks in the component),
+// leaving 3, matching the 3 social links so both flanking columns read as
+// the same length rather than a visibly lopsided 5-vs-3.
+const pageLinks = [
+  { href: "/", label: "Home" },
+  { href: "/services", label: "Services" },
+  { href: "/portfolio", label: "Portfolio" },
+  { href: "/contact", label: "Contact" },
 ];
 
-const companyLinks = [
-  { label: "About Us", path: "/about" },
-  { label: "Our Portfolio", path: "/portfolio" },
-  { label: "Contact", path: "/contact" },
-  { label: "Book a Consultation", path: "/booking" },
+const socialLinks = [
+  { href: "https://instagram.com/enzo.interiors", Icon: InstagramIcon, label: "Instagram" },
+  { href: "https://facebook.com", Icon: FacebookIcon, label: "Facebook" },
+  { href: "/contact", Icon: Phone, label: "WhatsApp" },
 ];
 
-// SVG Text Hover Effect inspired by 21st.dev hover-footer
-function TextHoverEffect({ text, className = "" }: { text: string; className?: string }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hovered, setHovered] = useState(false);
-  const [maskPos, setMaskPos] = useState({ cx: "50%", cy: "50%" });
+// Real hours, with consecutive identical rows combined (Tue–Thu all read
+// "10:00 – 17:00" and are back-to-back, so they collapse into one row;
+// Saturday matches the same hours too but sits right after Friday's
+// different, split hours, so it stays its own row rather than being
+// grouped with Tue–Thu across that break).
+const hoursRows = [
+  { day: "Monday", time: "Closed" },
+  { day: "Tuesday – Thursday", time: "10:00 – 17:00" },
+  { day: "Friday", time: "10:00 – 12:30, 14:30 – 17:00" },
+  { day: "Saturday", time: "10:00 – 17:00" },
+  { day: "Sunday", time: "Closed" },
+];
 
-  const handleMouseMove = useCallback((e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    setMaskPos({ cx: `${x}%`, cy: `${y}%` });
-  }, []);
+const LABEL = "text-[10px] font-semibold uppercase tracking-[0.3em] text-enzo-cream/50";
 
+function HoursList() {
   return (
-    <svg
-      ref={svgRef}
-      width="100%"
-      height="100%"
-      viewBox="0 0 900 300"
-      xmlns="http://www.w3.org/2000/svg"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onMouseMove={handleMouseMove}
-      className={`select-none cursor-default ${className}`}
-    >
-      <defs>
-        <linearGradient id="textGradient" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="900" y2="300">
-          <stop offset="0%" stopColor="#1C4A3A" />
-          <stop offset="30%" stopColor="#8A9E8C" />
-          <stop offset="60%" stopColor="#3D6347" />
-          <stop offset="100%" stopColor="#D4C9B5" />
-        </linearGradient>
-        <radialGradient
-          id="revealMask"
-          gradientUnits="userSpaceOnUse"
-          r={hovered ? "30%" : "0%"}
-          cx={maskPos.cx}
-          cy={maskPos.cy}
-        >
-          <stop offset="0%" stopColor="white" />
-          <stop offset="100%" stopColor="black" />
-        </radialGradient>
-        <mask id="textMask">
-          <rect x="0" y="0" width="100%" height="100%" fill="url(#revealMask)" />
-        </mask>
-      </defs>
-
-      <text
-        x="50%"
-        y="55%"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        strokeWidth="0.5"
-        className="fill-transparent"
-        stroke="#2A5A4A"
-        strokeOpacity={0.08}
-        style={{ fontFamily: "var(--font-heading)", fontSize: "180px", fontWeight: 700 }}
-      >
-        {text}
-      </text>
-
-      <text
-        x="50%"
-        y="55%"
-        textAnchor="middle"
-        dominantBaseline="middle"
-        strokeWidth="0.5"
-        className="fill-transparent"
-        stroke="url(#textGradient)"
-        strokeOpacity={0.5}
-        mask="url(#textMask)"
-        style={{ fontFamily: "var(--font-heading)", fontSize: "180px", fontWeight: 700 }}
-      >
-        {text}
-      </text>
-    </svg>
+    <div>
+      <p className={cn(LABEL, "mb-4")}>Opening Hours</p>
+      <div className="flex flex-col divide-y divide-enzo-cream/10">
+        {hoursRows.map((row) => (
+          <div
+            key={row.day}
+            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-2 py-2.5 text-[13px] transition-colors duration-200 hover:bg-enzo-cream/5"
+          >
+            <span className="font-medium text-enzo-cream">{row.day}</span>
+            <span className={cn("tabular-nums text-enzo-cream/60", row.time === "Closed" && "text-enzo-cream/35")}>
+              {row.time}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/60">
+        <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
+        Consultation calls are available by appointment, outside these hours.
+      </p>
+    </div>
   );
 }
 
-function FooterBackgroundGradient() {
+function NewsletterForm({
+  value,
+  onChange,
+  onSubmit,
+  submittedEmail,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+  submittedEmail: string | null;
+}) {
   return (
-    <div className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        className="absolute bottom-0 left-1/2 h-[400px] w-[600px] -translate-x-1/2 opacity-20 blur-[120px]"
-        style={{
-          background: "radial-gradient(ellipse at center, #1C4A3A 0%, #3D6347 40%, transparent 70%)",
-        }}
-      />
-    </div>
+    <form onSubmit={onSubmit} className="w-full">
+      <label htmlFor="footer-newsletter" className={cn(LABEL, "mb-3 block")}>
+        The Studio Letter
+      </label>
+      <div className="flex items-center gap-2 border-b-2 border-enzo-cream/20 pb-2 transition-colors focus-within:border-enzo-sand">
+        <input
+          id="footer-newsletter"
+          type="email"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Your email address"
+          className="min-w-0 flex-1 bg-transparent text-[14px] text-enzo-cream placeholder:text-enzo-cream/40 focus:outline-none"
+          required
+        />
+        {/* Same pill-icon-chip mechanic as HeroCtaButton: two overlapping
+            arrows swap places on hover (one exits top-right, the next
+            enters from bottom-left) rather than a plain rotate, with the
+            chip itself inverting colour. The button sits flat — it's the
+            arrow glyph itself that's tilted 45°, pointing diagonally
+            up-right like a "send" icon, matching the direction the swap
+            already exits/enters from. */}
+        <button
+          type="submit"
+          data-cursor="view"
+          aria-label="Subscribe"
+          className="group relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-enzo-sand text-enzo-forest transition-all duration-300 hover:scale-110 hover:bg-enzo-sage"
+        >
+          <ArrowRight className="h-4 w-4 -rotate-45 transition-all duration-300 ease-out group-hover:translate-x-3 group-hover:-translate-y-3 group-hover:opacity-0" />
+          <ArrowRight className="absolute h-4 w-4 -translate-x-3 translate-y-3 -rotate-45 opacity-0 transition-all duration-300 ease-out group-hover:translate-x-0 group-hover:translate-y-0 group-hover:opacity-100" />
+        </button>
+      </div>
+
+      {/* Inline confirmation directly under the field, in the form's own
+          flow — not a toast/portal floating elsewhere on screen. */}
+      {submittedEmail && (
+        <p className="mt-3 flex items-center gap-2 text-[13px] text-enzo-sage">
+          <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-enzo-sand text-enzo-forest">
+            <Check className="h-3 w-3" strokeWidth={3} />
+          </span>
+          Thank you for subscribing with <span className="font-medium text-enzo-cream">{submittedEmail}</span>
+        </p>
+      )}
+    </form>
   );
 }
 
 export function Footer() {
   const [newsletter, setNewsletter] = useState("");
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const pathname = usePathname();
+  const filteredPageLinks = pageLinks.filter((item) => item.href !== pathname);
   const footerRef = useRef<HTMLElement>(null);
+  const headlineRef = useRef<HTMLDivElement>(null);
 
+  // Two effects layered on the same, self-referential trigger
+  // (`trigger: footer` — the footer's own scroll position, never dependent
+  // on total document height or anything else on the page, which is what
+  // every earlier scroll bug in this file traced back to):
+  //
+  // 1. A continuous parallax on just the headline (unchanged from before).
+  // 2. A reveal, on scroll-in, that's genuinely different per section
+  //    rather than one animation staggered across everything — Pages
+  //    slides in from the left, Follow from the right (mirroring which
+  //    side of the layout they sit on), the headline pops in with an
+  //    overshoot, the contact block rises, hours pops in with more bounce,
+  //    the map zooms in (fitting for a map), and the bottom bar just
+  //    settles with a quiet fade. All seven still share ONE ScrollTrigger
+  //    (self-referential to the footer, same safe pattern as the parallax
+  //    above) — they're separate `.to()` calls on one timeline, positioned
+  //    with small offsets for a loose cascade, not seven separate triggers.
   useEffect(() => {
     const footer = footerRef.current;
     if (!footer) return;
-    const tween = gsap.fromTo(
-      footer,
-      { opacity: 0, y: 24 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        ease: "power3.out",
-        scrollTrigger: { trigger: footer, start: "top 92%", once: true },
-      },
-    );
-    return () => {
-      tween.scrollTrigger?.kill();
-      tween.kill();
-    };
+
+    const mm = gsap.matchMedia();
+    mm.add("(prefers-reduced-motion: no-preference)", () => {
+      const parallax = gsap.timeline({
+        scrollTrigger: { trigger: footer, start: "top bottom", end: "bottom top", scrub: 0.9 },
+      });
+      if (headlineRef.current) {
+        parallax.fromTo(headlineRef.current, { yPercent: 6 }, { yPercent: -6, ease: "none" }, 0);
+      }
+
+      const q = (selector: string) => gsap.utils.toArray<HTMLElement>(footer.querySelectorAll(selector));
+      const pages = q(".reveal-pages");
+      const headline = q(".reveal-headline");
+      const follow = q(".reveal-follow");
+      const contact = q(".reveal-contact");
+      const hours = q(".reveal-hours");
+      const map = q(".reveal-map");
+      const bottom = q(".reveal-bottom");
+
+      gsap.set(pages, { x: -28, opacity: 0 });
+      gsap.set(headline, { scale: 0.9, opacity: 0 });
+      gsap.set(follow, { x: 28, opacity: 0 });
+      gsap.set(contact, { y: 34, opacity: 0 });
+      gsap.set(hours, { y: 24, scale: 0.96, opacity: 0 });
+      gsap.set(map, { scale: 0.94, opacity: 0 });
+      gsap.set(bottom, { y: 16, opacity: 0 });
+
+      const intro = gsap.timeline({
+        scrollTrigger: { trigger: footer, start: "top 85%", once: true },
+      });
+      intro
+        .to(pages, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
+        .to(headline, { scale: 1, opacity: 1, duration: 0.8, ease: "back.out(1.5)" }, 0.1)
+        .to(follow, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
+        .to(contact, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 0.3)
+        .to(hours, { y: 0, scale: 1, opacity: 1, duration: 0.65, ease: "back.out(1.7)" }, 0.38)
+        .to(map, { scale: 1, opacity: 1, duration: 0.7, ease: "power2.out" }, 0.46)
+        .to(bottom, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 0.55);
+
+      return () => {
+        parallax.scrollTrigger?.kill();
+        parallax.kill();
+        intro.scrollTrigger?.kill();
+        intro.kill();
+      };
+    });
+
+    return () => mm.revert();
   }, []);
 
   const handleNewsletterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (newsletter) {
-      toast.success(`Thank you for subscribing with ${newsletter}`);
+      setSubmittedEmail(newsletter);
       setNewsletter("");
     }
   };
@@ -153,168 +216,160 @@ export function Footer() {
   return (
     <footer
       ref={footerRef}
-      className="relative overflow-hidden rounded-t-3xl bg-enzo-footer-dark"
-      style={{ opacity: 0 }}
+      className="relative -mt-12 overflow-hidden rounded-t-[2.5rem] bg-enzo-forest text-enzo-cream sm:-mt-20"
     >
-      <FooterBackgroundGradient />
+      {/* Small tab poking above the footer's own top edge — the same
+          bridging detail the reference uses between the page above and the
+          dark panel below. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-5 left-1/2 hidden h-10 w-28 -translate-x-1/2 rounded-t-full bg-enzo-forest md:block"
+      />
 
-      <div className="relative z-40 mx-auto max-w-7xl p-8 md:p-14">
-        <div className="grid grid-cols-1 gap-12 pb-12 md:grid-cols-3 md:gap-16">
-          {/* Brand + Newsletter Column */}
-          <div className="flex flex-col space-y-6">
-            <div className="flex items-center space-x-2">
-              <span
-                className="font-serif italic text-enzo-cream"
-                style={{ fontSize: "1.75rem", fontWeight: 600 }}
-              >
-                Enzo{" "}
-                <span
-                  style={{
-                    fontWeight: 300,
-                    fontStyle: "normal",
-                    fontSize: "0.8rem",
-                    letterSpacing: "0.15em",
-                  }}
-                >
-                  INTERIORS
-                </span>
-              </span>
-            </div>
-            <p className="text-[14px] leading-relaxed text-enzo-sage/70">
-              Bespoke fitted furniture, designed and handcrafted in Leicester. Every space we
-              create is entirely unique.
-            </p>
-            <div>
-              <h4 className="mb-3 text-[14px] font-semibold text-enzo-cream">Newsletter</h4>
-              <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
-                <input
-                  type="email"
-                  value={newsletter}
-                  onChange={(e) => setNewsletter(e.target.value)}
-                  placeholder="Your email"
-                  className="flex-1 rounded-lg border border-enzo-footer-border bg-enzo-footer-surface px-4 py-2 text-[13px] text-enzo-cream transition-colors focus:border-enzo-sage focus:outline-none"
-                  required
-                />
-                <Button type="submit" size="sm" className="rounded-lg">
-                  Subscribe
-                </Button>
-              </form>
-            </div>
-          </div>
-
-          {/* Services + Company Column */}
-          <div className="grid grid-cols-2 gap-8">
-            <div>
-              <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Services</h4>
-              <ul className="space-y-3">
-                {serviceLinks.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.path}
-                      className="text-[14px] text-enzo-sage/70 transition-colors duration-300 hover:text-enzo-sage"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div>
-              <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Company</h4>
-              <ul className="space-y-3">
-                {companyLinks.map((link) => (
-                  <li key={link.label}>
-                    <Link
-                      href={link.path}
-                      className="text-[14px] text-enzo-sage/70 transition-colors duration-300 hover:text-enzo-sage"
-                    >
-                      {link.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-
-          {/* Contact + Social Column */}
-          <div>
-            <h4 className="mb-6 text-[16px] font-semibold text-enzo-cream">Contact Us</h4>
-            <ul className="mb-6 space-y-4">
-              <li className="flex items-center gap-3">
-                <Mail size={16} className="flex-shrink-0 text-enzo-sage" />
-                <a
-                  href="mailto:hello@enzointeriors.co.uk"
-                  className="text-[14px] text-enzo-sage/70 transition-colors hover:text-enzo-sage"
-                >
-                  hello@enzointeriors.co.uk
-                </a>
-              </li>
-              <li className="flex items-center gap-3">
-                <Phone size={16} className="flex-shrink-0 text-enzo-sage" />
-                <a
-                  href="tel:+441160000000"
-                  className="text-[14px] text-enzo-sage/70 transition-colors hover:text-enzo-sage"
-                >
-                  0116 XXX XXXX
-                </a>
-              </li>
-              <li className="flex items-center gap-3">
-                <MapPin size={16} className="flex-shrink-0 text-enzo-sage" />
-                <span className="text-[14px] text-enzo-sage/70">Leicester &amp; Leicestershire</span>
-              </li>
+      <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-12 sm:px-10 md:px-12 md:pb-14 md:pt-14">
+        {/* Headline + flanking Pages / Follow columns, mirroring the
+            reference's centred-hero-with-side-nav composition via a 3-col
+            grid — robust at any width since it just stacks on mobile,
+            rather than needing absolute positioning to "flank" anything. */}
+        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1fr_2fr_1fr] md:gap-6">
+          <nav aria-label="Footer pages" className="order-2 text-center md:order-1 md:text-left">
+            <p className={cn(LABEL, "mb-5")}>Pages</p>
+            <ul className="space-y-3.5">
+              {filteredPageLinks.map((item) => (
+                <li key={item.href} className="reveal-pages">
+                  <Link
+                    href={item.href}
+                    data-cursor="view"
+                    className="inline-block text-[19px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream md:text-[20px]"
+                  >
+                    <TextRoll>{item.label}</TextRoll>
+                  </Link>
+                </li>
+              ))}
             </ul>
-            <div>
-              <h4 className="mb-3 text-[14px] font-semibold text-enzo-cream">Follow Us</h4>
-              <div className="flex gap-4">
-                <a
-                  href="https://instagram.com/enzo.interiors"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  data-cursor="view"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
-                >
-                  <InstagramIcon size={18} />
-                </a>
-                <a
-                  href="#"
-                  data-cursor="view"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
-                >
-                  <FacebookIcon size={18} />
-                </a>
-                <a
-                  href="#"
-                  data-cursor="view"
-                  className="flex h-10 w-10 items-center justify-center rounded-full border border-enzo-footer-border bg-enzo-footer-surface text-enzo-sage transition-all hover:border-enzo-sage hover:text-enzo-cream"
-                >
-                  <MessageCircle size={18} />
-                </a>
-              </div>
+          </nav>
+
+          <div ref={headlineRef} className="reveal-headline group order-1 text-center md:order-2">
+            {/* Deliberately not TextRoll here — that letter-roll is the
+                Pages/Follow links' signature move, and reusing it on the
+                headline made it read as just another link-like element
+                rather than the centrepiece. Each word instead lifts and
+                grows on its own hover, a plain scale+translate pop rather
+                than a character-level animation — a different kind of
+                interaction, not a smaller version of the same one. */}
+            <h2 className="font-display text-[11vw] font-bold uppercase leading-[0.92] tracking-[-0.02em] text-enzo-cream transition-transform duration-500 ease-out group-hover:scale-[1.015] sm:text-[7vw] md:text-[3.6rem] lg:text-[4.2rem]">
+              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
+                Live
+              </span>{" "}
+              <span className="inline-block cursor-default font-serif italic text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
+                beautifully,
+              </span>
+              <br />
+              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
+                designed
+              </span>{" "}
+              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
+                with
+              </span>{" "}
+              <span className="inline-block cursor-default font-serif italic text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
+                intent.
+              </span>
+            </h2>
+          </div>
+
+          <nav aria-label="Follow Enzo Interiors" className="order-3 text-center md:text-right">
+            <p className={cn(LABEL, "mb-5")}>Follow</p>
+            <ul className="space-y-3.5">
+              {socialLinks.map(({ href, label }) => (
+                <li key={label} className="reveal-follow">
+                  <a
+                    href={href}
+                    target={href.startsWith("http") ? "_blank" : undefined}
+                    rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                    data-cursor="view"
+                    className="inline-block text-[19px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream md:text-[20px]"
+                  >
+                    <TextRoll>{label}</TextRoll>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+
+        {/* Contact / newsletter / hours — two balanced columns, not three:
+            a three-column split with the map as the third column left a
+            visibly jagged bottom edge, since the map was consistently
+            taller than the other two, leaving a large dead gap under the
+            shorter ones. The map now runs full-width below instead, as its
+            own row, which also sidesteps that mismatch entirely. */}
+        <div className="mt-14 grid grid-cols-1 gap-10 border-t border-enzo-cream/15 pt-10 md:mt-16 md:grid-cols-2 md:gap-16 md:pt-12">
+          <div className="reveal-contact">
+            <p className={cn(LABEL, "mb-3")}>Begin A Conversation</p>
+            <a
+              href="mailto:hello@enzointeriors.co.uk"
+              data-cursor="view"
+              className="group inline-flex flex-wrap items-baseline gap-x-2 text-[1.2rem] font-bold leading-[1.1] tracking-tight text-enzo-cream"
+            >
+              <span className="bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_2px] bg-left-bottom bg-no-repeat pb-0.5 transition-[background-size] duration-500 ease-out group-hover:bg-[length:100%_2px]">
+                hello@enzointeriors.co.uk
+              </span>
+              <ArrowUpRight className="h-[0.55em] w-[0.55em] flex-shrink-0 text-enzo-sand transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
+            </a>
+            <a
+              href="tel:+447777333052"
+              data-cursor="view"
+              className="mt-3 flex items-center gap-2 text-[14px] text-enzo-cream/70 transition-colors hover:text-enzo-cream"
+            >
+              <Phone className="h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
+              07777 333052
+            </a>
+            <div className="mt-8">
+              <NewsletterForm
+                value={newsletter}
+                onChange={setNewsletter}
+                onSubmit={handleNewsletterSubmit}
+                submittedEmail={submittedEmail}
+              />
             </div>
+          </div>
+
+          <div className="reveal-hours">
+            <HoursList />
           </div>
         </div>
 
-        <hr className="my-8 border-t border-enzo-footer-border" />
-
-        {/* Bottom bar */}
-        <div className="flex flex-col items-center justify-between space-y-4 text-[13px] md:flex-row md:space-y-0">
-          <p className="text-enzo-sage/70">
-            &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
-          </p>
-          <div className="flex gap-6 text-[12px] text-enzo-sage/70">
-            <a href="#" className="transition-colors hover:text-enzo-sage">
-              Privacy Policy
-            </a>
-            <a href="#" className="transition-colors hover:text-enzo-sage">
-              Terms of Service
-            </a>
-          </div>
+        <div className="reveal-map mt-10 md:mt-12">
+          <p className={cn(LABEL, "mb-3")}>Where We Work</p>
+          <FooterMap />
         </div>
       </div>
 
-      {/* Text hover effect */}
-      <div className="relative z-50 -mb-28 -mt-44 hidden h-[22rem] lg:flex">
-        <TextHoverEffect text="ENZO" />
+      {/* Bottom bar — copyright and "Made by" split onto their own lines
+          (rather than run together in one sentence) so the hierarchy reads
+          at a glance: what this is, who made it. Legal links get the same
+          underline-sweep hover as every other link in this footer, instead
+          of a bare colour change, for one consistent interaction language
+          throughout. */}
+      <div className="reveal-bottom relative z-10 mx-auto flex max-w-6xl flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 px-6 py-8 sm:flex-row sm:px-10 md:px-12">
+        <div className="text-center text-[13px] sm:text-left">
+          <p className="font-semibold text-enzo-cream">
+            &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
+          </p>
+          <p className="mt-1 text-enzo-cream/50">
+            Made by <span className="font-semibold text-enzo-sand">NPATEL GROUP LTD</span>
+          </p>
+        </div>
+        <div className="flex items-center gap-6 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream">
+          <a href="#" className="group relative">
+            Privacy Policy
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </a>
+          <a href="#" className="group relative">
+            Terms
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </a>
+        </div>
       </div>
     </footer>
   );
