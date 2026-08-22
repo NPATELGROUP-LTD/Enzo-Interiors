@@ -1,45 +1,45 @@
-// Landing page redesign: stays a Server Component (async, fetches
-// services/portfolio/testimonials from src/lib/content) composing the
-// reusable, self-contained landing/* section components.
+// Landing page. Stays a Server Component (async, fetches services /
+// portfolio / testimonials from src/lib/content) composing the
+// self-contained landing/* section components.
 //
-// TEMPORARY: sections below the Hero v3 sequence are still disabled while
-// the Navbar is being reworked in isolation, so it's easy to review without
-// scrolling past the rest of the page. Hero is live (feature/hero-frame-
-// scroll-v3) — the earlier static navbar-preview placeholder is gone. The
-// parallax CTA is the final segment *inside* the Hero's own scroll
-// timeline (not a separate section below it), so there's nothing to import
-// for it here. Restore the remaining imports and JSX below to bring the
-// full landing page back.
+// Section order below is deliberate rather than inherited. The hero ends
+// in near-black, so the page opens into cream (01), stays on paper for the
+// drawing (02), drops back to forest for the craft diagram (03), lifts to
+// white for the work index (04), warms to sand for the client reviews
+// (05), and closes on near-black again so the footer's darker ground reads
+// as a continuation instead of a cut. No two neighbouring sections share a
+// layout idiom or a scroll mechanic — pinned rail, sticky drawing,
+// annotated 3D object, pointer-tracked index, timed quote, velocity
+// marquee — which is what keeps six sections from blurring together.
 //
-// import { ServicesBento } from "@/components/landing/ServicesBento";
-// import { ProcessTimeline } from "@/components/landing/ProcessTimeline";
-// import { WhyEnzoBento } from "@/components/landing/WhyEnzoBento";
-// import { PortfolioMasonry } from "@/components/landing/PortfolioMasonry";
-// import { TestimonialsMarquee } from "@/components/landing/TestimonialsMarquee";
-// import { BookingCTA } from "@/components/landing/BookingCTA";
-// import { InstagramGrid } from "@/components/landing/InstagramGrid";
-// import { getServices, getTestimonials, getPortfolioItems } from "@/lib/content";
+// The former BookingCTA and InstagramGrid are now one section
+// (StudioInvite): the hero already closes on a booking CTA, so a second
+// full-bleed one mid-page was repeating the ask rather than building on it.
 import { Hero } from "@/components/landing/Hero";
+import { ServicesRail } from "@/components/landing/ServicesRail";
+import { ProcessLedger } from "@/components/landing/ProcessLedger";
+import { WorkshopModule } from "@/components/landing/WorkshopModule";
+import { WorkIndex } from "@/components/landing/WorkIndex";
+import { ClientVoices } from "@/components/landing/ClientVoices";
+import { StudioInvite } from "@/components/landing/StudioInvite";
+import { getServices, getTestimonials, getPortfolioItems } from "@/lib/content";
 
 export default async function HomePage() {
-  // const [services, testimonials, portfolioItems] = await Promise.all([
-  //   getServices(),
-  //   getTestimonials(),
-  //   getPortfolioItems(),
-  // ]);
+  const [services, testimonials, portfolioItems] = await Promise.all([
+    getServices(),
+    getTestimonials(),
+    getPortfolioItems(),
+  ]);
 
   return (
     <div>
       <Hero />
-      {/*
-      <ServicesBento services={services} />
-      <ProcessTimeline />
-      <WhyEnzoBento />
-      <PortfolioMasonry items={portfolioItems} />
-      <TestimonialsMarquee testimonials={testimonials} />
-      <BookingCTA />
-      <InstagramGrid items={portfolioItems} />
-      */}
+      <ServicesRail services={services} />
+      <ProcessLedger />
+      <WorkshopModule />
+      <WorkIndex items={portfolioItems} />
+      <ClientVoices testimonials={testimonials} />
+      <StudioInvite items={portfolioItems} />
     </div>
   );
 }
