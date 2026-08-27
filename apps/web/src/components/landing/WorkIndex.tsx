@@ -84,25 +84,37 @@ export function WorkIndex({ items }: WorkIndexProps) {
 
       // Per-tile drift. Each image is taller than its frame, so it can travel
       // without ever exposing an edge.
-      tiles.forEach((tile, index) => {
+      //
+      // Driven from gsap.ticker rather than a scrub tween pinned to
+      // `scrollTrigger: { trigger: tile, ... }`: that per-tile trigger's
+      // start/end are pixel values cached once at creation, and the hero's
+      // pinned stage finalises its real height a frame after mount (see
+      // HeroSequence) — so those cached bounds go stale, and the tile's
+      // real pass through the viewport can fall entirely outside them. The
+      // tween then just sits at whichever end it last resolved to
+      // (permanently mid- or full-drift) no matter how far you scroll.
+      // gsap.ticker runs every animation frame regardless of any trigger's
+      // cached bounds — the same loop Lenis itself is driven from (see
+      // SmoothScroll) — so the position below is computed fresh from each
+      // tile's own live geometry every frame instead.
+      const setters = tiles.map((tile, index) => {
         const image = tile.querySelector<HTMLElement>("[data-work-image]");
-        if (!image) return;
+        if (!image) return null;
         const rate = DRIFT[index % DRIFT.length]!;
-        gsap.fromTo(
-          image,
-          { yPercent: -rate },
-          {
-            yPercent: rate,
-            ease: EASE.linear,
-            scrollTrigger: {
-              trigger: tile,
-              start: "top bottom",
-              end: "bottom top",
-              scrub: 0.7,
-            },
-          },
-        );
+        const setY = gsap.quickSetter(image, "yPercent") as (v: number) => void;
+        return () => {
+          const rect = tile.getBoundingClientRect();
+          const total = window.innerHeight + rect.height;
+          const progress = gsap.utils.clamp(0, 1, (window.innerHeight - rect.top) / total);
+          setY(gsap.utils.interpolate(-rate, rate, progress));
+        };
       });
+
+      const applyDrift = () => setters.forEach((set) => set?.());
+      gsap.ticker.add(applyDrift);
+      applyDrift();
+
+      return () => gsap.ticker.remove(applyDrift);
     },
     { queries: { desktop: "(min-width: 1024px)" } },
   );

@@ -67,19 +67,13 @@ export function ProcessLedger() {
     sectionRef,
     (section, reduced, { desktop }) => {
       const track = section.querySelector<HTMLElement>("[data-process-track]");
+      let cleanupActive: (() => void) | undefined;
 
       if (desktop && track) {
         // The stage index is a pure function of how far through the track's
         // own live bounding box we are — computed directly from
-        // getBoundingClientRect() on every update rather than from
-        // ScrollTrigger's cached start/end. The cached version depends on
-        // when the trigger was last refreshed relative to everything above
-        // it settling its real height (the hero's pinned stage in particular
-        // finalises a frame after mount — see HeroSequence), and no single
-        // refresh-after-a-delay is reliably later than that: it reads as
-        // this section opening on its last stage instead of its first, and
-        // how often depends on load timing. Measuring live has no timing to
-        // get wrong — it's simply always correct, in both scroll directions.
+        // getBoundingClientRect() rather than from ScrollTrigger's cached
+        // start/end.
         const computeActive = () => {
           const rect = track.getBoundingClientRect();
           const total = rect.height - window.innerHeight;
@@ -88,14 +82,20 @@ export function ProcessLedger() {
           setActive((current) => (current === index ? current : index));
         };
 
-        ScrollTrigger.create({
-          trigger: track,
-          start: "top top",
-          end: "bottom bottom",
-          onUpdate: computeActive,
-          onRefresh: computeActive,
-        });
+        // A per-trigger onUpdate/onRefresh only fires while scroll is inside
+        // *that trigger's own* cached start/end pixel bounds, measured once
+        // at creation. Elsewhere on the page — the hero's pinned stage in
+        // particular — finalises its real height a frame after mount (see
+        // HeroSequence), so those bounds are stale by the time real
+        // scrolling reaches here: onUpdate never fires during the actual
+        // pass, which reads as the section stuck on stage one forever no
+        // matter how far you scroll. gsap.ticker runs every animation frame
+        // regardless of any trigger's cached bounds — the same loop Lenis
+        // itself is driven from (see SmoothScroll) — so it has no stale
+        // cache to depend on.
+        gsap.ticker.add(computeActive);
         computeActive();
+        cleanupActive = () => gsap.ticker.remove(computeActive);
       } else {
         const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
         if (drawing) {
@@ -108,7 +108,7 @@ export function ProcessLedger() {
         }
       }
 
-      if (reduced) return;
+      if (reduced) return cleanupActive;
 
       const cards = gsap.utils.toArray<HTMLElement>("[data-stage-card]", section);
       if (cards.length) {
@@ -133,6 +133,8 @@ export function ProcessLedger() {
           scrollTrigger: { trigger: drawing, start: "top 88%", once: true },
         });
       }
+
+      return cleanupActive;
     },
     { queries: { desktop: "(min-width: 1024px)" } },
   );
