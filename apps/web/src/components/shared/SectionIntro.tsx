@@ -209,7 +209,7 @@ export function SectionIntro({
         className={cn(
           "mt-6",
           split &&
-            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-end",
+            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] lg:items-end",
         )}
       >
         <h2
