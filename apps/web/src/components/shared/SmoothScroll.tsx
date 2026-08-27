@@ -26,9 +26,15 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
     if (prefersReducedMotion) return;
 
     const lenis = new Lenis({
-      duration: 1.15,
+      // Slightly shorter glide than the default so the page settles sooner
+      // after the wheel stops, and a wheel multiplier above 1 so each notch
+      // covers more ground — together these are what stop the scroll-driven
+      // hero from feeling like it needs endless scrolling, without making
+      // the motion itself abrupt.
+      duration: 1.05,
       smoothWheel: true,
-      touchMultiplier: 1.5,
+      wheelMultiplier: 1.35,
+      touchMultiplier: 1.8,
     });
 
     lenis.on("scroll", ScrollTrigger.update);

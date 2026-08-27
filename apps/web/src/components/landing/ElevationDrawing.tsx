@@ -2,18 +2,19 @@
 
 // The page's signature moment: a shop drawing that draws itself.
 //
-// Each stage of the process owns one `<g data-stage="n">` in a single
-// elevation. Scrolling the ledger beside it advances `active`, and the
-// matching group inks in — survey marks first, then the carcass, then the
-// internals, the doors, and finally the finished fills and the sign-off
-// stamp. Scrolling back un-inks it, because every stage is a reversible
-// GSAP timeline rather than a one-way reveal.
+// Landscape now, and considerably more drawing than before — it is the whole
+// stage of section 02 rather than a panel beside a list, so it carries the
+// room, the dimensions, a figure for scale, the carcass, its internals, the
+// doors, and finally the finish. Each stage of the process owns one
+// `<g data-stage="n">`; scrolling advances `active` and that group inks in,
+// scrolling back un-inks it, because every stage is a reversible GSAP
+// timeline rather than a one-way reveal.
 //
 // Two element kinds, tagged in the markup:
 //   [data-draw]  strokes — animated with the stroke-dashoffset technique
 //   [data-fade]  text and fills — animated with opacity
 //
-// Path lengths are measured at runtime via getTotalLength() so the geometry
+// Path lengths are measured at runtime via getTotalLength(), so the geometry
 // below can be edited freely without hand-maintaining dash values.
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
@@ -26,20 +27,24 @@ export const ELEVATION_STAGE_COUNT = 5;
 interface ElevationDrawingProps {
   /** Index of the furthest stage that should be inked in (0-based). */
   active: number;
-  /** Caption shown in the drawing's title block. */
-  caption: string;
   className?: string;
 }
 
-export function ElevationDrawing({ active, caption, className }: ElevationDrawingProps) {
+const STROKE = {
+  hair: 0.9,
+  thin: 1.2,
+  medium: 1.6,
+  heavy: 2.2,
+} as const;
+
+export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const timelinesRef = useRef<gsap.core.Timeline[]>([]);
   const reducedRef = useRef(false);
   // Read inside the GSAP setup, which re-runs on a media-query change and
-  // needs the current stage rather than the one from first mount. Seeded
-  // with the mount value and kept in step below, in an effect — updating it
-  // during render would be read-your-own-writes on a value React does not
-  // track.
+  // needs the current stage rather than the one from first mount. Seeded with
+  // the mount value and kept in step in the effect below — updating a ref
+  // during render is read-your-own-writes on a value React does not track.
   const activeRef = useRef(active);
 
   useGSAP(rootRef, (root, reduced) => {
@@ -52,24 +57,21 @@ export function ElevationDrawing({ active, caption, className }: ElevationDrawin
       const fades = gsap.utils.toArray<SVGElement>("[data-fade]", group);
 
       strokes.forEach((el) => {
-        // Some browsers report 0 for a not-yet-laid-out element; the
-        // fallback keeps such a stroke visible rather than permanently
-        // hidden behind an offset it can never animate away from.
+        // Some browsers report 0 for a not-yet-laid-out element; the fallback
+        // keeps such a stroke visible rather than permanently hidden behind
+        // an offset it can never animate away from.
         const length = el.getTotalLength() || 0;
-        gsap.set(el, {
-          strokeDasharray: length || "none",
-          strokeDashoffset: length,
-        });
+        gsap.set(el, { strokeDasharray: length || "none", strokeDashoffset: length });
       });
       gsap.set(fades, { opacity: 0 });
 
       const tl = gsap.timeline({ paused: true });
       tl.to(strokes, {
         strokeDashoffset: 0,
-        duration: 0.7,
+        duration: 0.75,
         ease: EASE.enter,
-        stagger: 0.045,
-      }).to(fades, { opacity: 1, duration: 0.4, ease: EASE.enter, stagger: 0.06 }, 0.2);
+        stagger: 0.035,
+      }).to(fades, { opacity: 1, duration: 0.45, ease: EASE.enter, stagger: 0.05 }, 0.25);
 
       return tl;
     });
@@ -86,139 +88,167 @@ export function ElevationDrawing({ active, caption, className }: ElevationDrawin
     <div
       ref={rootRef}
       className={cn(
-        "relative overflow-hidden rounded-[22px] border border-border/70 bg-card",
+        "relative overflow-hidden rounded-[20px] border border-border/70 bg-card",
         className,
       )}
     >
-      {/* Drawing-sheet grid. Kept very low contrast so it reads as paper
-          tooth rather than as a visible graph. */}
+      {/* Drawing-sheet tooth. Low contrast so it reads as paper, not a graph. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 opacity-[0.55]"
+        className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(to right, rgba(28,74,58,0.07) 0 1px, transparent 1px 22px), repeating-linear-gradient(to bottom, rgba(28,74,58,0.07) 0 1px, transparent 1px 22px)",
+            "repeating-linear-gradient(to right, rgba(28,74,58,0.06) 0 1px, transparent 1px 24px), repeating-linear-gradient(to bottom, rgba(28,74,58,0.06) 0 1px, transparent 1px 24px)",
         }}
       />
 
       <svg
-        viewBox="0 0 440 500"
+        viewBox="0 0 960 540"
         role="img"
-        aria-label={`Wardrobe elevation drawing, ${caption} stage`}
+        aria-label="Wardrobe elevation drawing, inking in stage by stage as the process advances"
         className="relative block h-auto w-full"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
       >
-        {/* 00 — Survey. Room envelope, overall dimensions, and a figure for
-            human scale: what actually happens on the first visit. */}
+        {/* ── 00 Consultation — the room as found, measured ── */}
         <g data-stage="0" className="text-enzo-forest-light">
-          <line data-draw x1="30" y1="430" x2="410" y2="430" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="40" y1="60" x2="40" y2="430" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="400" y1="60" x2="400" y2="430" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="40" y1="60" x2="400" y2="60" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+          {/* Room envelope */}
+          <line data-draw x1="60" y1="452" x2="900" y2="452" stroke="currentColor" strokeWidth={STROKE.medium} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="96" y1="70" x2="96" y2="452" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="864" y1="70" x2="864" y2="452" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="96" y1="70" x2="864" y2="70" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          {/* Skirting */}
+          <line data-draw x1="96" y1="438" x2="864" y2="438" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.65" vectorEffect="non-scaling-stroke" />
 
-          <line data-draw x1="40" y1="462" x2="400" y2="462" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="40" y1="456" x2="40" y2="468" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="400" y1="456" x2="400" y2="468" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <text data-fade x="220" y="484" textAnchor="middle" fill="currentColor" className="font-display" fontSize="11" letterSpacing="1.6">
-            3600
-          </text>
+          {/* Window on the right wall — gives the elevation a real room */}
+          <rect data-draw x="700" y="150" width="130" height="170" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="765" y1="150" x2="765" y2="320" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="700" y1="235" x2="830" y2="235" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
 
-          <line data-draw x1="20" y1="60" x2="20" y2="430" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="14" y1="60" x2="26" y2="60" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="14" y1="430" x2="26" y2="430" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <text data-fade transform="translate(13 245) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="11" letterSpacing="1.6">
-            2440
-          </text>
+          {/* Overall width dimension */}
+          <line data-draw x1="96" y1="492" x2="864" y2="492" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="96" y1="484" x2="96" y2="500" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="864" y1="484" x2="864" y2="500" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <rect data-fade x="440" y="479" width="80" height="26" rx="4" fill="var(--card)" />
+          <text data-fade x="480" y="497" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">3600</text>
 
-          <circle data-draw cx="365" cy="185" r="9" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="365" y1="194" x2="365" y2="330" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="365" y1="215" x2="348" y2="262" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="365" y1="215" x2="382" y2="262" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="365" y1="330" x2="352" y2="430" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="365" y1="330" x2="378" y2="430" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+          {/* Overall height dimension */}
+          <line data-draw x1="52" y1="70" x2="52" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="44" y1="70" x2="60" y2="70" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="44" y1="452" x2="60" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          <rect data-fade x="38" y="248" width="28" height="76" rx="4" fill="var(--card)" />
+          <text data-fade transform="translate(52 286) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">2440</text>
+
+          {/* Figure for scale — 1.75 m against a 2.44 m ceiling */}
+          <circle data-draw cx="640" cy="222" r="15" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="640" y1="237" x2="640" y2="350" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="640" y1="262" x2="614" y2="316" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="640" y1="262" x2="666" y2="316" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="640" y1="350" x2="620" y2="452" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="640" y1="350" x2="660" y2="452" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
         </g>
 
-        {/* 01 — Design. The carcass lands inside the surveyed room. */}
+        {/* ── 01 Design — the carcass lands in the surveyed room ── */}
         <g data-stage="1" className="text-primary">
-          <rect data-draw x="80" y="110" width="250" height="320" stroke="currentColor" strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="80" y1="128" x2="330" y2="128" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="80" y1="415" x2="330" y2="415" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-fade x1="205" y1="94" x2="205" y2="446" stroke="currentColor" strokeWidth="1" strokeDasharray="12 4 2 4" opacity="0.45" vectorEffect="non-scaling-stroke" />
+          <rect data-draw x="132" y="118" width="420" height="334" stroke="currentColor" strokeWidth={STROKE.heavy} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="132" y1="146" x2="552" y2="146" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="132" y1="426" x2="552" y2="426" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          {/* Centre line — dash pattern is static, so it fades rather than draws */}
+          <line data-fade x1="342" y1="96" x2="342" y2="474" stroke="currentColor" strokeWidth={STROKE.hair} strokeDasharray="16 5 3 5" opacity="0.4" vectorEffect="non-scaling-stroke" />
+          {/* Carcass width dimension, inside the room dimension */}
+          <line data-draw x1="132" y1="92" x2="552" y2="92" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.7" vectorEffect="non-scaling-stroke" />
+          <rect data-fade x="302" y="79" width="80" height="26" rx="4" fill="var(--card)" />
+          <text data-fade x="342" y="97" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">2100</text>
         </g>
 
-        {/* 02 — Making. Internals: bays, shelves, hanging rail, drawer bank. */}
-        <g data-stage="2" className="text-primary/75">
-          <line data-draw x1="163" y1="128" x2="163" y2="415" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="247" y1="128" x2="247" y2="415" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+        {/* ── 02 Making — bays, shelves, rail, drawer box ── */}
+        <g data-stage="2" className="text-primary/80">
+          <line data-draw x1="272" y1="146" x2="272" y2="426" stroke="currentColor" strokeWidth={STROKE.medium} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="412" y1="146" x2="412" y2="426" stroke="currentColor" strokeWidth={STROKE.medium} vectorEffect="non-scaling-stroke" />
 
-          <line data-draw x1="80" y1="185" x2="163" y2="185" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="80" y1="243" x2="163" y2="243" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="80" y1="301" x2="163" y2="301" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="80" y1="359" x2="163" y2="359" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
+          {/* Left bay — shelf stack */}
+          {[196, 252, 308, 364].map((y) => (
+            <line key={y} data-draw x1="132" y1={y} x2="272" y2={y} stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          ))}
 
-          <line data-draw x1="167" y1="160" x2="243" y2="160" stroke="currentColor" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="180" y1="160" x2="180" y2="212" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="196" y1="160" x2="196" y2="206" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="212" y1="160" x2="212" y2="214" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="228" y1="160" x2="228" y2="204" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          {/* Middle bay — hanging rail with hangers */}
+          <line data-draw x1="280" y1="182" x2="404" y2="182" stroke="currentColor" strokeWidth={STROKE.heavy} vectorEffect="non-scaling-stroke" />
+          {[298, 318, 338, 358, 378].map((x, i) => (
+            <line key={x} data-draw x1={x} y1="182" x2={x} y2={228 + (i % 2) * 10} stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          ))}
 
-          <line data-draw x1="247" y1="200" x2="330" y2="200" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="247" y1="255" x2="330" y2="255" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="247" y1="310" x2="330" y2="310" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="247" y1="355" x2="330" y2="355" stroke="currentColor" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="278" y1="332" x2="300" y2="332" stroke="currentColor" strokeWidth="2.4" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="278" y1="385" x2="300" y2="385" stroke="currentColor" strokeWidth="2.4" vectorEffect="non-scaling-stroke" />
+          {/* Right bay — shelves over a drawer box */}
+          <line data-draw x1="412" y1="210" x2="552" y2="210" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="412" y1="272" x2="552" y2="272" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          {[330, 380, 430].map((y) => (
+            <line key={y} data-draw x1="412" y1={y} x2="552" y2={y} stroke="currentColor" strokeWidth={STROKE.medium} vectorEffect="non-scaling-stroke" />
+          ))}
+          {[355, 405].map((y) => (
+            <line key={y} data-draw x1="462" y1={y} x2="502" y2={y} stroke="currentColor" strokeWidth="3.4" vectorEffect="non-scaling-stroke" />
+          ))}
+
+          {/* Cut list, off to the side — what "making" actually looks like */}
+          <g className="text-enzo-forest-light">
+            <line data-draw x1="600" y1="392" x2="700" y2="392" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
+            <line data-draw x1="600" y1="410" x2="676" y2="410" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
+            <line data-draw x1="600" y1="428" x2="712" y2="428" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
+            <text data-fade x="600" y="376" fill="currentColor" className="font-display" fontSize="13" letterSpacing="2">CUT LIST</text>
+          </g>
         </g>
 
-        {/* 03 — Fitting. Door leaves, handles, and the scribes that make a
-            box built in a workshop sit tight against a wall that is never
-            actually straight. */}
+        {/* ── 03 Fitting — doors, handles, scribes, ground ── */}
         <g data-stage="3" className="text-primary">
-          <rect data-draw x="84" y="132" width="75" height="279" stroke="currentColor" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
-          <rect data-draw x="167" y="132" width="76" height="279" stroke="currentColor" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
-          <rect data-draw x="251" y="132" width="75" height="279" stroke="currentColor" strokeWidth="1.3" vectorEffect="non-scaling-stroke" />
+          <rect data-draw x="137" y="151" width="130" height="270" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <rect data-draw x="277" y="151" width="130" height="270" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          <rect data-draw x="417" y="151" width="130" height="270" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
 
-          <line data-draw x1="152" y1="252" x2="152" y2="300" stroke="currentColor" strokeWidth="3.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="236" y1="252" x2="236" y2="300" stroke="currentColor" strokeWidth="3.2" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="319" y1="252" x2="319" y2="300" stroke="currentColor" strokeWidth="3.2" vectorEffect="non-scaling-stroke" />
+          {/* Handles */}
+          {[254, 394, 534].map((x) => (
+            <line key={x} data-draw x1={x} y1="256" x2={x} y2="316" stroke="currentColor" strokeWidth="4.4" vectorEffect="non-scaling-stroke" />
+          ))}
 
-          <line data-draw x1="76" y1="110" x2="76" y2="430" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="334" y1="110" x2="334" y2="430" stroke="currentColor" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+          {/* Scribes against walls that are never straight */}
+          <line data-draw x1="126" y1="118" x2="126" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.7" vectorEffect="non-scaling-stroke" />
+          <line data-draw x1="558" y1="118" x2="558" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.7" vectorEffect="non-scaling-stroke" />
 
-          <line data-draw x1="80" y1="430" x2="66" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="130" y1="430" x2="116" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="180" y1="430" x2="166" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="230" y1="430" x2="216" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="280" y1="430" x2="266" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
-          <line data-draw x1="330" y1="430" x2="316" y2="444" stroke="currentColor" strokeWidth="1" opacity="0.5" vectorEffect="non-scaling-stroke" />
+          {/* Ground hatch */}
+          {[150, 210, 270, 330, 390, 450, 510].map((x) => (
+            <line key={x} data-draw x1={x} y1="452" x2={x - 22} y2="474" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.4" vectorEffect="non-scaling-stroke" />
+          ))}
+
+          {/* Spirit level sat on the top — the fitter's tell */}
+          <g className="text-enzo-forest-light">
+            <rect data-draw x="250" y="98" width="96" height="18" rx="4" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+            <circle data-draw cx="298" cy="107" r="5" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
+          </g>
         </g>
 
-        {/* 04 — Handover. The drawing stops being a drawing: panels take
-            their finish, and the sign-off stamp lands. */}
+        {/* ── 04 Handover — it stops being a drawing ── */}
         <g data-stage="4">
-          <rect data-fade x="84" y="132" width="75" height="279" fill="var(--enzo-sage)" opacity="0.16" />
-          <rect data-fade x="167" y="132" width="76" height="279" fill="var(--enzo-sage)" opacity="0.16" />
-          <rect data-fade x="251" y="132" width="75" height="279" fill="var(--enzo-sage)" opacity="0.16" />
-          <rect data-fade x="80" y="415" width="250" height="15" fill="var(--enzo-forest)" opacity="0.18" />
-          <g transform="translate(298 84) rotate(-6)" className="text-enzo-forest-light">
-            <rect data-fade x="-58" y="-17" width="116" height="34" rx="17" stroke="currentColor" strokeWidth="1.2" vectorEffect="non-scaling-stroke" />
-            <text data-fade x="0" y="4" textAnchor="middle" fill="currentColor" className="font-display" fontSize="10" letterSpacing="2.4">
-              HANDOVER
-            </text>
+          <rect data-fade x="137" y="151" width="130" height="270" fill="var(--enzo-sage)" opacity="0.22" />
+          <rect data-fade x="277" y="151" width="130" height="270" fill="var(--enzo-sage)" opacity="0.22" />
+          <rect data-fade x="417" y="151" width="130" height="270" fill="var(--enzo-sage)" opacity="0.22" />
+          <rect data-fade x="132" y="426" width="420" height="26" fill="var(--enzo-forest)" opacity="0.2" />
+          {[254, 394, 534].map((x) => (
+            <rect key={x} data-fade x={x - 3} y="256" width="6" height="60" rx="3" fill="var(--enzo-sand)" />
+          ))}
+
+          {/* A lived-in room: rug, lamp, plant */}
+          <g className="text-enzo-forest-light">
+            <ellipse data-fade cx="700" cy="452" rx="120" ry="10" fill="var(--enzo-sand)" opacity="0.45" />
+            <line data-draw x1="800" y1="452" x2="800" y2="372" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+            <path data-draw d="M778 372 L822 372 L812 344 L788 344 Z" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+            <path data-draw d="M612 452 L612 414 Q612 386 634 380" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+            <path data-draw d="M612 414 Q612 388 590 382" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+          </g>
+
+          <g transform="translate(760 118) rotate(-7)" className="text-primary">
+            <rect data-fade x="-84" y="-24" width="168" height="48" rx="24" stroke="currentColor" strokeWidth={STROKE.thin} fill="var(--card)" vectorEffect="non-scaling-stroke" />
+            <text data-fade x="0" y="6" textAnchor="middle" fill="currentColor" className="font-display" fontSize="14" letterSpacing="3">HANDOVER</text>
           </g>
         </g>
       </svg>
-
-      {/* Title block — where a real drawing carries its metadata, and where
-          the live stage caption belongs. */}
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-border/70 px-5 py-3">
-        <span className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-          Elevation &middot; 1:20
-        </span>
-        <span className="text-[11px] uppercase tracking-[0.2em] text-primary">{caption}</span>
-      </div>
     </div>
   );
 }
@@ -227,8 +257,8 @@ function applyStage(timelines: gsap.core.Timeline[], active: number, reduced: bo
   timelines.forEach((tl, index) => {
     const shouldShow = index <= active;
     if (reduced) {
-      // Same end state, no travel — the drawing still tracks the ledger,
-      // it just cuts between states instead of inking across them.
+      // Same end state, no travel — the drawing still tracks the ledger, it
+      // just cuts between states instead of inking across them.
       tl.progress(shouldShow ? 1 : 0).pause();
       return;
     }

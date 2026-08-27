@@ -619,7 +619,7 @@ export function Navbar() {
                           </span>
                           <span
                             className={cn(
-                              "font-serif italic text-[34px] leading-none text-enzo-cream transition-colors duration-200",
+                              "font-title text-[34px] leading-none text-enzo-cream transition-colors duration-200",
                               isActive ? "text-enzo-cream" : "text-enzo-cream/90",
                             )}
                           >

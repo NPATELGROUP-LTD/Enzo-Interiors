@@ -1,23 +1,26 @@
 "use client";
 
-// Section 04 — the work as an index, not a gallery.
+// Section 04 — five rooms, not nine rows.
 //
-// A masonry wall of photographs tells you Enzo has taken photographs. A
-// typeset index — room, category, place, year — tells you they have
-// finished nine jobs in named Leicestershire suburbs, which is the
-// claim that actually matters to somebody deciding who to let into their
-// house. The photograph is still there; it just follows the pointer
-// instead of taking up the page.
+// This was a full typeset index: nine projects, each with category, place and
+// year, plus a pointer-tracked photograph. On a landing page that is a wall
+// of text nobody reads — the job here is to show the work and get out of the
+// way, and the full index already exists on /portfolio.
 //
-// Touch devices have no pointer to follow, so the same rows carry an
-// inline thumbnail instead and nothing is hidden behind hover.
-import { useRef, useState } from "react";
+// So: five projects, one asymmetric wall of photographs, and only the two
+// facts that actually persuade — what the room is and where it is. Each tile
+// drifts at its own rate as the section passes, which is what stops a static
+// grid from feeling like a contact sheet.
+//
+// Below `lg` the wall becomes a horizontal snap carousel: five tiles of wildly
+// different sizes stacked vertically is a very long page on a phone, and a
+// swipeable row is the gesture people already expect for a gallery.
+import { useRef } from "react";
 import Link from "next/link";
 import gsap from "gsap";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { Button } from "@/components/ui/Button";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
@@ -26,177 +29,207 @@ interface WorkIndexProps {
   items: PortfolioItem[];
 }
 
+/** Grid placement for the five featured tiles — a 12 x 5 wall, fully packed. */
+const PLACEMENT = [
+  "col-start-1 col-end-8 row-start-1 row-end-4",
+  "col-start-8 col-end-13 row-start-1 row-end-3",
+  "col-start-8 col-end-13 row-start-3 row-end-6",
+  "col-start-1 col-end-5 row-start-4 row-end-6",
+  "col-start-5 col-end-8 row-start-4 row-end-6",
+];
+
+/** Parallax travel per tile, in percent. Varied so the wall breathes. */
+const DRIFT = [7, 12, 5, 14, 9];
+
 export function WorkIndex({ items }: WorkIndexProps) {
   const sectionRef = useRef<HTMLElement>(null);
-  const followerRef = useRef<HTMLDivElement>(null);
-  const [hovered, setHovered] = useState<number | null>(null);
+  const featured = items.slice(0, 5);
 
   useGSAP(
     sectionRef,
     (section, reduced, { desktop }) => {
-      const rows = gsap.utils.toArray<HTMLElement>("[data-row-inner]", section);
+      const tiles = gsap.utils.toArray<HTMLElement>("[data-work-tile]", section);
+      const cards = gsap.utils.toArray<HTMLElement>("[data-work-card]", section);
 
       if (reduced) {
-        gsap.set(rows, { opacity: 1, y: 0 });
-      } else {
-        gsap.from(rows, {
+        gsap.set([...tiles, ...cards], { opacity: 1, y: 0, scale: 1 });
+        return;
+      }
+
+      // The tiles themselves are the reveal — they rise and settle, rather
+      // than only their captions fading in.
+      if (tiles.length) {
+        gsap.from(tiles, {
           opacity: 0,
-          y: 24,
-          duration: DUR.enter,
-          ease: EASE.enter,
-          stagger: 0.05,
+          y: 56,
+          scale: 0.96,
+          duration: 1,
+          ease: EASE.editorial,
+          stagger: 0.07,
           scrollTrigger: { trigger: section, start: REVEAL_START, once: true },
         });
       }
+      if (cards.length) {
+        gsap.from(cards, {
+          opacity: 0,
+          y: 30,
+          duration: DUR.enter,
+          ease: EASE.enter,
+          stagger: 0.06,
+          scrollTrigger: { trigger: cards[0], start: REVEAL_START, once: true },
+        });
+      }
 
-      const follower = followerRef.current;
-      if (!follower || !desktop || reduced) return;
+      if (!desktop) return;
 
-      const move = { duration: 0.55, ease: "power3" } as const;
-      const xTo = gsap.quickTo(follower, "x", move);
-      const yTo = gsap.quickTo(follower, "y", move);
-      // Tilt tracks horizontal velocity, so the plate leans into the
-      // direction of travel and settles level when the pointer stops.
-      const rotateTo = gsap.quickTo(follower, "rotate", { duration: 0.8, ease: "power3" });
-      let previousX: number | null = null;
-
-      const onMove = (event: PointerEvent) => {
-        xTo(event.clientX);
-        yTo(event.clientY);
-        const velocity = previousX === null ? 0 : event.clientX - previousX;
-        previousX = event.clientX;
-        rotateTo(gsap.utils.clamp(-10, 10, velocity * 0.6));
-      };
-
-      section.addEventListener("pointermove", onMove);
-      return () => section.removeEventListener("pointermove", onMove);
+      // Per-tile drift. Each image is taller than its frame, so it can travel
+      // without ever exposing an edge.
+      tiles.forEach((tile, index) => {
+        const image = tile.querySelector<HTMLElement>("[data-work-image]");
+        if (!image) return;
+        const rate = DRIFT[index % DRIFT.length]!;
+        gsap.fromTo(
+          image,
+          { yPercent: -rate },
+          {
+            yPercent: rate,
+            ease: EASE.linear,
+            scrollTrigger: {
+              trigger: tile,
+              start: "top bottom",
+              end: "bottom top",
+              scrub: 0.7,
+            },
+          },
+        );
+      });
     },
     { queries: { desktop: "(min-width: 1024px)" } },
   );
 
-  // Follower visibility is a plain CSS transition rather than a tween, so
-  // it can never fight the quickTo transforms writing to the same element.
-  const followerVisible = hovered !== null;
-
   return (
-    <section
-      ref={sectionRef}
-      aria-labelledby="work-heading"
-      className="relative bg-enzo-white"
-      onPointerLeave={() => setHovered(null)}
-    >
-      <div className="mx-auto max-w-[1400px] px-6 py-24 md:px-12 md:py-32">
+    <section ref={sectionRef} aria-labelledby="work-heading" className="relative bg-enzo-white">
+      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
         <h2 id="work-heading" className="sr-only">
           Recent work
         </h2>
-        <div className="flex flex-wrap items-end justify-between gap-8">
+
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
           <SectionIntro
+            layout="split"
+            className="lg:flex-1"
             index="04"
             label="Work"
             datum={`${items.length} projects · Leicestershire`}
             lines={["Recent work,", "and where it lives."]}
-            lede="Every project below was drawn, built and fitted by us — most of them within ten miles of the workshop."
+            lede="Five of the last nine. Every one drawn, built and fitted by us."
           />
+          <Link
+            href="/portfolio"
+            className="group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
+          >
+            See all {items.length} projects
+            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-1" />
+          </Link>
         </div>
 
-        <ul className="mt-14 md:mt-16">
-          {items.map((item, index) => (
-            <li
+        {/* ── Desktop: the wall ── */}
+        {/* `grid-rows-5` would define five EXPLICIT rows at minmax(0,1fr) —
+            and with no height on the grid those collapse to nothing, because
+            every tile is absolutely positioned and contributes no intrinsic
+            height. Leaving the rows implicit lets `auto-rows` set them. */}
+        <div className="mt-9 hidden grid-cols-12 gap-3 lg:grid lg:auto-rows-[clamp(112px,10.5vw,158px)]">
+          {featured.map((item, index) => (
+            <Link
               key={item.id}
-              data-dimmed={hovered !== null && hovered !== index}
-              className="border-t border-border/60 transition-opacity duration-300 last:border-b data-[dimmed=true]:opacity-40"
-              onPointerEnter={() => setHovered(index)}
-              onFocusCapture={() => setHovered(index)}
+              href="/portfolio"
+              data-work-tile
+              data-cursor="view"
+              className={`group relative overflow-hidden rounded-[18px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${PLACEMENT[index]}`}
             >
-              <Link
-                href="/portfolio"
-                data-row-inner
-                data-cursor="view"
-                className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 py-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 md:py-6 lg:grid-cols-[3rem_minmax(0,1fr)_9rem_10rem_4rem_1.5rem] lg:gap-x-8"
-              >
-                <span className="font-display text-[11px] font-semibold tabular-nums text-enzo-forest-light lg:text-[12px]">
-                  {String(index + 1).padStart(2, "0")}
+              <ImageWithFallback
+                data-work-image
+                src={item.image}
+                alt={item.title}
+                loading="lazy"
+                className="absolute inset-x-0 top-[-14%] h-[128%] w-full object-cover transition-transform duration-[900ms] ease-out group-hover:scale-[1.05]"
+              />
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 bg-gradient-to-t from-enzo-forest/85 via-enzo-forest/15 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100"
+              />
+              <span className="absolute inset-x-5 bottom-5 block translate-y-1 transition-transform duration-500 ease-out group-hover:translate-y-0">
+                <span className="block text-[1.15rem] font-semibold leading-tight tracking-[-0.02em] text-enzo-cream">
+                  {item.title}
                 </span>
+                <span className="mt-1 flex items-center gap-2 text-[12px] text-enzo-cream/75">
+                  {item.location}
+                  <span aria-hidden="true" className="h-px w-3 bg-enzo-sand" />
+                  <span className="font-display tabular-nums">{item.year}</span>
+                </span>
+              </span>
+            </Link>
+          ))}
+        </div>
 
-                {/* Pointer-less devices keep the photograph in the row. */}
-                <ImageWithFallback
-                  src={item.image}
-                  alt=""
-                  aria-hidden="true"
-                  loading="lazy"
-                  className="col-start-3 row-span-2 row-start-1 h-14 w-16 rounded-lg object-cover lg:hidden"
-                />
+        {/* ── Mobile: an offset editorial run ──
+            Not a carousel. Section 05 sits directly under this one and a
+            second swipe-row would make the two read as the same component
+            twice; and a carousel hides four of the five projects behind a
+            gesture. Stepping the cards left and right against an oversized
+            index numeral gives the column a rhythm as you scroll it. */}
+        <ol className="mt-8 flex flex-col gap-9 lg:hidden">
+          {featured.map((item, index) => {
+            const stepRight = index % 2 === 1;
+            return (
+              <li key={item.id} className={stepRight ? "pl-9" : "pr-9"}>
+                <Link
+                  href="/portfolio"
+                  data-work-card
+                  className="group relative block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`font-display absolute top-2 text-[2.4rem] font-semibold leading-none tabular-nums text-primary/20 ${
+                      stepRight ? "-left-9" : "-right-9"
+                    }`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
 
-                <span className="min-w-0">
-                  <span className="relative inline-block font-serif text-[1.3rem] font-normal leading-tight text-primary transition-transform duration-500 ease-out group-hover:translate-x-1.5 md:text-[1.6rem]">
-                    {item.title}
-                    <span
-                      aria-hidden="true"
-                      className="absolute -bottom-0.5 left-0 block h-px w-full origin-left scale-x-0 bg-primary transition-transform duration-500 ease-out group-hover:scale-x-100"
+                  <span className="block overflow-hidden rounded-[18px] bg-muted">
+                    <ImageWithFallback
+                      src={item.image}
+                      alt={item.title}
+                      loading="lazy"
+                      className="aspect-[5/4] w-full object-cover"
                     />
                   </span>
-                  <span className="mt-1 block text-[12px] text-muted-foreground lg:hidden">
-                    {item.category} &middot; {item.location} &middot; {item.year}
+
+                  {/* Caption sits under the photograph rather than over it —
+                      on a small screen, type on a busy image is the first
+                      thing to become unreadable. */}
+                  <span className="mt-3 flex items-baseline justify-between gap-3 border-t border-border/70 pt-3">
+                    <span className="text-[1.05rem] font-semibold leading-tight tracking-[-0.02em] text-primary">
+                      {item.title}
+                    </span>
+                    <span className="shrink-0 text-[11.5px] uppercase tracking-[0.14em] text-foreground/75">
+                      {item.location}
+                    </span>
                   </span>
-                </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ol>
 
-                <span className="hidden text-[13px] text-enzo-forest-light lg:block">
-                  {item.category}
-                </span>
-                <span className="hidden text-[13px] text-muted-foreground lg:block">
-                  {item.location}
-                </span>
-                <span className="hidden font-display text-[12px] tabular-nums text-muted-foreground lg:block">
-                  {item.year}
-                </span>
-                <ArrowUpRight className="hidden h-4 w-4 shrink-0 -translate-x-1 text-enzo-forest-light opacity-0 transition-all duration-300 ease-out group-hover:translate-x-0 group-hover:opacity-100 lg:block" />
-              </Link>
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-12 flex flex-wrap items-center gap-6">
-          <Button asChild variant="outline">
-            <Link href="/portfolio">View all {items.length} projects</Link>
-          </Button>
-          <p className="text-[13px] text-muted-foreground">
-            Kitchens, bedrooms, wardrobes and media walls, 2024&ndash;2026.
-          </p>
-        </div>
-      </div>
-
-      {/* Pointer-follower plate. Fixed to the viewport and driven purely by
-          transforms, so it never triggers layout while it tracks.
-          Two nested elements on purpose: GSAP owns the outer element's
-          transform exclusively, and the pop-in scale lives on the inner one.
-          GSAP 3.11+ reads the independent `scale` property and folds it into
-          the matrix it writes — so a CSS `scale` on the same node as a
-          quickTo would be applied twice, shrinking the plate as it tracks. */}
-      <div
-        ref={followerRef}
-        aria-hidden="true"
-        className="pointer-events-none fixed left-0 top-0 z-50 hidden h-[300px] w-[240px] transition-opacity duration-300 ease-out will-change-transform lg:block"
-        style={{
-          marginLeft: -120,
-          marginTop: -150,
-          opacity: followerVisible ? 1 : 0,
-        }}
-      >
-        <div
-          className="relative h-full w-full origin-center overflow-hidden rounded-[18px] shadow-[0_30px_60px_rgba(28,74,58,0.28)] transition-transform duration-300 ease-out"
-          style={{ scale: followerVisible ? 1 : 0.85 }}
+        <Link
+          href="/portfolio"
+          className="mt-4 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary lg:hidden"
         >
-          {items.map((item, index) => (
-            <ImageWithFallback
-              key={item.id}
-              src={item.image}
-              alt=""
-              loading="lazy"
-              className="absolute inset-0 h-full w-full object-cover transition-opacity duration-300 ease-out"
-              style={{ opacity: hovered === index ? 1 : 0 }}
-            />
-          ))}
-        </div>
+          See all {items.length} projects
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
     </section>
   );

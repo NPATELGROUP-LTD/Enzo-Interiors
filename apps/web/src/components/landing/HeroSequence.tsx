@@ -33,14 +33,22 @@ import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
 const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
 // Scroll distance mapped to each frame — lower is faster (less scrolling
 // needed to get through a room's 144 frames).
-const PX_PER_FRAME = 42;
-const TRANSITION_PX = 1400;
-const CTA_PX = 1800;
+//
+// Was 42/1400/1800, which made the intro ~22,700px — around 190 wheel
+// notches before the site proper started, which reads as "scrolling
+// forever". At 14/850/1100 the three rooms take ~6,000px and the whole
+// intro lands near 8,600px: roughly a third of the travel, while each room
+// still gets several screen-heights of scrub rather than flicking past.
+const PX_PER_FRAME = 14;
+const TRANSITION_PX = 850;
+const CTA_PX = 1100;
 const MAX_DPR = 1.5;
 // Lower = less lag between raw scroll and what's rendered (snappier feel);
 // still keeps SOME smoothing so a fast flick-scroll doesn't blow through
-// the parallax chapters in a single frame.
-const SCRUB_SMOOTHING = 1.6;
+// the parallax chapters in a single frame. Lowered with PX_PER_FRAME: over
+// a third of the distance, the old 1.6 read as the sequence lagging behind
+// the wheel rather than gliding with it.
+const SCRUB_SMOOTHING = 1.1;
 
 // Set once the visitor has scrolled all the way to the CTA segment.
 // sessionStorage (not localStorage) so it's per-tab: a fresh tab always
@@ -97,6 +105,14 @@ function windowed(p: number, inStart: number, inEnd: number, outStart: number, o
 
 export function HeroSequence() {
   const sectionRef = useRef<HTMLElement | null>(null);
+  // ScrollTrigger pins this inner element, never the <section>. Pinning wraps
+  // whatever it pins in a `.pin-spacer` div, which re-parents that node — and
+  // React still believes the <section> is a direct child of the page
+  // container. Crossing the md breakpoint swaps HeroSequence for HeroStatic,
+  // React tries to remove a <section> that now lives inside a spacer, and the
+  // whole tree throws `removeChild`. Keeping the pin one level in means the
+  // node React owns never moves, so the swap is always safe.
+  const stageRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const scrollHintRef = useRef<HTMLDivElement | null>(null);
@@ -153,8 +169,9 @@ export function HeroSequence() {
 
   useEffect(() => {
     const section = sectionRef.current;
+    const stage = stageRef.current;
     const canvas = canvasRef.current;
-    if (!section || !canvas) return;
+    if (!section || !stage || !canvas) return;
     const ctx2d = canvas.getContext("2d");
     if (!ctx2d) return;
 
@@ -490,14 +507,24 @@ export function HeroSequence() {
     if (resumingAtCta) renderCta(CTA_RESUME_FRACTION);
 
     trigger = ScrollTrigger.create({
-      trigger: section,
+      trigger: stage,
+      pin: stage,
       start: "top top",
       end: "+=" + TOTAL_PX,
-      pin: true,
       pinSpacing: true,
       scrub: SCRUB_SMOOTHING,
       anticipatePin: 1,
       onUpdate: handleUpdate,
+    });
+
+    // Every trigger below this one had its start/end measured before this pin
+    // existed, so they all still believe the page is ~9,000px shorter than it
+    // is — section 02 in particular would read as already scrolled past and
+    // sit on its final stage. The hero mounts a frame after the rest of the
+    // page (Hero swaps its placeholder for this component only once mounted),
+    // so this refresh cannot be folded into the one above.
+    requestAnimationFrame(() => {
+      if (!disposed) ScrollTrigger.refresh();
     });
 
     resizeCanvas();
@@ -524,7 +551,7 @@ export function HeroSequence() {
       // removeChild error in development.
       trigger?.kill(true);
       ScrollTrigger.getAll().forEach((instance) => {
-        if (instance.trigger === section) instance.kill(true);
+        if (instance.trigger === stage || instance.trigger === section) instance.kill(true);
       });
       gsap.killTweensOf(section);
     };
@@ -537,10 +564,11 @@ export function HeroSequence() {
   const transition1 = HERO_TRANSITIONS[1]!;
 
   return (
-    <section
-      ref={sectionRef}
-      className="relative h-screen w-full overflow-hidden bg-enzo-dark"
-    >
+    <section ref={sectionRef} className="relative w-full">
+      <div
+        ref={stageRef}
+        className="relative h-screen w-full overflow-hidden bg-enzo-dark"
+      >
       <div
         ref={progressBarRef}
         className="fixed left-0 top-0 z-[100] h-[3px] w-0 bg-gradient-to-r from-primary to-enzo-forest-light transition-[width] duration-100 ease-out"
@@ -635,7 +663,7 @@ export function HeroSequence() {
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
               {transition0.copy.eyebrow}
             </span>
-            <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
+            <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
               {transition0.copy.heading}
             </h2>
             <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
@@ -664,7 +692,7 @@ export function HeroSequence() {
         <div
           ref={t1MarqueeRef}
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-serif leading-none text-enzo-cream/[0.07]"
+          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-title leading-none text-enzo-cream/[0.07]"
           style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
         >
           Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom&nbsp;&nbsp;·&nbsp;&nbsp;Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom
@@ -687,7 +715,7 @@ export function HeroSequence() {
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
               {transition1.copy.eyebrow}
             </span>
-            <h2 className="mb-4 font-serif text-[clamp(1.75rem,4vw,3rem)] font-medium leading-[1.15] text-enzo-cream">
+            <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
               {transition1.copy.heading}
             </h2>
             <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
@@ -860,8 +888,8 @@ export function HeroSequence() {
             />
           </span>
         ))}
+        </div>
       </div>
-
     </section>
   );
 }

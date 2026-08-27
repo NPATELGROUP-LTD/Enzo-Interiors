@@ -45,6 +45,12 @@ export interface SectionIntroProps {
   className?: string;
   /** Extra classes for the <h2> — mostly to override the clamped font size. */
   titleClassName?: string;
+  /**
+   * `stacked` (default) runs heading then lede down the page. `split` sets
+   * them side by side from `lg` up, for full-width sections where a stacked
+   * intro leaves half the row empty.
+   */
+  layout?: "stacked" | "split";
 }
 
 export function SectionIntro({
@@ -56,6 +62,7 @@ export function SectionIntro({
   tone = "light",
   className,
   titleClassName,
+  layout = "stacked",
 }: SectionIntroProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dark = tone === "dark";
@@ -110,8 +117,10 @@ export function SectionIntro({
     });
   });
 
+  const split = layout === "split";
+
   return (
-    <div ref={rootRef} className={cn("max-w-[60ch]", className)}>
+    <div ref={rootRef} className={cn(split ? "w-full" : "max-w-[60ch]", className)}>
       <div
         className={cn(
           "flex items-end gap-3 sm:gap-4",
@@ -184,37 +193,51 @@ export function SectionIntro({
         )}
       </div>
 
-      <h2
+      {/* `split` sets the headline and the lede side by side instead of
+          stacked. Stacked leaves a wide section with a tall narrow column of
+          type down the left and a large hole to its right; putting the lede in
+          the second column fills that hole, and lets the headline hold two
+          lines instead of wrapping onto three. */}
+      <div
         className={cn(
-          "mt-6 font-serif font-normal leading-[1.06] tracking-[-0.015em]",
-          dark ? "text-enzo-cream" : "text-primary",
-          titleClassName,
+          "mt-6",
+          split &&
+            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-end",
         )}
-        style={{ fontSize: "clamp(2.1rem, 4.4vw, 3.4rem)" }}
       >
-        {lines.map((line, i) => (
-          // pb/-mb pair gives descenders room inside the clipping box so
-          // they aren't shaved off while the line is masked.
-          <span key={i} className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
-            <span data-intro-line className="block" style={{ transform: "translateY(100%)" }}>
-              {line}
-            </span>
-          </span>
-        ))}
-      </h2>
-
-      {lede && (
-        <p
-          data-intro-lede
+        <h2
           className={cn(
-            "mt-5 max-w-[46ch] text-[15px] leading-[1.7] opacity-0",
-            dark ? "text-enzo-cream/70" : "text-foreground/80",
+            "font-title font-semibold leading-[1.02] tracking-[-0.04em]",
+            dark ? "text-enzo-cream" : "text-primary",
+            titleClassName,
           )}
-          style={HIDDEN_UP_LEDE}
+          style={{ fontSize: split ? "clamp(1.9rem, 3.5vw, 3rem)" : "clamp(2rem, 4.2vw, 3.5rem)" }}
         >
-          {lede}
-        </p>
-      )}
+          {lines.map((line, i) => (
+            // pb/-mb pair gives descenders room inside the clipping box so
+            // they aren't shaved off while the line is masked.
+            <span key={i} className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
+              <span data-intro-line className="block" style={{ transform: "translateY(100%)" }}>
+                {line}
+              </span>
+            </span>
+          ))}
+        </h2>
+
+        {lede && (
+          <p
+            data-intro-lede
+            className={cn(
+              "max-w-[46ch] text-[15px] leading-[1.7] opacity-0",
+              split ? "lg:pb-1.5" : "mt-5",
+              dark ? "text-enzo-cream/70" : "text-foreground/80",
+            )}
+            style={HIDDEN_UP_LEDE}
+          >
+            {lede}
+          </p>
+        )}
+      </div>
     </div>
   );
 }

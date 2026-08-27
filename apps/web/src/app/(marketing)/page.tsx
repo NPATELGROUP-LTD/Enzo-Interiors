@@ -8,15 +8,18 @@
 // white for the work index (04), warms to sand for the client reviews
 // (05), and closes on near-black again so the footer's darker ground reads
 // as a continuation instead of a cut. No two neighbouring sections share a
-// layout idiom or a scroll mechanic — pinned rail, sticky drawing,
-// annotated 3D object, pointer-tracked index, timed quote, velocity
-// marquee — which is what keeps six sections from blurring together.
+// layout idiom or a scroll mechanic — click-to-open doors, a sticky
+// scroll-driven drawing, a click-and-drag 3D viewer, a drifting photo wall,
+// staggered quote cards, counter-running marquees — which is what keeps six
+// sections from blurring together. Only one of them (02) is driven by scroll
+// position, deliberately: two scroll-choreographed sections in a row read as
+// the same section twice.
 //
 // The former BookingCTA and InstagramGrid are now one section
 // (StudioInvite): the hero already closes on a booking CTA, so a second
 // full-bleed one mid-page was repeating the ask rather than building on it.
 import { Hero } from "@/components/landing/Hero";
-import { ServicesRail } from "@/components/landing/ServicesRail";
+import { ServicesDoors } from "@/components/landing/ServicesDoors";
 import { ProcessLedger } from "@/components/landing/ProcessLedger";
 import { WorkshopModule } from "@/components/landing/WorkshopModule";
 import { WorkIndex } from "@/components/landing/WorkIndex";
@@ -34,7 +37,7 @@ export default async function HomePage() {
   return (
     <div>
       <Hero />
-      <ServicesRail services={services} />
+      <ServicesDoors services={services} />
       <ProcessLedger />
       <WorkshopModule />
       <WorkIndex items={portfolioItems} />
