@@ -51,6 +51,14 @@ export interface SectionIntroProps {
    * intro leaves half the row empty.
    */
   layout?: "stacked" | "split";
+  /**
+   * Rendered at the right end of the metadata rule, e.g. a "see all" link.
+   * Lives inside this component's own box (rather than as an external
+   * sibling the caller places beside it) so the rule reaches it and the
+   * lede below — sharing the same right edge — actually lines up with it
+   * instead of stopping short to leave room for a sibling outside this box.
+   */
+  actions?: ReactNode;
 }
 
 export function SectionIntro({
@@ -63,6 +71,7 @@ export function SectionIntro({
   className,
   titleClassName,
   layout = "stacked",
+  actions,
 }: SectionIntroProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dark = tone === "dark";
@@ -106,21 +115,14 @@ export function SectionIntro({
         titleLines,
         { yPercent: 0, duration: DUR.editorial, ease: EASE.editorial, stagger: 0.09 },
         0.18,
-      );
-
-    // Lede is made visible immediately without animation until we fix the
-    // ScrollTrigger reveal mechanism.
-    if (ledeEl) {
-      gsap.set(ledeEl, { opacity: 1, y: 0 });
-    }
+      )
+      .to(ledeEl, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter }, 0.5);
 
     ScrollTrigger.create({
       trigger: root,
       start: REVEAL_START,
       once: true,
-      onEnter: () => {
-        tl.play();
-      },
+      animation: tl,
     });
   });
 
@@ -198,6 +200,8 @@ export function SectionIntro({
             {datum}
           </span>
         )}
+
+        {actions && <span data-intro-meta className="ml-auto shrink-0 opacity-0" style={HIDDEN_UP}>{actions}</span>}
       </div>
 
       {/* `split` sets the headline and the lede side by side instead of
@@ -235,7 +239,7 @@ export function SectionIntro({
           <p
             data-intro-lede
             className={cn(
-              "text-[15px] leading-[1.7]",
+              "text-[15px] leading-[1.7] opacity-0",
               split ? "lg:pb-1.5 lg:text-right" : "max-w-[46ch] mt-5",
               dark ? "text-enzo-cream/70" : "text-foreground/80",
             )}

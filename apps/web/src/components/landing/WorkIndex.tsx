@@ -114,24 +114,23 @@ export function WorkIndex({ items }: WorkIndexProps) {
           Recent work
         </h2>
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
-          <SectionIntro
-            layout="split"
-            className="lg:flex-1"
-            index="04"
-            label="Work"
-            datum={`${items.length} projects · Leicestershire`}
-            lines={["Recent work,", "and where it lives."]}
-            lede="Five of the last nine. Every one drawn, built and fitted by us."
-          />
-          <Link
-            href="/portfolio"
-            className="group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
-          >
-            See all {items.length} projects
-            <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-1" />
-          </Link>
-        </div>
+        <SectionIntro
+          layout="split"
+          index="04"
+          label="Work"
+          datum={`${items.length} projects · Leicestershire`}
+          lines={["Recent work,", "and where it lives."]}
+          lede="Five of the last nine. Every one drawn, built and fitted by us."
+          actions={
+            <Link
+              href="/portfolio"
+              className="group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
+            >
+              See all {items.length} projects
+              <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-1" />
+            </Link>
+          }
+        />
 
         {/* ── Desktop: the wall ── */}
         {/* `grid-rows-5` would define five EXPLICIT rows at minmax(0,1fr) —
