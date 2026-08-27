@@ -180,7 +180,11 @@
 
   html {
     font-size: var(--font-size);
-    scroll-behavior: smooth;
+    /* Deliberately NOT `scroll-behavior: smooth`. Lenis drives the document
+       scroll itself (see components/shared/SmoothScroll.tsx) and a native
+       smooth-scroll on the same element fights it — the browser and Lenis both
+       animate scrollTop, which is what made the page feel like it was
+       resisting the wheel instead of gliding with it. */
   }
 
   /* Archivo is a grotesque, not a high-contrast serif: it needs more weight

@@ -1,42 +1,45 @@
 "use client";
 
-// Chooses the full scroll-scrubbed sequence on desktop, or a static hero on
-// mobile / when the user prefers reduced motion — a genuine component swap
-// (no canvas mount, no 144-frame preload) rather than a CSS-only reflow.
+// Chooses the full scroll-scrubbed frame sequence on large screens, or the
+// purpose-built static hero on anything smaller — a genuine component swap (no
+// canvas mount, no 144-frame preload) rather than a CSS-only reflow.
 //
-// The choice is made ONCE, on first client render, and then frozen for the
-// life of the page. It used to be a live media query, which meant dragging a
-// desktop window narrow tore down HeroSequence mid-session and mounted
-// HeroStatic in its place. That is bad on its own — the hero you were reading
-// vanishes — and it was also the source of the `removeChild` crash: GSAP's pin
-// re-parents nodes, so React unmounting a component whose DOM has been moved
-// underneath it throws. Freezing the decision means the swap simply never
-// happens; a visitor who resizes gets the hero they started with, and the only
-// way to change it is a reload, which is what a layout this heavy should cost.
+// The threshold is 1024px, not 768px: a tablet has neither the bandwidth
+// budget for 432 frames nor the pointer for a scrubbed sequence, so it gets
+// the static hero along with phones. Below that width the frame sequence never
+// mounts at all.
 //
-// (HeroSequence separately pins an inner element rather than its <section>, so
-// even a deliberate unmount is now safe. Belt and braces, because this bug
-// only shows up on a resize nobody tests.)
+// This tracks the media query live, so dragging a desktop window narrow really
+// does swap to the mobile hero. That used to throw `removeChild`: GSAP's pin
+// re-parented the hero's <section> into a `.pin-spacer`, so React was
+// unmounting a node that had been moved out from under it. HeroSequence now
+// pins an inner element instead, leaving the <section> exactly where React put
+// it, which is what makes a live swap safe.
 import { useSyncExternalStore } from "react";
 import { HeroSequence } from "./HeroSequence";
 import { HeroStatic } from "./HeroStatic";
 
 type HeroVariant = "sequence" | "static";
 
-let decidedVariant: HeroVariant | null = null;
+const DESKTOP_QUERY = "(min-width: 1024px)";
+const REDUCED_QUERY = "(prefers-reduced-motion: reduce)";
 
-/** Memoised so getSnapshot is referentially stable for the whole session. */
-function readVariant(): HeroVariant {
-  if (decidedVariant) return decidedVariant;
-  const desktop = window.matchMedia("(min-width: 768px)").matches;
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  decidedVariant = desktop && !reduced ? "sequence" : "static";
-  return decidedVariant;
+function subscribe(onChange: () => void) {
+  const desktop = window.matchMedia(DESKTOP_QUERY);
+  const reduced = window.matchMedia(REDUCED_QUERY);
+  desktop.addEventListener("change", onChange);
+  reduced.addEventListener("change", onChange);
+  return () => {
+    desktop.removeEventListener("change", onChange);
+    reduced.removeEventListener("change", onChange);
+  };
 }
 
-/** Never notifies — the whole point is that this value cannot change. */
-function subscribe() {
-  return () => {};
+/** Returns a primitive, so it is safe for React to call on every render. */
+function readVariant(): HeroVariant {
+  const desktop = window.matchMedia(DESKTOP_QUERY).matches;
+  const reduced = window.matchMedia(REDUCED_QUERY).matches;
+  return desktop && !reduced ? "sequence" : "static";
 }
 
 export function Hero() {
