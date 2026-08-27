@@ -106,14 +106,21 @@ export function SectionIntro({
         titleLines,
         { yPercent: 0, duration: DUR.editorial, ease: EASE.editorial, stagger: 0.09 },
         0.18,
-      )
-      .to(ledeEl, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter }, 0.5);
+      );
+
+    // Lede is made visible immediately without animation until we fix the
+    // ScrollTrigger reveal mechanism.
+    if (ledeEl) {
+      gsap.set(ledeEl, { opacity: 1, y: 0 });
+    }
 
     ScrollTrigger.create({
       trigger: root,
       start: REVEAL_START,
       once: true,
-      animation: tl,
+      onEnter: () => {
+        tl.play();
+      },
     });
   });
 
@@ -202,7 +209,7 @@ export function SectionIntro({
         className={cn(
           "mt-6",
           split &&
-            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)] lg:items-end",
+            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] lg:items-end",
         )}
       >
         <h2
@@ -228,8 +235,8 @@ export function SectionIntro({
           <p
             data-intro-lede
             className={cn(
-              "max-w-[46ch] text-[15px] leading-[1.7] opacity-0",
-              split ? "lg:pb-1.5" : "mt-5",
+              "text-[15px] leading-[1.7]",
+              split ? "lg:pb-1.5 lg:text-right" : "max-w-[46ch] mt-5",
               dark ? "text-enzo-cream/70" : "text-foreground/80",
             )}
             style={HIDDEN_UP_LEDE}

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
@@ -22,15 +21,7 @@ import { HeroRotatingImage } from "./HeroRotatingImage";
 // here.
 const TRUST = [
   { value: "Leicester", label: "Own workshop" },
-  { value: "5 yr", label: "Guarantee" },
   { value: "Free", label: "Consultation" },
-];
-
-const QUICK_LINKS = [
-  { label: "Kitchens", slug: "kitchens" },
-  { label: "Bedrooms", slug: "bedrooms" },
-  { label: "Media walls", slug: "media-walls" },
-  { label: "Wardrobes", slug: "wardrobes" },
 ];
 
 export function HeroStatic() {
@@ -71,7 +62,7 @@ export function HeroStatic() {
           fitted by the same team.
         </p>
 
-        <HeroCtaButton href="/booking" label="Book a free consultation" className="mt-6" />
+        <HeroCtaButton href="/booking" label="Book Consultation" className="mt-6" />
       </div>
 
       <div className="relative z-[1] w-full">
@@ -100,38 +91,26 @@ export function HeroStatic() {
         />
       </div>
 
-      {/* Three facts, not three adjectives — the fastest way to read as a real
+      {/* Two facts, not three adjectives — the fastest way to read as a real
           company on a small screen. */}
-      <dl className="relative z-[1] grid grid-cols-3 gap-2 border-y border-enzo-cream/12 py-4">
-        {TRUST.map((item) => (
-          <div key={item.label} className="min-w-0">
-            <dt className="sr-only">{item.label}</dt>
-            <dd className="truncate text-[15px] font-semibold tracking-[-0.02em] text-enzo-cream">
-              {item.value}
-            </dd>
-            <dd className="mt-0.5 truncate text-[10.5px] uppercase tracking-[0.16em] text-enzo-cream/60">
-              {item.label}
-            </dd>
+      <dl className="relative z-[1] flex items-stretch gap-6 border-y border-enzo-cream/12 py-5">
+        {TRUST.map((item, index) => (
+          <div key={item.label} className="flex min-w-0 flex-1 items-center gap-6">
+            <div className="min-w-0">
+              <dt className="sr-only">{item.label}</dt>
+              <dd className="truncate text-[17px] font-semibold tracking-[-0.02em] text-enzo-cream">
+                {item.value}
+              </dd>
+              <dd className="mt-1 truncate text-[10.5px] uppercase tracking-[0.16em] text-enzo-cream/55">
+                {item.label}
+              </dd>
+            </div>
+            {index < TRUST.length - 1 && (
+              <span aria-hidden="true" className="ml-auto h-9 w-px shrink-0 bg-enzo-cream/12" />
+            )}
           </div>
         ))}
       </dl>
-
-      {/* Straight into the four disciplines. Desktop reaches these by scrolling
-          through section 01; on a phone they are worth one tap. */}
-      <nav aria-label="Services" className="relative z-[1] -mx-5 sm:-mx-10">
-        <ul className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain px-5 pb-1 sm:px-10">
-          {QUICK_LINKS.map((link) => (
-            <li key={link.slug} className="shrink-0 snap-start">
-              <Link
-                href={`/services/${link.slug}`}
-                className="inline-flex min-h-11 items-center rounded-full border border-enzo-cream/25 px-4 text-[13px] text-enzo-cream/85 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark"
-              >
-                {link.label}
-              </Link>
-            </li>
-          ))}
-        </ul>
-      </nav>
 
       <div
         aria-hidden="true"

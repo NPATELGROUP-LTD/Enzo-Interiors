@@ -114,7 +114,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
           Recent work
         </h2>
 
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-12">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between lg:gap-12">
           <SectionIntro
             layout="split"
             className="lg:flex-1"
@@ -182,7 +182,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
           {featured.map((item, index) => {
             const stepRight = index % 2 === 1;
             return (
-              <li key={item.id} className={stepRight ? "pl-9" : "pr-9"}>
+              <li key={item.id} className={stepRight ? "pl-11" : "pr-11"}>
                 <Link
                   href="/portfolio"
                   data-work-card
@@ -190,8 +190,8 @@ export function WorkIndex({ items }: WorkIndexProps) {
                 >
                   <span
                     aria-hidden="true"
-                    className={`font-display absolute top-2 text-[2.4rem] font-semibold leading-none tabular-nums text-primary/20 ${
-                      stepRight ? "-left-9" : "-right-9"
+                    className={`font-display absolute top-2 w-11 text-[2.1rem] font-semibold leading-none tabular-nums text-primary/20 ${
+                      stepRight ? "-left-11 text-left" : "-right-11 text-right"
                     }`}
                   >
                     {String(index + 1).padStart(2, "0")}

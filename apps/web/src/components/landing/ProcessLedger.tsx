@@ -69,22 +69,33 @@ export function ProcessLedger() {
       const track = section.querySelector<HTMLElement>("[data-process-track]");
 
       if (desktop && track) {
-        // One trigger across the whole track rather than one per row: the
-        // stage index is a pure function of how far through the track we are,
-        // so it stays correct however the visitor got here — wheel, keyboard,
-        // scrollbar drag or an anchor landing mid-section.
+        // The stage index is a pure function of how far through the track's
+        // own live bounding box we are — computed directly from
+        // getBoundingClientRect() on every update rather than from
+        // ScrollTrigger's cached start/end. The cached version depends on
+        // when the trigger was last refreshed relative to everything above
+        // it settling its real height (the hero's pinned stage in particular
+        // finalises a frame after mount — see HeroSequence), and no single
+        // refresh-after-a-delay is reliably later than that: it reads as
+        // this section opening on its last stage instead of its first, and
+        // how often depends on load timing. Measuring live has no timing to
+        // get wrong — it's simply always correct, in both scroll directions.
+        const computeActive = () => {
+          const rect = track.getBoundingClientRect();
+          const total = rect.height - window.innerHeight;
+          const progress = total > 0 ? gsap.utils.clamp(0, 1, -rect.top / total) : 0;
+          const index = Math.min(STAGES.length - 1, Math.floor(progress * STAGES.length));
+          setActive((current) => (current === index ? current : index));
+        };
+
         ScrollTrigger.create({
           trigger: track,
           start: "top top",
           end: "bottom bottom",
-          onUpdate: (self) => {
-            const index = Math.min(
-              STAGES.length - 1,
-              Math.floor(self.progress * STAGES.length),
-            );
-            setActive((current) => (current === index ? current : index));
-          },
+          onUpdate: computeActive,
+          onRefresh: computeActive,
         });
+        computeActive();
       } else {
         const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
         if (drawing) {

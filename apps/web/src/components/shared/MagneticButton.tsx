@@ -84,7 +84,7 @@ export function MagneticButton({
       >
         <span
           data-magnet-label
-          className="text-[14px] font-medium tracking-[0.01em] will-change-transform"
+          className="whitespace-nowrap text-[14px] font-medium tracking-[0.01em] will-change-transform"
         >
           {children}
         </span>

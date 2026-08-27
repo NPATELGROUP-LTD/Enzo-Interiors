@@ -88,6 +88,11 @@ export function WorkshopModule() {
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (showcase || !canRender3D) return;
+    // Interactive chrome (the Recentre button) sits inside this same stage
+    // box. Capturing the pointer here unconditionally redirects the
+    // subsequent pointerup — and the click it would otherwise produce — to
+    // the stage itself, so the button's onClick silently never fires.
+    if ((event.target as HTMLElement).closest("button")) return;
     dragRef.current = { active: true, x: event.clientX, y: event.clientY };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
@@ -115,11 +120,10 @@ export function WorkshopModule() {
 
   useGSAP(sectionRef, (section, reduced) => {
     const stage = section.querySelector<HTMLElement>("[data-viewer-stage]");
-    const controls = gsap.utils.toArray<HTMLElement>("[data-viewer-control]", section);
     const specs = gsap.utils.toArray<HTMLElement>("[data-spec]", section);
 
     if (reduced) {
-      gsap.set([stage, ...controls, ...specs].filter(Boolean), { opacity: 1, y: 0, scale: 1 });
+      gsap.set([stage, ...specs].filter(Boolean), { opacity: 1, y: 0, scale: 1 });
       return;
     }
 
@@ -133,16 +137,14 @@ export function WorkshopModule() {
         scrollTrigger: { trigger: stage, start: "top 88%", once: true },
       });
     }
-    if (controls.length) {
-      gsap.from(controls, {
-        opacity: 0,
-        y: 16,
-        duration: DUR.enter,
-        ease: EASE.enter,
-        stagger: 0.06,
-        scrollTrigger: { trigger: controls[0], start: "top 94%", once: true },
-      });
-    }
+    // The viewpoint/doors controls used to get their own `once: true`
+    // ScrollTrigger keyed off their own position. That trigger's boundary is
+    // computed once, on mount — before the 3D canvas has necessarily
+    // resized/settled — and never refreshes, so on some loads the page had
+    // already scrolled past the (stale) trigger point by the time it fired,
+    // leaving the controls stuck at opacity 0. They're required chrome (the
+    // only way to change viewpoint), not decoration, so they no longer wait
+    // on scroll at all — they simply render at full opacity with the stage.
     if (specs.length) {
       gsap.from(specs, {
         opacity: 0,
@@ -199,7 +201,7 @@ export function WorkshopModule() {
               onPointerMove={onPointerMove}
               onPointerUp={endDrag}
               onPointerCancel={endDrag}
-              className="relative aspect-[4/3] w-full overflow-hidden rounded-[22px] border border-enzo-cream/10 bg-enzo-forest/40 sm:aspect-[16/10]"
+              className="relative aspect-[3/4] w-full max-h-[220px] overflow-hidden rounded-[22px] border border-enzo-cream/10 bg-enzo-forest/40 sm:aspect-[16/10] sm:max-h-none"
               style={{
                 cursor: !showcase && canRender3D ? "grab" : "default",
                 touchAction: showcase ? "auto" : "none",
@@ -252,6 +254,11 @@ export function WorkshopModule() {
                 />
               )}
             </div>
+
+            <p className="mt-3 text-[11.5px] leading-[1.5] text-enzo-cream/50">
+              Illustrative 3D render only — not the actual finished piece. Your final design is
+              built to the exact specification, materials and measurements agreed with you.
+            </p>
 
             {/* ── Controls — desktop only ── */}
             {!showcase && canRender3D && (
