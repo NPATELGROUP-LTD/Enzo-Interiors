@@ -26,9 +26,27 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
     if (prefersReducedMotion) return;
 
     const lenis = new Lenis({
-      duration: 1.15,
+      // Slightly shorter glide than the default so the page settles sooner
+      // after the wheel stops, and a wheel multiplier above 1 so each notch
+      // covers more ground — together these are what stop the scroll-driven
+      // hero from feeling like it needs endless scrolling, without making
+      // the motion itself abrupt.
+      duration: 1.05,
       smoothWheel: true,
-      touchMultiplier: 1.5,
+      wheelMultiplier: 1.35,
+      touchMultiplier: 1.8,
+      // Anchor links glide instead of jumping, which matters here because
+      // `scroll-behavior: smooth` is deliberately off in theme.css — Lenis and
+      // the browser both animating scrollTop is exactly the fight that made
+      // the page feel unsmooth.
+      anchors: true,
+      // Explicit rather than implicit: this instance is driven from the GSAP
+      // ticker below, so Lenis must not also run its own rAF loop.
+      autoRaf: false,
+      // Touch stays native. `syncTouch` routes finger scrolling through Lenis
+      // too, which on iOS costs the rubber-band and the momentum users expect
+      // from the OS — a worse trade than the consistency it buys.
+      syncTouch: false,
     });
 
     lenis.on("scroll", ScrollTrigger.update);

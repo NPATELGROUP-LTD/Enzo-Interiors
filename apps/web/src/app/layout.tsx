@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Fraunces, Inter, Space_Grotesk } from "next/font/google";
+import { Archivo, Inter, Space_Grotesk } from "next/font/google";
 import Script from "next/script";
 import "@/styles/theme.css";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
@@ -7,19 +7,19 @@ import { Toaster } from "@/components/ui/sonner";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
 // CSS variables on <html> that src/styles/theme.css reads as --font-heading
-// / --font-body (see that file's --font-fraunces / --font-inter aliases).
+// / --font-body (see that file's --font-archivo / --font-inter aliases).
 //
-// Fraunces replaces Cormorant Garamond as the heading face — the brief
-// asked for the distinctive editorial character of a paid boutique foundry
-// (notyourtype.nl), but their fonts aren't freely licensable for web
-// embedding. Fraunces is a free, properly-licensed variable serif with a
-// similarly expressive, high-contrast editorial feel (soft/wonk optical
-// variants), commonly used for exactly this kind of bespoke-brand look.
-const fraunces = Fraunces({
+// Archivo replaces Fraunces as the display face. The site is sans-only now,
+// and Archivo is the right kind of sans for fitted furniture: a grotesque
+// drawn on a tight grid, with enough weight range to hold authority at 3rem
+// without the softness a geometric brings. It pairs with Inter for reading
+// and Space Grotesk for the technical numerals the measure-rule motif runs
+// on — a combination the type reference lists for exactly this brief
+// ("Minimalist Portfolio": Archivo + Space Grotesk).
+const archivo = Archivo({
   subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-  style: ["normal", "italic"],
-  variable: "--font-fraunces",
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-archivo",
   display: "swap",
 });
 
@@ -55,7 +55,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${fraunces.variable} ${inter.variable} ${spaceGrotesk.variable}`}
+      className={`${archivo.variable} ${inter.variable} ${spaceGrotesk.variable}`}
       data-scroll-behavior="smooth"
     >
       {/* suppressHydrationWarning is scoped to this element only (it does

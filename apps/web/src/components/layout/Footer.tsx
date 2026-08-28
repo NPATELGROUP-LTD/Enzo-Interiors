@@ -261,7 +261,7 @@ export function Footer() {
               <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
                 Live
               </span>{" "}
-              <span className="inline-block cursor-default font-serif italic text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
+              <span className="inline-block cursor-default font-title text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
                 beautifully,
               </span>
               <br />
@@ -271,7 +271,7 @@ export function Footer() {
               <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
                 with
               </span>{" "}
-              <span className="inline-block cursor-default font-serif italic text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
+              <span className="inline-block cursor-default font-title text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
                 intent.
               </span>
             </h2>
