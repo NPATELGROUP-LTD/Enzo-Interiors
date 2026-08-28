@@ -65,11 +65,16 @@ export function StudioInvite({ items }: StudioInviteProps) {
       start: "top bottom",
       end: "bottom top",
       onUpdate: (self) => {
+        // Speed responds to scroll velocity, but direction never does — each
+        // row always runs its own way. Letting scroll-up flip the loop's
+        // timeScale negative used to visibly reverse the row, and a
+        // repeat:-1 tween running backwards doesn't wrap its loop point
+        // cleanly, which is what produced the blank gap and slow catch-up
+        // at the end of each cycle.
         const velocity = self.getVelocity();
-        const direction = velocity < 0 ? -1 : 1;
         const boost = gsap.utils.clamp(1, 5, 1 + Math.abs(velocity) / 700);
         loops.forEach((loop) =>
-          gsap.to(loop, { timeScale: boost * direction, duration: 0.35, overwrite: true }),
+          gsap.to(loop, { timeScale: boost, duration: 0.35, overwrite: true }),
         );
         tracks.forEach((track) =>
           gsap.to(track, {
@@ -157,10 +162,18 @@ export function StudioInvite({ items }: StudioInviteProps) {
                   key={`${item.id}-${index}`}
                   className="group/tile relative h-[clamp(130px,17vw,215px)] w-[clamp(190px,24vw,310px)] shrink-0 overflow-hidden rounded-[14px]"
                 >
+                  {/* Eager, not lazy: every tile here is duplicated into an
+                      infinitely-looping row, so it's destined to scroll into
+                      view repeatedly regardless of the visitor's actual
+                      scroll position. Lazy-loading it meant the browser only
+                      started fetching once the loop's second copy neared the
+                      viewport, which is exactly the gap in the marquee the
+                      loop point should be — the empty tile and the long
+                      stall were the fetch, not a rendering bug. */}
                   <ImageWithFallback
                     src={item.image}
                     alt=""
-                    loading="lazy"
+                    loading="eager"
                     className="h-full w-full object-cover opacity-70 transition-all duration-500 ease-out group-hover/tile:scale-[1.06] group-hover/tile:opacity-100"
                   />
                   <span className="pointer-events-none absolute inset-0 bg-gradient-to-t from-enzo-dark/80 to-transparent opacity-0 transition-opacity duration-500 group-hover/tile:opacity-100" />
@@ -190,7 +203,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
               lede="An hour at your kitchen table, a tape measure and a few photographs. You get a drawing and a fixed price. Nothing else happens until you say so."
             />
             <MagneticButton href="/booking" className="-ml-5 mt-5">
-              Book a free consultation
+              Book Consultation
             </MagneticButton>
           </div>
 

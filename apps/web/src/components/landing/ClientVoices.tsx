@@ -14,11 +14,12 @@
 // three cards read as a considered arrangement rather than a row of boxes.
 import { useRef } from "react";
 import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Quote } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
-import { EASE, REVEAL_START } from "@/lib/motion";
+import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Testimonial } from "@/lib/content";
 
@@ -47,15 +48,44 @@ export function ClientVoices({ testimonials }: ClientVoicesProps) {
 
       // Cards arrive with a slight counter-rotation that settles to square —
       // enough to read as paper being laid down, not enough to look skewed.
-      gsap.from(cards, {
+      gsap.set(cards, {
         opacity: 0,
         y: 52,
         rotate: (index: number) => (index % 2 === 0 ? -1.5 : 1.5),
-        duration: 0.95,
-        ease: EASE.editorial,
-        stagger: 0.1,
-        scrollTrigger: { trigger: cards[0], start: REVEAL_START, once: true },
       });
+
+      // Whether to reveal is recomputed from the card's own live
+      // getBoundingClientRect() on every scroll tick, rather than trusted to
+      // a ScrollTrigger boundary cached once at creation. The sections above
+      // this one (the hero's pinned stage, section 02's sticky 425vh track)
+      // can still be settling their real height at that moment, which makes
+      // a cached boundary read as already fired-and-passed — the cards stay
+      // stuck at opacity 0 well after they've actually scrolled into view
+      // (the "empty space" under the heading). A live measurement has
+      // nothing cached to go stale.
+      let revealed = false;
+      const revealIfVisible = () => {
+        if (revealed) return;
+        if (cards[0]!.getBoundingClientRect().top > window.innerHeight * 0.82) return;
+        revealed = true;
+        gsap.to(cards, {
+          opacity: 1,
+          y: 0,
+          rotate: 0,
+          duration: 0.95,
+          ease: EASE.editorial,
+          stagger: 0.1,
+        });
+      };
+
+      ScrollTrigger.create({
+        trigger: section,
+        start: "top bottom",
+        end: "bottom top",
+        onUpdate: revealIfVisible,
+        onRefresh: revealIfVisible,
+      });
+      revealIfVisible();
 
       if (!desktop) return;
 

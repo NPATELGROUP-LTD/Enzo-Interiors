@@ -63,7 +63,9 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
         const length = el.getTotalLength() || 0;
         gsap.set(el, { strokeDasharray: length || "none", strokeDashoffset: length });
       });
-      gsap.set(fades, { opacity: 0 });
+      if (fades.length) {
+        gsap.set(fades, { opacity: 0 });
+      }
 
       const tl = gsap.timeline({ paused: true });
       tl.to(strokes, {
@@ -71,7 +73,10 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
         duration: 0.75,
         ease: EASE.enter,
         stagger: 0.035,
-      }).to(fades, { opacity: 1, duration: 0.45, ease: EASE.enter, stagger: 0.05 }, 0.25);
+      });
+      if (fades.length) {
+        tl.to(fades, { opacity: 1, duration: 0.45, ease: EASE.enter, stagger: 0.05 }, 0.25);
+      }
 
       return tl;
     });

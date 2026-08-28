@@ -227,29 +227,82 @@ export function Footer() {
       />
 
       <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-12 sm:px-10 md:px-12 md:pb-14 md:pt-14">
-        {/* Headline + flanking Pages / Follow columns, mirroring the
-            reference's centred-hero-with-side-nav composition via a 3-col
-            grid — robust at any width since it just stacks on mobile,
-            rather than needing absolute positioning to "flank" anything. */}
-        <div className="grid grid-cols-1 items-center gap-10 md:grid-cols-[1fr_2fr_1fr] md:gap-6">
-          <nav aria-label="Footer pages" className="order-2 text-center md:order-1 md:text-left">
-            <p className={cn(LABEL, "mb-5")}>Pages</p>
+        {/* ── Mobile (< md): simple composition, no bubble effect.
+            Headline on its own line, then two columns — page links on the
+            left, social icons on the right — plain pills and icon buttons,
+            no animated text roll, no ref-avoided hover lifts. */}
+        <div className="md:hidden">
+          <div className="reveal-headline">
+            <h2 className="font-title text-[clamp(1.7rem,7vw,2.2rem)] font-bold leading-[1.1] tracking-[-0.02em] text-enzo-cream">
+              Live beautifully, designed with intent.
+            </h2>
+          </div>
+
+          <div className="mt-8 grid grid-cols-2 gap-8">
+            <div>
+              <p className={cn(LABEL, "mb-1")}>Pages</p>
+              <ul className="flex flex-col divide-y divide-enzo-cream/10">
+                {filteredPageLinks.map((item) => (
+                  <li key={item.href} className="reveal-pages">
+                    <Link
+                      href={item.href}
+                      data-cursor="view"
+                      className="flex min-h-11 items-center text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
+                    >
+                      {item.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <p className={cn(LABEL, "mb-1")}>Follow</p>
+              <ul className="flex flex-col divide-y divide-enzo-cream/10">
+                {socialLinks.map(({ href, Icon, label }) => (
+                  <li key={label} className="reveal-follow">
+                    <a
+                      href={href}
+                      target={href.startsWith("http") ? "_blank" : undefined}
+                      rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
+                      aria-label={label}
+                      data-cursor="view"
+                      className="flex min-h-11 items-center gap-2 text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
+                    >
+                      <Icon size={15} className="text-enzo-sand" />
+                      {label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        {/* ── md+: headline + flanking Follow / Pages columns, the
+            centrepiece flanked by social on the left and page links on the
+            right — the reference's Follow-left / Pages-right layout. ── */}
+        <div className="hidden items-center gap-6 md:grid md:grid-cols-[1fr_2fr_1fr]">
+          <nav aria-label="Follow Enzo Interiors" className="md:order-1 md:text-left">
+            <p className={cn(LABEL, "mb-5")}>Follow</p>
             <ul className="space-y-3.5">
-              {filteredPageLinks.map((item) => (
-                <li key={item.href} className="reveal-pages">
-                  <Link
-                    href={item.href}
+              {socialLinks.map(({ href, label }) => (
+                <li key={label} className="reveal-follow">
+                  <a
+                    href={href}
+                    target={href.startsWith("http") ? "_blank" : undefined}
+                    rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                     data-cursor="view"
-                    className="inline-block text-[19px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream md:text-[20px]"
+                    className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
-                    <TextRoll>{item.label}</TextRoll>
-                  </Link>
+                    <TextRoll>{label}</TextRoll>
+                  </a>
                 </li>
               ))}
             </ul>
           </nav>
 
-          <div ref={headlineRef} className="reveal-headline group order-1 text-center md:order-2">
+          <div ref={headlineRef} className="reveal-headline group md:order-2 md:text-center">
             {/* Deliberately not TextRoll here — that letter-roll is the
                 Pages/Follow links' signature move, and reusing it on the
                 headline made it read as just another link-like element
@@ -257,7 +310,7 @@ export function Footer() {
                 grows on its own hover, a plain scale+translate pop rather
                 than a character-level animation — a different kind of
                 interaction, not a smaller version of the same one. */}
-            <h2 className="font-display text-[11vw] font-bold uppercase leading-[0.92] tracking-[-0.02em] text-enzo-cream transition-transform duration-500 ease-out group-hover:scale-[1.015] sm:text-[7vw] md:text-[3.6rem] lg:text-[4.2rem]">
+            <h2 className="font-display text-[7vw] font-bold uppercase leading-[0.92] tracking-[-0.02em] text-enzo-cream transition-transform duration-500 ease-out group-hover:scale-[1.015] md:text-[3.6rem] lg:text-[4.2rem]">
               <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
                 Live
               </span>{" "}
@@ -277,7 +330,7 @@ export function Footer() {
             </h2>
           </div>
 
-          <nav aria-label="Follow Enzo Interiors" className="order-3 text-center md:text-right">
+          <nav aria-label="Follow Enzo Interiors" className="md:text-right">
             <p className={cn(LABEL, "mb-5")}>Follow</p>
             <ul className="space-y-3.5">
               {socialLinks.map(({ href, label }) => (
@@ -287,7 +340,7 @@ export function Footer() {
                     target={href.startsWith("http") ? "_blank" : undefined}
                     rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                     data-cursor="view"
-                    className="inline-block text-[19px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream md:text-[20px]"
+                    className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
                     <TextRoll>{label}</TextRoll>
                   </a>
