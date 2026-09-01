@@ -7,7 +7,7 @@
 //   02  IndexPricingScale  every discipline plotted on one money scale (cream)
 //   03  IndexConstants     a travelling rule inks each promise in (forest)
 //   04  QuestionsAccordion sticky heading against an animated list (off-white)
-//   05  BookSurveyCta      the ask, type only (near-black)
+//   05  IndexClosing       the ask beside what a survey actually is (near-black)
 //
 // Grounds run dark → cream → forest → off-white → dark, so the footer's
 // darker ground reads as a continuation rather than a cut — the same
@@ -22,7 +22,7 @@ import { IndexHero } from "@/components/services/services-index/IndexHero";
 import { IndexPricingScale } from "@/components/services/services-index/IndexPricingScale";
 import { IndexConstants } from "@/components/services/services-index/IndexConstants";
 import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
-import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
+import { IndexClosing } from "@/components/services/services-index/IndexClosing";
 import { getServiceDetails, type FAQEntry } from "@/lib/content";
 
 export const metadata: Metadata = {
@@ -75,19 +75,7 @@ export default async function ServicesPage() {
         lede="The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
         faqs={FAQS}
       />
-      <BookSurveyCta
-        id="services-cta"
-        lines={["Start with a", "free survey."]}
-        lede="Ninety minutes, in your home, no obligation. We measure the room properly and tell you what it would actually take — before anyone talks about money."
-        ctaLabel="Book a consultation"
-        ctaHref="/booking"
-        facts={[
-          "Free home survey",
-          "3D design included",
-          "5-year guarantee",
-          "Leicester workshop",
-        ]}
-      />
+      <IndexClosing />
     </div>
   );
 }

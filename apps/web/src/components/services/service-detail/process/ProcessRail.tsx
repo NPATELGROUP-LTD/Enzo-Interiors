@@ -28,12 +28,12 @@ import type { ProcessStep } from "@/lib/content";
 /** Viewport-heights of scroll allotted per stage. */
 const STAGE_VH = 64;
 
-interface DetailProcessRailProps {
+interface ProcessRailProps {
   steps: ProcessStep[];
   id: string;
 }
 
-export function DetailProcessRail({ steps, id }: DetailProcessRailProps) {
+export function ProcessRail({ steps, id }: ProcessRailProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
 
