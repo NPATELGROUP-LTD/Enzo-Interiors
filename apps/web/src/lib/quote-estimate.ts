@@ -11,13 +11,13 @@
 //
 // Base prices are NOT invented here — they're parsed at call time from the
 // same `pricing[].from` strings already authored in
-// `./app/(marketing)/services/[category]/data.ts` (e.g. "£4,500"), so this
-// module never duplicates/hardcodes a second copy of those figures.
+// `src/lib/content/services.ts` (e.g. "£4,500"), so this module never
+// duplicates/hardcodes a second copy of those figures.
 
 export type RoomSize = "small" | "medium" | "large";
 
 export interface EstimateQuoteInput {
-  /** Service category slug, e.g. "kitchens" — matches `SERVICE_SLUGS`. */
+  /** Service category slug, e.g. "kitchens" — matches `getServiceSlugs()`. */
   category: string;
   /** Pricing tier name for that category, e.g. "Essential" | "Premium" | "Luxury". */
   tier: string;
