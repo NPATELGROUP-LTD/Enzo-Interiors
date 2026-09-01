@@ -10,12 +10,16 @@
 // swapped.
 //
 //        Sheet  variant 0        variant 1         variant 2         variant 3
-//   A1  Hero    SplitPlate       Aperture          DrawingLed        CentredStack
-//   A2  Incl.   Ledger           Spine             Shelving          Rail
+//   A1  Hero    Masthead         Overlap           PlanCentre        SpecCard
+//   A2  Incl.   Ledger           Spine             Courses           Rail
 //   A3  Model   KitchenRun       WardrobeBay       MediaWall         WalkIn
 //   A4  Proc.   Rail             Timeline          Stair             Drawers
 //   A5  Invest  Sheets           Slider            BuildUp           Doors
 //   A6  Q&A     accordion (shared; ground alternates with the variant)
+//
+// The heroes differ in ground as well as layout — cream, near-black,
+// forest, warm grey — which is what finally stopped the four pages opening
+// identically. See hero/ServiceHero.tsx for the full reasoning.
 //
 // A3 used to be a finish/material display. It is now a turnable 3D model of
 // the product itself: four ways of listing the same finish names was four
@@ -35,10 +39,7 @@
 // record pins a page to one design set when someone wants to choose.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import {
-  QuoteModalRoot,
-  QuoteTriggerButton,
-} from "@/components/services/shared/QuoteRequestModal";
+import { QuoteModalRoot } from "@/components/services/shared/QuoteRequestModal";
 import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
 import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
 import { ServiceHero } from "@/components/services/service-detail/hero/ServiceHero";
@@ -102,16 +103,10 @@ export default async function ServiceDetailPage({
 
   return (
     <QuoteModalRoot serviceTitle={service.title} category={service.slug}>
-      <ServiceHero
-        id="sheet-hero"
-        service={service}
-        position={position}
-        quoteCta={
-          <QuoteTriggerButton className="rounded-full bg-enzo-cream px-7 py-3.5 text-[14px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark">
-            Get a free quote
-          </QuoteTriggerButton>
-        }
-      />
+      {/* No quoteCta prop: each hero renders its own quote button, because
+          the button has to be styled for its own ground — the four heroes
+          now sit on cream, near-black, forest and warm grey. */}
+      <ServiceHero id="sheet-hero" service={service} position={position} />
 
       <ServiceIncluded id="sheet-included" service={service} position={position} />
 

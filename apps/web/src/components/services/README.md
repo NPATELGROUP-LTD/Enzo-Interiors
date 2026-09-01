@@ -40,8 +40,8 @@ with the nouns swapped.
 
 | Sheet | Folder | variant 0 | variant 1 | variant 2 | variant 3 |
 |---|---|---|---|---|---|
-| A1 | `hero/` | `HeroSplitPlate` | `HeroPhotoOverlay` (aperture) | `HeroDrawingLed` | `HeroCentredStack` |
-| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedShelving` | `IncludedRail` |
+| A1 | `hero/` | `HeroMasthead` | `HeroOverlap` | `HeroPlanCentre` | `HeroSpecCard` |
+| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedCourses` | `IncludedRail` |
 | A3 | `model/` | `ModelKitchenRun` | `ModelWardrobeBay` | `ModelMediaWall` | `ModelWalkIn` |
 | A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessDrawers` |
 | A5 | `investment/` | `InvestmentSheets` | `InvestmentSlider` | `InvestmentBuildUp` | `InvestmentDoors` |
@@ -50,14 +50,24 @@ with the nouns swapped.
 
 ### What each design actually is
 
-**Hero (A1)** — 1 hard 50/50 split, type left, photo right · 2 a tall
-aperture cut through the fold, type in clear space beside it · 3 no
-photograph, the plan drawing leads · 4 centred type over a 21:9 band.
+**Hero (A1)** — the four differ in *ground* as well as layout, which is
+what finally stopped the pages opening identically:
+
+| | file | ground | axis | image |
+|---|---|---|---|---|
+| 1 | `HeroMasthead` | cream | top-to-bottom | one wide 21:8 band |
+| 2 | `HeroOverlap` | near-black | layered, off-centre | tall plate, type across it |
+| 3 | `HeroPlanCentre` | forest | symmetrical | none — the plan drawing |
+| 4 | `HeroSpecCard` | warm grey | card + side strip | narrow full-height strip |
+
+They also differ in where the facts live (footer column / inline rule /
+centred rule / ruled table rows). Each renders its own quote button, because
+a cream pill is invisible on the cream masthead — hence no `quoteCta` prop.
 
 **Included (A2)** — 1 two ruled columns with leader lines, a bill of
 quantities · 2 items alternating around a rule that draws as you scroll ·
-3 an asymmetric grid built like a fitted unit, with recessed bays · 4 items
-hung from a rail on drops of varied length.
+3 a wall that lays itself course by course as you scroll, in stretcher
+bond · 4 items hung from a rail on drops of varied length.
 
 **Model (A3)** — a turnable 3D model of the product, one per discipline:
 1 a base run, worktop and island whose doors open · 2 a full-height bay

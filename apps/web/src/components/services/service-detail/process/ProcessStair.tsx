@@ -11,7 +11,8 @@
 // the right-hand edge: past the fourth step the indent stops growing and
 // the stair continues straight down.
 //
-// Ground: warm grey.
+// Ground: off-white — the media-wall page already has a cream section
+// above it and a warm-grey one below.
 import { useRef } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
@@ -62,7 +63,7 @@ export function ProcessStair({
       ref={sectionRef}
       id={id}
       aria-labelledby="process-heading"
-      className="relative overflow-hidden bg-muted scroll-mt-24"
+      className="relative overflow-hidden bg-card scroll-mt-24"
     >
       <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
         <h2 id="process-heading" className="sr-only">
