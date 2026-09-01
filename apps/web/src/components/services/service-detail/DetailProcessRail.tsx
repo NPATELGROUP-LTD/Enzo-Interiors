@@ -28,12 +28,12 @@ import type { ProcessStep } from "@/lib/content";
 /** Viewport-heights of scroll allotted per stage. */
 const STAGE_VH = 64;
 
-interface ProcessTrackProps {
+interface DetailProcessRailProps {
   steps: ProcessStep[];
   id: string;
 }
 
-export function ProcessTrack({ steps, id }: ProcessTrackProps) {
+export function DetailProcessRail({ steps, id }: DetailProcessRailProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
 
@@ -70,8 +70,20 @@ export function ProcessTrack({ steps, id }: ProcessTrackProps) {
       let centres: number[] = [];
 
       const measure = () => {
-        travel = Math.max(0, rail.scrollWidth - window.innerWidth);
         centres = plates.map((plate) => plate.offsetLeft + plate.offsetWidth / 2);
+        // Travel ends when the LAST plate's centre reaches the centre of
+        // the viewport — not when the rail's right edge does.
+        //
+        // `scrollWidth - innerWidth` was the obvious formula and it is the
+        // wrong one: it parks the final stage against the right-hand edge,
+        // so the stage you have been scrolling toward finishes in the
+        // corner while the middle of the screen sits empty. Deriving the
+        // distance from the plate's own centre means the first and last
+        // stages are framed exactly like the ones in between, whatever
+        // widths the clamp() resolves to and however many stages the client
+        // authored.
+        const lastCentre = centres[centres.length - 1] ?? 0;
+        travel = Math.max(0, lastCentre - window.innerWidth / 2);
       };
 
       if (reduced) {
@@ -174,7 +186,10 @@ export function ProcessTrack({ steps, id }: ProcessTrackProps) {
               // Starts flush with the page's own content column, so the
               // first plate lines up with the heading above it.
               paddingLeft: "max(3rem, calc((100vw - 1500px) / 2 + 3rem))",
-              paddingRight: "40vw",
+              // Only needs to stop the last plate's right edge clipping —
+              // the travel distance itself is what centres it (see
+              // `measure`), so this is breathing room, not the mechanism.
+              paddingRight: "3rem",
             }}
           >
             {steps.map((step, index) => (

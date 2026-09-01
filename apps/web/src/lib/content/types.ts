@@ -61,6 +61,13 @@ export interface ServiceDetail extends Service {
   /** Human-readable lead time, e.g. "4-6 weeks". */
   timeline: string;
   materials: string[];
+  /**
+   * Optional override for which of the detail page's hero designs this
+   * service uses (see components/services/service-detail/hero/ServiceHero).
+   * Left unset, the variant follows the service's published position, which
+   * spreads the four designs evenly with no authoring required.
+   */
+  heroVariant?: number;
 }
 
 export interface Testimonial {

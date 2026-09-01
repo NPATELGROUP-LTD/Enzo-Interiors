@@ -31,16 +31,16 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { DUR, EASE } from "@/lib/motion";
 import { getServiceMetrics, spellCount } from "@/lib/service-metrics";
 import type { ServiceDetail } from "@/lib/content";
-import { RoomPlan } from "./RoomPlan";
+import { RoomPlanDrawing } from "../shared/RoomPlanDrawing";
 
 /** How long an untouched drawing holds one service before moving on. */
 const CYCLE_MS = 4200;
 
-interface ServiceIndexHeroProps {
+interface IndexHeroProps {
   services: ServiceDetail[];
 }
 
-export function ServiceIndexHero({ services }: ServiceIndexHeroProps) {
+export function IndexHero({ services }: IndexHeroProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
   // Once a visitor has driven the drawing themselves, the page stops
@@ -159,23 +159,51 @@ export function ServiceIndexHero({ services }: ServiceIndexHeroProps) {
 
           {/* The drawing. Given the larger half of the fold and no frame,
               border or caption plate around it — it is the picture, not an
-              illustration inside a card. */}
+              illustration inside a card.
+
+              It is also a link. Before, the only way through to a service
+              was the small list underneath, and nothing said so — the
+              biggest, most obviously interactive thing on the fold did
+              nothing when clicked, which is the worst possible signal. Now
+              the drawing opens whatever it is showing, and says so. */}
           <div
             data-hero-stage
             className="min-h-0 flex-1 opacity-0"
             style={{ transform: "translateY(24px)" }}
           >
-            <div className="relative aspect-[4/3] w-full lg:h-full lg:max-h-[62vh]">
-              {current && (
-                <RoomPlan
-                  key={current.slug}
-                  slug={current.slug}
-                  image={current.image}
-                  caption={current.category}
-                  className="absolute inset-0"
-                />
-              )}
-            </div>
+            {current && (
+              <Link
+                href={`/services/${current.slug}`}
+                className="group/plan block focus-visible:outline-none"
+                aria-label={`Open ${current.title}`}
+              >
+                <div className="relative aspect-[4/3] w-full lg:h-[calc(100%-2.5rem)] lg:max-h-[58vh]">
+                  <RoomPlanDrawing
+                    key={current.slug}
+                    slug={current.slug}
+                    image={current.image}
+                    caption={current.category}
+                    className="absolute inset-0"
+                  />
+                  {/* Ring appears on hover/focus so the whole plate reads as
+                      one target rather than four separate drawn parts. */}
+                  <span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute -inset-3 rounded-[6px] border border-enzo-sand/0 transition-colors duration-400 group-hover/plan:border-enzo-sand/45 group-focus-visible/plan:border-enzo-sand/70"
+                  />
+                </div>
+
+                {/* The instruction, always visible — not a hover-only hint. */}
+                <span className="mt-5 flex items-baseline gap-3 lg:mt-6">
+                  <span className="text-[13.5px] font-medium text-enzo-cream underline decoration-enzo-sand/50 decoration-1 underline-offset-[6px] transition-[text-decoration-color] duration-300 group-hover/plan:decoration-enzo-sand">
+                    Open {current.title}
+                  </span>
+                  <span className="text-[12px] text-enzo-cream/40">
+                    {current.description}
+                  </span>
+                </span>
+              </Link>
+            )}
           </div>
         </div>
       </div>
@@ -220,7 +248,7 @@ export function ServiceIndexHero({ services }: ServiceIndexHeroProps) {
                   />
 
                   <span
-                    className="block text-[15px] font-medium tracking-[-0.015em] transition-colors duration-400"
+                    className="block text-[15px] font-medium tracking-[-0.015em] underline decoration-transparent decoration-1 underline-offset-4 transition-[color,text-decoration-color] duration-400 group-hover:decoration-enzo-sand group-focus-visible:decoration-enzo-sand"
                     style={{
                       color: isActive ? "#F2F0EB" : "rgba(242,240,235,0.38)",
                     }}

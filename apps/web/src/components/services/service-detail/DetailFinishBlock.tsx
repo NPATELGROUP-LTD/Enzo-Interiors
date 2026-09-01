@@ -44,12 +44,12 @@ const WORKTOP_WORDS = [
   "slate",
 ];
 
-interface MaterialBlockProps {
+interface DetailFinishBlockProps {
   service: ServiceDetail;
   id: string;
 }
 
-export function MaterialBlock({ service, id }: MaterialBlockProps) {
+export function DetailFinishBlock({ service, id }: DetailFinishBlockProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [selected, setSelected] = useState(0);
   // Impulse applied by a finish change, decayed on the ticker — the block

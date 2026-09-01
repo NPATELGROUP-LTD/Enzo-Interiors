@@ -53,7 +53,7 @@ const CONSTANTS: Constant[] = [
   },
 ];
 
-export function StudioConstants() {
+export function IndexConstants() {
   const sectionRef = useRef<HTMLElement>(null);
   const [reached, setReached] = useState(0);
 

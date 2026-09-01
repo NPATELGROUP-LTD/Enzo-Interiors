@@ -1,49 +1,50 @@
-// /services/[category] — the service detail page, rebuilt as a drawing set.
+// /services/[category] — the service detail page.
 //
-// The previous page was a photo hero with the title dropped on a gradient,
-// then five stacked centred sections: description, four process circles,
-// three pricing cards, FAQs, CTA. It read as one long column of centred
-// text, and every service page looked identical to every other because the
-// layout carried none of the content's character.
+// Six sheets, each with its own layout and its own scroll behaviour. See
+// src/components/services/README.md for the file map.
 //
-// This is a sheet set instead: each sheet has its own layout and its own
-// scroll behaviour — a hard-split cover with a full-bleed photograph, a
-// numbered schedule beside a procedurally drawn plan, a draggable 3D finish
-// block, a horizontally travelling process rail, fanned investment sheets,
-// and a sticky-headed question list. Sheet numbers (A2, A3, …) are carried
-// by each section's own heading. Grounds alternate near-black → cream →
-// forest → warm grey → off-white → cream → near-black, so no two adjacent
-// sheets share a ground or a mechanic.
+//   A1  ServiceHero            one of FOUR hero designs (see below)   dark
+//   A2  DetailIncludedRail     drag rail of what is included          cream
+//   A3  DetailFinishBlock      draggable CSS-3D finish sample         forest
+//   A4  DetailProcessRail      scroll-driven horizontal sequence      warm grey
+//   A5  DetailInvestment       tiers with a live room-size estimate   off-white
+//   A6  QuestionsAccordion     sticky heading, animated list          cream
+//       BookSurveyCta          the ask, type only                     near-black
 //
-// A floating sheet-index rail used to run down the left margin. Removed:
-// the page's content column is 1500px wide, so on every viewport between
-// about 1280px and 1620px there is no margin for it to live in and it sat
-// on top of the title. A fixed element that needs a gutter the layout does
-// not guarantee is a bug waiting for a specific window width.
+// ── Why the hero is four designs and not one ──
+// With a single hero, all four service pages read as one template with the
+// nouns swapped, and each of them also read as the /services fold again.
+// ServiceHero picks a design from the service's published position, so the
+// four are spread evenly and a fifth service simply starts the cycle again
+// — no authoring needed, nothing to keep in sync.
 //
 // ── Built to be authored, not hardcoded ──
 // In production the client publishes services themselves, so this template
 // never assumes the shape of the record it is given:
-//   · the title masks up word by word, whatever its length
-//   · the schedule numbers however many features exist
+//   · the title masks up line by line, whatever its length
+//   · the included rail numbers however many features exist and lets the
+//     last plate reach the centre of the screen regardless of the count
 //   · the finish block colours itself from finish *names* (lib/finish-swatch)
 //   · the process rail measures its own travel, so 3 or 7 stages both work
 //   · the investment grid reflows and picks its recommended tier by position
 //   · empty process / pricing / materials / FAQ arrays render nothing at all
 //     rather than an empty section, so a half-authored draft still looks
-//     deliberate.
+//     deliberate
 // Adding a service in the Admin Content Manager is therefore the only step
 // needed to get a complete, distinct page.
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { QuoteModalRoot, QuoteTriggerButton } from "@/components/services/QuoteModal";
-import { ServiceQuestions } from "@/components/services/ServiceQuestions";
-import { ServiceInviteCta } from "@/components/services/ServiceInviteCta";
-import { ServiceCoverSheet } from "@/components/services/detail/ServiceCoverSheet";
-import { ServiceSchedule } from "@/components/services/detail/ServiceSchedule";
-import { MaterialBlock } from "@/components/services/detail/MaterialBlock";
-import { ProcessTrack } from "@/components/services/detail/ProcessTrack";
-import { InvestmentSheets } from "@/components/services/detail/InvestmentSheets";
+import {
+  QuoteModalRoot,
+  QuoteTriggerButton,
+} from "@/components/services/shared/QuoteRequestModal";
+import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
+import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
+import { ServiceHero } from "@/components/services/service-detail/hero/ServiceHero";
+import { DetailIncludedRail } from "@/components/services/service-detail/DetailIncludedRail";
+import { DetailFinishBlock } from "@/components/services/service-detail/DetailFinishBlock";
+import { DetailProcessRail } from "@/components/services/service-detail/DetailProcessRail";
+import { DetailInvestment } from "@/components/services/service-detail/DetailInvestment";
 import { getService, getServiceSlugs, getServiceDetails } from "@/lib/content";
 import { getServiceMetrics } from "@/lib/service-metrics";
 
@@ -85,38 +86,35 @@ export default async function ServiceDetailPage({
   }
 
   const all = await getServiceDetails();
-  const position = {
-    index: all.findIndex((entry) => entry.slug === service.slug),
-    total: all.length,
-  };
+  const position = all.findIndex((entry) => entry.slug === service.slug);
   const metrics = getServiceMetrics(service);
 
   return (
     <QuoteModalRoot serviceTitle={service.title} category={service.slug}>
-      <ServiceCoverSheet
-        id="sheet-cover"
+      <ServiceHero
+        id="sheet-hero"
         service={service}
         position={position}
         quoteCta={
-          <QuoteTriggerButton className="group inline-flex items-center gap-2.5 rounded-full bg-enzo-cream px-7 py-3.5 text-[14px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark">
+          <QuoteTriggerButton className="rounded-full bg-enzo-cream px-7 py-3.5 text-[14px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark">
             Get a free quote
           </QuoteTriggerButton>
         }
       />
 
-      <ServiceSchedule id="sheet-schedule" service={service} />
+      <DetailIncludedRail id="sheet-included" service={service} />
 
-      <MaterialBlock id="sheet-finishes" service={service} />
+      <DetailFinishBlock id="sheet-finishes" service={service} />
 
-      <ProcessTrack id="sheet-process" steps={service.process} />
+      <DetailProcessRail id="sheet-process" steps={service.process} />
 
-      <InvestmentSheets
+      <DetailInvestment
         id="sheet-investment"
         category={service.slug}
         pricing={service.pricing}
       />
 
-      <ServiceQuestions
+      <QuestionsAccordion
         id="sheet-questions"
         index="A6"
         lines={["Questions about", service.category.toLowerCase() + "."]}
@@ -125,7 +123,7 @@ export default async function ServiceDetailPage({
         className="bg-background"
       />
 
-      <ServiceInviteCta
+      <BookSurveyCta
         id="sheet-cta"
         lines={["Let's measure", "your room."]}
         lede={`A free survey, in your home, with no obligation attached. We will tell you honestly what your ${service.title.toLowerCase()} project needs before anyone talks about money.`}

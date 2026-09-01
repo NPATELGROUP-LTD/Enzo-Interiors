@@ -18,14 +18,13 @@
 // one you are reading off the screen.
 import { useRef, useState } from "react";
 import gsap from "gsap";
-import { Plus } from "lucide-react";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { FAQEntry } from "@/lib/content";
 
-interface ServiceQuestionsProps {
+interface QuestionsAccordionProps {
   faqs: FAQEntry[];
   /** Section index in the page's run, e.g. "04". */
   index?: string;
@@ -37,7 +36,7 @@ interface ServiceQuestionsProps {
   className?: string;
 }
 
-export function ServiceQuestions({
+export function QuestionsAccordion({
   faqs,
   index,
   lines,
@@ -45,7 +44,7 @@ export function ServiceQuestions({
   tone = "light",
   id,
   className,
-}: ServiceQuestionsProps) {
+}: QuestionsAccordionProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState<number | null>(0);
   const dark = tone === "dark";
@@ -157,29 +156,27 @@ export function ServiceQuestions({
                         {faq.q}
                       </span>
 
+                      {/* State is carried by a single rule that grows from
+                          nothing to full width as the answer opens — no
+                          plus/minus glyph, no chevron, nothing drawn inside
+                          a circle. The row itself is the control, so the
+                          indicator only has to say open or shut. */}
                       <span
                         aria-hidden="true"
-                        className={cn(
-                          "mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                          dark
-                            ? "border-enzo-cream/25 text-enzo-cream group-hover:border-enzo-sand"
-                            : "border-border text-primary group-hover:border-primary",
-                        )}
+                        className="mt-3.5 flex h-px w-8 shrink-0 justify-end overflow-hidden md:w-12"
                         style={{
-                          transform: isOpen ? "rotate(135deg)" : "rotate(0deg)",
-                          backgroundColor: isOpen
-                            ? dark
-                              ? "#D4C9B5"
-                              : "#1C4A3A"
-                            : "transparent",
-                          color: isOpen
-                            ? dark
-                              ? "#1C4A3A"
-                              : "#F2F0EB"
-                            : undefined,
+                          backgroundColor: dark
+                            ? "rgba(242,240,235,0.18)"
+                            : "color-mix(in srgb, var(--foreground) 18%, transparent)",
                         }}
                       >
-                        <Plus className="h-4 w-4" />
+                        <span
+                          className="block h-px w-full origin-right transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                          style={{
+                            transform: `scaleX(${isOpen ? 1 : 0})`,
+                            backgroundColor: dark ? "#D4C9B5" : "#1C4A3A",
+                          }}
+                        />
                       </span>
                     </button>
                   </h3>

@@ -1,37 +1,34 @@
 // /services — the discipline index.
 //
-// Rebuilt from the ground up. The previous page was a centred title on a
-// green band followed by the same image-left / text-right block repeated
-// once per service, then an FAQ: a page that told you nothing above the
-// fold and got less interesting the further you scrolled.
+// Five sections, no two sharing a layout or a scroll mechanic. See
+// src/components/services/README.md for the file map.
 //
-// The replacement is four sections that share a language but no layout and
-// no scroll mechanic:
-//   01  the index itself, driving a procedural plan drawing (dark)
-//   02  a real comparison schedule, revealed as a diagonal wave (cream)
-//   03  the constants, inked in by a travelling setting-out line (forest)
-//   04  questions, sticky heading against an animated list (off-white)
-//   05  the ask, on a clear sheet with registration marks (near-black)
+//   01  IndexHero          the drawing, driven by the list under it (dark)
+//   02  IndexPricingScale  every discipline plotted on one money scale (cream)
+//   03  IndexConstants     a travelling rule inks each promise in (forest)
+//   04  QuestionsAccordion sticky heading against an animated list (off-white)
+//   05  BookSurveyCta      the ask, type only (near-black)
+//
 // Grounds run dark → cream → forest → off-white → dark, so the footer's
 // darker ground reads as a continuation rather than a cut — the same
 // reasoning as the landing page's section order.
 //
 // Stays a Server Component: it fetches the records and hands them down.
-// Every section below is written against `ServiceDetail[]` of any length,
-// because in production the client publishes services themselves from the
-// Admin Content Manager — nothing here assumes there are four.
+// Every section is written against `ServiceDetail[]` of any length, because
+// in production the client publishes services themselves from the Admin
+// Content Manager — nothing here assumes there are four.
 import type { Metadata } from "next";
-import { ServiceIndexHero } from "@/components/services/ServiceIndexHero";
-import { SpecMatrix } from "@/components/services/SpecMatrix";
-import { StudioConstants } from "@/components/services/StudioConstants";
-import { ServiceQuestions } from "@/components/services/ServiceQuestions";
-import { ServiceInviteCta } from "@/components/services/ServiceInviteCta";
+import { IndexHero } from "@/components/services/services-index/IndexHero";
+import { IndexPricingScale } from "@/components/services/services-index/IndexPricingScale";
+import { IndexConstants } from "@/components/services/services-index/IndexConstants";
+import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
+import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
 import { getServiceDetails, type FAQEntry } from "@/lib/content";
 
 export const metadata: Metadata = {
   title: "Services — Enzo Interiors",
   description:
-    "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. Compare lead times, starting prices and what is included.",
+    "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. See where each discipline starts and what is included.",
 };
 
 // Cross-service questions — the ones that are the same whichever discipline
@@ -39,7 +36,7 @@ export const metadata: Metadata = {
 const FAQS: FAQEntry[] = [
   {
     q: "How long does a typical project take?",
-    a: "Most projects run 4–8 weeks from first consultation to final installation, covering design, manufacture and fitting. The schedule above gives the lead time for each discipline individually.",
+    a: "Most projects run 4–8 weeks from first consultation to final installation, covering design, manufacture and fitting. Each discipline's own lead time is on its page.",
   },
   {
     q: "Do you offer free consultations?",
@@ -51,7 +48,7 @@ const FAQS: FAQEntry[] = [
   },
   {
     q: "Can I choose my own materials and colours?",
-    a: "Absolutely. Each discipline has its own range of finishes — the schedule above shows how many — and we bring physical samples to your home so you can see them in your own light.",
+    a: "Absolutely. Each discipline has its own range of finishes, and we bring physical samples to your home so you can see them in your own light before anything is ordered.",
   },
   {
     q: "Do you provide a guarantee?",
@@ -68,17 +65,17 @@ export default async function ServicesPage() {
 
   return (
     <div>
-      <ServiceIndexHero services={services} />
-      <SpecMatrix services={services} />
-      <StudioConstants />
-      <ServiceQuestions
+      <IndexHero services={services} />
+      <IndexPricingScale services={services} />
+      <IndexConstants />
+      <QuestionsAccordion
         id="services-questions"
         index="04"
         lines={["Asked before", "every job."]}
         lede="The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
         faqs={FAQS}
       />
-      <ServiceInviteCta
+      <BookSurveyCta
         id="services-cta"
         lines={["Start with a", "free survey."]}
         lede="Ninety minutes, in your home, no obligation. We measure the room properly and tell you what it would actually take — before anyone talks about money."

@@ -18,7 +18,7 @@ import { EASE } from "@/lib/motion";
 import { buildRoomPlan } from "@/lib/room-plan";
 import { cn } from "@/lib/utils";
 
-interface RoomPlanProps {
+interface RoomPlanDrawingProps {
   /** Seeds the geometry — same slug always draws the same room. */
   slug: string;
   /** Photograph clipped into the footprint. */
@@ -28,7 +28,7 @@ interface RoomPlanProps {
   className?: string;
 }
 
-export function RoomPlan({ slug, image, caption, className }: RoomPlanProps) {
+export function RoomPlanDrawing({ slug, image, caption, className }: RoomPlanDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const rawId = useId();
   // useId emits colons, which are not valid in a CSS url(#…) reference.

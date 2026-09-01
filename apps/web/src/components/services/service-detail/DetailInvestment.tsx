@@ -32,7 +32,7 @@ import {
 } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
 import type { PricingTier } from "@/lib/content";
-import { QuoteTriggerButton } from "../QuoteModal";
+import { QuoteTriggerButton } from "../shared/QuoteRequestModal";
 
 const GBP = new Intl.NumberFormat("en-GB", {
   style: "currency",
@@ -83,13 +83,13 @@ function RollingFigure({ value }: { value: number }) {
   return <span ref={ref}>{GBP.format(value)}</span>;
 }
 
-interface InvestmentSheetsProps {
+interface DetailInvestmentProps {
   category: string;
   pricing: PricingTier[];
   id: string;
 }
 
-export function InvestmentSheets({ category, pricing, id }: InvestmentSheetsProps) {
+export function DetailInvestment({ category, pricing, id }: DetailInvestmentProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [roomSize, setRoomSize] = useState<RoomSize>("medium");
 
