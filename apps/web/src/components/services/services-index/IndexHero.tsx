@@ -183,14 +183,16 @@ export function IndexHero({ services }: IndexHeroProps) {
                     slug={current.slug}
                     image={current.image}
                     caption={current.category}
+                    // Position, not hash — so the four published services
+                    // each draw a different room shape rather than risking
+                    // two of them landing on the same one.
+                    pattern={active}
                     className="absolute inset-0"
                   />
-                  {/* Ring appears on hover/focus so the whole plate reads as
-                      one target rather than four separate drawn parts. */}
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute -inset-3 rounded-[6px] border border-enzo-sand/0 transition-colors duration-400 group-hover/plan:border-enzo-sand/45 group-focus-visible/plan:border-enzo-sand/70"
-                  />
+                  {/* No hover ring. A box drawn around a technical drawing
+                      reads as part of the drawing — it looked like another
+                      wall. The link's affordance is the underlined label
+                      below, which is always visible anyway. */}
                 </div>
 
                 {/* The instruction, always visible — not a hover-only hint. */}

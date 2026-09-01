@@ -38,6 +38,9 @@ const GBP = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 0,
 });
 
+/** Where the scale ends when everything published fits under it. */
+const AXIS_PREFERRED_MAX = 5000;
+
 /** Short axis labels — "£5k" reads better on a scale than "£5,000". */
 function shortMoney(value: number): string {
   return value >= 1000 ? `£${Math.round(value / 100) / 10}k` : `£${value}`;
@@ -66,10 +69,19 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
       .filter((entry) => entry.metrics.fromPriceValue !== null);
 
     const max = Math.max(0, ...priced.map((e) => e.metrics.fromPriceValue ?? 0));
-    // Round the axis up to a clean figure above the dearest service so the
-    // last mark never sits flush against the end of the rule.
+    // The scale tops out at £5k. Everything currently published starts
+    // below that, and a £6k axis left the dearest service marked two thirds
+    // of the way along with a third of the rule empty — which reads as
+    // "there is more above this" when there isn't.
+    //
+    // Not a hard cap: if the client ever publishes something dearer, the
+    // axis extends to fit it rather than plotting it off the end, because a
+    // scale that silently clips a value is worse than a longer scale.
     const step = max > 12000 ? 5000 : max > 5000 ? 2500 : 1000;
-    const axisMax = Math.max(step, Math.ceil((max * 1.18) / step) * step);
+    const axisMax =
+      max <= AXIS_PREFERRED_MAX
+        ? AXIS_PREFERRED_MAX
+        : Math.max(step, Math.ceil((max * 1.1) / step) * step);
 
     const tickValues: number[] = [];
     for (let value = 0; value <= axisMax; value += step) tickValues.push(value);
@@ -203,7 +215,15 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
             </div>
 
             {/* Marks. Alternating above/below the rule so labels never
-                collide, however tightly two services are priced. */}
+                collide, however tightly two services are priced.
+
+                The below-rule labels clear the axis figures by a fixed
+                band rather than sitting just under the line: at 0.75rem a
+                service name landed straight on top of whichever £-figure
+                it happened to be near ("Media Walls" over "£2k"), which is
+                the one thing a scale must never do. The band below is
+                sized to the tick label's own height, so the two can never
+                occupy the same rows whatever the plotted positions. */}
             {plots.map((plot, index) => {
               const above = index % 2 === 0;
               const dim = hovered !== null && hovered !== index;
@@ -229,7 +249,7 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
                       // Marks near the right end are labelled leftwards so
                       // the text stays inside the section.
                       transform: plot.t > 0.72 ? "translateX(-100%)" : "none",
-                      [above ? "bottom" : "top"]: "0.75rem",
+                      [above ? "bottom" : "top"]: above ? "1rem" : "3.1rem",
                     }}
                   >
                     <span
@@ -258,12 +278,14 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
                     </span>
                   </Link>
 
-                  {/* Stem down to the rule, and the mark itself. */}
+                  {/* Stem down to the rule, and the mark itself. The stem
+                      reaches its label, so the longer drop below the axis
+                      stays visibly connected to its mark. */}
                   <span
                     aria-hidden="true"
                     className="absolute left-0 w-px bg-foreground/25 transition-colors duration-300"
                     style={{
-                      height: "0.75rem",
+                      height: above ? "1rem" : "3.1rem",
                       [above ? "bottom" : "top"]: 0,
                       backgroundColor: dim ? undefined : "var(--enzo-forest)",
                     }}

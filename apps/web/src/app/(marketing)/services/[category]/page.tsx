@@ -1,20 +1,26 @@
 // /services/[category] — the service detail page.
 //
 // ── Every section is four designs, not one ──
-// A service page is a hero, an "included" section, finishes, process,
-// investment, questions and a close. Each of those exists in four genuinely
-// different layouts, and a page uses the same variant index across all of
-// them. So the four published services are four different pages end to end
-// — different arrangements, different scroll mechanics, different ground
-// sequences — rather than one template with the nouns swapped.
+// A service page is a hero, an "included" section, a 3D model, the process,
+// the investment, questions and a close. Each of those exists in four
+// genuinely different layouts, and a page uses the same variant index
+// across all of them. So the four published services are four different
+// pages end to end — different arrangements, different scroll mechanics,
+// different ground sequences — rather than one template with the nouns
+// swapped.
 //
 //        Sheet  variant 0        variant 1         variant 2         variant 3
-//   A1  Hero    SplitPlate       PhotoOverlay      DrawingLed        CentredStack
-//   A2  Incl.   Ledger           Spine             Shelving          Manifest
-//   A3  Finish  Block3D          SwatchWall        Columns           Pairing
-//   A4  Proc.   Rail             Timeline          Stair             Cards
-//   A5  Invest  Sheets           Ladder            Table             Focus
+//   A1  Hero    SplitPlate       Aperture          DrawingLed        CentredStack
+//   A2  Incl.   Ledger           Spine             Shelving          Rail
+//   A3  Model   KitchenRun       WardrobeBay       MediaWall         WalkIn
+//   A4  Proc.   Rail             Timeline          Stair             Drawers
+//   A5  Invest  Sheets           Slider            BuildUp           Doors
 //   A6  Q&A     accordion (shared; ground alternates with the variant)
+//
+// A3 used to be a finish/material display. It is now a turnable 3D model of
+// the product itself: four ways of listing the same finish names was four
+// ways of showing a colour chart, and a colour chart is not what anyone is
+// trying to picture.
 //
 // See src/components/services/README.md for the file map and
 // service-detail/variant.ts for how the index is chosen.
@@ -37,7 +43,7 @@ import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccord
 import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
 import { ServiceHero } from "@/components/services/service-detail/hero/ServiceHero";
 import { ServiceIncluded } from "@/components/services/service-detail/included/ServiceIncluded";
-import { ServiceFinishes } from "@/components/services/service-detail/finishes/ServiceFinishes";
+import { ServiceModel } from "@/components/services/service-detail/model/ServiceModel";
 import { ServiceProcess } from "@/components/services/service-detail/process/ServiceProcess";
 import { ServiceInvestment } from "@/components/services/service-detail/investment/ServiceInvestment";
 import { variantIndex } from "@/components/services/service-detail/variant";
@@ -109,7 +115,7 @@ export default async function ServiceDetailPage({
 
       <ServiceIncluded id="sheet-included" service={service} position={position} />
 
-      <ServiceFinishes id="sheet-finishes" service={service} position={position} />
+      <ServiceModel id="sheet-model" service={service} position={position} />
 
       <ServiceProcess
         id="sheet-process"
@@ -141,10 +147,13 @@ export default async function ServiceDetailPage({
         lede={`A free survey, in your home, with no obligation attached. We will tell you honestly what your ${service.title.toLowerCase()} project needs before anyone talks about money.`}
         ctaLabel="Book a consultation"
         ctaHref={`/booking?service=${service.slug}`}
+        // No finish count here any more — the material displays are gone
+        // from these pages, so a "12 finishes" fact would be the last
+        // surviving trace of a section that no longer exists.
         facts={[
           `${metrics.timeline} lead time`,
           metrics.fromPriceLabel ? `From ${metrics.fromPriceLabel}` : "Quoted per room",
-          `${metrics.finishes} finishes`,
+          "3D design included",
           "5-year guarantee",
         ]}
       />

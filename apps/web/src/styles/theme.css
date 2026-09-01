@@ -291,3 +291,59 @@
     pointer-events: none;
   }
 }
+
+/* Budget slider on the service pages' investment section
+   (components/services/service-detail/investment/InvestmentSlider.tsx).
+   Styled here rather than inline because ::-webkit-slider-thumb and
+   ::-moz-range-thumb cannot be expressed as inline styles or as Tailwind
+   utilities, and a native range input is still the right control: it is
+   keyboard-operable, announces its value, and supports touch drag for free. */
+@layer components {
+  .enzo-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    outline: none;
+  }
+
+  .enzo-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(28, 74, 58, 0.35);
+    cursor: grab;
+    transition: transform 200ms ease;
+  }
+
+  .enzo-range::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.12);
+  }
+
+  .enzo-range::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(28, 74, 58, 0.35);
+    cursor: grab;
+  }
+
+  .enzo-range:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+
+  .enzo-range:focus-visible::-moz-range-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+}

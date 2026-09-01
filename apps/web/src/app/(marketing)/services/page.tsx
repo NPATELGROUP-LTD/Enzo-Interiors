@@ -75,7 +75,7 @@ export default async function ServicesPage() {
         lede="The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
         faqs={FAQS}
       />
-      <IndexClosing />
+      <IndexClosing services={services} />
     </div>
   );
 }

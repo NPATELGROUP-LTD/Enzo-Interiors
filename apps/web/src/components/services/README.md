@@ -11,7 +11,7 @@ services/
     ├── variant.ts     how a page picks its design
     ├── hero/          4 designs + picker
     ├── included/      4 designs + picker
-    ├── finishes/      4 designs + picker
+    ├── model/         4 3D models + picker (+ Box3D, ModelStage)
     ├── process/       4 designs + picker
     └── investment/    4 designs + picker (+ 2 shared controls)
 ```
@@ -40,36 +40,43 @@ with the nouns swapped.
 
 | Sheet | Folder | variant 0 | variant 1 | variant 2 | variant 3 |
 |---|---|---|---|---|---|
-| A1 | `hero/` | `HeroSplitPlate` | `HeroPhotoOverlay` | `HeroDrawingLed` | `HeroCentredStack` |
-| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedShelving` | `IncludedManifest` |
-| A3 | `finishes/` | `FinishBlock3D` | `FinishSwatchWall` | `FinishColumns` | `FinishPairing` |
-| A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessCards` |
-| A5 | `investment/` | `InvestmentSheets` | `InvestmentLadder` | `InvestmentTable` | `InvestmentFocus` |
+| A1 | `hero/` | `HeroSplitPlate` | `HeroPhotoOverlay` (aperture) | `HeroDrawingLed` | `HeroCentredStack` |
+| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedShelving` | `IncludedRail` |
+| A3 | `model/` | `ModelKitchenRun` | `ModelWardrobeBay` | `ModelMediaWall` | `ModelWalkIn` |
+| A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessDrawers` |
+| A5 | `investment/` | `InvestmentSheets` | `InvestmentSlider` | `InvestmentBuildUp` | `InvestmentDoors` |
 | A6 | `shared/` | `QuestionsAccordion` — shared component; its **ground** alternates per variant instead |
 | — | `shared/` | `BookSurveyCta` — shared close |
 
 ### What each design actually is
 
-**Hero (A1)** — 1 hard 50/50 split, type left, photo right · 2 full-bleed
-photograph, type over its bottom edge · 3 no photograph, the plan drawing
-leads · 4 centred type over a 21:9 letterbox band.
+**Hero (A1)** — 1 hard 50/50 split, type left, photo right · 2 a tall
+aperture cut through the fold, type in clear space beside it · 3 no
+photograph, the plan drawing leads · 4 centred type over a 21:9 band.
 
 **Included (A2)** — 1 two ruled columns with leader lines, a bill of
 quantities · 2 items alternating around a rule that draws as you scroll ·
-3 an asymmetric grid built like a fitted unit · 4 one column, very large
-type.
+3 an asymmetric grid built like a fitted unit, with recessed bays · 4 items
+hung from a rail on drops of varied length.
 
-**Finishes (A3)** — 1 draggable CSS-3D sample block · 2 the whole showroom
-board at once · 3 full-height bands that open in place · 4 pick a front and
-a surface and see the pair.
+**Model (A3)** — a turnable 3D model of the product, one per discipline:
+1 a base run, worktop and island whose doors open · 2 a full-height bay
+whose doors slide apart · 3 a panelled wall whose lighting comes on · 4 a
+corner walk-in whose doors strip away to show the internals.
+
+This replaced four material/finish displays. Four ways of listing the same
+finish names was four ways of showing a colour chart, and a colour chart is
+not what anyone is trying to picture — the object is. All four are CSS 3D
+built on `model/Box3D.tsx` and turned by `model/ModelStage.tsx`, so no
+second WebGL context is spent (the landing page already has one).
 
 **Process (A4)** — 1 travels sideways as you scroll down · 2 vertical with a
-sticky stage counter · 3 each stage indented one step further · 4 offset
-grid, nothing scroll-driven.
+sticky stage counter · 3 each stage indented one step further · 4 a drawer
+bank you pull open.
 
-**Investment (A5)** — 1 fanned tier sheets · 2 full-width rows with
-comparison bars · 3 tiers as columns, features as rows · 4 one
-specification at a time.
+**Investment (A5)** — 1 fanned tier sheets · 2 a budget slider that tells
+you what the money buys · 3 one wall stacked in priced steps, each showing
+only what it adds · 4 tiers as door fronts that slide open.
 
 All four investment layouts share `RoomSizeControl` and `RollingFigure`, so
 the pricing *behaviour* is identical everywhere and only the presentation
@@ -101,7 +108,6 @@ each section's `VARIANTS` array. Nothing else changes.
 |---|---|
 | `lib/content/services.ts` | **Single source of truth** for services. Stands in for `GET /content/services`. |
 | `lib/room-plan.ts` | Generates plan geometry from a slug. Pure, no React. |
-| `lib/finish-swatch.ts` | Turns a finish name into a colour + surface character. Pure. |
 | `lib/service-metrics.ts` | Derives comparison figures from a record. Pure. |
 | `lib/quote-estimate.ts` | Room-size → price range. Stands in for `POST /quotes/estimate`. |
 

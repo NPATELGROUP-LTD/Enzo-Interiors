@@ -92,68 +92,87 @@ function centroid(points: Point[]): Point {
   return { x: sum.x / points.length, y: sum.y / points.length };
 }
 
+
 /**
- * Builds the footprint: a rectangle, or a rectangle with one corner
- * squared off into an L. Roughly a third of slugs get the plain rectangle,
- * which keeps the set from looking like every room is the same clever
- * shape.
+ * The four room shapes.
+ *
+ * Every service's drawing used to be either a plain rectangle or an L, with
+ * the choice made by a coin flip on the slug hash — so two of four services
+ * could easily draw the same shape and the set looked repetitive. There are
+ * now four named patterns and the caller passes an index, which lets the
+ * services index hand each published service a different one in order.
+ *
+ * The shapes are the four a fitted-furniture job actually turns up in, and
+ * the run-placement logic downstream is generic over edges, so the
+ * furniture arranges itself correctly in all of them without special cases.
  */
-function buildFootprint(random: () => number): Point[] {
+export const ROOM_PATTERN_COUNT = 4;
+
+function buildFootprint(pattern: number, random: () => number): Point[] {
   const x0 = PAD_X;
   const y0 = PAD_Y;
   const x1 = VIEW_W - PAD_X;
   const y1 = VIEW_H - PAD_Y;
+  const w = x1 - x0;
+  const h = y1 - y0;
 
-  if (random() < 0.34) {
-    return [
-      { x: x0, y: y0 },
-      { x: x1, y: y0 },
-      { x: x1, y: y1 },
-      { x: x0, y: y1 },
-    ];
-  }
-
-  const notchW = Math.round((x1 - x0) * (0.24 + random() * 0.16));
-  const notchH = Math.round((y1 - y0) * (0.24 + random() * 0.18));
-  const corner = Math.floor(random() * 4);
-
-  switch (corner) {
-    case 0: // top-left
-      return [
-        { x: x0 + notchW, y: y0 },
-        { x: x1, y: y0 },
-        { x: x1, y: y1 },
-        { x: x0, y: y1 },
-        { x: x0, y: y0 + notchH },
-        { x: x0 + notchW, y: y0 + notchH },
-      ];
-    case 1: // top-right
-      return [
-        { x: x0, y: y0 },
-        { x: x1 - notchW, y: y0 },
-        { x: x1 - notchW, y: y0 + notchH },
-        { x: x1, y: y0 + notchH },
-        { x: x1, y: y1 },
-        { x: x0, y: y1 },
-      ];
-    case 2: // bottom-right
-      return [
-        { x: x0, y: y0 },
-        { x: x1, y: y0 },
-        { x: x1, y: y1 - notchH },
-        { x: x1 - notchW, y: y1 - notchH },
-        { x: x1 - notchW, y: y1 },
-        { x: x0, y: y1 },
-      ];
-    default: // bottom-left
+  switch (((pattern % ROOM_PATTERN_COUNT) + ROOM_PATTERN_COUNT) % ROOM_PATTERN_COUNT) {
+    // ── 0 · Square room ──
+    case 0:
       return [
         { x: x0, y: y0 },
         { x: x1, y: y0 },
         { x: x1, y: y1 },
-        { x: x0 + notchW, y: y1 },
-        { x: x0 + notchW, y: y1 - notchH },
-        { x: x0, y: y1 - notchH },
+        { x: x0, y: y1 },
       ];
+
+    // ── 1 · L-shaped room: one corner squared off ──
+    case 1: {
+      const nw = Math.round(w * (0.26 + random() * 0.12));
+      const nh = Math.round(h * (0.28 + random() * 0.12));
+      return [
+        { x: x0 + nw, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 },
+        { x: x0, y: y1 },
+        { x: x0, y: y0 + nh },
+        { x: x0 + nw, y: y0 + nh },
+      ];
+    }
+
+    // ── 2 · Chimney breast: the far wall projects into the room, leaving
+    //        an alcove either side. The commonest awkward wall there is. ──
+    case 2: {
+      const breast = Math.round(w * (0.28 + random() * 0.1));
+      const depth = Math.round(h * (0.16 + random() * 0.06));
+      const left = Math.round(x0 + (w - breast) / 2);
+      return [
+        { x: x0, y: y0 },
+        { x: left, y: y0 },
+        { x: left, y: y0 + depth },
+        { x: left + breast, y: y0 + depth },
+        { x: left + breast, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 },
+        { x: x0, y: y1 },
+      ];
+    }
+
+    // ── 3 · Galley: both near corners stepped, leaving a walk-through ──
+    default: {
+      const step = Math.round(w * (0.2 + random() * 0.08));
+      const drop = Math.round(h * (0.22 + random() * 0.08));
+      return [
+        { x: x0, y: y0 },
+        { x: x1, y: y0 },
+        { x: x1, y: y1 - drop },
+        { x: x1 - step, y: y1 - drop },
+        { x: x1 - step, y: y1 },
+        { x: x0 + step, y: y1 },
+        { x: x0 + step, y: y1 - drop },
+        { x: x0, y: y1 - drop },
+      ];
+    }
   }
 }
 
@@ -244,9 +263,11 @@ function windowOnEdge(edge: Edge): Segment {
   };
 }
 
-export function buildRoomPlan(seedKey: string): RoomPlan {
+export function buildRoomPlan(seedKey: string, pattern?: number): RoomPlan {
   const random = makeRandom(hashString(seedKey));
-  const points = buildFootprint(random);
+  // An explicit pattern wins; otherwise it falls out of the slug hash, so a
+  // drawing rendered without one is still stable and still varied.
+  const points = buildFootprint(pattern ?? hashString(seedKey) % ROOM_PATTERN_COUNT, random);
   const inside = centroid(points);
   const edges = buildEdges(points);
 

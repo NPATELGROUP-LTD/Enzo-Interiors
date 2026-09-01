@@ -25,15 +25,21 @@ interface RoomPlanDrawingProps {
   image: string;
   /** Small caption in the drawing's top-left, e.g. "Kitchens". */
   caption: string;
+  /**
+   * Which of the four room shapes to draw. Passed by position from the
+   * services index so each published service gets a different footprint;
+   * omitted, it falls out of the slug hash.
+   */
+  pattern?: number;
   className?: string;
 }
 
-export function RoomPlanDrawing({ slug, image, caption, className }: RoomPlanDrawingProps) {
+export function RoomPlanDrawing({ slug, image, caption, pattern, className }: RoomPlanDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const rawId = useId();
   // useId emits colons, which are not valid in a CSS url(#…) reference.
   const uid = rawId.replace(/:/g, "");
-  const plan = useMemo(() => buildRoomPlan(slug), [slug]);
+  const plan = useMemo(() => buildRoomPlan(slug, pattern), [slug, pattern]);
 
   useGSAP(
     rootRef,

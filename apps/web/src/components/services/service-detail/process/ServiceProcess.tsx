@@ -3,7 +3,7 @@
 //   0  ProcessRail      scroll-driven horizontal travel (warm grey)
 //   1  ProcessTimeline  vertical, sticky stage counter (cream)
 //   2  ProcessStair     each stage indented one step further (warm grey)
-//   3  ProcessCards     offset grid, nothing scroll-driven (cream)
+//   3  ProcessDrawers   stages as a drawer bank you pull open (warm grey)
 //
 // See ../variant.ts for how the index is chosen and why.
 import type { ProcessStep, ServiceDetail } from "@/lib/content";
@@ -11,13 +11,13 @@ import { variantIndex } from "../variant";
 import { ProcessRail } from "./ProcessRail";
 import { ProcessTimeline } from "./ProcessTimeline";
 import { ProcessStair } from "./ProcessStair";
-import { ProcessCards } from "./ProcessCards";
+import { ProcessDrawers } from "./ProcessDrawers";
 
 const VARIANTS = [
   ProcessRail,
   ProcessTimeline,
   ProcessStair,
-  ProcessCards,
+  ProcessDrawers,
 ] as const;
 
 export function ServiceProcess({

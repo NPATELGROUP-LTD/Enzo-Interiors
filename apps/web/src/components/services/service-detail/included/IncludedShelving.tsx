@@ -82,23 +82,39 @@ export function IncludedShelving({
           lede={service.overview}
         />
 
-        <div className="mt-14 grid auto-rows-[minmax(9rem,auto)] grid-cols-1 gap-2 sm:grid-cols-2 md:mt-16 md:grid-cols-6">
+        {/* The carcass. A hairline gap between cells and a recessed inner
+            shadow on each one is what turns a grid of cards into a run of
+            bays — without it this was just a bento box with numbers. */}
+        <div
+          className="mt-14 grid auto-rows-[minmax(9.5rem,auto)] grid-cols-1 gap-[3px] overflow-hidden rounded-[16px] bg-primary/15 p-[3px] sm:grid-cols-2 md:mt-16 md:grid-cols-6"
+        >
           {service.features.map((feature, index) => (
             <article
               key={feature}
               data-cell
-              className={`group relative flex flex-col justify-between overflow-hidden rounded-[14px] bg-background p-6 transition-colors duration-400 hover:bg-card ${SPANS[index % SPANS.length]}`}
+              className={`group relative flex flex-col justify-between overflow-hidden bg-background p-6 transition-colors duration-400 hover:bg-card ${SPANS[index % SPANS.length]}`}
+              style={{
+                // Light falls from above inside a bay: the top edge is in
+                // shadow, the bottom catches it.
+                boxShadow:
+                  "inset 0 6px 12px -8px rgba(28,44,36,0.35), inset 0 -1px 0 0 rgba(28,44,36,0.06)",
+              }}
             >
-              <span className="font-display text-[10.5px] font-semibold tabular-nums tracking-[0.18em] text-enzo-forest-light">
+              {/* Bay reference, set into the top-left corner like a label
+                  stuck on a shelf edge. */}
+              <span className="font-display inline-flex w-fit items-center gap-2 rounded-full bg-primary/[0.07] px-2.5 py-1 text-[10px] font-semibold tabular-nums tracking-[0.18em] text-enzo-forest-light transition-colors duration-400 group-hover:bg-primary group-hover:text-primary-foreground">
                 {String(index + 1).padStart(2, "0")}
               </span>
+
               <p className="mt-6 text-[15.5px] font-medium leading-[1.35] tracking-[-0.02em] text-primary">
                 {feature}
               </p>
-              {/* Shelf line at the foot of each cell. */}
+
+              {/* The shelf the item sits on. Always drawn, and it extends to
+                  the full width of the bay on hover. */}
               <span
                 aria-hidden="true"
-                className="absolute inset-x-6 bottom-0 h-px origin-left scale-x-0 bg-enzo-sand transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-x-100"
+                className="absolute inset-x-0 bottom-0 h-[2px] origin-left scale-x-[0.18] bg-enzo-sand transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-x-100"
               />
             </article>
           ))}

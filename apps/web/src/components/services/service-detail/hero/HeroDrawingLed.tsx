@@ -151,6 +151,11 @@ export function HeroDrawingLed({ service, quoteCta, id }: HeroDrawingLedProps) {
                 slug={service.slug}
                 image={service.image}
                 caption={service.category}
+                // The chimney-breast footprint: this variant belongs to the
+                // third published service, and a breast wall with alcoves
+                // either side is the shape that discipline is usually
+                // fitted around.
+                pattern={2}
                 className="absolute inset-0"
               />
             </div>
