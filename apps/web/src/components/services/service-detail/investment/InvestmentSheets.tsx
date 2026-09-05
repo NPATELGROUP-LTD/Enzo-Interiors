@@ -18,7 +18,7 @@
 import { useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
@@ -52,15 +52,18 @@ export function InvestmentSheets({
       return;
     }
 
-    gsap.from(sheets, {
-      opacity: 0,
-      y: 44,
-      rotate: (index: number) => (index % 2 === 0 ? -2.2 : 2.4),
-      duration: 0.95,
-      ease: EASE.editorial,
-      stagger: 0.09,
-      scrollTrigger: { trigger: sheets[0], start: REVEAL_START, once: true },
-    });
+    fromOnScroll(
+      sheets,
+      {
+        opacity: 0,
+        y: 44,
+        rotate: (index: number) => (index % 2 === 0 ? -2.2 : 2.4),
+        duration: 0.95,
+        ease: EASE.editorial,
+        stagger: 0.09,
+      },
+      { trigger: sheets[0], start: REVEAL_START },
+    );
   });
 
   if (!pricing.length) return null;
@@ -149,7 +152,7 @@ export function InvestmentSheets({
                       <span
                         className={cn(
                           "px-1.5 font-normal",
-                          isRecommended ? "text-enzo-cream/45" : "text-foreground/35",
+                          isRecommended ? "text-enzo-cream/65" : "text-foreground/70",
                         )}
                       >
                         –
@@ -163,7 +166,7 @@ export function InvestmentSheets({
                 <p
                   className={cn(
                     "mt-2 text-[12.5px]",
-                    isRecommended ? "text-enzo-cream/55" : "text-muted-foreground",
+                    isRecommended ? "text-enzo-cream/70" : "text-muted-foreground",
                   )}
                 >
                   {ROOM_SIZE_LABELS[roomSize].toLowerCase()} room · from {tier.from}
@@ -217,7 +220,13 @@ export function InvestmentSheets({
           })}
         </div>
 
-        <p className="mt-6 max-w-[70ch] text-[12px] leading-[1.7] text-muted-foreground">
+        {/* The sheets carry a 50px drop shadow and lift 6px on hover, so a
+            note sitting 24px under them was inside the shadow's falloff and
+            read as printed *behind* the cards. It now gets clear air and a
+            rule of its own, which is also where a caveat belongs on a
+            drawing: under a line, not tucked against the thing it
+            qualifies. */}
+        <p className="mt-14 max-w-[70ch] border-t border-border/70 pt-6 text-[12.5px] leading-[1.7] text-muted-foreground md:mt-16">
           Ranges scale the specification&rsquo;s starting price by room size.
           They are a guide for planning, not a quotation — we do not price a
           room we have not measured.

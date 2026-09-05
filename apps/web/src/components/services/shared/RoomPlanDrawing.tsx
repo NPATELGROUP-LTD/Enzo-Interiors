@@ -11,12 +11,32 @@
 // Remounted (keyed on slug) whenever the hero's active service changes, so
 // the entrance timeline below re-runs per selection without any imperative
 // "animate out then in" bookkeeping.
-import { useId, useMemo, useRef } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { buildRoomPlan } from "@/lib/room-plan";
 import { cn } from "@/lib/utils";
+
+/**
+ * Where the drawn room actually lands inside the component's own box, in CSS
+ * pixels relative to it.
+ *
+ * The SVG is letterboxed by `preserveAspectRatio`, and the footprint sits
+ * inside its own draughting margin on top of that — so the photograph's left
+ * edge is at neither 0 nor any fixed fraction of the container. Anything that
+ * has to line up with the *drawing* rather than with its box (the services
+ * hero's caption) has to be told where it is.
+ */
+export interface PlanFrame {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+  /** The component's own box, so callers can work out trailing gutters. */
+  width: number;
+  height: number;
+}
 
 interface RoomPlanDrawingProps {
   /** Seeds the geometry — same slug always draws the same room. */
@@ -31,11 +51,25 @@ interface RoomPlanDrawingProps {
    * omitted, it falls out of the slug hash.
    */
   pattern?: number;
+  /**
+   * Called on mount and on resize with the footprint's rendered box. Keep the
+   * reference stable (useCallback or a setState function) — it is an effect
+   * dependency, so a fresh closure each render re-creates the observer.
+   */
+  onFrame?: (frame: PlanFrame) => void;
   className?: string;
 }
 
-export function RoomPlanDrawing({ slug, image, caption, pattern, className }: RoomPlanDrawingProps) {
+export function RoomPlanDrawing({
+  slug,
+  image,
+  caption,
+  pattern,
+  onFrame,
+  className,
+}: RoomPlanDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const outlineRef = useRef<SVGPathElement>(null);
   const rawId = useId();
   // useId emits colons, which are not valid in a CSS url(#…) reference.
   const uid = rawId.replace(/:/g, "");
@@ -101,6 +135,49 @@ export function RoomPlanDrawing({ slug, image, caption, pattern, className }: Ro
     },
     { deps: [slug] },
   );
+
+  // Measured rather than derived. The inset depends on the container's
+  // aspect (which decides how the SVG letterboxes) *and* on the plan's own
+  // margin, so there is no fraction to hard-code — and a wrong constant here
+  // would show up as type that is nearly, but not quite, aligned.
+  useEffect(() => {
+    const root = rootRef.current;
+    const outline = outlineRef.current;
+    if (!root || !outline || !onFrame) return;
+
+    let previous = "";
+
+    const measure = () => {
+      const ctm = outline.getScreenCTM();
+      if (!ctm) return;
+      const box = outline.getBBox();
+      const rootBox = root.getBoundingClientRect();
+      // No rotation or skew is ever applied here, so the CTM reduces to a
+      // scale and a translate and the corners can be mapped directly.
+      const frame: PlanFrame = {
+        left: ctm.a * box.x + ctm.e - rootBox.left,
+        right: ctm.a * (box.x + box.width) + ctm.e - rootBox.left,
+        top: ctm.d * box.y + ctm.f - rootBox.top,
+        bottom: ctm.d * (box.y + box.height) + ctm.f - rootBox.top,
+        width: rootBox.width,
+        height: rootBox.height,
+      };
+
+      // Guard the caller against a fresh object on every observer tick —
+      // onFrame is usually a setState, and a new identity each frame would
+      // re-render the hero continuously.
+      const key = `${frame.left}|${frame.right}|${frame.width}`;
+      if (key === previous) return;
+      previous = key;
+      onFrame(frame);
+    };
+
+    measure();
+
+    const observer = new ResizeObserver(measure);
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [onFrame, slug, pattern]);
 
   const clipId = `plan-clip-${uid}`;
 
@@ -180,6 +257,7 @@ export function RoomPlanDrawing({ slug, image, caption, pattern, className }: Ro
 
         {/* Walls — the heavy line, drawn first. */}
         <path
+          ref={outlineRef}
           data-draw
           d={plan.outline}
           fill="none"

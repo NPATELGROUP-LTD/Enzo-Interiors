@@ -1,37 +1,170 @@
-# apps/portal — Client Portal
+# apps/portal — Enzo Interiors Client Portal
 
-React and TypeScript application giving Enzo Interiors clients self-service access to their projects, quotes, documents and invoices.
+React + Vite SPA (installable PWA) where Enzo Interiors clients track their
+project, approve designs, read messages, and view documents and invoices.
 
-## Purpose
+It is a **thin client**. Every read and write goes through `apps/api` over HTTP
+and WebSocket — this app never touches a datastore, and it shares no code with
+`apps/admin` or `apps/web`.
 
-Provides clients with real-time project visibility and direct communication with the Enzo team, reducing manual status updates and administration.
+---
 
-## Tech Stack
+## Run it
 
-- React + TypeScript
-- Vite
-- Tailwind CSS
-- PWA with installable manifest, service worker, offline shell and push notifications
+**Start `apps/api` first** — the portal is useless without it.
 
-## Core Modules
+```bash
+npm install
+```
 
-- Dashboard with appointments, unread messages, documents, invoices and project timeline.
-- My Projects with progress and current status.
-- Project Detail with timeline, mood boards, documents and design approval.
-- My Quotes with accept, decline and request revision actions.
-- Real-time Messages with the Enzo team.
-- Documents with filtering and secure downloads.
-- Invoices for viewing status only; there are no in-app payments.
-- Settings for profile, notifications, security and theme preferences.
+```bash
+npm run dev
+```
 
-## Authentication and RBAC
+Opens on **http://localhost:5175**.
 
-Uses `/auth/portal/login` with JWT authentication. Clients can access only records belonging to their own `client_id`. Access control is enforced by `apps/api`.
+| Command | What it does |
+|---|---|
+| `npm run dev` | Dev server on 5175 |
+| `npm run build` | Typecheck, then production build (service worker included) |
+| `npm run preview` | Serve the production build — use this to exercise the PWA |
+| `npm run typecheck` | `tsc --noEmit` |
 
-## Design Approval Flow
+### Full run order
 
-Selecting Request Changes on a project sends feedback to the staff team and moves the project back into the appropriate Admin workflow stage.
+```bash
+cd apps/api && npm install && npm run seed && npm run dev
+```
 
-## API Dependency
+Then, in a second terminal:
 
-All data access goes through `apps/api`. This app must not access PostgreSQL or object storage directly.
+```bash
+cd apps/portal && npm install && npm run dev
+```
+
+To reset all data to a known-good state: **stop the API**, run
+`npm run seed` in `apps/api`, then start it again. (Repositories cache tables in
+memory, so a running API will not pick up a seed written by another process.)
+
+### Configuration
+
+`.env` (copy from `.env.example`):
+
+```
+VITE_API_BASE_URL=http://localhost:4000
+```
+
+---
+
+## Demo accounts
+
+Listed on the login screen — click one to fill the form. **Every client account
+uses the password `client123`.**
+
+| Client | Email | What you will see |
+|---|---|---|
+| Sarah Jones | `sarah.jones@example.com` | Kitchen in installation, wardrobe in design, invoice paid |
+| David Okafor | `david.okafor@example.com` | **Media wall awaiting your approval**, invoice due |
+| Raj Patel | `raj.patel@example.com` | Wardrobe nearly complete (one project deliberately hidden — see below) |
+| Amelia Hart | `amelia.hart@example.com` | Completed project, everything paid |
+| Eleanor Shaw | `eleanor.shaw@example.com` | Bedroom in design, **a quote to accept or query** |
+
+Staff accounts do not work here — they belong to the Admin CRM on 5174.
+
+Sign in as **David Okafor** for the most complete tour: the design-approval loop,
+an unread message and an outstanding invoice are all live on that account.
+
+> **Scoping is real, not cosmetic.** Raj Patel has a "Birstall Kitchen Extension"
+> project in the CRM with `client_visible` off; it does not appear in his portal
+> at all. The API enforces this — it is not a filter this app applies.
+
+> The "Demo accounts" panel on the login screen is a **prototype affordance**.
+> Delete it before any real deployment.
+
+---
+
+## Screens
+
+| Route | Screen |
+|---|---|
+| `/login` | Client sign-in with demo account picker |
+| `/dashboard` | Bento: decisions awaiting you, next appointment, unread, documents, invoices, timeline |
+| `/projects` | Card grid with progress and plain-English stage descriptions |
+| `/projects/:id` | Timeline, designs, documents, invoices, **Approve / Request changes** |
+| `/quotes` | Full breakdown with accept, decline and request-a-revision |
+| `/messages` | Live chat with the Enzo team, attachments |
+| `/documents` | Searchable, filterable by type |
+| `/invoices` | Summary tiles and table — **view and status only** |
+| `/settings` | Profile, notification preferences, password, theme |
+
+Every list screen has loading, empty and error states. Every form validates and
+shows the API's own message.
+
+### The design-approval loop
+
+The critical path in the docs. On a project at the **Approval** stage the client
+gets two equally-weighted actions:
+
+- **Approve design** → project advances to Installation
+- **Request changes** → project goes **back to Design**, with a required note
+
+Both write through `apps/api`, so the admin's Kanban and activity log reflect
+the decision immediately. Requesting changes is not a dead end: the note is
+attached to the project's audit trail for the designer to read.
+
+### No payments, by design
+
+There is no Pay button anywhere, and there never will be. Payment is arranged
+directly with Enzo Interiors; an Admin records it manually and the status here
+updates on the next fetch. The Invoices screen says so in plain English so
+nobody hunts for a control that does not exist.
+
+---
+
+## Design system
+
+`src/components/ui/index.tsx` implements
+`docs/Enzo_Interiors_UI_UX_Brief_v6.md` — Inter only, 44px minimum touch
+targets, 8px/12px corners, written-label status tags, no pills or gradients, and
+stable text-link hovers.
+
+`apps/admin` holds its own copy of these files. Per the build brief there is no
+shared package: the two apps are kept consistent by following the same document,
+not by importing from each other. **A token change must be made in both.**
+
+Navigation follows the brief's Client Portal direction exactly: a bottom dock on
+mobile with **Dashboard, Projects, Messages, Invoices, More**, which becomes a
+sidebar on desktop.
+
+> Dark mode is a **derived assumption** — see the note in `src/styles/theme.css`.
+
+---
+
+## PWA
+
+`vite-plugin-pwa` with `registerType: 'autoUpdate'`, per TRD §11: installable
+manifest with maskable icons, `standalone` display, Workbox service worker with
+stale-while-revalidate on API GETs, and an offline banner in the shell.
+
+Auth routes and mutations are excluded from caching. The service worker is
+**disabled in dev**; test it with `npm run build && npm run preview`.
+
+---
+
+## Structure
+
+```
+src/
+├── components/
+│   ├── ui/          Design system (own copy)
+│   └── layout/      PortalLayout — bottom dock, sidebar, More sheet, offline banner
+├── hooks/           useQuery / useMutation, useUnreadCount
+├── lib/             api client, auth, theme, socket, formatting, status tones
+├── pages/           One file per screen
+├── types/api.ts     Local copies of the API response shapes this app consumes
+└── styles/theme.css Brief v6 tokens
+```
+
+`src/types/api.ts` is deliberately **narrower** than the admin app's copy — a
+client only ever sees their own records, so modelling admin-only fields here
+would imply access the API does not grant.

@@ -205,7 +205,11 @@ export function BookingWizard({
         {/* Progress */}
         <div className="p-6 md:p-12 pb-0">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-secondary text-[12px] uppercase tracking-[0.2em]">
+            {/* forest-light, not `text-secondary`: the sage secondary is
+                #8A9E8C, which on this cream ground measures 2.51:1 — the
+                one piece of text telling you where you are in a four-step
+                form was the least readable thing in it. */}
+            <span className="text-enzo-forest-light text-[12px] uppercase tracking-[0.2em]">
               {step <= 4 ? `Step ${step} of 4` : "Confirmed"}
             </span>
           </div>

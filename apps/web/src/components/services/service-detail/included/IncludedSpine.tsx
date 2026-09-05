@@ -73,12 +73,19 @@ export function IncludedSpine({
           What is included
         </h2>
 
+        {/* `split`, not the default stack. Stacked, SectionIntro caps itself
+            at 60ch, so a three-line title and a long overview sat in a
+            column down the left of a 1500px sheet with the whole right half
+            empty. Every other section on these pages splits; this one was
+            the only one that did not. */}
         <SectionIntro
+          layout="split"
           index="A2"
           label="Included"
           datum={`${total} as standard`}
           lines={["Everything on", "this list is", "in the price."]}
           lede={service.overview}
+          ledeShort={service.overviewShort}
         />
 
         <div data-spine-list className="relative mx-auto mt-16 max-w-4xl md:mt-20">

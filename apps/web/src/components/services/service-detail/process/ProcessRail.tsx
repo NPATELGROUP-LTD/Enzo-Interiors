@@ -12,6 +12,16 @@
 // process section (a sticky vertical stage with a drawing) — same brand,
 // different mechanic, and the two never appear on the same page anyway.
 //
+// ── The heading travels with it ──
+// The heading used to sit in normal flow *above* the sticky stage, so by the
+// time the rail started moving it had scrolled off the top and the visitor
+// spent a screen and a half looking at unlabelled cards sliding past. It now
+// lives inside the sticky stage, above the rail, and is on screen for the
+// whole traverse — which is the only arrangement where a pinned section
+// still says what it is while it is pinned. It is rendered twice: this one
+// for the pinned desktop stage, and a second, ordinary one for the vertical
+// mobile list below, because the two are genuinely different layouts.
+//
 // The rail's travel is derived from its measured width, so a service with
 // three stages and one with seven both scroll to exactly their own end.
 // Below lg it becomes a plain vertical sequence: a horizontal rail on a
@@ -20,7 +30,7 @@
 import { useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
 import type { ProcessStep } from "@/lib/content";
@@ -43,14 +53,17 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       const list = gsap.utils.toArray<HTMLElement>("[data-process-item]", section);
 
       if (list.length && !reduced) {
-        gsap.from(list, {
-          opacity: 0,
-          y: 24,
-          duration: 0.7,
-          ease: EASE.enter,
-          stagger: 0.08,
-          scrollTrigger: { trigger: list[0], start: REVEAL_START, once: true },
-        });
+        fromOnScroll(
+          list,
+          {
+            opacity: 0,
+            y: 24,
+            duration: 0.7,
+            ease: EASE.enter,
+            stagger: 0.08,
+          },
+          { trigger: list[0], start: REVEAL_START },
+        );
       }
 
       if (!desktop) return;
@@ -158,10 +171,12 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       aria-labelledby="service-process-heading"
       className="relative bg-muted scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 pt-20 sm:px-6 md:px-12 md:pt-28">
-        <h2 id="service-process-heading" className="sr-only">
-          How it is built
-        </h2>
+      <h2 id="service-process-heading" className="sr-only">
+        How it is built
+      </h2>
+
+      {/* Below lg the heading is an ordinary one, above an ordinary list. */}
+      <div className="mx-auto max-w-[1500px] px-5 pt-20 sm:px-6 md:px-12 md:pt-28 lg:hidden">
         <SectionIntro
           layout="split"
           index="A4"
@@ -175,10 +190,24 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       {/* ── Desktop: the rail ── */}
       <div
         data-track
-        className="relative mt-12 hidden lg:block"
+        className="relative hidden lg:block"
         style={{ height: `${Math.max(2, steps.length) * STAGE_VH + 40}vh` }}
       >
-        <div className="sticky top-0 flex h-screen flex-col justify-center overflow-hidden">
+        <div className="sticky top-0 flex h-screen flex-col overflow-hidden">
+          {/* Held with the rail, not left behind above it. */}
+          <div className="mx-auto w-full max-w-[1500px] shrink-0 px-12 pt-[7.5rem]">
+            <SectionIntro
+              layout="split"
+              index="A4"
+              label="Sequence"
+              datum={`${steps.length} stages`}
+              lines={[`${spellCount(steps.length)} stages,`, "in order."]}
+              lede="Nothing here is subcontracted and nothing skips a step. Keep scrolling and the sequence moves with you."
+              titleClassName="!text-[clamp(1.7rem,2.8vw,2.6rem)]"
+            />
+          </div>
+
+          <div className="flex min-h-0 flex-1 items-center overflow-hidden">
           <div
             data-rail
             className="flex items-stretch gap-8 will-change-transform"
@@ -229,12 +258,13 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
               </article>
             ))}
           </div>
+          </div>
 
           {/* Position readout — the only chrome the rail needs. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-10 mx-auto flex max-w-[1500px] items-center gap-5 px-12">
             <span className="font-display shrink-0 text-[11px] font-semibold tabular-nums tracking-[0.2em] text-primary">
               {String(active + 1).padStart(2, "0")}
-              <span className="text-foreground/35">
+              <span className="text-foreground/70">
                 /{String(steps.length).padStart(2, "0")}
               </span>
             </span>
@@ -245,7 +275,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
                 style={{ transform: "scaleX(0)" }}
               />
             </span>
-            <span className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-foreground/45">
+            <span className="shrink-0 text-[11px] uppercase tracking-[0.2em] text-foreground/70">
               {steps[active]?.step}
             </span>
           </div>
@@ -253,7 +283,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       </div>
 
       {/* ── Below lg: the same sequence, read downwards ── */}
-      <div className="mx-auto max-w-[1500px] px-5 pb-20 pt-10 sm:px-6 md:px-12 lg:hidden">
+      <div className="mx-auto max-w-[1500px] px-5 pb-20 pt-12 sm:px-6 md:px-12 lg:hidden">
         <ol className="relative pl-8">
           <span
             aria-hidden="true"

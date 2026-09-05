@@ -69,7 +69,7 @@ function bookingHref(category: string, tier?: string) {
 }
 
 const FIELD_CLASS =
-  "w-full rounded-[10px] border border-border bg-input-background px-4 py-3 text-[14px] text-foreground transition-colors duration-200 placeholder:text-muted-foreground/70 focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30";
+  "w-full rounded-[10px] border border-border bg-input-background px-4 py-3 text-[14px] text-foreground transition-colors duration-200 placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/30";
 const LABEL_CLASS =
   "mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.16em] text-enzo-forest-light";
 

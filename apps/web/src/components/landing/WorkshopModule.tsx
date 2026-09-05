@@ -25,7 +25,7 @@ import gsap from "gsap";
 import { Monitor, RotateCcw } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
@@ -128,14 +128,17 @@ export function WorkshopModule() {
     }
 
     if (stage) {
-      gsap.from(stage, {
-        opacity: 0,
-        y: 40,
-        scale: 0.95,
-        duration: 1.05,
-        ease: EASE.editorial,
-        scrollTrigger: { trigger: stage, start: "top 88%", once: true },
-      });
+      fromOnScroll(
+        stage,
+        {
+          opacity: 0,
+          y: 40,
+          scale: 0.95,
+          duration: 1.05,
+          ease: EASE.editorial,
+        },
+        { trigger: stage, start: "top 88%" },
+      );
     }
     // The viewpoint/doors controls used to get their own `once: true`
     // ScrollTrigger keyed off their own position. That trigger's boundary is
@@ -146,22 +149,26 @@ export function WorkshopModule() {
     // only way to change viewpoint), not decoration, so they no longer wait
     // on scroll at all — they simply render at full opacity with the stage.
     if (specs.length) {
-      gsap.from(specs, {
-        opacity: 0,
-        y: 24,
-        duration: DUR.enter,
-        ease: EASE.enter,
-        stagger: 0.07,
-        scrollTrigger: { trigger: specs[0], start: REVEAL_START, once: true },
-      });
+      fromOnScroll(
+        specs,
+        {
+          opacity: 0,
+          y: 24,
+          duration: DUR.enter,
+          ease: EASE.enter,
+          stagger: 0.07,
+        },
+        { trigger: specs[0], start: REVEAL_START },
+      );
     }
   });
 
   return (
     <section
       ref={sectionRef}
+      id="home-workshop"
       aria-labelledby="craft-heading"
-      className="relative overflow-hidden bg-enzo-forest"
+      className="relative overflow-hidden bg-enzo-forest scroll-mt-24"
     >
       <div
         aria-hidden="true"
@@ -255,7 +262,7 @@ export function WorkshopModule() {
               )}
             </div>
 
-            <p className="mt-3 text-[11.5px] leading-[1.5] text-enzo-cream/50">
+            <p className="mt-3 text-[11.5px] leading-[1.5] text-enzo-cream/70">
               Illustrative 3D render only — not the actual finished piece. Your final design is
               built to the exact specification, materials and measurements agreed with you.
             </p>

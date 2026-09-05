@@ -16,12 +16,11 @@
 // rather than its position.
 import { useRef } from "react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { InstagramIcon } from "@/components/shared/icons";
 import { MagneticButton } from "@/components/shared/MagneticButton";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
 
@@ -60,7 +59,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
 
     let settleTimer: number | undefined;
 
-    const trigger = ScrollTrigger.create({
+    const trigger = observeScroll({
       trigger: section,
       start: "top bottom",
       end: "bottom top",
@@ -100,13 +99,16 @@ export function StudioInvite({ items }: StudioInviteProps) {
 
     const contact = section.querySelector<HTMLElement>("[data-invite-contact]");
     if (contact) {
-      gsap.from(contact, {
-        opacity: 0,
-        y: 30,
-        duration: DUR.enter,
-        ease: EASE.enter,
-        scrollTrigger: { trigger: contact, start: "top 88%", once: true },
-      });
+      fromOnScroll(
+        contact,
+        {
+          opacity: 0,
+          y: 30,
+          duration: DUR.enter,
+          ease: EASE.enter,
+        },
+        { trigger: contact, start: "top 88%" },
+      );
     }
 
     return () => {
@@ -124,8 +126,9 @@ export function StudioInvite({ items }: StudioInviteProps) {
   return (
     <section
       ref={sectionRef}
+      id="home-studio"
       aria-labelledby="invite-heading"
-      className="relative overflow-hidden bg-enzo-dark"
+      className="relative overflow-hidden bg-enzo-dark scroll-mt-24"
     >
       <div className="pt-16 md:pt-24">
         <div className="mx-auto mb-7 flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 sm:px-6 md:px-12">
@@ -136,7 +139,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
             href={INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="group/ig inline-flex items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
+            className="group/ig inline-flex min-h-11 items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
           >
             <InstagramIcon
               size={14}
@@ -208,7 +211,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
           </div>
 
           <div data-invite-contact className="border-t border-enzo-cream/15 pt-6 lg:pb-4">
-            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/60">
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/70">
               Rather not book online
             </p>
             <div className="mt-5 flex flex-col gap-4">
@@ -217,7 +220,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
                 <span className="text-[15px]">07777 333052</span>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/60 transition-colors duration-300 group-hover/link:text-enzo-sand">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
                   Call
                 </span>
               </a>
@@ -226,11 +229,11 @@ export function StudioInvite({ items }: StudioInviteProps) {
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
                 <span className="truncate text-[15px]">hello@enzointeriors.co.uk</span>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/60 transition-colors duration-300 group-hover/link:text-enzo-sand">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
                   Email
                 </span>
               </a>
-              <p className="text-[12.5px] leading-[1.65] text-enzo-cream/60">
+              <p className="text-[12.5px] leading-[1.65] text-enzo-cream/70">
                 Send photos of the room and rough measurements and we will come back with a
                 ballpark before we visit.
               </p>

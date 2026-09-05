@@ -2,31 +2,53 @@
 
 // /services §05 — the close.
 //
-// Third attempt, and the reasoning for each discard is worth keeping:
+// Fifth attempt. The discarded ones, so none of them comes back:
 //   · a centred slab (statement, sentence, button, facts) — generic; could
 //     have ended any page on any site
-//   · an ask beside a three-stage explainer — better, but still a block of
-//     prose you read *about* booking rather than anything you could act on
+//   · an ask beside a three-stage explainer — prose you read *about* booking
+//     rather than anything you could act on
+//   · the three questions as pill-shaped chips — pills are sized by their
+//     own labels, so four service names wrapped into a ragged 3 + 1 and
+//     nothing lined up with anything
+//   · the same three questions as a ruled worksheet — properly aligned at
+//     last, but still a three-field form standing between the visitor and
+//     the one button they came for
 //
-// This one does the booking. The three questions we would ask on the phone
-// are on the page as chips, the answers build a real /booking URL, and the
-// button carries them through — so the section is the first step of the
-// form rather than an advertisement for it.
+// ── What it is now ──
+// The page has spent five sections in a drawing office: a measuring rule
+// under every heading, a plan of the room in the hero, a title block and a
+// dimensioned corner in §03. So it ends on the sheet itself. One bordered
+// plate with registration ticks at its corners, the ask set in the body of
+// the sheet, and a real title block ruled across the bottom — facts in the
+// narrow cells, the action in the wide one, exactly where a drawing puts its
+// approval box.
 //
-// ── What actually carries today ──
-// `service` is consumed by app/booking/page.tsx and genuinely pre-selects
-// step 1 of the wizard. `timing` and `scope` ride along on the query string
-// but nothing reads them yet — the wizard has no field for either. The copy
-// below is written to that reality rather than to the intention: it
-// promises the discipline is pre-selected and says the rest comes through
-// with the enquiry, which is true. If the wizard later grows those fields,
-// widen the promise then — do not widen it before.
+// ── One question, not three ──
+// The old version asked for discipline, timing and scope. Only the first has
+// ever done anything: `service` is read by app/booking/page.tsx and
+// genuinely pre-selects step 1 of the wizard, while `timing` and `scope`
+// rode along on the query string and nothing has ever read them. Asking two
+// questions we throw away costs the visitor real effort and buys nothing, so
+// they are gone. If the wizard grows those fields, add them back here then —
+// not before.
 //
-// Everything is optional: skip the chips and the button still books, which
-// is why they are chips and not required fields.
+// Answering is still optional: pick nothing and the button books anyway.
+//
+// ── Below md: the room picker is gone, not shrunk ──
+// The picker is explicitly optional, and on a phone it stood between the
+// description and the one button the section exists for: four full-width
+// rows plus three stacked fact cells, roughly 300px of scrolling for a
+// refinement most visitors would skip anyway. The meaning does not change —
+// you can still say which room on the booking page itself (step 1 reads the
+// same `service` query param this section would have set), or from the
+// button on the service's own page — so nothing is lost, only reached
+// sooner. md and up is unchanged: the picker is still there, still optional.
+// The three facts survive below md too, just as one row instead of three
+// stacked blocks — no content removed, only laid out tighter.
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -35,124 +57,90 @@ import type { ServiceDetail } from "@/lib/content";
 const PHONE_DISPLAY = "0116 XXX XXXX";
 const PHONE_HREF = "tel:0116XXXXXXX";
 
-const TIMINGS = [
-  { id: "asap", label: "As soon as possible" },
-  { id: "3-months", label: "Next few months" },
-  { id: "planning", label: "Just planning" },
-];
-
-const ROOMS = [
-  { id: "one", label: "One room" },
-  { id: "several", label: "Several rooms" },
-  { id: "whole", label: "Whole house" },
+/** The title block's narrow cells — what the survey actually costs you. */
+const FACTS = [
+  { label: "Survey", value: "Free" },
+  { label: "On site", value: "60–90 min" },
+  { label: "Guarantee", value: "5 years" },
 ];
 
 interface IndexClosingProps {
   services: ServiceDetail[];
 }
 
-/**
- * One question and its chips.
- *
- * Declared at module scope, not inside IndexClosing. A component defined in
- * a render body is a brand-new type on every render, so React unmounts and
- * remounts the whole fieldset each time any answer changes — which would
- * throw keyboard focus off the chip the visitor just pressed, mid-form.
- */
-function QuestionRow({
-  index,
-  question,
-  options,
-  value,
-  onPick,
-}: {
-  index: number;
-  question: string;
-  options: { id: string; label: string }[];
-  value: string | null;
-  onPick: (id: string | null) => void;
-}) {
+/** Registration tick — the corner marks a drawing sheet is trimmed to. */
+function CornerTick({ at }: { at: "tl" | "tr" | "bl" | "br" }) {
+  const vertical = at[0] === "t" ? "top-0" : "bottom-0";
+  const horizontal = at[1] === "l" ? "left-0" : "right-0";
   return (
-    <fieldset
-      data-close-row
-      className="border-t border-enzo-cream/12 py-6 opacity-0"
-      style={{ transform: "translateY(16px)" }}
-    >
-      <legend className="flex items-baseline gap-4">
-        <span className="font-display text-[10.5px] font-semibold tabular-nums tracking-[0.2em] text-enzo-sand">
-          {String(index).padStart(2, "0")}
-        </span>
-        <span className="text-[15px] text-enzo-cream/85">{question}</span>
-      </legend>
-      <div className="mt-4 flex flex-wrap gap-2">
-        {options.map((option) => {
-          const on = value === option.id;
-          return (
-            <button
-              key={option.id}
-              type="button"
-              // Pressing the selected chip clears it — the questions are
-              // optional and there must be a way back to "not answered".
-              onClick={() => onPick(on ? null : option.id)}
-              aria-pressed={on}
-              className={cn(
-                "rounded-full border px-5 py-2.5 text-[13.5px] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark",
-                on
-                  ? "border-enzo-sand bg-enzo-sand text-enzo-forest"
-                  : "border-enzo-cream/20 text-enzo-cream/65 hover:border-enzo-cream/50 hover:text-enzo-cream",
-              )}
-            >
-              {option.label}
-            </button>
-          );
-        })}
-      </div>
-    </fieldset>
+    <>
+      <span
+        aria-hidden="true"
+        className={cn("absolute h-[18px] w-px bg-enzo-sand/70", vertical, horizontal)}
+      />
+      <span
+        aria-hidden="true"
+        className={cn("absolute h-px w-[18px] bg-enzo-sand/70", vertical, horizontal)}
+      />
+    </>
   );
 }
 
 export function IndexClosing({ services }: IndexClosingProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [service, setService] = useState<string | null>(null);
-  const [timing, setTiming] = useState<string | null>(null);
-  const [scope, setScope] = useState<string | null>(null);
 
-  const href = useMemo(() => {
-    const params = new URLSearchParams();
-    if (service) params.set("service", service);
-    if (timing) params.set("timing", timing);
-    if (scope) params.set("scope", scope);
-    const query = params.toString();
-    return query ? `/booking?${query}` : "/booking";
-  }, [service, timing, scope]);
-
-  const answered = [service, timing, scope].filter(Boolean).length;
+  const chosen = services.find((entry) => entry.slug === service) ?? null;
+  const href = useMemo(
+    () => (service ? `/booking?service=${service}` : "/booking"),
+    [service],
+  );
 
   useGSAP(sectionRef, (section, reduced) => {
     const lines = gsap.utils.toArray<HTMLElement>("[data-close-line]", section);
     const body = gsap.utils.toArray<HTMLElement>("[data-close-body]", section);
-    const rows = gsap.utils.toArray<HTMLElement>("[data-close-row]", section);
+    const sheet = section.querySelector<HTMLElement>("[data-close-sheet]");
 
     if (reduced) {
-      gsap.set([...body, ...rows], { opacity: 1, y: 0 });
-      gsap.set(lines, { yPercent: 0 });
+      gsap.set(body, { opacity: 1, y: 0 });
+      if (sheet) gsap.set(sheet, { opacity: 1, y: 0 });
+      // `y: 0` as well as `yPercent: 0`, and it is load-bearing. The markup
+      // ships `translateY(100%)` so the lines are hidden in the server HTML,
+      // but GSAP reads existing transforms off the *computed* matrix, where
+      // that percentage has already resolved to pixels — it records
+      // `y: 64, yPercent: 0` and then finds `yPercent: 0` has nothing to do,
+      // leaving the heading parked inside its own clipping mask. Without
+      // this, a reduced-motion visitor gets a section with no headline.
+      gsap.set(lines, { yPercent: 0, y: 0 });
       return;
     }
 
     gsap.set(lines, { yPercent: 100, y: 0 });
 
-    const tl = gsap.timeline({
-      scrollTrigger: { trigger: section, start: REVEAL_START, once: true },
-    });
+    const tl = gsap.timeline({ paused: true });
 
-    tl.to(lines, {
-      yPercent: 0,
-      duration: DUR.editorial,
-      ease: EASE.editorial,
-      stagger: 0.08,
-    })
-      .to(body, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.08 }, 0.26)
-      .to(rows, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.1 }, 0.36);
+    // The sheet arrives first and the type is set on it afterwards, which is
+    // the order the studio would do it in.
+    tl.to(sheet, { opacity: 1, y: 0, duration: 1, ease: EASE.editorial })
+      .to(
+        lines,
+        { yPercent: 0, duration: DUR.editorial, ease: EASE.editorial, stagger: 0.08 },
+        0.2,
+      )
+      .to(
+        body,
+        { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.07 },
+        0.42,
+      );
+
+    // Attached only once the timeline is populated — see revealOnScroll
+    // in hooks/useGSAP.ts for why the order matters.
+    ScrollTrigger.create({
+      trigger: section,
+      start: REVEAL_START,
+      once: true,
+      animation: tl,
+    });
 
     return () => {
       tl.kill();
@@ -162,105 +150,198 @@ export function IndexClosing({ services }: IndexClosingProps) {
   return (
     <section
       ref={sectionRef}
-      id="services-closing"
+      id="services-close"
       aria-labelledby="services-closing-heading"
-      className="relative bg-enzo-dark scroll-mt-28"
+      className="relative bg-enzo-dark scroll-mt-24"
     >
       <div className="mx-auto max-w-[1500px] px-5 py-24 sm:px-6 md:px-12 md:py-32">
-        <div className="grid gap-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,34rem)] lg:gap-20">
-          <div className="lg:sticky lg:top-32 lg:self-start">
-            <h2
-              id="services-closing-heading"
-              className="font-title font-semibold leading-[1.0] tracking-[-0.045em] text-enzo-cream"
-              style={{ fontSize: "clamp(2.2rem, 5vw, 4rem)" }}
-            >
-              {["Three questions,", "then we come", "and measure."].map((line) => (
-                <span key={line} className="block overflow-hidden pb-[0.1em] -mb-[0.1em]">
-                  <span
-                    data-close-line
-                    className="block"
-                    style={{ transform: "translateY(100%)" }}
-                  >
-                    {line}
-                  </span>
-                </span>
-              ))}
-            </h2>
+        <div
+          data-close-sheet
+          className="relative border border-enzo-cream/18 opacity-0"
+          style={{ transform: "translateY(28px)" }}
+        >
+          <CornerTick at="tl" />
+          <CornerTick at="tr" />
+          <CornerTick at="bl" />
+          <CornerTick at="br" />
 
-            <p
+          <div className="px-6 pt-9 sm:px-10 md:px-14 md:pt-14">
+            {/* Sheet header — index at the left, issuer at the right. */}
+            <div
               data-close-body
-              className="mt-7 max-w-[42ch] text-[15px] leading-[1.7] text-enzo-cream/60 opacity-0"
-              style={{ transform: "translateY(14px)" }}
+              className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 opacity-0"
+              style={{ transform: "translateY(10px)" }}
             >
-              The same three we would ask on the phone. Pick a discipline and
-              the booking form opens with it already selected; the rest comes
-              through with your enquiry. Or skip them and just book.
-            </p>
+              <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand">
+                05 — Book
+              </span>
+              <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/65">
+                Enzo Interiors — Leicestershire
+              </span>
+            </div>
 
-            <p
-              data-close-body
-              className="mt-8 text-[13px] text-enzo-cream/45 opacity-0"
-              style={{ transform: "translateY(14px)" }}
-            >
-              Rather talk?{" "}
-              <a
-                href={PHONE_HREF}
-                className="tabular-nums text-enzo-cream/80 underline decoration-enzo-cream/25 decoration-1 underline-offset-[6px] transition-colors duration-300 hover:text-enzo-cream hover:decoration-enzo-sand"
+            <div className="mt-10 grid gap-8 md:mt-14 lg:grid-cols-[minmax(0,1fr)_minmax(0,28rem)] lg:items-end lg:gap-16">
+              <h2
+                id="services-closing-heading"
+                className="font-title font-semibold leading-[1.0] tracking-[-0.045em] text-enzo-cream"
+                style={{ fontSize: "clamp(2.2rem, 5vw, 4.4rem)" }}
               >
-                {PHONE_DISPLAY}
-              </a>
-            </p>
+                {["We would rather", "measure than guess."].map((line) => (
+                  <span
+                    key={line}
+                    className="block overflow-hidden pb-[0.1em] -mb-[0.1em]"
+                  >
+                    <span
+                      data-close-line
+                      className="block"
+                      style={{ transform: "translateY(100%)" }}
+                    >
+                      {line}
+                    </span>
+                  </span>
+                ))}
+              </h2>
+
+              <p
+                data-close-body
+                className="text-[15px] leading-[1.7] text-enzo-cream/70 opacity-0 lg:pb-2 lg:text-right"
+                style={{ transform: "translateY(14px)" }}
+              >
+                A free survey, in your own home. We measure every wall,
+                photograph the space, and tell you honestly what is worth
+                doing — before anybody writes a number down.
+              </p>
+            </div>
+
+            {/* The one question that carries — md and up only below the
+                fold; see the file-header note on why it drops out on a
+                phone rather than shrinking. */}
+            <fieldset
+              data-close-body
+              className="mt-12 hidden border-t border-enzo-cream/12 pt-8 opacity-0 md:mt-16 md:block"
+              style={{ transform: "translateY(14px)" }}
+            >
+              <legend className="sr-only">Which room are we looking at?</legend>
+              {/* Flex rather than an inline span: at phone widths the label
+                  wraps, and a margin-indented "optional" then starts a line
+                  three units in from everything else. A wrapped flex item
+                  falls flush left. */}
+              <p
+                aria-hidden="true"
+                className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/65"
+              >
+                <span>Which room are we looking at?</span>
+                <span className="normal-case tracking-normal text-enzo-cream/65">
+                  optional
+                </span>
+              </p>
+
+              {/* A column per discipline rather than a wrapping row: chips
+                  sized by their own labels are what made the old version
+                  ragged, and a grid cannot go ragged. */}
+              <div className="mt-6 grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
+                {services.map((entry) => {
+                  const on = service === entry.slug;
+                  return (
+                    <button
+                      key={entry.slug}
+                      type="button"
+                      // Pressing the chosen room clears it — the question is
+                      // optional and there must be a way back to unanswered.
+                      onClick={() => setService(on ? null : entry.slug)}
+                      aria-pressed={on}
+                      className="group flex items-center gap-3 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className="relative block h-[13px] w-[13px] shrink-0 rounded-full border transition-colors duration-300"
+                        style={{
+                          borderColor: on ? "#D4C9B5" : "rgba(242,240,235,0.28)",
+                        }}
+                      >
+                        <span
+                          className="absolute inset-[3px] rounded-full bg-enzo-sand transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
+                          style={{ transform: `scale(${on ? 1 : 0})` }}
+                        />
+                      </span>
+                      <span
+                        className={cn(
+                          "text-[14.5px] transition-colors duration-300",
+                          on
+                            ? "text-enzo-cream"
+                            : "text-enzo-cream/70 group-hover:text-enzo-cream/85",
+                        )}
+                      >
+                        {entry.title}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
           </div>
 
-          {/* ── The three questions ── */}
-          <div>
-            <QuestionRow
-              index={1}
-              question="Which discipline are you thinking about?"
-              options={services.map((entry) => ({
-                id: entry.slug,
-                label: entry.title,
-              }))}
-              value={service}
-              onPick={setService}
-            />
-            <QuestionRow
-              index={2}
-              question="When would you want it done?"
-              options={TIMINGS}
-              value={timing}
-              onPick={setTiming}
-            />
-            <QuestionRow
-              index={3}
-              question="How much are we looking at?"
-              options={ROOMS}
-              value={scope}
-              onPick={setScope}
-            />
+          {/* ── The title block ──
+              Narrow cells carry the facts, the wide one carries the action —
+              which is where a drawing sheet puts its approval box. */}
+          <div
+            data-close-body
+            className="mt-12 grid grid-cols-3 border-t border-enzo-cream/18 opacity-0 md:mt-16 lg:grid-cols-[repeat(3,minmax(0,1fr))_minmax(0,1.45fr)]"
+            style={{ transform: "translateY(14px)" }}
+          >
+            {/* Three across from the base breakpoint, not just from sm — see
+                the file-header note. Same three facts, same lg+ layout,
+                tighter below it: smaller padding and a smaller value size so
+                "60–90 min" sits comfortably in a ~90px column instead of the
+                20px-larger desktop size overflowing it. */}
+            {FACTS.map((fact) => (
+              <div
+                key={fact.label}
+                className="border-r border-enzo-cream/12 px-3 py-5 last-of-type:border-r-0 md:px-8 md:py-7 lg:last-of-type:border-r"
+              >
+                <span className="font-display block text-[9px] font-semibold uppercase leading-[1.3] tracking-[0.14em] text-enzo-cream/65 md:text-[10px] md:tracking-[0.28em]">
+                  {fact.label}
+                </span>
+                <span className="mt-2 block font-title text-[1.02rem] font-semibold leading-[1.15] tracking-[-0.02em] text-enzo-cream md:mt-2.5 md:text-[1.5rem]">
+                  {fact.value}
+                </span>
+              </div>
+            ))}
 
-            <div
-              data-close-row
-              className="border-t border-enzo-cream/12 pt-8 opacity-0"
-              style={{ transform: "translateY(16px)" }}
-            >
+            <div className="col-span-3 p-4 lg:col-span-1">
               <Link
                 href={href}
-                className="group relative block overflow-hidden rounded-full bg-enzo-cream px-9 py-4 text-center text-[14.5px] font-medium text-enzo-forest transition-colors duration-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
+                className="group relative flex h-full min-h-[4.25rem] items-center justify-center overflow-hidden rounded-full bg-enzo-cream px-8 text-center text-[14.5px] font-medium text-enzo-forest transition-colors duration-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
                 <span
                   aria-hidden="true"
                   className="absolute inset-0 origin-bottom scale-y-0 bg-enzo-sand transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-y-100"
                 />
-                <span className="relative">Book a free survey</span>
+                {/* The button says what it will actually do once a room is
+                    picked, which is the only feedback the choice needs. */}
+                <span className="relative">
+                  {chosen ? `Book a survey — ${chosen.title}` : "Book a free survey"}
+                </span>
               </Link>
-              <p className="mt-3 text-center text-[12px] text-enzo-cream/40">
-                {answered === 0
-                  ? "No obligation, nothing to sign — and none of the above is required."
-                  : `${answered} of 3 answered.`}
-              </p>
             </div>
           </div>
+        </div>
+
+        <div
+          data-close-body
+          className="mt-6 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 px-1 text-[12.5px] text-enzo-cream/65 opacity-0"
+          style={{ transform: "translateY(10px)" }}
+        >
+          <span>No obligation, nothing to sign.</span>
+          <span>
+            Rather talk?{" "}
+            <a
+              href={PHONE_HREF}
+              className="tabular-nums text-enzo-cream/75 underline decoration-enzo-cream/25 decoration-1 underline-offset-[6px] transition-colors duration-300 hover:text-enzo-cream hover:decoration-enzo-sand"
+            >
+              {PHONE_DISPLAY}
+            </a>
+          </span>
         </div>
       </div>
     </section>

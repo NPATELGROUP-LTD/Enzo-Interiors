@@ -1,25 +1,25 @@
 // Picks which of the four hero designs a service page uses.
 //
-// ── Why four, and why they finally look different ──
-// The first attempt gave the four pages four different *geometries* on the
-// same near-black ground, running the same sequence (eyebrow, title, lede,
-// two buttons, facts), and three of the four were type-left /
-// picture-right. Rearranging identical ingredients on identical paper does
-// not produce four designs — it produces one design with the parts moved,
-// which is exactly how it read.
+// ── One family, four mechanisms ──
+// An earlier set gave the four pages four different *geometries* on the same
+// near-black ground running the same sequence, which read as one hero with
+// the parts moved. The set after that fixed the grounds but left four
+// unrelated reveals.
 //
-// So each hero now differs on three axes at once:
+// These four are built the other way round: one shared grammar — an
+// oversized masked masthead, a sheet rule, the same four facts, the same two
+// actions (all of it in heroParts.tsx) — and then one *mechanism* per page,
+// chosen for what that service actually is:
 //
-//   file            ground       axis                image
-//   HeroMasthead    cream        top-to-bottom       one wide 21:8 band
-//   HeroOverlap     near-black   layered, off-centre tall plate, type across it
-//   HeroPlanCentre  forest       symmetrical         none — the plan drawing
-//   HeroSpecCard    warm grey    card + side strip   narrow full-height strip
+//   file           service    ground      composition          how it arrives
+//   HeroMasthead   Kitchens   cream       straight down        curtain: mask down, picture up
+//   HeroColumns    Bedrooms   near-black  title right, bays    three side wipes in sequence
+//   HeroAperture   Media Walls forest     centred, symmetric   strike of light → slit → frame
+//   HeroDoors      Wardrobes  warm grey   picture first        two doors slide apart
 //
-// They also differ in where the facts live (footer column / inline rule /
-// centred rule / ruled table rows) and in how they arrive (band unrolls /
-// plate lands then type is laid over / rises, no direction / card fades and
-// rows rule in).
+// So the pages feel like siblings and still cannot be mistaken for each
+// other — and the mechanism is never decoration: a media wall switches on
+// like a screen, a wardrobe opens like a wardrobe.
 //
 // ── Why it is still safe for a client-authored CMS ──
 // Assignment is by published position, so the set stays evenly distributed
@@ -33,15 +33,15 @@
 import type { ServiceDetail } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { HeroMasthead } from "./HeroMasthead";
-import { HeroOverlap } from "./HeroOverlap";
-import { HeroPlanCentre } from "./HeroPlanCentre";
-import { HeroSpecCard } from "./HeroSpecCard";
+import { HeroColumns } from "./HeroColumns";
+import { HeroAperture } from "./HeroAperture";
+import { HeroDoors } from "./HeroDoors";
 
 const VARIANTS = [
   HeroMasthead,
-  HeroOverlap,
-  HeroPlanCentre,
-  HeroSpecCard,
+  HeroColumns,
+  HeroAperture,
+  HeroDoors,
 ] as const;
 
 export const HERO_VARIANT_COUNT = VARIANTS.length;

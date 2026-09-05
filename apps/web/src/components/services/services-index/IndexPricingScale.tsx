@@ -20,9 +20,31 @@
 //
 // Below md the axis turns vertical — a horizontal money scale on a 375px
 // screen puts four labels in about 40px of usable width.
+//
+// ── The pin ──
+// From md up the section is exactly one viewport tall and pins itself to the
+// screen the moment its top reaches the top of the window, then draws the
+// scale *from* the scroll rather than on a timer. So the page hands the
+// screen over to this one idea, the visitor builds the comparison with their
+// own wheel, and only once every mark has landed does the page move on.
+//
+// Two consequences worth knowing before editing:
+//   · the content must fit inside 100svh at the shortest desktop height we
+//     care about (~700px), because a pinned section taller than the viewport
+//     hides its own bottom. Hence the clamped vertical rhythm below rather
+//     than fixed padding — do not swap it back for py-28.
+//   · the pin adds ~1 viewport of page height, so every trigger below it was
+//     measured against a shorter document. ScrollTrigger refreshes all of
+//     them when this one is created, which is why nothing downstream needs
+//     to know about it.
+// Touch keeps the old behaviour — the section is still a full screen tall,
+// but it scrolls past normally and the scale reveals on arrival. Pinning
+// costs a touch visitor the one gesture they have, and several swipes that
+// visibly do nothing is a worse trade than a scale that simply appears.
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
+import { ArrowRight } from "lucide-react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
@@ -40,6 +62,13 @@ const GBP = new Intl.NumberFormat("en-GB", {
 
 /** Where the scale ends when everything published fits under it. */
 const AXIS_PREFERRED_MAX = 5000;
+
+/**
+ * How much scrolling the pinned section absorbs before it lets go — a little
+ * over one screen. Short enough that nobody feels stuck, long enough that the
+ * marks land one at a time rather than all at once.
+ */
+const PIN_SCROLL = "110%";
 
 /** Short axis labels — "£5k" reads better on a scale than "£5,000". */
 function shortMoney(value: number): string {
@@ -104,7 +133,7 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
 
   useGSAP(
     sectionRef,
-    (section, reduced) => {
+    (section, reduced, { pinned }) => {
       const axis = section.querySelector<HTMLElement>("[data-scale-axis]");
       const tickEls = gsap.utils.toArray<HTMLElement>("[data-scale-tick]", section);
       const marks = gsap.utils.toArray<HTMLElement>("[data-scale-mark]", section);
@@ -135,36 +164,93 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
           0.4,
         );
 
+      // ── The figures count themselves ──
+      // The counters are deliberately NOT tweens on the scrubbed timeline.
+      // A scrubbed counter is driven by the wheel, so the number is whatever
+      // the scroll position says it is: park half way and a kitchen reads
+      // "£9", scroll up and it counts backwards. Those intermediate values
+      // are not estimates of anything — they are scroll positions wearing a
+      // pound sign, on a section whose entire job is to be trusted about
+      // money.
+      //
+      // So scroll only decides *when* each figure starts. The count itself
+      // is an ordinary tween that runs to the real number at its own pace
+      // and stays there, however the visitor scrolls afterwards.
+      const started = new Set<number>();
       counters.forEach((el, i) => {
         const to = Number(el.dataset.countTo);
         if (!Number.isFinite(to)) return;
-        const proxy = { value: 0 };
-        tl.to(
-          proxy,
-          {
+
+        const run = () => {
+          if (started.has(i)) return;
+          started.add(i);
+          const proxy = { value: 0 };
+          gsap.to(proxy, {
             value: to,
-            duration: 0.8,
+            duration: 0.9,
             ease: "power2.out",
             onUpdate: () => {
               el.textContent = GBP.format(Math.round(proxy.value));
             },
-          },
-          0.45 + i * 0.09,
-        );
+            // Land on the authored string, not on a re-formatted number, so
+            // whatever the client typed is what finally shows.
+            onComplete: () => {
+              el.textContent = el.dataset.countDisplay ?? GBP.format(to);
+            },
+          });
+        };
+
+        // Fired as the playhead crosses the point where this mark lands, so
+        // the figure still starts with its own mark. `.call` only runs
+        // forwards past the marker, and `started` makes it once-only, so
+        // scrubbing back and forth cannot restart a count.
+        tl.call(run, undefined, 0.45 + i * 0.09);
       });
 
-      ScrollTrigger.create({
-        trigger: section,
-        start: REVEAL_START,
-        once: true,
-        animation: tl,
-      });
+      // Leave a beat of pinned scroll after the last mark lands, so the
+      // finished scale is held on screen rather than being whipped away the
+      // instant it completes.
+      tl.to({}, { duration: 0.5 });
+
+      const trigger = pinned
+        ? ScrollTrigger.create({
+            trigger: section,
+            // The section is exactly one viewport tall, so its top reaching
+            // the window's top is the same moment it fills the screen.
+            start: "top top",
+            end: "+=" + PIN_SCROLL,
+            pin: true,
+            pinSpacing: true,
+            // Recommended whenever a pin runs under smooth scrolling: it
+            // sets the pin a hair early so the swap can't show a jump.
+            anticipatePin: 1,
+            scrub: 0.6,
+            animation: tl,
+          })
+        : ScrollTrigger.create({
+            trigger: section,
+            start: REVEAL_START,
+            once: true,
+            animation: tl,
+          });
 
       return () => {
+        // `true` reverts the pin spacer with the trigger. Without it a
+        // media-query swap can leave ScrollTrigger's placeholder in the DOM
+        // for React to trip over on the next removal.
+        trigger.kill(true);
         tl.kill();
       };
     },
-    { deps: [plots] },
+    // `pointer: fine` as well as a width: a pin holds the screen for a
+    // fixed distance, and on a touch device that means several swipes that
+    // appear to do nothing. A portrait tablet is wide enough for the
+    // horizontal scale but is still a thumb — it gets the full-height
+    // section and the ordinary reveal, not the pin.
+    {
+      queries: { pinned: "(min-width: 768px) and (pointer: fine)" },
+      deps: [plots],
+    },
   );
 
   if (!plots.length) return null;
@@ -172,10 +258,13 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
   return (
     <section
       ref={sectionRef}
+      id="services-pricing"
       aria-labelledby="services-pricing-heading"
-      className="relative bg-background"
+      // `md:min-h` not `min-h`: the pin only exists from md up, and forcing a
+      // full viewport around a four-row list on a phone is just a hole.
+      className="relative flex flex-col justify-center overflow-hidden bg-background md:min-h-[100svh] scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="mx-auto w-full max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-[clamp(3rem,8vh,7rem)]">
         <h2 id="services-pricing-heading" className="sr-only">
           Starting prices
         </h2>
@@ -189,9 +278,12 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
           lede="Entry specification, typical room, everything included. Plotted on one scale so you can see how the disciplines actually compare before you talk to anyone."
         />
 
-        {/* ── md and up: horizontal scale ── */}
-        <div className="mt-20 hidden md:block">
-          <div className="relative h-[19rem]">
+        {/* ── md and up: horizontal scale ──
+            Every gap here is clamped against viewport height rather than
+            fixed, because the section has to fit inside one screen while it
+            is pinned — see the note at the top of the file. */}
+        <div className="mt-[clamp(2.5rem,7vh,5rem)] hidden md:block">
+          <div className="relative h-[clamp(15rem,36vh,19rem)]">
             {/* The rule, with its ticks. */}
             <div className="absolute inset-x-0 top-1/2 -translate-y-1/2">
               <span
@@ -306,17 +398,25 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
           </div>
         </div>
 
-        {/* ── Below md: the same data read downwards ── */}
+        {/* ── Below md: the same data read downwards ──
+            A trailing arrow on the name, not just on the row: the same
+            "this navigates" mark the hero's mobile list and ServicesDoors'
+            accordion both use, so a visitor learns it once and reads it
+            everywhere on the page. */}
         <ul className="mt-12 md:hidden">
           {plots.map((plot) => (
             <li key={plot.service.slug} className="border-t border-border/60">
               <Link
                 href={`/services/${plot.service.slug}`}
-                className="block py-5 focus-visible:outline-none"
+                className="group block py-5 focus-visible:outline-none"
               >
                 <span className="flex items-baseline justify-between gap-4">
-                  <span className="font-title text-[1.1rem] font-semibold tracking-[-0.025em] text-primary underline decoration-transparent underline-offset-4 transition-[text-decoration-color] duration-300 group-hover:decoration-primary">
+                  <span className="flex items-center gap-2 font-title text-[1.1rem] font-semibold tracking-[-0.025em] text-primary">
                     {plot.service.title}
+                    <ArrowRight
+                      aria-hidden="true"
+                      className="h-3.5 w-3.5 shrink-0 text-primary/40 transition-transform duration-300 group-hover:translate-x-1"
+                    />
                   </span>
                   <span className="shrink-0 text-[1rem] tabular-nums text-enzo-forest-light">
                     {plot.label}
@@ -341,7 +441,7 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
           <li aria-hidden="true" className="border-t border-border/60" />
         </ul>
 
-        <p className="mt-14 max-w-[70ch] text-[12.5px] leading-[1.7] text-muted-foreground md:mt-16">
+        <p className="mt-14 max-w-[70ch] text-[12.5px] leading-[1.7] text-muted-foreground md:mt-[clamp(2rem,5vh,4rem)]">
           Starting prices are the entry specification for a typical room.
           {unpriced > 0 &&
             ` ${unpriced} service${unpriced === 1 ? " is" : "s are"} quoted on application.`}{" "}

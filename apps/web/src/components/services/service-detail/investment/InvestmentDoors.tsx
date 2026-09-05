@@ -18,7 +18,7 @@
 import { useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
@@ -59,15 +59,18 @@ export function InvestmentDoors({
       return;
     }
 
-    gsap.from(doors, {
-      opacity: 0,
-      scaleY: 0.86,
-      transformOrigin: "50% 100%",
-      duration: 0.85,
-      ease: EASE.editorial,
-      stagger: 0.08,
-      scrollTrigger: { trigger: doors[0], start: REVEAL_START, once: true },
-    });
+    fromOnScroll(
+      doors,
+      {
+        opacity: 0,
+        scaleY: 0.86,
+        transformOrigin: "50% 100%",
+        duration: 0.85,
+        ease: EASE.editorial,
+        stagger: 0.08,
+      },
+      { trigger: doors[0], start: REVEAL_START },
+    );
   });
 
   if (!pricing.length) return null;
@@ -165,14 +168,14 @@ export function InvestmentDoors({
                     {estimate ? (
                       <>
                         {GBP.format(estimate.low)}
-                        <span className="px-1.5 font-normal text-enzo-cream/35">–</span>
+                        <span className="px-1.5 font-normal text-enzo-cream/65">–</span>
                         {GBP.format(estimate.high)}
                       </>
                     ) : (
                       "On application"
                     )}
                   </p>
-                  <p className="mt-1.5 text-[12px] text-enzo-cream/50">
+                  <p className="mt-1.5 text-[12px] text-enzo-cream/70">
                     {ROOM_SIZE_LABELS[roomSize].toLowerCase()} room · from {tier.from}
                   </p>
                   <p className="mt-4 max-w-[44ch] text-[14px] leading-[1.6] text-enzo-cream/70">
@@ -226,7 +229,7 @@ export function InvestmentDoors({
                     : "On application"}
                 </span>
               </div>
-              <p className="mt-2 text-[13.5px] leading-[1.6] text-enzo-cream/60">
+              <p className="mt-2 text-[13.5px] leading-[1.6] text-enzo-cream/70">
                 {tier.desc}
               </p>
               <QuoteTriggerButton
@@ -244,7 +247,7 @@ export function InvestmentDoors({
           ))}
         </div>
 
-        <p className="mt-8 max-w-[70ch] text-[12px] leading-[1.7] text-enzo-cream/40">
+        <p className="mt-8 max-w-[70ch] text-[12px] leading-[1.7] text-enzo-cream/65">
           Ranges scale each specification&rsquo;s starting price by room size. A
           guide for planning, not a quotation.
         </p>

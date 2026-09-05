@@ -1,0 +1,268 @@
+[
+  {
+    "id": "cnv_jones_msg_1",
+    "conversation_id": "cnv_jones",
+    "sender_id": "cli_sarah_jones",
+    "sender_type": "Client",
+    "body": "Hi Priya — is the install still on track for the week of the 17th?",
+    "attachments": null,
+    "read_at": "2026-08-16T08:05:00.000Z",
+    "created_at": "2026-08-16T08:05:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_2",
+    "conversation_id": "cnv_jones",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "Hi Sarah, yes. Carcasses go in on the Monday and the worktop template is booked for the Thursday.",
+    "attachments": null,
+    "read_at": "2026-08-16T09:35:00.000Z",
+    "created_at": "2026-08-16T09:35:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_3",
+    "conversation_id": "cnv_jones",
+    "sender_id": "cli_sarah_jones",
+    "sender_type": "Client",
+    "body": "Perfect. Do I need to clear the utility room as well, or just the kitchen?",
+    "attachments": null,
+    "read_at": "2026-08-17T10:05:00.000Z",
+    "created_at": "2026-08-17T10:05:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_4",
+    "conversation_id": "cnv_jones",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "Just the kitchen, but if you can leave a clear route through from the front door that would help the fitters.",
+    "attachments": null,
+    "read_at": "2026-08-17T11:35:00.000Z",
+    "created_at": "2026-08-17T11:35:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_5",
+    "conversation_id": "cnv_jones",
+    "sender_id": "cli_sarah_jones",
+    "sender_type": "Client",
+    "body": "Will do. One more thing — can we still change the pendant finish?",
+    "attachments": null,
+    "read_at": "2026-08-23T12:05:00.000Z",
+    "created_at": "2026-08-23T12:05:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_6",
+    "conversation_id": "cnv_jones",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "We can, up until the order goes in on Friday. I have attached the two brass options side by side.",
+    "attachments": [
+      {
+        "name": "pendant-finish-options.pdf",
+        "size_bytes": 842113,
+        "storage_url": "placeholder://message-attachments/cnv_jones/pendant-finish-options.pdf"
+      }
+    ],
+    "read_at": "2026-08-23T13:35:00.000Z",
+    "created_at": "2026-08-23T13:35:00.000Z"
+  },
+  {
+    "id": "cnv_jones_msg_7",
+    "conversation_id": "cnv_jones",
+    "sender_id": "cli_sarah_jones",
+    "sender_type": "Client",
+    "body": "The brushed one on the left, please. Thanks Priya!",
+    "attachments": null,
+    "read_at": "2026-08-28T09:20:16.137Z",
+    "created_at": "2026-08-24T14:05:00.000Z"
+  },
+  {
+    "id": "cnv_okafor_msg_1",
+    "conversation_id": "cnv_okafor",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "Hi David — the 3D render for the media wall is ready for you in the portal under Designs.",
+    "attachments": null,
+    "read_at": "2026-08-19T08:05:00.000Z",
+    "created_at": "2026-08-19T08:05:00.000Z"
+  },
+  {
+    "id": "cnv_okafor_msg_2",
+    "conversation_id": "cnv_okafor",
+    "sender_id": "cli_david_okafor",
+    "sender_type": "Client",
+    "body": "Looks great. Only concern is the flue box on the right, it looks quite dominant.",
+    "attachments": null,
+    "read_at": "2026-08-20T09:35:00.000Z",
+    "created_at": "2026-08-20T09:35:00.000Z"
+  },
+  {
+    "id": "cnv_okafor_msg_3",
+    "conversation_id": "cnv_okafor",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "Agreed. I can push the shelving across to balance it and drop the box depth by 40mm.",
+    "attachments": null,
+    "read_at": "2026-08-20T10:05:00.000Z",
+    "created_at": "2026-08-20T10:05:00.000Z"
+  },
+  {
+    "id": "cnv_okafor_msg_4",
+    "conversation_id": "cnv_okafor",
+    "sender_id": "cli_david_okafor",
+    "sender_type": "Client",
+    "body": "Yes please. Once I see that I am happy to approve.",
+    "attachments": null,
+    "read_at": "2026-08-21T11:35:00.000Z",
+    "created_at": "2026-08-21T11:35:00.000Z"
+  },
+  {
+    "id": "cnv_okafor_msg_5",
+    "conversation_id": "cnv_okafor",
+    "sender_id": "stf_designer",
+    "sender_type": "Staff",
+    "body": "Updated render uploaded. Have a look and hit Approve if you are content.",
+    "attachments": null,
+    "read_at": null,
+    "created_at": "2026-08-26T12:05:00.000Z"
+  },
+  {
+    "id": "cnv_patel_msg_1",
+    "conversation_id": "cnv_patel",
+    "sender_id": "cli_raj_patel",
+    "sender_type": "Client",
+    "body": "Morning Hannah — the internals look excellent. When are the mirrored doors arriving?",
+    "attachments": null,
+    "read_at": "2026-08-22T08:05:00.000Z",
+    "created_at": "2026-08-22T08:05:00.000Z"
+  },
+  {
+    "id": "cnv_patel_msg_2",
+    "conversation_id": "cnv_patel",
+    "sender_id": "stf_designer_hannah",
+    "sender_type": "Staff",
+    "body": "Thursday this week. Marcus will fit them the same afternoon.",
+    "attachments": null,
+    "read_at": "2026-08-22T09:35:00.000Z",
+    "created_at": "2026-08-22T09:35:00.000Z"
+  },
+  {
+    "id": "cnv_patel_msg_3",
+    "conversation_id": "cnv_patel",
+    "sender_id": "cli_raj_patel",
+    "sender_type": "Client",
+    "body": "Great. Also, I have started thinking about the kitchen extension — who should I speak to?",
+    "attachments": null,
+    "read_at": "2026-08-23T10:05:00.000Z",
+    "created_at": "2026-08-23T10:05:00.000Z"
+  },
+  {
+    "id": "cnv_patel_msg_4",
+    "conversation_id": "cnv_patel",
+    "sender_id": "stf_designer_hannah",
+    "sender_type": "Staff",
+    "body": "I have opened an enquiry for you. We will book a survey once your builder sends the floor plan.",
+    "attachments": null,
+    "read_at": "2026-08-23T11:35:00.000Z",
+    "created_at": "2026-08-23T11:35:00.000Z"
+  },
+  {
+    "id": "cnv_patel_msg_5",
+    "conversation_id": "cnv_patel",
+    "sender_id": "cli_raj_patel",
+    "sender_type": "Client",
+    "body": "Perfect, I will chase them this week.",
+    "attachments": null,
+    "read_at": "2026-08-25T12:05:00.000Z",
+    "created_at": "2026-08-25T12:05:00.000Z"
+  },
+  {
+    "id": "cnv_shaw_msg_1",
+    "conversation_id": "cnv_shaw",
+    "sender_id": "cli_eleanor_shaw",
+    "sender_type": "Client",
+    "body": "Just to reconfirm — nothing can be fixed to the walls, it is Grade II listed.",
+    "attachments": null,
+    "read_at": "2026-08-17T08:05:00.000Z",
+    "created_at": "2026-08-17T08:05:00.000Z"
+  },
+  {
+    "id": "cnv_shaw_msg_2",
+    "conversation_id": "cnv_shaw",
+    "sender_id": "stf_designer_hannah",
+    "sender_type": "Staff",
+    "body": "Understood. Everything is freestanding with a scribed filler, no fixings into the plaster.",
+    "attachments": null,
+    "read_at": "2026-08-17T09:35:00.000Z",
+    "created_at": "2026-08-17T09:35:00.000Z"
+  },
+  {
+    "id": "cnv_shaw_msg_3",
+    "conversation_id": "cnv_shaw",
+    "sender_id": "cli_eleanor_shaw",
+    "sender_type": "Client",
+    "body": "Thank you. Could we see a version with the tallboy on the window side?",
+    "attachments": null,
+    "read_at": "2026-08-18T10:05:00.000Z",
+    "created_at": "2026-08-18T10:05:00.000Z"
+  },
+  {
+    "id": "cnv_shaw_msg_4",
+    "conversation_id": "cnv_shaw",
+    "sender_id": "stf_designer_hannah",
+    "sender_type": "Staff",
+    "body": "Yes — I will have both layouts ready for the design visit.",
+    "attachments": null,
+    "read_at": "2026-08-19T11:35:00.000Z",
+    "created_at": "2026-08-19T11:35:00.000Z"
+  },
+  {
+    "id": "cnv_shaw_msg_5",
+    "conversation_id": "cnv_shaw",
+    "sender_id": "cli_eleanor_shaw",
+    "sender_type": "Client",
+    "body": "Lovely, see you then.",
+    "attachments": null,
+    "read_at": "2026-08-20T12:05:00.000Z",
+    "created_at": "2026-08-20T12:05:00.000Z"
+  },
+  {
+    "id": "cnv_mensah_msg_1",
+    "conversation_id": "cnv_mensah",
+    "sender_id": "stf_admin",
+    "sender_type": "Staff",
+    "body": "Hi Grace — following up on the kitchen design we presented. Any thoughts so far?",
+    "attachments": null,
+    "read_at": "2026-08-12T08:05:00.000Z",
+    "created_at": "2026-08-12T08:05:00.000Z"
+  },
+  {
+    "id": "cnv_mensah_msg_2",
+    "conversation_id": "cnv_mensah",
+    "sender_id": "cli_grace_mensah",
+    "sender_type": "Client",
+    "body": "Thanks Oyz — still discussing it at home. The Dekton pushed it slightly over what we had in mind.",
+    "attachments": null,
+    "read_at": "2026-08-13T09:35:00.000Z",
+    "created_at": "2026-08-13T09:35:00.000Z"
+  },
+  {
+    "id": "cnv_mensah_msg_3",
+    "conversation_id": "cnv_mensah",
+    "sender_id": "stf_admin",
+    "sender_type": "Staff",
+    "body": "Understood. I can re-quote on quartz which would bring it down meaningfully, no obligation.",
+    "attachments": null,
+    "read_at": "2026-08-13T10:05:00.000Z",
+    "created_at": "2026-08-13T10:05:00.000Z"
+  },
+  {
+    "id": "cnv_mensah_msg_4",
+    "conversation_id": "cnv_mensah",
+    "sender_id": "cli_grace_mensah",
+    "sender_type": "Client",
+    "body": "That would be helpful, thank you.",
+    "attachments": null,
+    "read_at": "2026-08-14T11:35:00.000Z",
+    "created_at": "2026-08-14T11:35:00.000Z"
+  }
+]

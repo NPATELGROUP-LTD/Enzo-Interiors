@@ -6,12 +6,12 @@ file names say which section of which page they are.
 ```
 services/
 ├── shared/            used by BOTH routes
-├── services-index/    only /services
+├── services-index/    only /services  (+ ConstantMarks: §03's four drawings)
 └── service-detail/    only /services/[category]
     ├── variant.ts     how a page picks its design
-    ├── hero/          4 designs + picker
+    ├── hero/          4 designs + picker (+ heroParts: the shared chrome)
     ├── included/      4 designs + picker
-    ├── model/         4 3D models + picker (+ Box3D, ModelStage)
+    ├── model/         real three.js viewer + 4 units (scene/)
     ├── process/       4 designs + picker
     └── investment/    4 designs + picker (+ 2 shared controls)
 ```
@@ -25,10 +25,10 @@ One design, five sections, no two sharing a layout or a scroll mechanic.
 | § | File | What it is |
 |---|---|---|
 | 01 | `services-index/IndexHero.tsx` | The fold. Plan drawing (large, clickable, labelled "Open <service>") driven by the list beneath it. Auto-cycles until the visitor takes over. |
-| 02 | `services-index/IndexPricingScale.tsx` | Every discipline plotted at its starting price on one horizontal money scale. Axis range and ticks derived from the data. |
-| 03 | `services-index/IndexConstants.tsx` | The four things that don't vary. A scroll-driven rule inks each one in. |
-| 04 | `shared/QuestionsAccordion.tsx` | FAQs. Sticky heading, `0fr→1fr` panels. |
-| 05 | `services-index/IndexClosing.tsx` | The ask on the left, what a survey actually involves on the right. |
+| 02 | `services-index/IndexPricingScale.tsx` | Every discipline plotted at its starting price on one horizontal money scale. Axis range and ticks derived from the data. **Pins** at `top top` from `md` up and scrubs the scale in over ~1.1 screens of scroll; the section is sized to fit one viewport so the pin never hides its own bottom. |
+| 03 | `services-index/IndexConstants.tsx` | The four things that don't vary. A scroll-driven rule inks each one in, and each carries a drawn plan symbol from `ConstantMarks.tsx` that inks in on reach **or** hover. |
+| 04 | `shared/QuestionsNotes.tsx` | FAQs, but not an accordion — two accordions were built here and both were rejected. Every answer is on the page, set as the *general notes* off a drawing sheet in two CSS multi-column columns. No state, no clicking, no keyboard contract. |
+| 05 | `services-index/IndexClosing.tsx` | The ask, set on a drawing sheet: registration ticks at the corners, and a real title block ruled across the bottom with the facts in the narrow cells and the booking action in the wide one. Asks one question (which room), because that is the only one `/booking` reads. |
 
 ---
 
@@ -40,29 +40,34 @@ with the nouns swapped.
 
 | Sheet | Folder | variant 0 | variant 1 | variant 2 | variant 3 |
 |---|---|---|---|---|---|
-| A1 | `hero/` | `HeroMasthead` | `HeroOverlap` | `HeroPlanCentre` | `HeroSpecCard` |
-| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedCourses` | `IncludedRail` |
-| A3 | `model/` | `ModelKitchenRun` | `ModelWardrobeBay` | `ModelMediaWall` | `ModelWalkIn` |
-| A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessDrawers` |
-| A5 | `investment/` | `InvestmentSheets` | `InvestmentSlider` | `InvestmentBuildUp` | `InvestmentDoors` |
-| A6 | `shared/` | `QuestionsAccordion` — shared component; its **ground** alternates per variant instead |
+| A1 | `hero/` | `HeroMasthead` | `HeroColumns` | `HeroAperture` | `HeroDoors` |
+| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedBuildUp` | `IncludedBays` |
+| A3 | `model/` | one `ModelViewer`, four units — see `model/scene/units.tsx` |
+| A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessAssembly` |
+| A5 | `investment/` | `InvestmentSheets` | `InvestmentSlider` | `InvestmentDisplay` | `InvestmentDoors` |
+| A6 | `shared/` | `QuestionsNotes` — shared component; its **ground** alternates per variant instead |
 | — | `shared/` | `BookSurveyCta` — shared close |
 
 ### What each design actually is
 
-**Hero (A1)** — the four differ in *ground* as well as layout, which is
-what finally stopped the pages opening identically:
+**Hero (A1)** — one shared grammar, four mechanisms. The chrome is
+identical on all four (`heroParts.tsx`: the sheet rule, the four facts, the
+two actions, the masked title line), so the pages read as four sheets of one
+publication. What changes is the composition and *how the picture arrives* —
+and the mechanism is chosen for what the service is, never as decoration:
 
-| | file | ground | axis | image |
-|---|---|---|---|---|
-| 1 | `HeroMasthead` | cream | top-to-bottom | one wide 21:8 band |
-| 2 | `HeroOverlap` | near-black | layered, off-centre | tall plate, type across it |
-| 3 | `HeroPlanCentre` | forest | symmetrical | none — the plan drawing |
-| 4 | `HeroSpecCard` | warm grey | card + side strip | narrow full-height strip |
+| | file | service | ground | composition | how it arrives |
+|---|---|---|---|---|---|
+| 1 | `HeroMasthead` | Kitchens | cream | straight down the page | **curtain** — mask opens down while the picture drifts up into it, a sand edge riding the opening line |
+| 2 | `HeroColumns` | Bedrooms | near-black | title hard right, three bays | **three side wipes**, staggered; one photograph split across the panels, one fact under each |
+| 3 | `HeroAperture` | Media Walls | forest | centred, symmetrical | **switch-on** — a strike of light, a full-width slit, then the frame opens to 21:9 |
+| 4 | `HeroDoors` | Wardrobes | warm grey | picture first, masthead under it | **two doors slide apart** — the product is the mechanism |
 
-They also differ in where the facts live (footer column / inline rule /
-centred rule / ruled table rows). Each renders its own quote button, because
-a cream pill is invisible on the cream masthead — hence no `quoteCta` prop.
+The facts also sit differently on each (footer column / one under each bay /
+a centred ruled strip / a row beside the actions), but they are the same
+facts in the same order, from `heroFacts.ts`. Colour for the buttons comes
+from `heroParts`' one `tone` prop, because a cream pill is invisible on the
+cream masthead — hence no `quoteCta` prop.
 
 **Included (A2)** — 1 two ruled columns with leader lines, a bill of
 quantities · 2 items alternating around a rule that draws as you scroll ·
@@ -109,7 +114,7 @@ each section's `VARIANTS` array. Nothing else changes.
 |---|---|
 | `shared/RoomPlanDrawing.tsx` | The signature device: a plan of the room with the photograph clipped inside its footprint. Geometry from `lib/room-plan.ts`, seeded by the slug. |
 | `shared/QuoteRequestModal.tsx` | `QuoteModalRoot` (context + sheet) and `QuoteTriggerButton`. Any CTA on a service page opens it. |
-| `shared/QuestionsAccordion.tsx` | FAQ list, light or dark, ground overridable via `className`. |
+| `shared/QuestionsNotes.tsx` | FAQ notes, light or dark, ground overridable via `className`. |
 | `shared/BookSurveyCta.tsx` | Closing CTA for the detail pages. |
 
 ## Supporting modules (outside this folder)

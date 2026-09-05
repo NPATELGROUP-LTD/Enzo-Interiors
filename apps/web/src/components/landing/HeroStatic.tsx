@@ -101,7 +101,7 @@ export function HeroStatic() {
               <dd className="truncate text-[17px] font-semibold tracking-[-0.02em] text-enzo-cream">
                 {item.value}
               </dd>
-              <dd className="mt-1 truncate text-[10.5px] uppercase tracking-[0.16em] text-enzo-cream/55">
+              <dd className="mt-1 truncate text-[10.5px] uppercase tracking-[0.16em] text-enzo-cream/70">
                 {item.label}
               </dd>
             </div>
@@ -114,7 +114,7 @@ export function HeroStatic() {
 
       <div
         aria-hidden="true"
-        className="relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/45"
+        className="relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/65"
       >
         See how we work
         <ChevronDown className="h-3.5 w-3.5 animate-bounce" />

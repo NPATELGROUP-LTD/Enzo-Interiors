@@ -24,12 +24,52 @@ enzo-interiors/
 │   ├── admin/          # Staff/Admin Portal (CRM), React/Vite SPA
 │   ├── portal/         # Client Portal, React/Vite SPA
 │   └── api/            # NestJS backend API (single source of business logic)
-├── packages/
-│   ├── shared/         # Shared TS types, Zod schemas, Prisma types, API client
-│   └── ui/             # Shared design system components
-└── docs/                # Architecture, PRD/TRD, implementation plan
+└── docs/               # Architecture, PRD/TRD, implementation plan
 ```
 
+Each app is **fully self-contained**: its own `package.json`, its own install,
+its own types and its own design system. There is deliberately no `packages/`
+layer — `apps/admin` and `apps/portal` stay visually consistent by following the
+same UI/UX brief, not by importing from one another.
+
+
+## Running the platform locally
+
+Three services, started in this order. Each is standalone — install and run it from its own directory.
+
+| # | App | Directory | Port | Start |
+|---|---|---|---|---|
+| 1 | Backend API | `apps/api` | 4000 | `npm install && npm run seed && npm run dev` |
+| 2 | Admin CRM | `apps/admin` | 5174 | `npm install && npm run dev` |
+| 3 | Client Portal | `apps/portal` | 5175 | `npm install && npm run dev` |
+| – | Marketing site | `apps/web` | 3000 | `npm install && npm run dev` |
+
+**Start the API first** — both portals are thin clients and show a connection error without it.
+
+### Reset the demo data
+
+Stop the API, then:
+
+```bash
+cd apps/api && npm run seed
+```
+
+Restart it afterwards. (The API caches tables in memory, so a running instance will not pick up a seed written by another process.)
+
+### Demo accounts
+
+Both login screens list these and fill the form on click.
+
+| App | Email | Password |
+|---|---|---|
+| Admin CRM | `admin@enzointeriors.co.uk` | `admin123` |
+| Admin CRM | `designer@enzointeriors.co.uk` | `designer123` |
+| Admin CRM | `installer@enzointeriors.co.uk` | `installer123` |
+| Client Portal | `sarah.jones@example.com` and 4 others | `client123` |
+
+The two login flows are separate and non-interchangeable. See each app's README for the full list and a tour of what each account shows.
+
+> **Prototype phase:** `apps/api` stores data as JSON files in `apps/api/data/` instead of PostgreSQL, and passwords are plaintext. Neither is production-safe; both are documented in `apps/api/README.md`.
 ## Tech Stack
 
 | Layer | Technology |

@@ -54,6 +54,14 @@ export interface ServiceDetail extends Service {
   heroDesc: string;
   /** The long-form paragraph on the detail page. */
   overview: string;
+  /**
+   * A one-sentence version of `overview`, shown in place of it on narrow
+   * screens. The full paragraph is four sentences of scene-setting, which
+   * reads as a wall of text above a phone-width feature ledger; the short
+   * form keeps the section's point without the scroll. Optional — a service
+   * authored without one simply shows `overview` at every width.
+   */
+  overviewShort?: string;
   process: ProcessStep[];
   pricing: PricingTier[];
   gallery: string[];

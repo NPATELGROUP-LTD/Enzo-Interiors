@@ -1,111 +1,53 @@
 "use client";
 
+// The site header.
+//
+// Two genuinely separate designs share this file, because they answer two
+// different questions.
+//
+// ── Desktop: a dock that expands into a table of contents ──
+// Three floating pieces on the sand frame — logo, centre dock, CTA — where
+// pointing at a name widens the dock and drops a panel listing *that page's
+// own sections*, anchored. See lib/navigation.ts for why the panels stopped
+// being a grab-bag of links to other pages.
+//
+// ── Mobile: a different object in a different palette ──
+// The phone menu is not the desktop one reflowed. It is a full-height ink
+// sheet in a palette that appears nowhere else on the site — ink, bone and
+// brass rather than forest, cream and sand — because it is the one surface
+// that completely replaces the page rather than sitting on it, and dressing
+// it in the page's own colours only ever made it look like a section that
+// had come loose. Brass is not an arbitrary accent either: it is in half the
+// project specifications on this site (brass hardware, brass pulls), so the
+// menu reads as the brand's ironmongery rather than as a second brand.
+//
+// It is also flatter than what it replaces: no glass, no blur, no shadow
+// stack. One hairline rule under the bar, one column of numbered rows, one
+// filled action. Each row opens in place to show that page's sections, so
+// the phone gets the same contents the desktop dock gives — the two designs
+// differ in everything except what they tell you.
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
-import {
-  ArrowUpRight,
-  Menu,
-  X,
-  Home as HomeIcon,
-  Sofa,
-  Image as ImageIcon,
-  Users,
-  Mail,
-} from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { TextRoll } from "@/components/shared/TextRoll";
+import { NAV_LINKS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-interface NavPanelLink {
-  label: string;
-  href: string;
-  description?: string;
-}
+// The phone menu's palette. Deliberately outside the theme tokens — see the
+// note at the top of the file. Kept here as one object so the sheet cannot
+// drift into forest/cream by accident.
+const INK = {
+  ground: "#14151A",
+  bone: "#EFECE4",
+  boneSoft: "rgba(239,236,228,0.62)",
+  brass: "#C69248",
+  rule: "rgba(239,236,228,0.14)",
+} as const;
 
-interface NavLink {
-  label: string;
-  path: string;
-  icon: React.ComponentType<{ className?: string }>;
-  panel: {
-    tagline: string;
-    links: NavPanelLink[];
-  };
-}
-
-const navLinks: NavLink[] = [
-  {
-    label: "Home",
-    path: "/",
-    icon: HomeIcon,
-    panel: {
-      tagline: "Bespoke interiors, designed around how you live.",
-      links: [
-        { label: "Our Services", href: "/services", description: "Kitchens, wardrobes, bedrooms & media walls" },
-        { label: "Portfolio", href: "/portfolio", description: "Recent projects across Leicester" },
-        { label: "Book a Consultation", href: "/booking", description: "A free, no-obligation design visit" },
-      ],
-    },
-  },
-  {
-    label: "Services",
-    path: "/services",
-    icon: Sofa,
-    panel: {
-      tagline: "Fitted furniture, designed and installed end to end.",
-      links: [
-        { label: "Kitchens", href: "/services/kitchens", description: "Bespoke kitchen design & fit" },
-        { label: "Bedrooms", href: "/services/bedrooms", description: "Fitted wardrobes & bedroom suites" },
-        { label: "Media Walls", href: "/services/media-walls", description: "Statement living room features" },
-        { label: "Wardrobes", href: "/services/wardrobes", description: "Walk-in & fitted storage" },
-      ],
-    },
-  },
-  {
-    label: "Portfolio",
-    path: "/portfolio",
-    icon: ImageIcon,
-    panel: {
-      tagline: "A look inside homes we've transformed.",
-      links: [
-        { label: "Full Portfolio", href: "/portfolio", description: "Browse every completed project" },
-        { label: "Kitchens", href: "/services/kitchens", description: "See kitchen installations" },
-        { label: "Bedrooms", href: "/services/bedrooms", description: "See bedroom installations" },
-      ],
-    },
-  },
-  {
-    label: "About",
-    path: "/about",
-    icon: Users,
-    panel: {
-      tagline: "Leicester-based designers & makers.",
-      links: [
-        { label: "Our Story", href: "/about", description: "How Enzo Interiors began" },
-        { label: "Our Process", href: "/services", description: "From consultation to install" },
-        { label: "Contact Us", href: "/contact", description: "Speak to the team" },
-      ],
-    },
-  },
-  {
-    label: "Contact",
-    path: "/contact",
-    icon: Mail,
-    panel: {
-      tagline: "Let's talk about your next room.",
-      links: [
-        { label: "Book a Consultation", href: "/booking", description: "Free design visit, no obligation" },
-        { label: "Get in Touch", href: "/contact", description: "Send us your project details" },
-      ],
-    },
-  },
-];
-
-// Treatment for the mobile-only pieces (toggle button, mobile menu sheet) —
-// dark glass, since mobile has no sand frame to blend into.
-const GLASS = "border border-enzo-cream/15 bg-enzo-forest/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]";
 // Treatment for the desktop-only pieces that dock against the sand frame
 // (logo, center dock, CTA button) — solid sand color (no glassmorphism,
 // no blur, fully opaque), matching the frame exactly so they read as one
@@ -118,6 +60,8 @@ const PIECE_RADIUS = "rounded-2xl";
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Which page's contents are expanded inside the phone sheet.
+  const [mobileSection, setMobileSection] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
   const pathname = usePathname();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -259,6 +203,7 @@ export function Navbar() {
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     setMobileOpen(false);
+    setMobileSection(null);
     setActivePath(null);
   }
 
@@ -320,7 +265,7 @@ export function Navbar() {
     closeTimer.current = setTimeout(() => setActivePath(null), 120);
   };
 
-  const activeLink = navLinks.find((l) => l.path === activePath) ?? null;
+  const activeLink = NAV_LINKS.find((l) => l.path === activePath) ?? null;
 
   // Keeps rendering the last-open panel's content while the dock collapses,
   // so the CSS grid-rows close transition below never has to shrink toward
@@ -330,7 +275,7 @@ export function Navbar() {
   if (activePath && activePath !== displayedPath) {
     setDisplayedPath(activePath);
   }
-  const displayedLink = navLinks.find((l) => l.path === displayedPath) ?? null;
+  const displayedLink = NAV_LINKS.find((l) => l.path === displayedPath) ?? null;
 
   return (
     <>
@@ -354,11 +299,14 @@ export function Navbar() {
             ref={logoRef}
             href="/"
             className={cn(
-              "relative flex items-center overflow-hidden px-5 pointer-events-auto",
+              // On a phone the mark sits flat on the page with no card
+              // around it at all — the ink sheet behind it when the menu is
+              // open supplies all the contrast it needs, and a glass pill
+              // floating over a photograph was the single busiest thing on
+              // the small layout. The desktop pill is unchanged.
+              "relative flex items-center overflow-hidden pointer-events-auto max-md:pl-1",
               PIECE_HEIGHT,
-              PIECE_RADIUS,
-              GLASS,
-              "md:border-0 md:bg-enzo-sand md:text-enzo-forest md:backdrop-blur-none md:shadow-none",
+              "md:rounded-2xl md:bg-enzo-sand md:px-5 md:text-enzo-forest",
             )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
@@ -402,18 +350,43 @@ export function Navbar() {
             </Button>
           </div>
 
+          {/* The phone control is a word and a rule, not a hamburger in a
+              glass pill. Two stacked hairlines that cross into an X — the
+              state change is the whole affordance, and the label removes any
+              question about what the glyph is. Brass on the closed state so
+              the one interactive thing on a small screen is also the one
+              coloured thing. */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className={cn(
-              "pointer-events-auto flex w-12 items-center justify-center text-enzo-cream md:hidden",
+              "pointer-events-auto flex items-center gap-2.5 px-1 md:hidden",
               PIECE_HEIGHT,
-              PIECE_RADIUS,
-              GLASS,
             )}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span
+              className="font-display text-[10.5px] font-semibold uppercase tracking-[0.26em]"
+              style={{ color: mobileOpen ? INK.bone : INK.brass }}
+            >
+              {mobileOpen ? "Close" : "Menu"}
+            </span>
+            <span aria-hidden="true" className="relative block h-3 w-6">
+              <span
+                className="absolute left-0 block h-[1.5px] w-full origin-center transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{
+                  backgroundColor: mobileOpen ? INK.bone : INK.brass,
+                  transform: mobileOpen ? "translateY(5px) rotate(45deg)" : "translateY(1px)",
+                }}
+              />
+              <span
+                className="absolute left-0 block h-[1.5px] w-full origin-center transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{
+                  backgroundColor: mobileOpen ? INK.bone : INK.brass,
+                  transform: mobileOpen ? "translateY(5px) rotate(-45deg)" : "translateY(9px)",
+                }}
+              />
+            </span>
           </button>
         </div>
 
@@ -461,7 +434,7 @@ export function Navbar() {
                 PIECE_HEIGHT,
               )}
             >
-              {navLinks.map((link) => {
+              {NAV_LINKS.map((link) => {
                 const isActive = pathname === link.path;
                 const isHovered = activePath === link.path;
                 return (
@@ -511,7 +484,7 @@ export function Navbar() {
                       activeLink ? "opacity-100" : "opacity-0",
                     )}
                   >
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr] lg:gap-0">
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2.4fr)] lg:gap-0">
                       <div className="pb-6 border-b border-enzo-forest/10 lg:pb-0 lg:border-b-0 lg:pr-10">
                         <div className="flex items-start gap-4">
                           <motion.div
@@ -524,37 +497,40 @@ export function Navbar() {
                             <displayedLink.icon className="h-5 w-5" />
                           </motion.div>
                           <div className="flex-1 min-w-0">
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest/50">
-                              Explore {displayedLink.label}
+                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest/80">
+                              On this page
                             </p>
                             <p className="text-[14px] leading-snug font-medium text-enzo-forest/75">
-                              {displayedLink.panel.tagline}
+                              {displayedLink.tagline}
                             </p>
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3 lg:border-l lg:border-enzo-forest/10 lg:pl-10 pt-6 lg:pt-0">
-                        {displayedLink.panel.links.map((pl, i) => (
+
+                      {/* The page's own contents, in the order they appear on
+                          it — each row carrying the sheet index the page
+                          itself prints beside that section, so the panel and
+                          the page use one numbering. */}
+                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 pt-6 lg:grid-cols-3 lg:border-l lg:border-enzo-forest/10 lg:pl-10 lg:pt-0">
+                        {displayedLink.sections.map((section) => (
                           <Link
-                            key={pl.href + pl.label}
-                            href={pl.href}
+                            key={section.href}
+                            href={section.href}
                             onClick={() => setActivePath(null)}
                             className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
                           >
                             <span className="flex items-baseline gap-2">
-                              <span className="text-[10px] font-medium tabular-nums text-enzo-forest/40 transition-colors duration-200 group-hover:text-enzo-forest/70">
-                                0{i + 1}
+                              <span className="font-display text-[10px] font-semibold tabular-nums tracking-[0.14em] text-enzo-forest-light">
+                                {section.index}
                               </span>
                               <span className="flex items-center gap-1 text-[14px] font-medium text-enzo-forest">
-                                {pl.label}
+                                {section.label}
                                 <ArrowUpRight className="h-3.5 w-3.5 -translate-y-px opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
                               </span>
                             </span>
-                            {pl.description && (
-                              <span className="pl-[22px] text-[12px] leading-snug text-enzo-forest/55 transition-colors duration-200 group-hover:text-enzo-forest/80">
-                                {pl.description}
-                              </span>
-                            )}
+                            <span className="pl-[26px] text-[12px] leading-snug text-enzo-forest/70">
+                              {section.description}
+                            </span>
                           </Link>
                         ))}
                       </div>
@@ -567,69 +543,145 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu — a full-viewport takeover rather than a floating card,
-          so it reads as its own screen: large tappable rows front and
-          center, no page content bleeding through underneath. Sits at
-          z-[60], below the fixed top row's z-[70] so the logo + the same
-          toggle button (now showing X) stay visible and usable as the
-          close control throughout. */}
+      {/* ── The phone sheet ──
+          Ink, bone and brass; no glass, no blur, no shadow stack. It wipes
+          down from under the bar as a clip rather than fading, so it reads
+          as a panel sliding over the page rather than the page dissolving.
+
+          It sits at z-[60], under the fixed bar's z-[70], so the mark and
+          the same control stay put and the control simply becomes "Close" —
+          one object changing state, not two objects swapping places.
+
+          Each page row opens in place to list that page's own sections, so
+          the phone carries exactly the contents the desktop dock does. */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] } }}
-            exit={{ opacity: 0, transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1], delay: 0.1 } }}
+            initial={{ clipPath: "inset(0% 0% 100% 0%)" }}
+            animate={{
+              clipPath: "inset(0% 0% 0% 0%)",
+              transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] },
+            }}
+            exit={{
+              clipPath: "inset(0% 0% 100% 0%)",
+              transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1], delay: 0.05 },
+            }}
             role="dialog"
             aria-modal="true"
-            aria-label="Mobile navigation"
-            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-enzo-forest md:hidden"
+            aria-label="Menu"
+            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto md:hidden"
+            style={{ backgroundColor: INK.ground }}
           >
-            {/* Ambient texture so the full-bleed forest fill doesn't read
-                as a flat block of color — matches the glass treatment used
-                elsewhere in the nav (soft radial glow, subtle top vignette). */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-70"
-              style={{
-                background:
-                  "radial-gradient(120% 60% at 85% 0%, rgba(243,235,220,0.10), transparent 60%), radial-gradient(90% 50% at 0% 100%, rgba(243,235,220,0.06), transparent 55%)",
-              }}
-            />
+            <div className="relative flex min-h-full flex-col px-6 pb-10 pt-24">
+              {/* The rule the bar sits on. It is the sheet's only chrome. */}
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-6 top-[4.5rem] block h-px"
+                style={{ backgroundColor: INK.rule }}
+              />
 
-            <div className="relative flex flex-1 flex-col px-6 pt-28 pb-8">
               <motion.nav
                 variants={menuListVariants}
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="flex flex-1 flex-col justify-center divide-y divide-enzo-cream/10"
+                className="flex flex-1 flex-col pt-4"
               >
-                {navLinks.map((link, i) => {
-                  const isActive = pathname === link.path;
+                {NAV_LINKS.map((link, i) => {
+                  const isHere = pathname === link.path;
+                  const isOpen = mobileSection === link.path;
                   return (
-                    <motion.div key={link.path} variants={menuItemVariants}>
-                      <Link
-                        href={link.path}
-                        onClick={() => setMobileOpen(false)}
-                        className="group flex items-center justify-between gap-4 py-5 active:opacity-70"
-                      >
-                        <span className="flex items-baseline gap-4">
-                          <span className="text-[13px] font-medium tabular-nums text-enzo-cream/40">
-                            0{i + 1}
+                    <motion.div
+                      key={link.path}
+                      variants={menuItemVariants}
+                      className="border-b"
+                      style={{ borderColor: INK.rule }}
+                    >
+                      <div className="flex items-stretch">
+                        <Link
+                          href={link.path}
+                          onClick={() => setMobileOpen(false)}
+                          className="flex flex-1 items-baseline gap-4 py-5 active:opacity-60"
+                        >
+                          <span
+                            className="font-display text-[10.5px] font-semibold tabular-nums tracking-[0.2em]"
+                            style={{ color: isHere ? INK.brass : INK.boneSoft }}
+                          >
+                            {String(i + 1).padStart(2, "0")}
                           </span>
                           <span
-                            className={cn(
-                              "font-title text-[34px] leading-none text-enzo-cream transition-colors duration-200",
-                              isActive ? "text-enzo-cream" : "text-enzo-cream/90",
-                            )}
+                            className="font-title text-[2.1rem] font-semibold leading-none tracking-[-0.04em]"
+                            style={{ color: INK.bone }}
                           >
                             {link.label}
                           </span>
-                        </span>
-                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-cream/10 transition-transform duration-200 group-active:scale-90">
-                          <ArrowUpRight className="h-4 w-4 text-enzo-cream" />
-                        </span>
-                      </Link>
+                          {/* Where you already are, said with a mark rather
+                              than a colour shift no one would notice. */}
+                          {isHere && (
+                            <span
+                              aria-hidden="true"
+                              className="ml-1 block h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: INK.brass }}
+                            />
+                          )}
+                        </Link>
+
+                        {/* Opening the contents is a separate control from
+                            going to the page — tapping the name should go
+                            there, and a phone has no hover to carry the
+                            difference the way the desktop dock does. */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMobileSection((current) =>
+                              current === link.path ? null : link.path,
+                            )
+                          }
+                          aria-expanded={isOpen}
+                          aria-label={`${isOpen ? "Hide" : "Show"} ${link.label} sections`}
+                          className="-mr-2 flex w-12 shrink-0 items-center justify-center"
+                        >
+                          <Plus
+                            className="h-4 w-4 transition-transform duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
+                            style={{
+                              color: isOpen ? INK.brass : INK.boneSoft,
+                              transform: isOpen ? "rotate(135deg)" : "none",
+                            }}
+                          />
+                        </button>
+                      </div>
+
+                      <div
+                        className="grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                        style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+                      >
+                        <div className="overflow-hidden">
+                          <ul className="pb-5 pl-[2.2rem]">
+                            {link.sections.map((section) => (
+                              <li key={section.href}>
+                                <Link
+                                  href={section.href}
+                                  onClick={() => setMobileOpen(false)}
+                                  className="flex items-baseline gap-3 py-2 active:opacity-60"
+                                >
+                                  <span
+                                    className="font-display w-6 shrink-0 text-[9.5px] font-semibold tabular-nums tracking-[0.16em]"
+                                    style={{ color: INK.brass }}
+                                  >
+                                    {section.index}
+                                  </span>
+                                  <span
+                                    className="text-[14.5px] leading-[1.4]"
+                                    style={{ color: INK.boneSoft }}
+                                  >
+                                    {section.label}
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      </div>
                     </motion.div>
                   );
                 })}
@@ -640,13 +692,25 @@ export function Navbar() {
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="pt-6"
+                className="pt-10"
               >
-                <Button asChild size="lg" className="w-full justify-center">
-                  <Link href="/booking" onClick={() => setMobileOpen(false)}>
-                    Book a Consultation
-                  </Link>
-                </Button>
+                <Link
+                  href="/booking"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-between gap-4 rounded-full py-4 pl-7 pr-3 text-[15px] font-medium active:scale-[0.985]"
+                  style={{ backgroundColor: INK.brass, color: INK.ground }}
+                >
+                  Book a consultation
+                  <span
+                    className="flex h-10 w-10 items-center justify-center rounded-full"
+                    style={{ backgroundColor: INK.ground, color: INK.brass }}
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                </Link>
+                <p className="mt-5 text-[12px] leading-[1.6]" style={{ color: INK.boneSoft }}>
+                  Free survey, in your home, across Leicester &amp; Leicestershire.
+                </p>
               </motion.div>
             </div>
           </motion.div>

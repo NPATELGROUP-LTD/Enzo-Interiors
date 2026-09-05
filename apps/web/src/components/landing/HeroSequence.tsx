@@ -609,7 +609,7 @@ export function HeroSequence() {
                 style={{ width: `${loadProgress}%` }}
               />
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/60">
+            <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/70">
               <span className="font-sans text-[11px] uppercase tracking-[0.22em]">Loading the showcase</span>
               <span className="shrink-0 font-sans text-[11px] tabular-nums tracking-[0.08em] text-enzo-cream/75">
                 {loadProgress}%
@@ -771,7 +771,7 @@ export function HeroSequence() {
               {/* Subtext */}
               <p
                 ref={ctaSubRef}
-                className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/60 opacity-0"
+                className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/70 opacity-0"
               >
                 One free consultation. Zero pressure. Built for you.
               </p>
@@ -793,7 +793,7 @@ export function HeroSequence() {
                     />
                   </div>
                   <p className="font-display mt-3 text-[13px] font-semibold text-enzo-cream">Wardrobe Suite</p>
-                  <p className="font-sans text-[12px] text-enzo-cream/50">Bespoke. Handcrafted.</p>
+                  <p className="font-sans text-[12px] text-enzo-cream/70">Bespoke. Handcrafted.</p>
                 </div>
 
                 <div ref={ctaChip2Ref} className="relative z-10 -mt-10 flex h-[150px] items-center opacity-0">

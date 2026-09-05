@@ -14,11 +14,10 @@
 // three cards read as a considered arrangement rather than a row of boxes.
 import { useRef } from "react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { Quote } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { revealWhenVisible, scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { Testimonial } from "@/lib/content";
@@ -54,20 +53,15 @@ export function ClientVoices({ testimonials }: ClientVoicesProps) {
         rotate: (index: number) => (index % 2 === 0 ? -1.5 : 1.5),
       });
 
-      // Whether to reveal is recomputed from the card's own live
-      // getBoundingClientRect() on every scroll tick, rather than trusted to
-      // a ScrollTrigger boundary cached once at creation. The sections above
-      // this one (the hero's pinned stage, section 02's sticky 425vh track)
-      // can still be settling their real height at that moment, which makes
-      // a cached boundary read as already fired-and-passed — the cards stay
-      // stuck at opacity 0 well after they've actually scrolled into view
-      // (the "empty space" under the heading). A live measurement has
-      // nothing cached to go stale.
-      let revealed = false;
-      const revealIfVisible = () => {
-        if (revealed) return;
-        if (cards[0]!.getBoundingClientRect().top > window.innerHeight * 0.82) return;
-        revealed = true;
+      // The reveal is an IntersectionObserver, not a ScrollTrigger.
+      //
+      // The quotes used to be missing on most loads and present after a
+      // refresh, which is the signature of a cached boundary measured
+      // against a document that had not finished happening yet: above this
+      // section sit the hero's pinned stage and section 02's sticky 425vh
+      // track, and none of the page's photographs have loaded at mount. See
+      // revealWhenVisible in hooks/useGSAP.ts for the full account.
+      const stopWatching = revealWhenVisible(cards[0]!, () => {
         gsap.to(cards, {
           opacity: 1,
           y: 0,
@@ -76,35 +70,31 @@ export function ClientVoices({ testimonials }: ClientVoicesProps) {
           ease: EASE.editorial,
           stagger: 0.1,
         });
-      };
-
-      ScrollTrigger.create({
-        trigger: section,
-        start: "top bottom",
-        end: "bottom top",
-        onUpdate: revealIfVisible,
-        onRefresh: revealIfVisible,
       });
-      revealIfVisible();
 
-      if (!desktop) return;
+      if (!desktop) return stopWatching;
 
       cards.forEach((card, index) => {
-        gsap.fromTo(
-          card,
-          { yPercent: -CARD_DRIFT[index % CARD_DRIFT.length]! },
+        scrollTimeline(
+          (timeline) =>
+            timeline.fromTo(
+              card,
+              { yPercent: -CARD_DRIFT[index % CARD_DRIFT.length]! },
+              {
+                yPercent: CARD_DRIFT[index % CARD_DRIFT.length]!,
+                ease: EASE.linear,
+              },
+            ),
           {
-            yPercent: CARD_DRIFT[index % CARD_DRIFT.length]!,
-            ease: EASE.linear,
-            scrollTrigger: {
-              trigger: section,
-              start: "top bottom",
-              end: "bottom top",
-              scrub: 0.8,
-            },
+            trigger: section,
+            start: "top bottom",
+            end: "bottom top",
+            scrub: 0.8,
           },
         );
       });
+
+      return stopWatching;
     },
     { queries: { desktop: "(min-width: 1024px)" } },
   );
@@ -112,8 +102,9 @@ export function ClientVoices({ testimonials }: ClientVoicesProps) {
   return (
     <section
       ref={sectionRef}
+      id="home-reviews"
       aria-labelledby="voices-heading"
-      className="relative overflow-hidden bg-enzo-sand"
+      className="relative overflow-hidden bg-enzo-sand scroll-mt-24"
     >
       <div className="mx-auto max-w-[1500px] px-4 py-14 sm:px-6 md:px-12 md:py-20">
         {/* Sand is the mount, cream is the reading surface. Solid forest on

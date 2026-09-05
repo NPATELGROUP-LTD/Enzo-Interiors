@@ -16,7 +16,7 @@
 import { useRef } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
 import type { ProcessStep } from "@/lib/content";
@@ -44,15 +44,24 @@ export function ProcessStair({
 
     // Each tread arrives from up-and-left, i.e. from the previous step's
     // position, so the stair builds itself one tread at a time.
+    //
+    // Through fromOnScroll, not `gsap.from(..., { scrollTrigger })` — a
+    // tween-attached trigger measures synchronously inside the commit that
+    // creates it, and force-refreshes the un-measured `once: true` triggers
+    // above it as it goes, which is what crashed this section. See
+    // hooks/useGSAP.ts.
     treads.forEach((tread) => {
-      gsap.from(tread, {
-        opacity: 0,
-        x: -34,
-        y: -18,
-        duration: 0.75,
-        ease: EASE.editorial,
-        scrollTrigger: { trigger: tread, start: "top 86%", once: true },
-      });
+      fromOnScroll(
+        tread,
+        {
+          opacity: 0,
+          x: -34,
+          y: -18,
+          duration: 0.75,
+          ease: EASE.editorial,
+        },
+        { start: "top 86%" },
+      );
     });
   });
 

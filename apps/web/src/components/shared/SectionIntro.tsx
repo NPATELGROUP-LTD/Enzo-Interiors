@@ -40,6 +40,14 @@ export interface SectionIntroProps {
   /** Headline, one array entry per visual line so each can mask up on its own. */
   lines: ReactNode[];
   lede?: ReactNode;
+  /**
+   * A shorter lede for narrow screens. When given, it replaces `lede` below
+   * `sm` — long intro paragraphs are readable beside a headline on desktop
+   * and a wall of text above the fold on a phone. Both are rendered and one
+   * is hidden by breakpoint rather than measured in JS, so the swap survives
+   * SSR with no layout flash.
+   */
+  ledeShort?: ReactNode;
   /** `dark` inverts the palette for sections on forest/near-black grounds. */
   tone?: "light" | "dark";
   className?: string;
@@ -67,6 +75,7 @@ export function SectionIntro({
   datum,
   lines,
   lede,
+  ledeShort,
   tone = "light",
   className,
   titleClassName,
@@ -240,12 +249,24 @@ export function SectionIntro({
             data-intro-lede
             className={cn(
               "text-[15px] leading-[1.7] opacity-0",
+              // Only where a short form exists: a lede written for both
+              // widths keeps the section's normal 15px everywhere, and the
+              // ones that opted in read as a caption on a phone rather than
+              // a second paragraph.
+              ledeShort && "max-sm:text-[13.5px] max-sm:leading-[1.6]",
               split ? "lg:pb-1.5 lg:text-right" : "max-w-[46ch] mt-5",
               dark ? "text-enzo-cream/70" : "text-foreground/80",
             )}
             style={HIDDEN_UP_LEDE}
           >
-            {lede}
+            {ledeShort ? (
+              <>
+                <span className="sm:hidden">{ledeShort}</span>
+                <span className="max-sm:hidden">{lede}</span>
+              </>
+            ) : (
+              lede
+            )}
           </p>
         )}
       </div>

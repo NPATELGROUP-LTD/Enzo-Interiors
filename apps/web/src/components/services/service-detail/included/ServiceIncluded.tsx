@@ -2,22 +2,22 @@
 //
 //   0  IncludedLedger    two ruled columns with leader lines (cream)
 //   1  IncludedSpine     items alternating around a drawn centre rule (off-white)
-//   2  IncludedCourses   a wall laid course by course as you scroll (cream)
-//   3  IncludedRail      items hung from a rail on varied drops (cream)
+//   2  IncludedBuildUp   the wall read in section, layer by layer (media walls)
+//   3  IncludedBays      one run across five awkward rooms (wardrobes)
 //
 // See ../variant.ts for how the index is chosen and why.
 import type { ServiceDetail } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { IncludedLedger } from "./IncludedLedger";
 import { IncludedSpine } from "./IncludedSpine";
-import { IncludedCourses } from "./IncludedCourses";
-import { IncludedRail } from "./IncludedRail";
+import { IncludedBuildUp } from "./IncludedBuildUp";
+import { IncludedBays } from "./IncludedBays";
 
 const VARIANTS = [
   IncludedLedger,
   IncludedSpine,
-  IncludedCourses,
-  IncludedRail,
+  IncludedBuildUp,
+  IncludedBays,
 ] as const;
 
 export function ServiceIncluded({

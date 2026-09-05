@@ -4,14 +4,21 @@
 // src/components/services/README.md for the file map.
 //
 //   01  IndexHero          the drawing, driven by the list under it (dark)
-//   02  IndexPricingScale  every discipline plotted on one money scale (cream)
+//   02  IndexPricingScale  one money scale, pinned and drawn by scroll (cream)
 //   03  IndexConstants     a travelling rule inks each promise in (forest)
-//   04  QuestionsAccordion sticky heading against an animated list (off-white)
-//   05  IndexClosing       the ask beside what a survey actually is (near-black)
+//   04  QuestionsNotes     the answers, typeset in two columns; below lg, a
+//                          closed accordion (`mobileAccordion`) (off-white)
+//   05  IndexClosing       the ask, set on a drawing sheet (near-black)
 //
 // Grounds run dark → cream → forest → off-white → dark, so the footer's
 // darker ground reads as a continuation rather than a cut — the same
 // reasoning as the landing page's section order.
+//
+// §02 is the only pinned section on the page, and it is the only one that
+// should be: it takes the screen for one idea, holds it while the visitor
+// draws the scale with their own wheel, and hands it back. Adding a second
+// pin below it would turn the page into a slideshow and would also mean two
+// triggers competing to re-measure everything under them.
 //
 // Stays a Server Component: it fetches the records and hands them down.
 // Every section is written against `ServiceDetail[]` of any length, because
@@ -21,7 +28,7 @@ import type { Metadata } from "next";
 import { IndexHero } from "@/components/services/services-index/IndexHero";
 import { IndexPricingScale } from "@/components/services/services-index/IndexPricingScale";
 import { IndexConstants } from "@/components/services/services-index/IndexConstants";
-import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
+import { QuestionsNotes } from "@/components/services/shared/QuestionsNotes";
 import { IndexClosing } from "@/components/services/services-index/IndexClosing";
 import { getServiceDetails, type FAQEntry } from "@/lib/content";
 
@@ -68,12 +75,13 @@ export default async function ServicesPage() {
       <IndexHero services={services} />
       <IndexPricingScale services={services} />
       <IndexConstants />
-      <QuestionsAccordion
+      <QuestionsNotes
         id="services-questions"
         index="04"
         lines={["Asked before", "every job."]}
         lede="The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
         faqs={FAQS}
+        mobileAccordion
       />
       <IndexClosing services={services} />
     </div>

@@ -2,7 +2,7 @@
 //
 //   0  InvestmentSheets   fanned tier cards (off-white)
 //   1  InvestmentSlider   set a budget, see what it buys (off-white)
-//   2  InvestmentBuildUp  one wall, stacked in priced steps (warm grey)
+//   2  InvestmentDisplay  specifications as inputs, priced in a frame (warm grey)
 //   3  InvestmentDoors    tiers as door fronts that open (near-black)
 //
 // All four share the room-size control and the `estimateQuote` helper, so
@@ -12,13 +12,13 @@ import type { PricingTier, ServiceDetail } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { InvestmentSheets } from "./InvestmentSheets";
 import { InvestmentSlider } from "./InvestmentSlider";
-import { InvestmentBuildUp } from "./InvestmentBuildUp";
+import { InvestmentDisplay } from "./InvestmentDisplay";
 import { InvestmentDoors } from "./InvestmentDoors";
 
 const VARIANTS = [
   InvestmentSheets,
   InvestmentSlider,
-  InvestmentBuildUp,
+  InvestmentDisplay,
   InvestmentDoors,
 ] as const;
 

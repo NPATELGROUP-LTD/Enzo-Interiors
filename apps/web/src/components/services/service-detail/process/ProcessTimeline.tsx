@@ -14,7 +14,7 @@
 import { useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
 import type { ProcessStep } from "@/lib/content";
@@ -34,14 +34,17 @@ export function ProcessTimeline({
     if (!rows.length) return;
 
     if (!reduced) {
-      gsap.from(rows, {
-        opacity: 0,
-        y: 26,
-        duration: 0.7,
-        ease: EASE.enter,
-        stagger: 0.08,
-        scrollTrigger: { trigger: rows[0], start: REVEAL_START, once: true },
-      });
+      fromOnScroll(
+        rows,
+        {
+          opacity: 0,
+          y: 26,
+          duration: 0.7,
+          ease: EASE.enter,
+          stagger: 0.08,
+        },
+        { trigger: rows[0], start: REVEAL_START },
+      );
     }
 
     // Which stage the reading line is on. Live bounding boxes on the ticker

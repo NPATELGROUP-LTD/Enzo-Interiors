@@ -86,11 +86,11 @@ export function RoomSizeControl({
             onClick={() => onChange(size)}
             aria-pressed={value === size}
             className={cn(
-              "relative z-10 rounded-full px-6 py-2 text-[13px] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2",
+              "relative z-10 flex min-h-11 items-center rounded-full px-6 text-[13px] transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:min-h-0 sm:py-2",
               dark
                 ? value === size
                   ? "text-enzo-forest focus-visible:ring-enzo-sand focus-visible:ring-offset-enzo-dark"
-                  : "text-enzo-cream/60 hover:text-enzo-cream focus-visible:ring-enzo-sand focus-visible:ring-offset-enzo-dark"
+                  : "text-enzo-cream/70 hover:text-enzo-cream focus-visible:ring-enzo-sand focus-visible:ring-offset-enzo-dark"
                 : value === size
                   ? "text-primary-foreground focus-visible:ring-ring focus-visible:ring-offset-background"
                   : "text-muted-foreground hover:text-primary focus-visible:ring-ring focus-visible:ring-offset-background",

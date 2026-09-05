@@ -11,8 +11,18 @@
 // validates them against known values before handing them to the actual
 // step logic in ./BookingWizard.tsx, which needs interactive state and so
 // must be a Client Component.
+import type { Metadata } from "next";
 import { BookingWizard } from "./BookingWizard";
 import { BOOKING_SERVICES, type BookingServiceId } from "./services";
+
+// Every other route sets its own title; without this one the booking wizard
+// inherited the root layout's bare "Enzo Interiors", so a tab parked
+// mid-booking was indistinguishable from the homepage.
+export const metadata: Metadata = {
+  title: "Book a consultation — Enzo Interiors",
+  description:
+    "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price.",
+};
 
 // Mirrors the tier labels used by src/lib/content/services.ts's
 // `pricing[].tier` values (Essential / Premium / Luxury) — kept local since

@@ -40,6 +40,8 @@ const SERVICE_DETAILS: ServiceDetail[] = [
       "Handcrafted kitchen designs tailored to your lifestyle, cooking habits, and aesthetic preferences.",
     overview:
       "Our kitchens are designed from scratch to perfectly suit your home. Every cabinet, worktop, and fitting is tailored to your exact requirements. We use only premium materials and finishes, ensuring your kitchen not only looks stunning but stands the test of time. From contemporary handleless designs to classic shaker styles, we bring your vision to life.",
+    overviewShort:
+      "Designed from scratch for your room, built from premium materials, and fitted to last.",
     features: [
       "Custom cabinetry & worktops",
       "Integrated appliance planning",
@@ -146,6 +148,8 @@ const SERVICE_DETAILS: ServiceDetail[] = [
       "Transform your bedroom into a serene retreat with bespoke fitted furniture.",
     overview:
       "Create the bedroom of your dreams with our bespoke fitted furniture. From elegant wardrobes to perfectly proportioned bedside units and dressing tables, we design spaces that feel truly personal. Every piece is crafted to maximise your space while creating a luxurious, hotel-like atmosphere.",
+    overviewShort:
+      "Wardrobes, bedsides and dressing tables made to fit your room exactly.",
     features: [
       "Built-in wardrobes & storage",
       "Custom headboard designs",
@@ -246,6 +250,8 @@ const SERVICE_DETAILS: ServiceDetail[] = [
     heroDesc: "Create a stunning focal point with a custom-designed media wall.",
     overview:
       "Transform your living space with a bespoke media wall that integrates your TV, sound system, fireplace, and storage into one breathtaking design. Our media walls are crafted to be the centrepiece of your home, combining functionality with stunning aesthetics.",
+    overviewShort:
+      "TV, sound, fire and storage built into one wall as the centrepiece of the room.",
     features: [
       "Integrated TV & sound solutions",
       "Hidden cable management",
@@ -344,6 +350,8 @@ const SERVICE_DETAILS: ServiceDetail[] = [
     heroDesc: "Maximise every inch with floor-to-ceiling fitted wardrobes.",
     overview:
       "Our fitted wardrobes are designed around your exact wardrobe needs with intelligent internal configurations. From sliding doors to walk-in designs, we maximise every centimetre of space while creating a beautiful, organised storage solution.",
+    overviewShort:
+      "Fitted to the centimetre, with an interior configured around what you actually hang.",
     features: [
       "Sliding or hinged door options",
       "Internal drawer systems",

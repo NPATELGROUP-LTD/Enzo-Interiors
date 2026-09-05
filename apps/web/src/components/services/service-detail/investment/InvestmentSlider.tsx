@@ -18,9 +18,10 @@
 import { useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
+import { cn } from "@/lib/utils";
 import type { PricingTier } from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
@@ -73,13 +74,16 @@ export function InvestmentSlider({
   useGSAP(sectionRef, (section, reduced) => {
     const panel = section.querySelector<HTMLElement>("[data-budget-panel]");
     if (!panel || reduced) return;
-    gsap.from(panel, {
-      opacity: 0,
-      y: 30,
-      duration: 0.85,
-      ease: EASE.editorial,
-      scrollTrigger: { trigger: panel, start: REVEAL_START, once: true },
-    });
+    fromOnScroll(
+      panel,
+      {
+        opacity: 0,
+        y: 30,
+        duration: 0.85,
+        ease: EASE.editorial,
+      },
+      { trigger: panel, start: REVEAL_START },
+    );
   });
 
   useGSAP(
@@ -128,7 +132,7 @@ export function InvestmentSlider({
           className="mt-10 overflow-hidden rounded-[20px] border border-border/70 bg-background"
         >
           {/* ── The slider ── */}
-          <div className="border-b border-border/70 p-8 md:p-10">
+          <div className="border-b border-border/70 p-6 sm:p-8 md:p-10">
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <span className="font-display block text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
@@ -166,32 +170,38 @@ export function InvestmentSlider({
               />
             </label>
 
-            {/* Tier boundaries marked along the track. */}
-            <div className="relative mt-3 h-5">
-              {bands.map((band, index) => {
-                const position =
-                  ((band.estimate!.low - floor) / (ceiling - floor)) * 100;
-                return (
-                  <span
-                    key={band.tier.tier}
-                    className="absolute -translate-x-1/2 whitespace-nowrap text-[11px] transition-colors duration-300"
-                    style={{
-                      left: `${Math.min(96, Math.max(4, position))}%`,
-                      color:
-                        index === active
-                          ? "var(--enzo-forest)"
-                          : "var(--muted-foreground)",
-                    }}
-                  >
-                    {band.tier.tier}
-                  </span>
-                );
-              })}
+            {/* Tier names under the track. `justify-between` rather than
+                positioning each label at its own price threshold: two
+                thresholds that fall close together (a cheap "Essential" and
+                a not-much-dearer "Premium") put their labels close enough
+                to overlap into one unreadable run of letters. Evenly spaced
+                and always in price order, they can never collide, and the
+                active one still reads as the answer to "where am I". */}
+            <div className="mt-3 flex items-baseline justify-between gap-2">
+              {bands.map((band, index) => (
+                <span
+                  key={band.tier.tier}
+                  className={cn(
+                    "whitespace-nowrap text-[11px] transition-[color,font-weight] duration-300",
+                    index === active ? "font-semibold" : "font-normal",
+                    index === 0 && "text-left",
+                    index === bands.length - 1 && index !== 0 && "text-right",
+                  )}
+                  style={{
+                    color:
+                      index === active
+                        ? "var(--enzo-forest)"
+                        : "var(--muted-foreground)",
+                  }}
+                >
+                  {band.tier.tier}
+                </span>
+              ))}
             </div>
           </div>
 
           {/* ── What that buys ── */}
-          <div className="grid gap-8 p-8 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] md:p-10">
+          <div className="grid gap-6 p-6 sm:gap-8 sm:p-8 md:grid-cols-[minmax(0,1fr)_minmax(0,16rem)] md:p-10">
             <div>
               <p className="text-[14.5px] leading-[1.65] text-foreground/85">
                 {current.tier.desc}

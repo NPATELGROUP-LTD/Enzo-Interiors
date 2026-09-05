@@ -40,7 +40,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { QuoteModalRoot } from "@/components/services/shared/QuoteRequestModal";
-import { QuestionsAccordion } from "@/components/services/shared/QuestionsAccordion";
+import { QuestionsNotes } from "@/components/services/shared/QuestionsNotes";
 import { BookSurveyCta } from "@/components/services/shared/BookSurveyCta";
 import { ServiceHero } from "@/components/services/service-detail/hero/ServiceHero";
 import { ServiceIncluded } from "@/components/services/service-detail/included/ServiceIncluded";
@@ -127,7 +127,7 @@ export default async function ServiceDetailPage({
         position={position}
       />
 
-      <QuestionsAccordion
+      <QuestionsNotes
         id="sheet-questions"
         index="A6"
         lines={["Questions about", service.category.toLowerCase() + "."]}
@@ -142,6 +142,8 @@ export default async function ServiceDetailPage({
         lede={`A free survey, in your home, with no obligation attached. We will tell you honestly what your ${service.title.toLowerCase()} project needs before anyone talks about money.`}
         ctaLabel="Book a consultation"
         ctaHref={`/booking?service=${service.slug}`}
+        image={service.image}
+        imageAlt={service.title}
         // No finish count here any more — the material displays are gone
         // from these pages, so a "12 finishes" fact would be the last
         // surviving trace of a section that no longer exists.

@@ -21,10 +21,9 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight } from "lucide-react";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { ElevationDrawing } from "./ElevationDrawing";
 
@@ -99,7 +98,7 @@ export function ProcessLedger() {
       } else {
         const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
         if (drawing) {
-          ScrollTrigger.create({
+          observeScroll({
             trigger: drawing,
             start: "top 80%",
             once: true,
@@ -112,26 +111,32 @@ export function ProcessLedger() {
 
       const cards = gsap.utils.toArray<HTMLElement>("[data-stage-card]", section);
       if (cards.length) {
-        gsap.from(cards, {
-          opacity: 0,
-          y: 28,
-          duration: DUR.enter,
-          ease: EASE.enter,
-          stagger: 0.08,
-          scrollTrigger: { trigger: cards[0], start: REVEAL_START, once: true },
-        });
+        fromOnScroll(
+          cards,
+          {
+            opacity: 0,
+            y: 28,
+            duration: DUR.enter,
+            ease: EASE.enter,
+            stagger: 0.08,
+          },
+          { trigger: cards[0], start: REVEAL_START },
+        );
       }
 
       const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
       if (drawing) {
-        gsap.from(drawing, {
-          opacity: 0,
-          y: 40,
-          scale: 0.97,
-          duration: 1,
-          ease: EASE.editorial,
-          scrollTrigger: { trigger: drawing, start: "top 88%", once: true },
-        });
+        fromOnScroll(
+          drawing,
+          {
+            opacity: 0,
+            y: 40,
+            scale: 0.97,
+            duration: 1,
+            ease: EASE.editorial,
+          },
+          { trigger: drawing, start: "top 88%" },
+        );
       }
 
       return cleanupActive;
@@ -142,7 +147,8 @@ export function ProcessLedger() {
   const current = STAGES[active]!;
 
   return (
-    <section ref={sectionRef} aria-labelledby="process-heading" className="bg-muted">
+    <section ref={sectionRef} id="home-process"
+      aria-labelledby="process-heading" className="bg-muted scroll-mt-24">
       <div className="mx-auto max-w-[1500px] px-5 pt-20 sm:px-6 md:px-12 md:pt-28">
         <h2 id="process-heading" className="sr-only">
           Our process
@@ -212,7 +218,12 @@ export function ProcessLedger() {
                           color:
                             index === active
                               ? "var(--enzo-forest)"
-                              : "color-mix(in oklab, var(--enzo-forest) 45%, transparent)",
+                              // 80%, not 45%: measured against the real
+                              // tokens, forest needs four fifths strength to
+                              // clear 4.5:1 on cream (75% lands at 4.40),
+                              // and these are the names of the stages, not
+                              // a hairline.
+                              : "color-mix(in oklab, var(--enzo-forest) 80%, transparent)",
                         }}
                       >
                         {stage.title}
@@ -223,7 +234,7 @@ export function ProcessLedger() {
 
                 <Link
                   href="/booking"
-                  className="group/book mt-10 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+                  className="touch-target group/book mt-10 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
                 >
                   Start at stage one
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/book:translate-x-1" />
@@ -271,7 +282,7 @@ export function ProcessLedger() {
           </p>
           <Link
             href="/booking"
-            className="inline-flex items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary"
+            className="touch-target inline-flex items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary"
           >
             Start at stage one
             <ArrowRight className="h-3.5 w-3.5" />

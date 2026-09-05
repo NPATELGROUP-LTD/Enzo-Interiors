@@ -3,10 +3,7 @@
 // Ported from Boilerplate:src/app/components/shared/ScrollReveal.tsx.
 // Uses gsap ScrollTrigger — browser-only, must be a Client Component.
 import { useRef, useEffect, type ReactNode } from "react";
-import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-
-gsap.registerPlugin(ScrollTrigger);
+import { revealOnScroll } from "@/hooks/useGSAP";
 
 interface ScrollRevealProps {
   children: ReactNode;
@@ -24,28 +21,25 @@ export function ScrollReveal({
   useEffect(() => {
     if (!ref.current) return;
 
-    const trigger = gsap.fromTo(
+    // Through revealOnScroll rather than a `scrollTrigger` inside the
+    // tween's vars: a tween-attached trigger measures synchronously inside
+    // the commit that creates it, which is the shape that crashes a page
+    // carrying other, still-unmeasured `once: true` reveals. See
+    // hooks/useGSAP.ts.
+    const timeline = revealOnScroll(
       ref.current,
-      { opacity: 0, y: 40 },
-      {
-        opacity: 1,
-        y: 0,
-        duration: 0.8,
-        delay,
-        ease: "power3.out",
-        scrollTrigger: {
-          trigger: ref.current,
-          start: "top 90%",
-          once: true,
-        },
-      },
+      (tl) =>
+        tl.fromTo(
+          ref.current,
+          { opacity: 0, y: 40 },
+          { opacity: 1, y: 0, duration: 0.8, delay, ease: "power3.out" },
+        ),
+      { start: "top 90%" },
     );
 
     return () => {
-      if (trigger.scrollTrigger) {
-        trigger.scrollTrigger.kill();
-      }
-      trigger.kill();
+      timeline.scrollTrigger?.kill();
+      timeline.kill();
     };
   }, [delay]);
 

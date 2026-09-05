@@ -36,7 +36,12 @@
   --secondary: #8A9E8C;
   --secondary-foreground: #1C4A3A;
   --muted: #EAE7E0;
-  --muted-foreground: #6B6B65;
+  /* #67675F, not #6B6B65. Secondary copy is set in this colour on three
+     different grounds, and against the darkest of them (--muted, #EAE7E0,
+     which carries whole sections) #6B6B65 measured 4.34:1 — under AA for
+     text below 24px. Four points darker clears it on all three: 5.01 on
+     --background, 5.45 on --card, 4.62 on --muted. */
+  --muted-foreground: #67675F;
   --accent: #D4C9B5;
   --accent-foreground: #1C4A3A;
   --destructive: #D94040;
@@ -185,6 +190,15 @@
        smooth-scroll on the same element fights it — the browser and Lenis both
        animate scrollTop, which is what made the page feel like it was
        resisting the wheel instead of gliding with it. */
+
+    /* Reserve the scrollbar's lane instead of letting it paint over the
+       page. Overlay scrollbars (Windows 11, and Chrome's device-toolbar
+       emulation) take no layout width, so the last ~15px of every section
+       renders *underneath* the scrollbar: right-ranged type and full-width
+       plates then read as though they are jammed against the screen edge
+       while the left margin looks correct. Reserving the gutter is what
+       makes the two margins actually match on screen. */
+    scrollbar-gutter: stable;
   }
 
   /* Archivo is a grotesque, not a high-contrast serif: it needs more weight
@@ -299,6 +313,28 @@
    utilities, and a native range input is still the right control: it is
    keyboard-operable, announces its value, and supports touch drag for free. */
 @layer components {
+  /* Hit-area expander for standalone text CTAs.
+
+     The site's call-to-action links are 13px type on a hairline underline —
+     a 24-25px tall box. That is a fine *look* and a poor *target*: WCAG 2.5.8
+     asks for 24x24 CSS px and every mobile guideline asks for 44. Padding the
+     link would drag its underline away from its text, so the target is grown
+     with a transparent pseudo-element instead: the box the finger hits is
+     44px tall, the box the eye sees is unchanged, and nothing in the layout
+     moves. Only for links that stand alone — a link inside a sentence is
+     explicitly exempt from 2.5.8 and must not be padded, because that would
+     overlap the lines above and below it. */
+  .touch-target {
+    position: relative;
+  }
+
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -10px;
+  }
+
   .enzo-range {
     -webkit-appearance: none;
     appearance: none;
