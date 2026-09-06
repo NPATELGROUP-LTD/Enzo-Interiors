@@ -131,7 +131,7 @@ export function ProcessAssembly({
       aria-labelledby="process-heading"
       className="relative bg-muted scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="process-heading" className="sr-only">
           How it is built
         </h2>

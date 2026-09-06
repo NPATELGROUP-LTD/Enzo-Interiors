@@ -79,7 +79,7 @@ export function AboutClose() {
       aria-labelledby="about-close-heading"
       className="relative overflow-hidden bg-enzo-dark text-enzo-cream scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-24 sm:px-6 md:px-12 md:py-32">
+      <div className="shell py-24 md:py-32">
         <div className="flex items-center gap-5">
           <span aria-hidden="true" className="h-px flex-1 overflow-hidden">
             <span

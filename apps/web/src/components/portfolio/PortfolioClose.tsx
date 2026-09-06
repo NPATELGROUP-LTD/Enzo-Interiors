@@ -1,81 +1,76 @@
 "use client";
 
-// /portfolio §04 — the close.
+// /portfolio §04 — the close, as three questions.
 //
 // ── What this replaces, and why ──
-// The next number in the register, set at masthead scale and counting up to
-// itself, with the ask beside it. The idea was good and the execution was a
-// number: a visitor who has just scrolled an archive does not need a tenth
-// entry drawn for them, and "00" ticking to "10" is a trick, not an
-// argument. It also sat on cream, which meant the page ended on the same
-// temperature as the section above it.
+// Two versions failed here for the same underlying reason: the close kept
+// borrowing something the page already had.
 //
-// This closes the way the landing page opens, because that composition is
-// the one people on this site actually remember: a dark room, a two-tone
-// headline where the last word takes the accent, one filled action with the
-// arrow set in its own disc, and a photograph carrying a caption card. The
-// two ends of the site now rhyme.
+// The first was the next number in the register, counting up to itself. The
+// second borrowed the landing hero's grammar wholesale — dark room, two-tone
+// headline, filled pill with the arrow in its own disc, a photograph carrying
+// a caption card — and set four counted figures under it. Both problems at
+// once: the composition was the homepage's opening shot repeated at the
+// bottom of a different page, and the figures (rooms, towns, years) were the
+// *same four figures* §01 of this page already prints in its masthead. A
+// visitor scrolled the whole archive to arrive back at where they came in.
 //
-// ── The figures are read off the archive, not written ──
-// Every number in the strip is computed from the same records the wall above
-// was rendered from: how many projects, how many towns, how many weeks of
-// bench and site time they add up to, and the years they span. Publish a
-// project in the Content Manager and all four move. Nothing here is a claim
-// somebody has to remember to update.
+// So this one deliberately owns nothing the page has already used. No
+// photograph — §02 is a wall of them and §03 is one large one. No counted
+// figures — §01 has those. No two-tone masthead headline — the landing hero
+// has that.
 //
-// Ground: near-black, running straight into the footer's own dark so the end
-// of the page reads as one close rather than a section and then a footer.
+// ── What it is instead ──
+// The page has spent four screens telling. The close asks. It is the three
+// questions the survey actually opens with, set at the scale the answers
+// deserve, with the reason we ask underneath each one — so it reads as the
+// beginning of a conversation rather than the end of a brochure. The only
+// interactive thing on it is the control that starts that conversation.
+//
+// It is also the one section on this site that is *about the reader* rather
+// than about us, which is the right note for the last thing on an archive.
+//
+// Ground: sand. Neither of the two near-blacks above it, nor §03's cream, and
+// warm enough to read as an invitation rather than another sheet. It steps
+// down to the footer's dark without either of them looking like the other.
 import { useRef } from "react";
 import Link from "next/link";
 import gsap from "gsap";
 import { ArrowUpRight } from "lucide-react";
-import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
 
-/** Pulls the largest number out of "5 weeks" / "4-6 weeks". 0 if there is none. */
-function weeksIn(duration: string): number {
-  const numbers = duration.match(/\d+(?:\.\d+)?/g);
-  return numbers?.length ? Math.max(...numbers.map(Number)) : 0;
-}
+/**
+ * The three things a survey opens with, in order. Deliberately the questions
+ * and not the answers: the answers are the whole rest of the site.
+ */
+const QUESTIONS = [
+  {
+    ask: "Which room is it?",
+    why: "A kitchen and a walk-in are different trades wearing the same coat. Knowing which one tells us who needs to come and look at it, and how long they should put aside.",
+  },
+  {
+    ask: "What is wrong with it now?",
+    why: "Nobody replaces furniture that works. The thing that annoys you daily is usually the thing the design has to solve first — and it is rarely the thing people lead with.",
+  },
+  {
+    ask: "What would you rather not spend?",
+    why: "Not a haggle. Knowing the ceiling early is what lets us say honestly whether the room you have described can be done for it, before either of us has spent an afternoon on drawings.",
+  },
+] as const;
 
 export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
   const sectionRef = useRef<HTMLElement>(null);
 
-  const towns = new Set(items.map((item) => item.location.trim()).filter(Boolean));
-  const weeks = items.reduce((total, item) => total + weeksIn(item.duration), 0);
-  const years = items
-    .map((item) => Number(item.year.match(/\d{4}/)?.[0] ?? 0))
-    .filter((year) => year > 0);
-  const span =
-    years.length > 1 && Math.min(...years) !== Math.max(...years)
-      ? `${Math.min(...years)}–${Math.max(...years)}`
-      : years.length
-        ? String(years[0])
-        : "—";
-
-  // Only figures that are actually true of the records get a cell, so an
-  // archive of one project does not print "1 town, 0 weeks, —".
-  const figures = [
-    { value: String(items.length), label: items.length === 1 ? "Room finished" : "Rooms finished" },
-    { value: String(towns.size), label: towns.size === 1 ? "Town" : "Towns" },
-    weeks > 0 ? { value: String(weeks), label: "Weeks on site" } : null,
-    { value: span, label: "Years of it" },
-  ].filter((figure): figure is { value: string; label: string } => figure !== null);
-
-  // The most recent record supplies the plate, so the close is never showing
-  // a photograph the page has not already earned.
-  const plate = items[items.length - 1] ?? items[0] ?? null;
-
   useGSAP(sectionRef, (section, reduced) => {
-    const rows = gsap.utils.toArray<HTMLElement>("[data-close-row]", section);
-    const cells = gsap.utils.toArray<HTMLElement>("[data-close-figure]", section);
-    const picture = section.querySelector<HTMLElement>("[data-close-plate]");
+    const rows = gsap.utils.toArray<HTMLElement>("[data-ask]", section);
+    const lead = gsap.utils.toArray<HTMLElement>("[data-close-lead]", section);
+    const rules = gsap.utils.toArray<HTMLElement>("[data-ask-rule]", section);
 
     if (reduced) {
-      gsap.set([...rows, ...cells], { opacity: 1, y: 0 });
-      if (picture) gsap.set(picture, { clipPath: "inset(0% 0% 0% 0%)" });
+      gsap.set([...rows, ...lead], { opacity: 1, y: 0 });
+      gsap.set(rules, { scaleX: 1 });
       return;
     }
 
@@ -83,23 +78,31 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
       section,
       (timeline) => {
         timeline
-          .from(rows, {
+          .from(lead, {
             opacity: 0,
-            y: 26,
-            duration: 0.75,
-            ease: EASE.editorial,
-            stagger: 0.09,
+            y: 22,
+            duration: 0.7,
+            ease: EASE.enter,
+            stagger: 0.08,
           })
-          .fromTo(
-            picture,
-            { clipPath: "inset(0% 0% 100% 0%)" },
-            { clipPath: "inset(0% 0% 0% 0%)", duration: 1, ease: EASE.editorial },
+          // Each question's rule draws before the question lands on it — the
+          // same "measure first, then name the thing" order every heading on
+          // this site uses.
+          .from(
+            rules,
+            {
+              scaleX: 0,
+              transformOrigin: "0% 50%",
+              duration: 0.7,
+              ease: EASE.editorial,
+              stagger: 0.14,
+            },
             0.15,
           )
           .from(
-            cells,
-            { opacity: 0, y: 16, duration: 0.55, ease: EASE.enter, stagger: 0.07 },
-            0.5,
+            rows,
+            { opacity: 0, y: 26, duration: 0.75, ease: EASE.editorial, stagger: 0.14 },
+            0.25,
           );
       },
       { start: REVEAL_START },
@@ -111,120 +114,101 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
       ref={sectionRef}
       id="portfolio-next"
       aria-labelledby="portfolio-close-heading"
-      className="relative overflow-hidden bg-enzo-dark text-enzo-cream scroll-mt-24"
+      className="relative overflow-hidden bg-enzo-sand text-enzo-forest scroll-mt-24"
     >
-      {/* A single soft source top-left, so the ground is a dark room rather
-          than a black rectangle. */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0"
-        style={{
-          background:
-            "radial-gradient(120% 80% at 8% 0%, rgba(212,201,181,0.10), transparent 62%)",
-        }}
-      />
-
-      <div className="relative mx-auto max-w-[1500px] px-5 py-24 sm:px-6 md:px-12 md:py-32">
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.85fr)] lg:items-center lg:gap-20">
-          {/* ── The ask ── */}
+      <div className="shell py-24 md:py-32">
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,32rem)] lg:items-end lg:gap-16">
           <div>
             <span
-              data-close-row
-              className="font-display flex items-center gap-3 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand"
+              data-close-lead
+              className="font-display flex items-center gap-3 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-forest/70"
             >
               04
-              <span aria-hidden="true" className="h-px w-10 bg-enzo-cream/25" />
-              <span className="text-enzo-cream/70">Next</span>
+              <span aria-hidden="true" className="h-px w-10 bg-enzo-forest/30" />
+              <span>Your turn</span>
             </span>
 
             <h2
               id="portfolio-close-heading"
-              data-close-row
-              className="mt-7 max-w-[13ch] font-title font-semibold leading-[0.94] tracking-[-0.05em]"
-              style={{ fontSize: "clamp(2.6rem, 6.5vw, 5rem)" }}
+              data-close-lead
+              className="mt-6 max-w-[16ch] font-title font-semibold leading-[1.0] tracking-[-0.045em]"
+              style={{ fontSize: "clamp(2.2rem, 5vw, 3.8rem)" }}
             >
-              Stop scrolling.{" "}
-              <span className="text-enzo-sage">Start measuring.</span>
+              We asked {items.length} other people these three things first.
             </h2>
-
-            <p
-              data-close-row
-              className="mt-6 max-w-[46ch] text-[15.5px] leading-[1.7] text-enzo-cream/70"
-            >
-              Every room above began with somebody spending ninety minutes in
-              a house with a tape measure and no order form. That part is free,
-              and there is nothing to sign at the end of it.
-            </p>
-
-            <div data-close-row className="mt-9 flex flex-wrap items-center gap-x-8 gap-y-4">
-              <Link
-                href="/booking"
-                className="group inline-flex items-center gap-3 rounded-full bg-enzo-cream py-2.5 pl-7 pr-2.5 text-[15px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
-              >
-                Book a free survey
-                <span className="flex h-10 w-10 items-center justify-center rounded-full bg-enzo-forest text-enzo-cream transition-transform duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45">
-                  <ArrowUpRight className="h-4 w-4" />
-                </span>
-              </Link>
-
-              <Link
-                href="/services"
-                className="touch-target group/see text-[14.5px] text-enzo-cream/80"
-              >
-                <span className="border-b border-enzo-cream/25 pb-1 transition-colors duration-300 group-hover/see:border-enzo-sand">
-                  See what we make
-                </span>
-              </Link>
-            </div>
-
-            {/* The archive, counted. */}
-            <dl className="mt-14 grid grid-cols-2 gap-x-8 sm:grid-cols-4">
-              {figures.map((figure) => (
-                <div
-                  key={figure.label}
-                  data-close-figure
-                  className="border-t border-enzo-cream/15 pt-4"
-                >
-                  <dt className="sr-only">{figure.label}</dt>
-                  <dd>
-                    <span className="font-title block text-[clamp(1.6rem,3vw,2.3rem)] font-semibold leading-none tabular-nums tracking-[-0.045em] text-enzo-cream">
-                      {figure.value}
-                    </span>
-                    <span className="font-display mt-2 block text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-cream/60">
-                      {figure.label}
-                    </span>
-                  </dd>
-                </div>
-              ))}
-            </dl>
           </div>
 
-          {/* ── The plate ── */}
-          {plate && (
-            <div className="relative">
-              <div
-                data-close-plate
-                className="overflow-hidden rounded-[26px] bg-enzo-forest"
-                style={{ clipPath: "inset(0% 0% 100% 0%)" }}
-              >
-                <ImageWithFallback
-                  src={plate.image}
-                  alt={plate.title}
-                  loading="lazy"
-                  className="aspect-[4/5] w-full object-cover"
-                />
-              </div>
+          <p
+            data-close-lead
+            className="max-w-[52ch] text-[15.5px] leading-[1.75] text-enzo-forest/75 lg:pb-2"
+          >
+            Every room above started as three answers given at somebody&rsquo;s
+            kitchen table. None of them needed measurements, a budget worked out
+            to the pound, or any idea what the finished thing should look like —
+            that part is our job, and it starts after this.
+          </p>
+        </div>
 
-              <span className="absolute inset-x-5 bottom-5 block rounded-2xl bg-enzo-cream/95 px-5 py-4">
-                <span className="block truncate text-[14.5px] font-semibold tracking-[-0.02em] text-enzo-forest">
-                  {plate.title}
-                </span>
-                <span className="mt-0.5 block truncate text-[12.5px] text-enzo-forest/70">
-                  {plate.location} &middot; {plate.year}
-                </span>
+        {/* ── The three questions ──
+            Set at heading scale, one per band, with the reason underneath.
+            The number sits in a hairline-ruled gutter rather than a badge: it
+            is an order, not a score. */}
+        <ol className="mt-16 md:mt-24">
+          {QUESTIONS.map((question, index) => (
+            <li key={question.ask} className="relative pt-7 md:pt-9">
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 block h-px overflow-hidden"
+              >
+                <span
+                  data-ask-rule
+                  className="block h-px w-full origin-left bg-enzo-forest/25"
+                  style={{ transform: "scaleX(0)" }}
+                />
               </span>
-            </div>
-          )}
+
+              <div
+                data-ask
+                className="grid gap-x-8 gap-y-3 pb-9 md:grid-cols-[3rem_minmax(0,1.1fr)_minmax(0,1fr)] md:pb-12"
+              >
+                <span className="font-display text-[11px] font-semibold tabular-nums tracking-[0.2em] text-enzo-forest/55 md:pt-3">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+
+                <h3
+                  className="font-title font-semibold leading-[1.05] tracking-[-0.04em]"
+                  style={{ fontSize: "clamp(1.6rem, 3.4vw, 2.7rem)" }}
+                >
+                  {question.ask}
+                </h3>
+
+                <p className="max-w-[48ch] text-[14.5px] leading-[1.75] text-enzo-forest/70 md:pt-2">
+                  {question.why}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        {/* One control. The page has already shown the work; there is nothing
+            left to offer but the conversation. */}
+        <div
+          data-close-lead
+          className="flex flex-col gap-5 border-t border-enzo-forest/25 pt-9 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p className="max-w-[44ch] text-[14px] leading-[1.7] text-enzo-forest/70">
+            Answer them in about a minute. We reply the same working day, and
+            the survey after it is free with nothing to sign.
+          </p>
+          <Link
+            href="/contact#contact-docket"
+            className="group inline-flex shrink-0 items-center gap-3 rounded-full bg-enzo-forest py-2.5 pl-7 pr-2.5 text-[15px] font-medium text-enzo-cream transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-sand"
+          >
+            Answer the three
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-enzo-sand text-enzo-forest transition-transform duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </Link>
         </div>
       </div>
     </section>

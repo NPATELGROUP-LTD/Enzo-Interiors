@@ -47,10 +47,41 @@ export interface Viewpoint {
   targetY: number;
 }
 
-/** Live drag offsets, written by the section's pointer handlers. */
+/**
+ * Live camera offsets, written directly by the viewer's pointer/keyboard
+ * handlers and read by the render loop — never through React state, so
+ * turning the model costs no renders.
+ *
+ * All three are *offsets from the current viewpoint*, not absolute values.
+ * `zoom` is a multiplier on the viewpoint's own radius rather than a distance,
+ * so a viewpoint set close to the unit and one set across the room both zoom
+ * by the same proportion and neither can be pushed through the wall.
+ */
 export interface OrbitState {
   azimuth: number;
   polar: number;
+  zoom: number;
+}
+
+/**
+ * How far the visitor may turn the unit off its viewpoint, in radians.
+ *
+ * Clamped, and this is the fix for the single most confusing thing the old
+ * viewer did: azimuth was unbounded, so a long drag walked the camera round
+ * behind the wall and left you looking at the *back* of a plasterboard plane
+ * with the joinery hidden — no error, no way to tell what had happened, and
+ * "Recentre" the only way out. Every one of these units is a run fixed to a
+ * wall; there is nothing behind it to see. Just over a quarter-turn each way
+ * is enough to read the depth of a return without ever leaving the room.
+ */
+export const AZIMUTH_LIMIT = 0.95;
+/** Multiplier bounds on a viewpoint's radius. */
+export const ZOOM_MIN = 0.62;
+export const ZOOM_MAX = 1.35;
+
+/** The rest state — also what "recentre" restores. */
+export function neutralOrbit(): OrbitState {
+  return { azimuth: 0, polar: 0, zoom: 1 };
 }
 
 /** Props every unit receives. `open` drives whatever that unit's one control does. */
@@ -138,12 +169,17 @@ export function CameraRig({
     const time = state.clock.elapsedTime;
 
     const orbit = showcase
-      ? { azimuth: Math.sin(time * 0.2) * 0.32, polar: 0 }
-      : (orbitRef.current ?? { azimuth: 0, polar: 0 });
+      ? { azimuth: Math.sin(time * 0.2) * 0.32, polar: 0, zoom: 1 }
+      : (orbitRef.current ?? neutralOrbit());
 
-    const azimuth = view.azimuth + orbit.azimuth;
+    // Clamped here rather than in the handler so *every* input — drag,
+    // keyboard, a future one — is bounded by the same rule, and so the limit
+    // cannot be bypassed by writing the ref directly.
+    const azimuth =
+      view.azimuth +
+      THREE.MathUtils.clamp(orbit.azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT);
     const polar = THREE.MathUtils.clamp(view.polar + orbit.polar, 1.02, 1.74);
-    const r = view.radius;
+    const r = view.radius * THREE.MathUtils.clamp(orbit.zoom, ZOOM_MIN, ZOOM_MAX);
 
     const targetPosition = new THREE.Vector3(
       r * Math.sin(polar) * Math.sin(azimuth),

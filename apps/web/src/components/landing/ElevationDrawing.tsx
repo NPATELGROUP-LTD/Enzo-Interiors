@@ -111,7 +111,15 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
         viewBox="0 0 960 540"
         role="img"
         aria-label="Wardrobe elevation drawing, inking in stage by stage as the process advances"
-        className="relative block h-auto w-full"
+        // `h-full w-full` + `preserveAspectRatio` rather than `h-auto
+        // w-full`: the auto height made the drawing's size a pure function of
+        // the column it sat in, so on a wide screen it grew past the viewport
+        // and pushed the section's own heading off the top. Filling the box in
+        // both axes lets a parent constrain it by *height* — which is the only
+        // constraint that can guarantee it fits a 100vh frame — while
+        // preserveAspectRatio keeps the geometry square.
+        preserveAspectRatio="xMidYMid meet"
+        className="relative block h-full w-full"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"

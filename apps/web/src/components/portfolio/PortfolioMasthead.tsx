@@ -145,7 +145,7 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
         />
 
         {/* Masthead, on the plate. */}
-        <div className="absolute inset-x-0 bottom-0 mx-auto flex w-full max-w-[1500px] flex-col px-5 pb-8 sm:px-6 md:px-12 md:pb-10">
+        <div className="absolute inset-x-0 bottom-0 shell flex flex-col pb-8 md:pb-10">
           <div className="flex items-center gap-4">
             <span
               data-mast-body
@@ -240,7 +240,7 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
           the same baseline, and each row is exactly as tall as one line of
           type. The grid returns at `sm`, where the cells are wide enough for
           it. */}
-      <div className="mx-auto max-w-[1500px] px-5 sm:px-6 md:px-12">
+      <div className="shell">
         <div className="overflow-hidden border-t border-enzo-cream/15 sm:-ml-px">
           <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {figures.map((figure) => (

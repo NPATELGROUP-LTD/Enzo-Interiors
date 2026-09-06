@@ -189,7 +189,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
         />
       </div>
 
-      <div className="relative mx-auto flex h-full max-w-[1500px] flex-col justify-center px-5 pb-16 pt-24 sm:px-6 md:px-12">
+      <div className="relative shell flex h-full flex-col justify-center pb-16 pt-24">
         <div className="w-full lg:max-w-[58%] lg:pr-14">
           <span
             data-statement-body

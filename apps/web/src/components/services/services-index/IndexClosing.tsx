@@ -154,7 +154,7 @@ export function IndexClosing({ services }: IndexClosingProps) {
       aria-labelledby="services-closing-heading"
       className="relative bg-enzo-dark scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-24 sm:px-6 md:px-12 md:py-32">
+      <div className="shell py-24 md:py-32">
         <div
           data-close-sheet
           className="relative border border-enzo-cream/18 opacity-0"

@@ -109,7 +109,7 @@ export function InvestmentSlider({
       aria-labelledby="investment-heading"
       className="relative bg-card scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
           Investment
         </h2>

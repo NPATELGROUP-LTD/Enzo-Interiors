@@ -48,8 +48,18 @@ export interface SectionIntroProps {
    * SSR with no layout flash.
    */
   ledeShort?: ReactNode;
-  /** `dark` inverts the palette for sections on forest/near-black grounds. */
-  tone?: "light" | "dark";
+  /**
+   * Which palette the heading is set in.
+   *
+   *   light  forest type — for cream, white and warm-grey grounds
+   *   dark   cream type  — for forest and near-black grounds
+   *   ink    near-black type — for the *mid-tone* grounds that neither of
+   *          the other two can sit on. Sage measures 3.7:1 against forest and
+   *          2.6:1 against cream: both fail AA for the label and the datum,
+   *          which are 10–11px. Near-black on sage is 5.9:1 and passes with
+   *          room to spare, and it is the only combination that does.
+   */
+  tone?: "light" | "dark" | "ink";
   className?: string;
   /** Extra classes for the <h2> — mostly to override the clamped font size. */
   titleClassName?: string;
@@ -59,6 +69,31 @@ export interface SectionIntroProps {
    * intro leaves half the row empty.
    */
   layout?: "stacked" | "split";
+  /**
+   * Overrides the `split` layout's column template, for a section that wants
+   * its heading and lede to land on the *same* grid as the content beneath
+   * them rather than on the intro's own proportions.
+   *
+   * Without it a split intro divides the row 0.8fr / 1fr and ranges the lede
+   * right, which is correct for a section whose content below is a full-width
+   * list — the lede then sits against the same right edge everything else
+   * does. It is wrong for a section built on an asymmetric two-column grid:
+   * the lede lands at the page edge while the column it ought to head up
+   * starts hundreds of pixels short of it, and the two read as unrelated.
+   *
+   * Passing the content grid's own template lines the two rows up into a
+   * single spine, and the lede ranges left because it is now heading a
+   * column rather than closing a row.
+   */
+  splitTemplate?: string;
+  /**
+   * The gutter to pair with `splitTemplate`. Two grids only share a spine if
+   * they share BOTH the template and the gap — a matching template with a
+   * different gutter puts the second column in a different place, which is
+   * the exact bug this pair of props exists to prevent. Defaults to the
+   * intro's own `gap-x-12`.
+   */
+  splitGapClassName?: string;
   /**
    * Rendered at the right end of the metadata rule, e.g. a "see all" link.
    * Lives inside this component's own box (rather than as an external
@@ -80,10 +115,21 @@ export function SectionIntro({
   className,
   titleClassName,
   layout = "stacked",
+  splitTemplate,
+  splitGapClassName,
   actions,
 }: SectionIntroProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dark = tone === "dark";
+  const ink = tone === "ink";
+
+  /**
+   * `ink` differentiates by size and weight rather than by opacity. A tinted
+   * secondary needs a ground with headroom, and a mid-tone ground has none —
+   * ink at 80% over sage drops to 4.2:1, under AA. So every level is the same
+   * solid colour and the hierarchy is carried by scale.
+   */
+  const inkText = "text-enzo-dark";
 
   useGSAP(rootRef, (root, reduced) => {
     const meta = root.querySelectorAll<HTMLElement>("[data-intro-meta]");
@@ -142,7 +188,9 @@ export function SectionIntro({
       <div
         className={cn(
           "flex items-end gap-3 sm:gap-4",
-          dark ? "text-enzo-cream" : "text-primary",
+          dark && "text-enzo-cream",
+          ink && inkText,
+          !dark && !ink && "text-primary",
         )}
       >
         {index && (
@@ -158,7 +206,9 @@ export function SectionIntro({
           data-intro-meta
           className={cn(
             "whitespace-nowrap text-[10.5px] font-semibold uppercase tracking-[0.3em] opacity-0",
-            dark ? "text-enzo-sand" : "text-enzo-forest-light",
+            dark && "text-enzo-sand",
+            ink && inkText,
+            !dark && !ink && "text-enzo-forest-light",
           )}
           style={HIDDEN_UP}
         >
@@ -175,7 +225,11 @@ export function SectionIntro({
             data-intro-rule
             className="absolute inset-0 block origin-left"
             style={{
-              color: dark ? "rgba(212,201,181,0.55)" : "rgba(28,74,58,0.35)",
+              color: dark
+                ? "rgba(212,201,181,0.55)"
+                : ink
+                  ? "rgba(30,30,28,0.4)"
+                  : "rgba(28,74,58,0.35)",
               transform: "scaleX(0)",
             }}
           >
@@ -202,7 +256,9 @@ export function SectionIntro({
             data-intro-meta
             className={cn(
               "whitespace-nowrap text-[11px] tracking-[0.02em] opacity-0",
-              dark ? "text-enzo-cream/70" : "text-foreground/80",
+              dark && "text-enzo-cream/70",
+              ink && inkText,
+              !dark && !ink && "text-foreground/80",
             )}
             style={HIDDEN_UP}
           >
@@ -221,14 +277,27 @@ export function SectionIntro({
       <div
         className={cn(
           "mt-6",
-          split &&
-            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] lg:items-end",
+          split && "grid gap-y-4 lg:items-end",
+          split && (splitGapClassName ?? "gap-x-12"),
+          split && !splitTemplate && "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]",
+          // Through a custom property rather than a plain inline style: an
+          // inline `grid-template-columns` applies at every width, which would
+          // force a phone into two 20rem-ish columns. The variable lets the
+          // template be scoped to `lg` like every other column rule here.
+          split && splitTemplate && "lg:[grid-template-columns:var(--intro-split)]",
         )}
+        style={
+          split && splitTemplate
+            ? ({ "--intro-split": splitTemplate } as React.CSSProperties)
+            : undefined
+        }
       >
         <h2
           className={cn(
             "font-title font-semibold leading-[1.02] tracking-[-0.04em]",
-            dark ? "text-enzo-cream" : "text-primary",
+            dark && "text-enzo-cream",
+            ink && inkText,
+            !dark && !ink && "text-primary",
             titleClassName,
           )}
           style={{ fontSize: split ? "clamp(1.9rem, 3.5vw, 3rem)" : "clamp(2rem, 4.2vw, 3.5rem)" }}
@@ -254,8 +323,12 @@ export function SectionIntro({
               // ones that opted in read as a caption on a phone rather than
               // a second paragraph.
               ledeShort && "max-sm:text-[13.5px] max-sm:leading-[1.6]",
-              split ? "lg:pb-1.5 lg:text-right" : "max-w-[46ch] mt-5",
-              dark ? "text-enzo-cream/70" : "text-foreground/80",
+              split && !splitTemplate && "lg:pb-1.5 lg:text-right",
+              split && splitTemplate && "lg:pb-1.5 max-w-[42ch]",
+              !split && "max-w-[46ch] mt-5",
+              dark && "text-enzo-cream/70",
+              ink && inkText,
+              !dark && !ink && "text-foreground/80",
             )}
             style={HIDDEN_UP_LEDE}
           >

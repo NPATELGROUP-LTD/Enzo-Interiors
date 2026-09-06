@@ -18,12 +18,21 @@
 // paragraph that says what was actually decided. One project properly is
 // worth nine projects listed.
 //
-// ── Which project, and why it is not hardcoded ──
-// The most recent by year, falling back to the first published record. The
-// client adds a project in the Content Manager and this section follows,
-// which is the behaviour you want from a "latest work" slot — and it is
-// still deterministic, so the page is the same for everyone until the
-// records change.
+// ── Which project, and why it is different every visit ──
+// A "latest work" slot showing the newest record is deterministic, which
+// sounds like a virtue and is not: nine projects were published and eight of
+// them were unreachable from this section forever. The archive above is a
+// grid of thumbnails nobody clicks; this is the one place a project gets read
+// properly, and it was always the same project.
+//
+// So the feature is drawn at random, per visit. It is deliberately *not*
+// random during render: the server has to emit something, and a value chosen
+// during render differs between the server pass and the hydration pass, which
+// is a hydration mismatch and a flash of the wrong photograph. The first
+// paint is therefore the newest record — a sensible, stable default that is
+// correct on its own terms — and an effect swaps in a random one after mount,
+// once React and the DOM agree. A visitor with JavaScript off keeps the
+// newest, which is the right fallback rather than a broken one.
 //
 // The small plate overlapping it is the *next* project in the register,
 // which does two jobs: it makes the composition asymmetric rather than a
@@ -33,7 +42,7 @@
 // Ground: cream. §01 and §02 are both near-black and §04 closes dark again;
 // this is the page's one light section, and the one that most rewards being
 // read rather than scanned.
-import { useRef } from "react";
+import { useRef, useSyncExternalStore } from "react";
 import gsap from "gsap";
 import { ArrowUpRight } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
@@ -41,6 +50,25 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
+
+/**
+ * One roll per page load, taken at module scope so it is stable for the whole
+ * life of the tab: re-rendering must not reshuffle the section under someone
+ * who is reading it, and neither must a scroll reveal firing.
+ */
+const ROLL = Math.random();
+
+/** The value never changes after load, so there is nothing to subscribe to. */
+function subscribeNever(): () => void {
+  return () => {};
+}
+function getRoll(): number {
+  return ROLL;
+}
+/** The server always renders the deterministic default. */
+function getServerRoll(): number | null {
+  return null;
+}
 
 /** Parses "2025" out of the record's year field. 0 when it is unparseable. */
 function yearValue(item: PortfolioItem): number {
@@ -59,11 +87,23 @@ export function PortfolioAnatomy({
 
   // Newest first, ties broken by published order — `reduce` rather than a
   // sort so the original array is never mutated and the tie-break is
-  // explicit rather than an implementation detail of the sort.
-  const feature = items.reduce<PortfolioItem | null>(
+  // explicit rather than an implementation detail of the sort. This is the
+  // server-rendered default; the effect below replaces it after hydration.
+  const newest = items.reduce<PortfolioItem | null>(
     (best, item) => (!best || yearValue(item) > yearValue(best) ? item : best),
     null,
   );
+
+  // The draw itself. useSyncExternalStore rather than an effect that calls
+  // setState: it is the API for "this value differs between the server and
+  // the client", it gives the two renders explicitly different snapshots
+  // instead of correcting one into the other afterwards, and it does not
+  // cost the extra render an effect would.
+  const roll = useSyncExternalStore(subscribeNever, getRoll, getServerRoll);
+  const feature =
+    roll === null || items.length < 2
+      ? newest
+      : items[Math.floor(roll * items.length)] ?? newest;
   const runnerUp =
     feature && items.length > 1
       ? items[(items.findIndex((item) => item.id === feature.id) + 1) % items.length]!
@@ -122,7 +162,7 @@ export function PortfolioAnatomy({
       aria-labelledby="anatomy-heading"
       className="relative overflow-hidden bg-background scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="anatomy-heading" className="sr-only">
           One project in full
         </h2>

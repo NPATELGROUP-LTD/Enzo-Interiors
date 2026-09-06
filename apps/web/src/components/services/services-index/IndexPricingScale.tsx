@@ -264,7 +264,7 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
       // full viewport around a four-row list on a phone is just a hole.
       className="relative flex flex-col justify-center overflow-hidden bg-background md:min-h-[100svh] scroll-mt-24"
     >
-      <div className="mx-auto w-full max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-[clamp(3rem,8vh,7rem)]">
+      <div className="shell py-20 md:py-[clamp(3rem,8vh,7rem)]">
         <h2 id="services-pricing-heading" className="sr-only">
           Starting prices
         </h2>

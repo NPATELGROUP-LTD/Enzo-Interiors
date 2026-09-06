@@ -14,11 +14,12 @@
 //                         under a live open/closed line (cream)
 //   C2  ContactDocket     the enquiry: a sticky rail with a live checklist,
 //                         the fields in a column beside it (near-white)
-//   C3  ContactVisit      the ninety minutes of the survey, drawn as one
-//                         bar whose phases are sized by their real share of
-//                         the time (forest)
-//   C4  ContactTerms      the refusals — what we will not do, and what
-//                         happens instead (warm grey)
+//   C3  ContactWhen       enquiry to finished room, as one week axis with a
+//                         bar per discipline read off its real lead time
+//                         (forest)
+//   C4  ContactReady      what actually helps against the much longer list
+//                         of things people wait for and never needed
+//                         (warm grey)
 //
 // C2–C4 each hold that shape on a desk and re-form on a phone rather than
 // shrinking: the docket's card chrome comes off and its fields become ruled
@@ -50,9 +51,10 @@
 import type { Metadata } from "next";
 import { ContactMasthead, type ContactRoute } from "@/components/contact/ContactMasthead";
 import { ContactDocket, type RoomOption } from "@/components/contact/ContactDocket";
-import { ContactVisit, type TerritoryPlace } from "@/components/contact/ContactVisit";
-import { ContactTerms, type EnquiryTerm } from "@/components/contact/ContactTerms";
-import { getServices } from "@/lib/content";
+import { ContactWhen, type LeadTime } from "@/components/contact/ContactWhen";
+import { ContactReady } from "@/components/contact/ContactReady";
+import { getServiceDetails } from "@/lib/content";
+import { getServiceMetrics } from "@/lib/service-metrics";
 
 export const metadata: Metadata = {
   title: "Contact — Enzo Interiors",
@@ -92,55 +94,18 @@ const ROUTES: ContactRoute[] = [
   },
 ];
 
-// Drive from the workshop. The figures are what sets the length of each
-// rule in §C3, so they want to stay honest rather than flattering.
-const TERRITORY: TerritoryPlace[] = [
-  { name: "Leicester", minutes: 10 },
-  { name: "Oadby & Wigston", minutes: 15 },
-  { name: "Syston & Birstall", minutes: 20 },
-  { name: "Hinckley", minutes: 30 },
-  { name: "Market Harborough", minutes: 30 },
-  { name: "Loughborough", minutes: 35 },
-  { name: "Melton Mowbray", minutes: 35 },
-];
-
-// The refusals. Every one of these restates a claim this site already makes
-// somewhere else — see the note at the top of ContactTerms — rather than
-// introducing a new promise on the client's behalf.
-const TERMS: EnquiryTerm[] = [
-  {
-    never: "Send a salesperson",
-    instead:
-      "Nobody here is paid commission, and there is nobody here whose job is selling. The person who measures your room is the person who draws it and the person who fits it.",
-  },
-  {
-    never: "Sit on your enquiry",
-    instead:
-      "A person reads it and replies the same working day, and the reply answers what you actually asked rather than offering you a call back.",
-  },
-  {
-    never: "Price a room we have not measured",
-    instead:
-      "The figures on this site are ranges for planning. The real one comes after the survey, with a drawing attached to it, in three to five working days.",
-  },
-  {
-    never: "Give you a price that expires tonight",
-    instead:
-      "There is no discount for deciding quickly and no penalty for thinking about it. The number is the number whenever you come back to it.",
-  },
-  {
-    never: "Take money before you have seen it",
-    instead:
-      "Nothing is cut and nothing is charged until you have signed off a drawing you are happy with. Change that drawing as many times as you like first.",
-  },
-  {
-    never: "Hand your install to somebody else",
-    instead:
-      "One team from the bench to the handover. No subcontracted fitters, and nobody in your house you have not already met.",
-  },
-];
 export default async function ContactPage() {
-  const services = await getServices();
+  const services = await getServiceDetails();
+
+  // §C3's chart is read off the same `timeline` field the /services matrix
+  // compares — never off a second set of figures authored beside it. A
+  // service whose timeline cannot be parsed is listed with its own words
+  // rather than given an invented bar.
+  const leadTimes: LeadTime[] = services.map((service) => ({
+    label: service.title.replace(/^(bespoke|fitted|custom)\s+/i, ""),
+    timeline: service.timeline,
+    weeks: getServiceMetrics(service).leadWeeks,
+  }));
 
   // One chip per published service, plus a way out for anything that is not
   // one of them — a fifth service joins the row without anybody editing
@@ -170,15 +135,10 @@ export default async function ContactPage() {
 
       <ContactDocket id="contact-docket" rooms={rooms} />
 
-      <ContactVisit
-        id="contact-visit"
-        places={TERRITORY}
-        note="Further out than this we will still come — we simply say so before the visit is booked rather than after, and we will tell you honestly if the drive makes us the wrong people for the job."
-      />
+      <ContactWhen id="contact-visit" leadTimes={leadTimes} />
 
-      <ContactTerms
+      <ContactReady
         id="contact-terms"
-        terms={TERMS}
         phoneDisplay={PHONE_DISPLAY}
         phoneHref={PHONE_HREF}
         emailDisplay={EMAIL}

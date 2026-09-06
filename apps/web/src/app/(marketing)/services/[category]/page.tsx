@@ -11,10 +11,10 @@
 //
 //        Sheet  variant 0        variant 1         variant 2         variant 3
 //   A1  Hero    Masthead         Overlap           PlanCentre        SpecCard
-//   A2  Incl.   Ledger           Spine             Courses           Rail
+//   A2  Scope   one quotation sheet; its ground alternates per variant
 //   A3  Model   KitchenRun       WardrobeBay       MediaWall         WalkIn
-//   A4  Proc.   Rail             Timeline          Stair             Drawers
-//   A5  Invest  Sheets           Slider            BuildUp           Doors
+//   A4  Proc.   Rail             Timeline          Stair             Assembly
+//   A5  Invest  Sheets           Slider            Display           Doors
 //   A6  Q&A     accordion (shared; ground alternates with the variant)
 //
 // The heroes differ in ground as well as layout — cream, near-black,

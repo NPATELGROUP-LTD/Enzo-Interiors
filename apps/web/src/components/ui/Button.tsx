@@ -45,7 +45,6 @@ export function Button({
   const Comp = asChild ? Slot : "button";
   return (
     <Comp
-      data-cursor="view"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />

@@ -103,7 +103,7 @@ export function AboutValues({ values }: { values: AboutValue[] }) {
       aria-labelledby="about-values-heading"
       className="relative overflow-hidden bg-background text-primary scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="about-values-heading" className="sr-only">
           What we will not do
         </h2>

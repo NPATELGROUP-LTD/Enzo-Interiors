@@ -79,7 +79,6 @@ export function MagneticButton({
       <Link
         href={href}
         data-magnet-shell
-        data-cursor="view"
         className="group/magnet inline-flex items-center gap-3 rounded-full bg-enzo-cream py-4 pl-8 pr-4 text-enzo-forest transition-colors duration-300 will-change-transform hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
       >
         <span

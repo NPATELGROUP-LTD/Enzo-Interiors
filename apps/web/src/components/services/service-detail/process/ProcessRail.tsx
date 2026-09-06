@@ -176,7 +176,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       </h2>
 
       {/* Below lg the heading is an ordinary one, above an ordinary list. */}
-      <div className="mx-auto max-w-[1500px] px-5 pt-20 sm:px-6 md:px-12 md:pt-28 lg:hidden">
+      <div className="shell pt-20 md:pt-28 lg:hidden">
         <SectionIntro
           layout="split"
           index="A4"
@@ -195,7 +195,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       >
         <div className="sticky top-0 flex h-screen flex-col overflow-hidden">
           {/* Held with the rail, not left behind above it. */}
-          <div className="mx-auto w-full max-w-[1500px] shrink-0 px-12 pt-[7.5rem]">
+          <div className="shell shrink-0 pt-[7.5rem]">
             <SectionIntro
               layout="split"
               index="A4"
@@ -261,7 +261,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
           </div>
 
           {/* Position readout — the only chrome the rail needs. */}
-          <div className="pointer-events-none absolute inset-x-0 bottom-10 mx-auto flex max-w-[1500px] items-center gap-5 px-12">
+          <div className="pointer-events-none absolute inset-x-0 bottom-10 shell flex items-center gap-5">
             <span className="font-display shrink-0 text-[11px] font-semibold tabular-nums tracking-[0.2em] text-primary">
               {String(active + 1).padStart(2, "0")}
               <span className="text-foreground/70">
@@ -283,7 +283,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       </div>
 
       {/* ── Below lg: the same sequence, read downwards ── */}
-      <div className="mx-auto max-w-[1500px] px-5 pb-20 pt-12 sm:px-6 md:px-12 lg:hidden">
+      <div className="shell pb-20 pt-12 lg:hidden">
         <ol className="relative pl-8">
           <span
             aria-hidden="true"

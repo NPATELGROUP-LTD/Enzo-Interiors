@@ -50,7 +50,6 @@ export function FooterMap({ compact = false }: { compact?: boolean }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Open Enzo Interiors service area in Google Maps"
-        data-cursor="view"
         className={cn(
           "absolute flex items-center gap-1.5 rounded-lg bg-enzo-sand font-semibold text-enzo-forest shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-[filter,transform] duration-200 hover:-translate-y-0.5 hover:brightness-110",
           // min-h-11 on the full version: a 32px chip floating over a map is

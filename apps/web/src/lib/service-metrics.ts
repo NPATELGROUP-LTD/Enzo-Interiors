@@ -62,7 +62,7 @@ export function getServiceMetrics(service: ServiceDetail): ServiceMetrics {
     );
 
   // The cheapest tier, not `pricing[0]` — the client is free to reorder
-  // tiers in the Content Manager, and "from" must mean the actual floor.
+  // tiers in the Content Manager, and "from " must mean the actual floor.
   const cheapest = priced.length
     ? priced.reduce((min, entry) => (entry.value < min.value ? entry : min))
     : null;

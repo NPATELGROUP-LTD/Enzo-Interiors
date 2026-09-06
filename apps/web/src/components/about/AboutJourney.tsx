@@ -230,7 +230,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
       aria-labelledby="about-journey-heading"
       className="relative overflow-hidden bg-enzo-forest text-enzo-cream scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="about-journey-heading" className="sr-only">
           How we got here
         </h2>

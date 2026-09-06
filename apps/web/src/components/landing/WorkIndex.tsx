@@ -128,7 +128,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
   return (
     <section ref={sectionRef} id="home-work"
       aria-labelledby="work-heading" className="relative bg-enzo-white scroll-mt-24">
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="work-heading" className="sr-only">
           Recent work
         </h2>
@@ -162,7 +162,6 @@ export function WorkIndex({ items }: WorkIndexProps) {
               key={item.id}
               href="/portfolio"
               data-work-tile
-              data-cursor="view"
               className={`group relative overflow-hidden rounded-[18px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${PLACEMENT[index]}`}
             >
               <ImageWithFallback

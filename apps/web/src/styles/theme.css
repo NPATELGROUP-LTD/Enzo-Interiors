@@ -383,3 +383,62 @@
     outline-offset: 2px;
   }
 }
+
+/* ── The page shell ──────────────────────────────────────────────────────
+ *
+ * Every section opens with this instead of repeating
+ * `mx-auto max-w-[1500px] px-5 sm:px-6 md:px-12` fifty times over. One class,
+ * one place to change the page's measure — which is the whole reason it
+ * exists, and it earned that the first time the measure actually changed.
+ *
+ * ── It ran full-bleed for a while; it does not now ──
+ * The column was briefly removed altogether in favour of a margin that grew
+ * with the viewport, on the reasoning that a fixed 1500px page floats in
+ * half a metre of bare ground on a wide monitor. True, and it cost more than
+ * it bought: at 1900px a `split` heading threw its own lede a screen and a
+ * half from the sentence it belonged to, ruled rows became strips of type
+ * with a desert between the label and its figure, and every section that had
+ * been composed against a known measure had to re-earn its proportions at a
+ * width it was never drawn for. A page is a designed object with a size, not
+ * a fluid that fills its container.
+ *
+ * So the cap is back. The padding still scales — 20px of edge at 320px up to
+ * 48px on a desk, matching the px-5 / sm:px-6 / md:px-12 ladder it replaced —
+ * and `margin-inline: auto` centres the column the way it always did.
+ */
+@layer components {
+  .shell {
+    width: 100%;
+    max-width: 1500px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4.5vw, 3rem);
+  }
+
+  /* The gutter as a margin rather than as padding, for a full-bleed rail
+     whose *track* runs edge to edge while its heading lines up with
+     everything else. */
+  .shell-inset {
+    max-width: 1500px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4.5vw, 3rem);
+  }
+}
+
+/* ── Landing §05: the testimonial columns ──────────────────────────────────
+ *
+ * Each column holds its list twice and travels exactly half its own height,
+ * so the second copy arrives where the first began and the loop has no seam.
+ * Written as a keyframe rather than driven from JS because the only thing
+ * that ever needs to change is the play state — and `animation-play-state` is
+ * a one-property pause that costs nothing, where a JS loop would have to be
+ * torn down and rebuilt every time somebody hovered a card.
+ */
+@keyframes voices-scroll {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+
+@keyframes voices-scroll-reverse {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0); }
+}

@@ -103,7 +103,7 @@ export function ContactMasthead({
       aria-labelledby="contact-heading"
       className="relative overflow-hidden bg-background text-primary scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 pb-16 pt-[7.5rem] sm:px-6 md:px-12 md:pb-20 md:pt-[9rem]">
+      <div className="shell pb-16 pt-[7.5rem] md:pb-20 md:pt-[9rem]">
         {/* The sheet rule, carrying the live status where a service page
             carries its category. */}
         <div className="flex items-center gap-3 sm:gap-4">

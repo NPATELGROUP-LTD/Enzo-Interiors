@@ -127,7 +127,7 @@ export function AboutTeam({ team }: { team: TeamMember[] }) {
       aria-labelledby="about-team-heading"
       className="relative overflow-hidden bg-enzo-dark text-enzo-cream scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="about-team-heading" className="sr-only">
           The people
         </h2>
@@ -327,13 +327,20 @@ function Bench({
         />
 
         {/* ── The carriage ──
-            A try-square riding the bench line. */}
+            A tick riding the bench line, and only that.
+            It used to carry a full-height hairline up the strip as well — a
+            try-square standing on the bench. Drawn over the photographs it
+            was a scratch down whoever you were looking at, and it moved with
+            the pointer, so the one thing guaranteed to have a line through it
+            was the face you had just moved towards. The bench line and the
+            tick travelling along it carry the idea on their own; the upright
+            was the only part that touched the pictures, so the upright is
+            what goes. */}
         <span
           ref={carriageRef}
           aria-hidden="true"
           className="absolute bottom-0 left-0 z-10 opacity-0"
         >
-          <span className="absolute bottom-0 left-0 block h-[calc(clamp(300px,30vw,440px)*0.92)] w-px -translate-x-1/2 bg-enzo-sand/25" />
           <span className="absolute -bottom-[3px] left-0 block h-1.5 w-1.5 -translate-x-1/2 rotate-45 bg-enzo-sand" />
         </span>
       </div>

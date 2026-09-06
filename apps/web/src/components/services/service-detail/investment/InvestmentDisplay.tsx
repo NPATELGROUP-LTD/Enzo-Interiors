@@ -71,7 +71,7 @@ const WHAT_MOVES_IT = [
     body: "A screen and a soundbar is one job. An amplifier, a subwoofer and a rack that has to breathe is another.",
   },
   {
-    label: "Where the cables come from",
+    label: "Where the cables come from ",
     body: "A socket already on that wall is free. One that has to come across the room is not.",
   },
 ] as const;
@@ -146,7 +146,7 @@ export function InvestmentDisplay({
       aria-labelledby="investment-heading"
       className="relative overflow-hidden bg-muted scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
           Investment
         </h2>

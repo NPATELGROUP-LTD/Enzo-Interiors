@@ -90,10 +90,32 @@ export const VIEWPOINTS: Viewpoint[] = [
   },
 ];
 
-/** Live drag offsets, written by the parent's pointer handlers. */
+/**
+ * Live camera offsets, written by the parent's pointer/keyboard handlers and
+ * read by the render loop — never through React state, so turning the model
+ * costs no renders. All three are offsets from the current viewpoint; `zoom`
+ * multiplies the viewpoint's own radius so a close viewpoint and a far one
+ * zoom by the same proportion.
+ */
 export interface OrbitState {
   azimuth: number;
   polar: number;
+  zoom: number;
+}
+
+/**
+ * How far off the viewpoint the visitor may turn, in radians. Bounded for the
+ * same reason the service-page viewer is (see scene/sceneKit): the unit is a
+ * run fixed to a wall, and an unbounded drag walks the camera round behind
+ * that wall to look at the back of a plasterboard plane.
+ */
+export const AZIMUTH_LIMIT = 0.95;
+export const ZOOM_MIN = 0.62;
+export const ZOOM_MAX = 1.35;
+
+/** The rest state — also what "recentre" restores. */
+export function neutralOrbit(): OrbitState {
+  return { azimuth: 0, polar: 0, zoom: 1 };
 }
 
 /** Rounded, chamfered flat panel — reads as solid material under raking light. */
@@ -384,13 +406,17 @@ function MediaWall({
     // Showcase mode ignores the pointer entirely and plays a slow, hands-off
     // loop: a gentle turn plus doors easing open and shut.
     const orbit = showcase
-      ? { azimuth: Math.sin(time * 0.2) * 0.3, polar: 0 }
-      : (orbitRef.current ?? { azimuth: 0, polar: 0 });
+      ? { azimuth: Math.sin(time * 0.2) * 0.3, polar: 0, zoom: 1 }
+      : (orbitRef.current ?? neutralOrbit());
     const target = showcase ? (Math.sin(time * 0.38) > 0 ? 1 : 0) : doorsOpen ? 1 : 0;
 
-    const azimuth = view.azimuth + orbit.azimuth;
+    // Clamped here rather than in the handler so every input is bounded by
+    // the same rule and the limit cannot be bypassed by writing the ref.
+    const azimuth =
+      view.azimuth +
+      THREE.MathUtils.clamp(orbit.azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT);
     const polar = THREE.MathUtils.clamp(view.polar + orbit.polar, 1.05, 1.72);
-    const r = view.radius;
+    const r = view.radius * THREE.MathUtils.clamp(orbit.zoom, ZOOM_MIN, ZOOM_MAX);
 
     const targetPosition = new THREE.Vector3(
       r * Math.sin(polar) * Math.sin(azimuth),

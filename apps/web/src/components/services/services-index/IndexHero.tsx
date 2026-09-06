@@ -124,7 +124,7 @@ export function IndexHero({ services }: IndexHeroProps) {
       className="relative flex min-h-[100svh] flex-col overflow-hidden bg-enzo-dark text-enzo-cream scroll-mt-24"
     >
       {/* ── Title block + drawing ── */}
-      <div className="relative mx-auto flex w-full max-w-[1500px] flex-1 flex-col px-5 pt-[6.5rem] sm:px-6 md:px-12 md:pt-[8rem]">
+      <div className="relative shell flex flex-1 flex-col pt-[6.5rem] md:pt-[8rem]">
         <div className="flex min-h-0 flex-1 flex-col gap-10 lg:flex-row lg:items-center lg:gap-14">
           <div className="lg:w-[44%]">
             <p
@@ -258,7 +258,7 @@ export function IndexHero({ services }: IndexHeroProps) {
           trailing arrow — the same "this goes somewhere" mark
           ServicesDoors' mobile accordion already uses — saying plainly that
           the row navigates. md and up is the original rail, untouched. */}
-      <div className="relative mx-auto w-full max-w-[1500px] px-5 pb-10 pt-8 sm:px-6 md:px-12 md:pb-12">
+      <div className="relative shell pb-10 pt-8 md:pb-12">
         <span aria-hidden="true" className="block h-px overflow-hidden">
           <span
             data-hero-rule

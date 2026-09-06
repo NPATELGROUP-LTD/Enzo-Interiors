@@ -148,7 +148,7 @@ export function HeroDoors({
       </div>
 
       {/* ── The masthead, underneath ── */}
-      <div className="mx-auto max-w-[1500px] px-5 pb-16 pt-10 sm:px-6 md:px-12 md:pb-20 md:pt-14">
+      <div className="shell pb-16 pt-10 md:pb-20 md:pt-14">
         <HeroRule category={service.category} tone="light" />
 
         {/* The title took a `1fr` column and the lede a 30rem one, so a

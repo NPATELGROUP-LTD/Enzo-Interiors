@@ -32,11 +32,11 @@ export interface EstimateQuoteResult {
 }
 
 /**
- * Room-size multipliers applied to a tier's "from" price to produce a
+ * Room-size multipliers applied to a tier's "from " price to produce a
  * low-high range. Chosen so that:
- *  - "small" projects can land at or slightly below the advertised "from"
+ *  - "small" projects can land at or slightly below the advertised "from "
  *    price (a smaller-than-typical room costing less than the headline figure),
- *  - "medium" (the assumed baseline the "from" price was written for) brackets
+ *  - "medium" (the assumed baseline the "from " price was written for) brackets
  *    the base price itself, skewed slightly upward (rooms are rarely *exactly*
  *    the minimum spec),
  *  - "large" projects scale up substantially, reflecting more cabinetry/units/

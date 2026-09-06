@@ -131,7 +131,7 @@ export function HeroColumns({
       aria-labelledby="service-hero-heading"
       className="relative overflow-hidden bg-enzo-dark text-enzo-cream"
     >
-      <div className="mx-auto max-w-[1500px] px-5 pb-16 pt-[7.5rem] sm:px-6 md:px-12 md:pt-[9rem]">
+      <div className="shell pb-16 pt-[7.5rem] md:pt-[9rem]">
         <HeroRule category={service.category} tone="dark" />
 
         {/* Title hard right, support hard left, on one baseline. */}

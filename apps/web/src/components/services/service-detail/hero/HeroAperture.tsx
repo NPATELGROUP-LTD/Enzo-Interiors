@@ -22,18 +22,29 @@
 // same two-tone headline the landing hero uses, which is the one piece of
 // type on this site people remember.
 //
-// ── The mechanism is unchanged, because it was the good part ──
-// A media wall is a screen in a room, so the picture arrives the way a
-// screen does: a hairline of light strikes across the middle of the frame,
-// widens to the full width, and then opens vertically into a cinema-format
-// aperture. Three clip-path stages on one element —
+// ── The reveal: panels, not an aperture ──
+// This used to switch on like a screen — a hairline of light struck across
+// the middle, widened to a slit, then opened vertically into a 21:9
+// letterbox. It was a good idea about the wrong noun. What is being sold is
+// not a television; it is the wall the television is set into, and a cinema
+// letterbox opening said "film" so loudly that the joinery underneath it read
+// as the packaging. It also fought the composition it now sits in: an
+// aperture wants to be centred and symmetrical, and this hero is neither.
 //
-//     inset(50% 50% 50% 50%)   nothing, a point at the centre
-//   → inset(50%  0%  50%  0%)  a slit, full width, no height
-//   → inset( 0%  0%   0%  0%)  the whole frame
+// A media wall is panels. So the photograph arrives behind a run of them: the
+// plate starts covered by SHUTTERS full-height slats in the section's own
+// forest, and they lift off one at a time from the left, each slightly
+// overlapping the last, until the room behind is uncovered. The picture eases
+// out of a small over-scale across the whole run, so it is still settling as
+// the last slat clears.
 //
-// — with the photograph easing out of its over-scale across all three, so
-// the image is already settling by the time there is enough of it to see.
+// Three things that makes it worth the swap. It is the product's own
+// geometry, so it needs no explanation. It is the same idea §A2 opens with
+// one section later — a wall read as its layers — so the page argues one
+// thing twice instead of two things once. And a vertical slat lifting off a
+// photograph is a mechanic no other hero in the set uses: the kitchen page
+// wipes a curtain down, the bedroom page runs three side wipes, the wardrobe
+// page slides two doors apart.
 //
 // Ground: forest — the deepest of the four, because a screen wants a dark
 // room around it.
@@ -45,6 +56,12 @@ import { DUR, EASE } from "@/lib/motion";
 import type { ServiceDetail } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
 import { HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
+
+/**
+ * How many slats the plate is covered by. Five reads as a run of panels; any
+ * fewer reads as a wipe, any more as a loading bar.
+ */
+const SHUTTERS = 5;
 
 export function HeroAperture({
   service,
@@ -66,17 +83,18 @@ export function HeroAperture({
     const meta = gsap.utils.toArray<HTMLElement>("[data-hero-meta]", section);
     const lines = gsap.utils.toArray<HTMLElement>("[data-hero-line]", section);
     const body = gsap.utils.toArray<HTMLElement>("[data-hero-body]", section);
-    const aperture = section.querySelector<HTMLElement>("[data-hero-aperture]");
     const photo = section.querySelector<HTMLElement>("[data-hero-photo]");
-    const strike = section.querySelector<HTMLElement>("[data-hero-strike]");
+    const shutters = gsap.utils.toArray<HTMLElement>("[data-hero-shutter]", section);
+    const seams = gsap.utils.toArray<HTMLElement>("[data-hero-seam]", section);
     const rule = section.querySelector<HTMLElement>("[data-hero-rule]");
 
     if (reduced) {
       gsap.set([...meta, ...body], { opacity: 1, y: 0 });
       gsap.set(lines, { opacity: 1, yPercent: 0, y: 0 });
-      if (aperture) gsap.set(aperture, { clipPath: "inset(0% 0% 0% 0%)" });
+      // The panels are simply already off, rather than animating off.
+      gsap.set(shutters, { yPercent: -100 });
+      gsap.set(seams, { opacity: 0 });
       if (photo) gsap.set(photo, { scale: 1 });
-      if (strike) gsap.set(strike, { opacity: 0 });
       if (rule) gsap.set(rule, { scaleX: 1 });
       return;
     }
@@ -93,35 +111,38 @@ export function HeroAperture({
         0.1,
       );
 
-    // ── Switching on ──
-    // The strike is a real element rather than part of the clip, because a
-    // clip cannot glow. It scales out along the centre line under the
-    // widening slit and goes out as the frame opens.
-    tl.set(aperture, { clipPath: "inset(50% 50% 50% 50%)" }, 0.4)
+    // ── The panels lifting ──
+    // Each slat travels its own full height upward, so it clears the plate
+    // entirely rather than shrinking away in place. `stagger` from the left
+    // with a negative overlap in the ease makes the run read as one gesture
+    // rather than five separate ones.
+    tl.fromTo(
+      shutters,
+      { yPercent: 0 },
+      {
+        yPercent: -100,
+        duration: 0.95,
+        ease: "power3.inOut",
+        stagger: 0.085,
+      },
+      0.35,
+    )
+      // The joint between two slats catches a line of light as it goes —
+      // the one flourish, and it is what stops five rectangles reading as a
+      // loading screen.
       .fromTo(
-        strike,
-        { scaleX: 0, opacity: 1 },
-        { scaleX: 1, duration: 0.55, ease: "power3.out" },
-        0.4,
+        seams,
+        { opacity: 0.9 },
+        { opacity: 0, duration: 0.5, ease: EASE.exit, stagger: 0.085 },
+        0.55,
       )
-      .to(
-        aperture,
-        { clipPath: "inset(50% 0% 50% 0%)", duration: 0.55, ease: "power3.out" },
-        0.4,
-      )
-      .to(
-        aperture,
-        { clipPath: "inset(0% 0% 0% 0%)", duration: 0.95, ease: EASE.editorial },
-        0.98,
-      )
-      .to(strike, { opacity: 0, duration: 0.45, ease: EASE.exit }, 0.98)
       .fromTo(
         photo,
-        { scale: 1.24 },
-        { scale: 1, duration: 1.7, ease: EASE.editorial },
-        0.4,
+        { scale: 1.14 },
+        { scale: 1, duration: 1.9, ease: EASE.editorial },
+        0.35,
       )
-      .to(body, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.07 }, 1.35);
+      .to(body, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.07 }, 1.2);
 
     if (photo) {
       scrollTimeline(
@@ -151,7 +172,7 @@ export function HeroAperture({
       aria-labelledby="service-hero-heading"
       className="relative overflow-hidden bg-enzo-forest text-enzo-cream"
     >
-      <div className="mx-auto max-w-[1500px] px-5 pb-16 pt-[7.5rem] sm:px-6 md:px-12 md:pb-20 md:pt-[9rem]">
+      <div className="shell pb-16 pt-[7.5rem] md:pb-20 md:pt-[9rem]">
         <HeroRule category={service.category} tone="dark" />
 
         {/* ── The plate, and the title beside it ──
@@ -163,27 +184,43 @@ export function HeroAperture({
         <div className="relative mt-10 md:mt-14 lg:mt-16">
           <div className="lg:pl-[34%]">
             <div className="relative">
-              <div
-                data-hero-aperture
-                className="relative aspect-[4/3] w-full overflow-hidden rounded-[6px] bg-enzo-dark sm:aspect-[16/9] lg:aspect-[5/4] xl:aspect-[16/11]"
-                style={{ clipPath: "inset(50% 50% 50% 50%)" }}
-              >
+              <div className="relative aspect-[4/3] w-full overflow-hidden rounded-[6px] bg-enzo-dark sm:aspect-[16/9] lg:aspect-[5/4] xl:aspect-[16/11]">
                 <ImageWithFallback
                   src={service.image}
                   alt={service.title}
                   className="absolute inset-0 h-full w-full object-cover will-change-transform"
                   data-hero-photo
                 />
-              </div>
 
-              {/* The strike of light along the centre line. Outside the
-                  clipped element so it is not clipped away with it. */}
-              <span
-                data-hero-strike
-                aria-hidden="true"
-                className="pointer-events-none absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-enzo-sand"
-                style={{ transform: "translateY(-50%) scaleX(0)", opacity: 0 }}
-              />
+                {/* ── The panels ──
+                    Sized in percentages off SHUTTERS so the run always covers
+                    the plate exactly, whatever the count. Each is its own
+                    element rather than one clipped mask because they have to
+                    leave at different times, and a clip-path cannot stagger.
+                    `pointer-events-none` throughout: once they are off screen
+                    they are still in the DOM, above the picture. */}
+                <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+                  {Array.from({ length: SHUTTERS }, (_, index) => (
+                    <span
+                      key={index}
+                      data-hero-shutter
+                      className="absolute top-0 block h-full bg-enzo-forest will-change-transform"
+                      style={{
+                        left: `${(index / SHUTTERS) * 100}%`,
+                        // A hair over its share, so sub-pixel rounding can
+                        // never leave a bright seam of photograph showing
+                        // between two panels at rest.
+                        width: `calc(${100 / SHUTTERS}% + 1px)`,
+                      }}
+                    >
+                      <span
+                        data-hero-seam
+                        className="absolute bottom-0 right-0 block h-full w-px bg-enzo-sand"
+                      />
+                    </span>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 

@@ -34,6 +34,13 @@ export interface NavSection {
   description: string;
 }
 
+/** A child *page*, not a section of this one. Only Services has any. */
+export interface NavPage {
+  label: string;
+  href: string;
+  description: string;
+}
+
 export interface NavLink {
   label: string;
   path: string;
@@ -41,6 +48,15 @@ export interface NavLink {
   /** One line about the page, shown beside its contents. */
   tagline: string;
   sections: NavSection[];
+  /**
+   * Pages *below* this one in the site, listed alongside its sections rather
+   * than instead of them. Services is the only nav item with children, and
+   * they are the four things a visitor came to the menu looking for — making
+   * them reachable in one hover is worth more than the strict "this page
+   * only" rule the rest of the panel keeps to. Everything else here still
+   * points inside its own page.
+   */
+  pages?: NavPage[];
 }
 
 export const NAV_LINKS: NavLink[] = [
@@ -63,6 +79,12 @@ export const NAV_LINKS: NavLink[] = [
     path: "/services",
     icon: Sofa,
     tagline: "Fitted furniture, designed and installed end to end.",
+    pages: [
+      { label: "Bespoke Kitchens", href: "/services/kitchens", description: "Cabinetry, worktops, appliances" },
+      { label: "Fitted Bedrooms", href: "/services/bedrooms", description: "Wardrobes, headboards, bedsides" },
+      { label: "Media Walls", href: "/services/media-walls", description: "Screen, storage, fire, lighting" },
+      { label: "Fitted Wardrobes", href: "/services/wardrobes", description: "Walk-ins and awkward rooms" },
+    ],
     sections: [
       { index: "01", label: "The disciplines", href: "/services#services-hero", description: "Kitchens to wardrobes" },
       { index: "02", label: "What it costs", href: "/services#services-pricing", description: "Every service, to scale" },

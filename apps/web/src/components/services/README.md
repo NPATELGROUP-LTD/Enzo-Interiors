@@ -41,7 +41,7 @@ with the nouns swapped.
 | Sheet | Folder | variant 0 | variant 1 | variant 2 | variant 3 |
 |---|---|---|---|---|---|
 | A1 | `hero/` | `HeroMasthead` | `HeroColumns` | `HeroAperture` | `HeroDoors` |
-| A2 | `included/` | `IncludedLedger` | `IncludedSpine` | `IncludedBuildUp` | `IncludedBays` |
+| A2 | `included/` | `ServiceIncluded` — one design (the quotation sheet); its **ground** alternates per variant |
 | A3 | `model/` | one `ModelViewer`, four units — see `model/scene/units.tsx` |
 | A4 | `process/` | `ProcessRail` | `ProcessTimeline` | `ProcessStair` | `ProcessAssembly` |
 | A5 | `investment/` | `InvestmentSheets` | `InvestmentSlider` | `InvestmentDisplay` | `InvestmentDoors` |

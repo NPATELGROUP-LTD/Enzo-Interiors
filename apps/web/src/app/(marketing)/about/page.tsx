@@ -13,8 +13,9 @@
 //                       behind (cream)
 //   05  AboutTeam       one ruled bench: unequal plates on a shared baseline,
 //                       with a try-square riding the line (near-black)
-//   06  AboutColophon   the note's own best line, lifted to headline scale,
-//                       with the letter set plainly underneath (warm grey)
+//   06  AboutColophon   the founder's note, read as claim-then-reason: each
+//                       paragraph's opening sentence at heading scale with
+//                       its justification underneath (warm grey)
 //   07  AboutClose      the ask, between two parting rules (near-black)
 //
 // Grounds run dark → cream → forest → cream → dark → warm grey → dark, so the

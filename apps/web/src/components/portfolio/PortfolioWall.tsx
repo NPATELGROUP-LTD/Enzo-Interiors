@@ -128,7 +128,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
       duration: 0.62,
       ease: "power2.inOut",
       absolute: true,
-      // Tiles that were not in the previous set have no "from" box, so Flip
+      // Tiles that were not in the previous set have no "from " box, so Flip
       // is told explicitly how they should arrive rather than snapping in.
       onEnter: (elements) =>
         gsap.fromTo(
@@ -230,7 +230,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
       aria-labelledby="portfolio-wall-heading"
       className="relative overflow-hidden bg-enzo-dark text-enzo-cream scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="portfolio-wall-heading" className="sr-only">
           The work
         </h2>

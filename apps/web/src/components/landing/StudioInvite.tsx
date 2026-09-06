@@ -14,6 +14,35 @@
 // visibly pull apart, stop and they settle back to their own pace. This is
 // the only place on the page where scrolling changes the *speed* of something
 // rather than its position.
+//
+// ── Second composition: the ask sits *in* the work, not under it ──
+// The first arrangement stacked them — rows, then a rule, then the ask in two
+// columns underneath. Two blocks that happened to share a background, and the
+// page's last word was the weaker of the two: by the time you reached the
+// booking copy the photographs had scrolled off and the section read as a
+// contact panel with a decorative header.
+//
+// The rows now run full-bleed as the section's ground, and the ask is a solid
+// forest panel that breaks into them from the left and overlaps the lower row
+// — the same asymmetric overlap the landing hero and §01 use, applied to the
+// close. The work keeps moving behind the thing it is evidence for, which is
+// the whole argument of the section in one composition: *this is what we did;
+// shall we do yours.*
+//
+// It is one panel in one colour, divided by a rule.
+//
+// Two earlier attempts got this wrong in opposite directions. First a 25%
+// forest-light tint on the right half — transparent over a row of moving
+// photographs, so the phone number and the email were legible only while a
+// dark tile happened to be passing behind them. Then a solid forest-light
+// fill, which was readable and introduced a second green: the panel stopped
+// reading as one object and became two blocks that had been pushed together.
+//
+// The answer was never the fill. The two halves are the same forest and the
+// division is a hairline — which is how every other pair of columns on this
+// site is separated, costs no contrast at all, and leaves the panel one
+// object. Nothing here is translucent, because nothing here needs to be: the
+// separation was never doing the work the transparency was asked to do.
 import { useRef } from "react";
 import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
@@ -130,8 +159,8 @@ export function StudioInvite({ items }: StudioInviteProps) {
       aria-labelledby="invite-heading"
       className="relative overflow-hidden bg-enzo-dark scroll-mt-24"
     >
-      <div className="pt-16 md:pt-24">
-        <div className="mx-auto mb-7 flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 sm:px-6 md:px-12">
+      <div className="pt-16 md:pt-24 lg:pb-8">
+        <div className="shell mb-7 flex flex-wrap items-center justify-between gap-4">
           <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sage">
             Recent installs
           </span>
@@ -191,12 +220,15 @@ export function StudioInvite({ items }: StudioInviteProps) {
         </div>
       </div>
 
-      <div className="relative mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      {/* The ask, lifted into the rows above it. The negative top margin is
+          the overlap; it only applies from `lg`, because below that the rows
+          are short and an overlapping panel would cover most of them. */}
+      <div className="relative shell pb-20 pt-12 md:pb-28 lg:-mt-24 lg:pt-0 xl:-mt-32">
         <h2 id="invite-heading" className="sr-only">
           Book a consultation
         </h2>
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-end lg:gap-20">
-          <div>
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,360px)]">
+          <div className="rounded-t-[22px] bg-enzo-forest px-6 pb-10 pt-9 sm:px-10 sm:pt-12 lg:rounded-l-[22px] lg:rounded-tr-none lg:px-12 lg:pb-14 lg:pt-14">
             <SectionIntro
               tone="dark"
               index="06"
@@ -205,13 +237,16 @@ export function StudioInvite({ items }: StudioInviteProps) {
               lines={["Let us measure", "your space."]}
               lede="An hour at your kitchen table, a tape measure and a few photographs. You get a drawing and a fixed price. Nothing else happens until you say so."
             />
-            <MagneticButton href="/booking" className="-ml-5 mt-5">
+            <MagneticButton href="/booking" className="-ml-5 mt-6">
               Book Consultation
             </MagneticButton>
           </div>
 
-          <div data-invite-contact className="border-t border-enzo-cream/15 pt-6 lg:pb-4">
-            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/70">
+          <div
+            data-invite-contact
+            className="rounded-b-[22px] border-t border-enzo-cream/15 bg-enzo-forest px-6 pb-10 pt-8 sm:px-10 lg:rounded-r-[22px] lg:rounded-bl-none lg:border-l lg:border-t-0 lg:px-10 lg:pb-14 lg:pt-14"
+          >
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sand">
               Rather not book online
             </p>
             <div className="mt-5 flex flex-col gap-4">

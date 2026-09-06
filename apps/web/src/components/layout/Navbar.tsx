@@ -289,7 +289,16 @@ export function Navbar() {
             piece's one free rounded corner met the frame's two straight
             edges, since a corner (unlike the dock's single flat top edge)
             has two adjacent sides for that pocket to open up along.
-            md:max-w-none lets the row reach the true viewport edges. */}
+            md:max-w-none lets the row reach the true viewport edges.
+
+            Deliberately NOT on `.shell`. Every section below is a centred
+            1500px column, and putting the header on the same measure dragged
+            the logo and the CTA inward with it — on a 1900px screen they
+            ended up 200px in from the edges, floating in the middle of the
+            frame instead of sitting on it. The header is chrome docked to the
+            sand border, not content in the column: it belongs to the viewport
+            and keeps its own 28px inset from it, which is 14px clear of the
+            frame's own 14px band. */}
         <div className="relative mx-auto flex max-w-[1400px] items-start justify-between px-4 pt-4 md:max-w-none md:px-7 md:pt-6">
           {/* Logo is the one piece visible in both contexts — dark glass +
               white mark on mobile (base classes), solid sand + dark mark
@@ -419,7 +428,7 @@ export function Navbar() {
                   : (closedWidth ?? undefined),
             }}
             className={cn(
-              "pointer-events-auto relative max-w-3xl overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+              "pointer-events-auto relative max-w-5xl overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
               PIECE_RADIUS,
               GLASS_LIGHT,
               // Flush against the frame's top edge — sharp, no radius, so
@@ -484,55 +493,131 @@ export function Navbar() {
                       activeLink ? "opacity-100" : "opacity-0",
                     )}
                   >
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,2.4fr)] lg:gap-0">
-                      <div className="pb-6 border-b border-enzo-forest/10 lg:pb-0 lg:border-b-0 lg:pr-10">
-                        <div className="flex items-start gap-4">
-                          <motion.div
-                            key={displayedLink.path}
-                            initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
-                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                            transition={{ type: "spring", stiffness: 320, damping: 20 }}
-                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
-                          >
-                            <displayedLink.icon className="h-5 w-5" />
-                          </motion.div>
-                          <div className="flex-1 min-w-0">
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest/80">
-                              On this page
-                            </p>
-                            <p className="text-[14px] leading-snug font-medium text-enzo-forest/75">
-                              {displayedLink.tagline}
-                            </p>
-                          </div>
-                        </div>
+                    {/* ── The panel ──
+                        The first version put the page's name and tagline in a
+                        left rail and squeezed the contents into whatever was
+                        left: at the dock's width that gave each section cell
+                        about 180px, so half the labels wrapped onto two lines
+                        and the descriptions under them stopped lining up with
+                        anything. A menu that is harder to scan than the page
+                        it describes is not doing its job.
+
+                        The rail is a header row now. It costs one line and it
+                        hands the full width back to the contents, which is
+                        what actually needed the room — three columns of ~300px
+                        where every label sits on one line and every row shares
+                        a baseline. */}
+                    <div>
+                      <div className="flex items-center gap-3 pb-5">
+                        <motion.span
+                          key={displayedLink.path}
+                          initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
+                          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
+                        >
+                          <displayedLink.icon className="h-4 w-4" />
+                        </motion.span>
+                        <p className="font-display text-[10px] font-semibold uppercase tracking-[0.22em] text-enzo-forest-light">
+                          {displayedLink.label}
+                        </p>
+                        {/* No rule between the label and the tagline. The
+                            panel already has one directly beneath this row,
+                            separating the header from the contents, and a
+                            second hairline on the same axis 20px above it read
+                            as a repeat rather than as structure. `ml-auto`
+                            does the job the rule was doing — holding the
+                            tagline to the right — without drawing anything. */}
+                        <p className="ml-auto truncate text-[12.5px] text-enzo-forest/70">
+                          {displayedLink.tagline}
+                        </p>
                       </div>
 
-                      {/* The page's own contents, in the order they appear on
-                          it — each row carrying the sheet index the page
-                          itself prints beside that section, so the panel and
-                          the page use one numbering. */}
-                      <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 pt-6 lg:grid-cols-3 lg:border-l lg:border-enzo-forest/10 lg:pl-10 lg:pt-0">
-                        {displayedLink.sections.map((section) => (
-                          <Link
-                            key={section.href}
-                            href={section.href}
-                            onClick={() => setActivePath(null)}
-                            className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
+                      <div
+                        className={cn(
+                          "grid gap-x-8 border-t border-enzo-forest/10 pt-5",
+                          // Services is the only item with child pages, and
+                          // they get a column of their own rather than being
+                          // mixed into the section list — a page and a place
+                          // on a page are different promises.
+                          displayedLink.pages
+                            ? "lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)]"
+                            : "lg:grid-cols-1",
+                        )}
+                      >
+                        {displayedLink.pages && (
+                          <>
+                            <div>
+                              <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
+                                Go to a service
+                              </p>
+                              <ul className="grid grid-cols-2 gap-x-2">
+                                {displayedLink.pages.map((page) => (
+                                  <li key={page.href}>
+                                    <Link
+                                      href={page.href}
+                                      onClick={() => setActivePath(null)}
+                                      className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
+                                    >
+                                      <span className="flex items-center gap-1.5 text-[14px] font-medium text-enzo-forest">
+                                        {page.label}
+                                        <ArrowUpRight className="h-3.5 w-3.5 -translate-y-px opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
+                                      </span>
+                                      <span className="text-[11.5px] leading-snug text-enzo-forest/60">
+                                        {page.description}
+                                      </span>
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <span
+                              aria-hidden="true"
+                              className="hidden bg-enzo-forest/10 lg:block"
+                            />
+                          </>
+                        )}
+
+                        {/* The page's own contents, in the order they appear
+                            on it — each row carrying the sheet index the page
+                            itself prints beside that section, so the panel and
+                            the page use one numbering. */}
+                        <div className={displayedLink.pages ? "lg:pl-8" : undefined}>
+                          <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
+                            On this page
+                          </p>
+                          <ul
+                            className={cn(
+                              "grid gap-x-4",
+                              displayedLink.pages
+                                ? "grid-cols-2 lg:grid-cols-2"
+                                : "grid-cols-2 lg:grid-cols-3",
+                            )}
                           >
-                            <span className="flex items-baseline gap-2">
-                              <span className="font-display text-[10px] font-semibold tabular-nums tracking-[0.14em] text-enzo-forest-light">
-                                {section.index}
-                              </span>
-                              <span className="flex items-center gap-1 text-[14px] font-medium text-enzo-forest">
-                                {section.label}
-                                <ArrowUpRight className="h-3.5 w-3.5 -translate-y-px opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
-                              </span>
-                            </span>
-                            <span className="pl-[26px] text-[12px] leading-snug text-enzo-forest/70">
-                              {section.description}
-                            </span>
-                          </Link>
-                        ))}
+                            {displayedLink.sections.map((section) => (
+                              <li key={section.href}>
+                                <Link
+                                  href={section.href}
+                                  onClick={() => setActivePath(null)}
+                                  className="group flex items-baseline gap-2.5 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-enzo-forest/8"
+                                >
+                                  <span className="font-display w-5 shrink-0 text-[10px] font-semibold tabular-nums tracking-[0.12em] text-enzo-forest-light">
+                                    {section.index}
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="flex items-center gap-1 text-[13.5px] font-medium leading-[1.35] text-enzo-forest">
+                                      {section.label}
+                                      <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
+                                    </span>
+                                    <span className="block truncate text-[11.5px] leading-snug text-enzo-forest/60">
+                                      {section.description}
+                                    </span>
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>

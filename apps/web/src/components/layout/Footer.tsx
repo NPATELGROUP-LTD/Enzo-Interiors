@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { ArrowUpRight, ArrowRight, Phone, Check } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { CookieSettingsButton } from "@/components/legal/CookieSettingsButton";
 import { revealOnScroll, scrollTimeline } from "@/hooks/useGSAP";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
 import { FooterMap } from "@/components/layout/FooterMap";
@@ -99,7 +100,6 @@ function NewsletterForm({
             already exits/enters from. */}
         <button
           type="submit"
-          data-cursor="view"
           aria-label="Subscribe"
           className="group relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-enzo-sand text-enzo-forest transition-all duration-300 hover:scale-110 hover:bg-enzo-sage"
         >
@@ -229,7 +229,7 @@ export function Footer() {
         className="pointer-events-none absolute -top-5 left-1/2 hidden h-10 w-28 -translate-x-1/2 rounded-t-full bg-enzo-forest md:block"
       />
 
-      <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-12 sm:px-10 md:px-12 md:pb-14 md:pt-14">
+      <div className="relative z-10 shell pb-10 pt-12 md:pb-14 md:pt-14">
         {/* ── Mobile (< md): simple composition, no bubble effect.
             Headline on its own line, then two columns — page links on the
             left, social icons on the right — plain pills and icon buttons,
@@ -249,7 +249,6 @@ export function Footer() {
                   <li key={item.href} className="reveal-pages">
                     <Link
                       href={item.href}
-                      data-cursor="view"
                       className="flex min-h-11 items-center text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
                     >
                       {item.label}
@@ -269,7 +268,6 @@ export function Footer() {
                       target={href.startsWith("http") ? "_blank" : undefined}
                       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                       aria-label={label}
-                      data-cursor="view"
                       className="flex min-h-11 items-center gap-2 text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
                     >
                       <Icon size={15} className="text-enzo-sand" />
@@ -302,7 +300,6 @@ export function Footer() {
                 <li key={item.href} className="reveal-pages">
                   <Link
                     href={item.href}
-                    data-cursor="view"
                     className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
                     <TextRoll>{item.label}</TextRoll>
@@ -349,7 +346,6 @@ export function Footer() {
                     href={href}
                     target={href.startsWith("http") ? "_blank" : undefined}
                     rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    data-cursor="view"
                     className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
                     <TextRoll>{label}</TextRoll>
@@ -371,7 +367,6 @@ export function Footer() {
             <p className={cn(LABEL, "mb-3")}>Begin A Conversation</p>
             <a
               href="mailto:hello@enzointeriors.co.uk"
-              data-cursor="view"
               className="group touch-target inline-flex flex-wrap items-baseline gap-x-2 text-[1.2rem] font-bold leading-[1.1] tracking-tight text-enzo-cream"
             >
               <span className="bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_2px] bg-left-bottom bg-no-repeat pb-0.5 transition-[background-size] duration-500 ease-out group-hover:bg-[length:100%_2px]">
@@ -381,7 +376,6 @@ export function Footer() {
             </a>
             <a
               href="tel:+447777333052"
-              data-cursor="view"
               className="mt-3 flex min-h-11 items-center gap-2 text-[14px] text-enzo-cream/70 transition-colors hover:text-enzo-cream"
             >
               <Phone className="h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
@@ -414,7 +408,7 @@ export function Footer() {
           underline-sweep hover as every other link in this footer, instead
           of a bare colour change, for one consistent interaction language
           throughout. */}
-      <div className="reveal-bottom relative z-10 mx-auto flex max-w-6xl flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 px-6 py-8 sm:flex-row sm:px-10 md:px-12">
+      <div className="reveal-bottom relative z-10 shell flex flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 py-8 sm:flex-row">
         <div className="text-center text-[13px] sm:text-left">
           <p className="font-semibold text-enzo-cream">
             &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
@@ -423,16 +417,31 @@ export function Footer() {
             Made by <span className="font-semibold text-enzo-sand">NPATEL GROUP LTD</span>
           </p>
         </div>
-        <div className="flex items-center gap-6 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream">
-          <a href="#" className="group relative touch-target">
+        {/* The three notices, plus the consent-withdrawal control. The last
+            one is not decoration: UK GDPR Art. 7(3) requires withdrawing
+            consent to be as easy as giving it, which means reachable from
+            every page rather than buried in a policy. */}
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream"
+        >
+          <Link href="/privacy" className="group relative touch-target">
             Privacy Policy
             <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </a>
-          <a href="#" className="group relative touch-target">
+          </Link>
+          <Link href="/terms" className="group relative touch-target">
             Terms
             <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </a>
-        </div>
+          </Link>
+          <Link href="/cookies" className="group relative touch-target">
+            Cookies
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </Link>
+          <CookieSettingsButton className="group relative touch-target uppercase tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand">
+            Cookie settings
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </CookieSettingsButton>
+        </nav>
       </div>
     </footer>
   );

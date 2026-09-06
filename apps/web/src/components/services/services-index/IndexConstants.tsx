@@ -85,7 +85,6 @@ const CONSTANTS: Constant[] = [
 export function IndexConstants() {
   const sectionRef = useRef<HTMLElement>(null);
   const [reached, setReached] = useState(0);
-  const [hovered, setHovered] = useState<number | null>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
     const list = section.querySelector<HTMLElement>("[data-constants-list]");
@@ -132,7 +131,7 @@ export function IndexConstants() {
       aria-labelledby="services-constants-heading"
       className="relative overflow-hidden bg-enzo-forest scroll-mt-24"
     >
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      <div className="shell py-20 md:py-28">
         <h2 id="services-constants-heading" className="sr-only">
           What every job includes
         </h2>
@@ -164,18 +163,18 @@ export function IndexConstants() {
           />
 
           {CONSTANTS.map((item, index) => {
-            const done = index < reached;
-            // Reached and pointed-at are the same state, so a visitor who
-            // wants a drawing early can hover for it rather than scrolling
-            // until the page decides to show them.
-            const live = done || hovered === index;
+            // Scroll is the only thing that finishes a promise now. Hover used
+            // to do it too, which sounded generous and made the section
+            // impossible to follow: the four items are a *sequence* down a
+            // setting-out line, and a pointer resting anywhere on the page
+            // could light one out of order, un-light it on the way out, and
+            // leave two items live at once with the marker beside neither of
+            // them. The line stopped meaning "how far you have read". One
+            // input, one reading.
+            const live = index < reached;
             return (
               <article
                 key={item.title}
-                onPointerEnter={() => setHovered(index)}
-                onPointerLeave={() =>
-                  setHovered((current) => (current === index ? null : current))
-                }
                 className="relative border-t border-enzo-cream/12 py-10 first:border-t-0 first:pt-0 md:py-16"
               >
                 {/* Station mark on the line for this promise. */}
