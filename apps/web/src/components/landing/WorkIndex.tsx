@@ -246,12 +246,21 @@ export function WorkIndex({ items }: WorkIndexProps) {
           })}
         </ol>
 
+        {/* A full-width bordered button, not the same underlined text link
+            desktop tucks into the heading row — that link works there
+            because it rides beside a headline someone's eyes are already
+            on. Down here it would be the last thing in a long column of
+            photographs, easy to scroll straight past. A button-shaped
+            target the width of the column is the one thing in this list
+            that unmistakably says "there's more, tap here." */}
         <Link
           href="/portfolio"
-          className="touch-target mt-4 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary lg:hidden"
+          className="mt-2 flex items-center justify-between gap-3 rounded-full border border-primary/20 py-3 pl-6 pr-2 text-[14px] font-semibold text-primary transition-colors duration-300 active:bg-primary/5 lg:hidden"
         >
           See all {items.length} projects
-          <ArrowRight className="h-3.5 w-3.5" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <ArrowRight className="h-4 w-4" />
+          </span>
         </Link>
       </div>
     </section>

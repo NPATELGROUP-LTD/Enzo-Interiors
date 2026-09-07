@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
@@ -44,25 +45,32 @@ export function HeroStatic() {
       />
 
       <div className="relative z-[1] flex flex-col items-start">
-        <span className="mb-3.5 whitespace-nowrap text-[9.5px] font-semibold uppercase tracking-[0.22em] text-enzo-sand">
-          Leicestershire&apos;s bespoke specialists
-        </span>
-
+        {/* No eyebrow line here — this hero already opens with the offer,
+            and a wrapping headline was doing worse with even less width
+            once a strapline sat above it. */}
         <h1
           className="font-title font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream"
           style={{ fontSize: "clamp(2.4rem, 11vw, 3.4rem)" }}
         >
           Fitted furniture,
           <br />
-          <span className="text-enzo-sage">made for your walls.</span>
+          <span className="text-enzo-sage">made to measure.</span>
         </h1>
 
-        <p className="mt-4 max-w-[38ch] text-[14.5px] leading-[1.65] text-enzo-cream/70">
-          Kitchens, wardrobes and media walls — drawn, built in our workshop and
+        <p className="mt-4 max-w-[32ch] text-[15px] leading-[1.65] text-enzo-cream/70">
+          Kitchens, wardrobes and media walls, built in our workshop and
           fitted by the same team.
         </p>
 
-        <HeroCtaButton href="/booking" label="Book Consultation" className="mt-6" />
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <HeroCtaButton href="/booking" label="Book Consultation" />
+          <Link
+            href="/portfolio"
+            className="touch-target inline-flex items-center rounded-full border border-enzo-cream/25 px-6 py-3.5 text-[13px] font-semibold tracking-wide text-enzo-cream transition-colors duration-300 active:bg-enzo-cream/10"
+          >
+            Our Work
+          </Link>
+        </div>
       </div>
 
       <div className="relative z-[1] w-full">

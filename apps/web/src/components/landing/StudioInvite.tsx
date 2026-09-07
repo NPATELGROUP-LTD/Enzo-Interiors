@@ -44,7 +44,9 @@
 // object. Nothing here is translucent, because nothing here needs to be: the
 // separation was never doing the work the transparency was asked to do.
 import { useRef } from "react";
+import Link from "next/link";
 import gsap from "gsap";
+import { ArrowUpRight, Mail, Phone } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { InstagramIcon } from "@/components/shared/icons";
 import { MagneticButton } from "@/components/shared/MagneticButton";
@@ -126,17 +128,26 @@ export function StudioInvite({ items }: StudioInviteProps) {
       },
     });
 
-    const contact = section.querySelector<HTMLElement>("[data-invite-contact]");
-    if (contact) {
+    // Two matches now, not one: the mobile card carries its own copy of
+    // this attribute (see the render below), and only one of the two is
+    // ever actually laid out at a given width — the other is `display:
+    // none` behind its `hidden lg:...` class. `offsetParent` filters that
+    // one straight back out; handing ScrollTrigger a trigger element with
+    // no box to measure is what was throwing "Cannot read properties of
+    // undefined (reading 'end')" out of its own internal recalculation.
+    const contacts = gsap.utils
+      .toArray<HTMLElement>("[data-invite-contact]", section)
+      .filter((el) => el.offsetParent !== null);
+    if (contacts.length) {
       fromOnScroll(
-        contact,
+        contacts,
         {
           opacity: 0,
           y: 30,
           duration: DUR.enter,
           ease: EASE.enter,
         },
-        { trigger: contact, start: "top 88%" },
+        { trigger: contacts[0], start: "top 88%" },
       );
     }
 
@@ -227,8 +238,10 @@ export function StudioInvite({ items }: StudioInviteProps) {
         <h2 id="invite-heading" className="sr-only">
           Book a consultation
         </h2>
-        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,360px)]">
-          <div className="rounded-t-[22px] bg-enzo-forest px-6 pb-10 pt-9 sm:px-10 sm:pt-12 lg:rounded-l-[22px] lg:rounded-tr-none lg:px-12 lg:pb-14 lg:pt-14">
+
+        {/* ── Desktop: one forest panel, divided by a hairline ── */}
+        <div className="hidden gap-0 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,360px)]">
+          <div className="rounded-l-[22px] bg-enzo-forest px-12 pb-14 pt-14">
             <SectionIntro
               tone="dark"
               index="06"
@@ -244,7 +257,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
 
           <div
             data-invite-contact
-            className="rounded-b-[22px] border-t border-enzo-cream/15 bg-enzo-forest px-6 pb-10 pt-8 sm:px-10 lg:rounded-r-[22px] lg:rounded-bl-none lg:border-l lg:border-t-0 lg:px-10 lg:pb-14 lg:pt-14"
+            className="rounded-r-[22px] border-l border-enzo-cream/15 bg-enzo-forest px-10 pb-14 pt-14"
           >
             <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sand">
               Rather not book online
@@ -273,6 +286,62 @@ export function StudioInvite({ items }: StudioInviteProps) {
                 ballpark before we visit.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Mobile: sand, not forest ──
+            The desktop panel repeated here would be the third same-coloured
+            block in a row on a phone — this card, stacked directly on the
+            marquee rows above and the footer's own forest immediately
+            below. Sand breaks the run instead of extending it: one warm,
+            light beat between two dark grounds, built as its own card
+            rather than the desktop grid narrowed into one column. */}
+        <div
+          data-invite-contact
+          className="rounded-[26px] bg-enzo-sand px-6 pb-7 pt-8 sm:px-8 lg:hidden"
+        >
+          <SectionIntro
+            index="06"
+            label="Next"
+            datum="free, no obligation"
+            lines={["Let us measure", "your space."]}
+            lede="An hour at your kitchen table and a tape measure. You get a drawing and a fixed price."
+          />
+
+          <Link
+            href="/booking"
+            className="mt-6 flex items-center justify-between gap-3 rounded-full bg-enzo-forest py-2 pl-6 pr-2 text-[14.5px] font-semibold text-enzo-cream transition-transform duration-300 active:scale-[0.98]"
+          >
+            Book Consultation
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-enzo-cream text-enzo-forest">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </Link>
+
+          <div className="mt-6 border-t border-enzo-forest/15 pt-6">
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest/55">
+              Rather not book online
+            </p>
+            <div className="mt-3.5 grid grid-cols-2 gap-3">
+              <a
+                href="tel:+447777333052"
+                className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
+              >
+                <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-[13.5px] font-semibold">Call</span>
+              </a>
+              <a
+                href="mailto:hello@enzointeriors.co.uk"
+                className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
+              >
+                <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-[13.5px] font-semibold">Email</span>
+              </a>
+            </div>
+            <p className="mt-4 text-[12.5px] leading-[1.6] text-enzo-forest/70">
+              Send photos of the room and rough measurements — we will come back with a
+              ballpark before we visit.
+            </p>
           </div>
         </div>
       </div>

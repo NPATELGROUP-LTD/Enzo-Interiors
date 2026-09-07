@@ -424,16 +424,28 @@ export function ProcessLedger() {
           ))}
         </ol>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-[16px] bg-card px-5 py-4">
-          <p className="text-[13px] leading-[1.6] text-foreground/75">
-            Typical project: <span className="text-primary">five to eight weeks</span>.
+        {/* A solid block, not a thin bordered strip with a text link — the
+            desktop stage column can end on "Start at stage one" as a quiet
+            line of text because it sits inside a frame that has already
+            spent a full viewport making its case. On a phone this is the
+            section's last word before the page moves on, so the datum reads
+            as a real stat and the CTA is a full pill sized for a thumb,
+            not a caption someone has to aim for. */}
+        <div className="mt-8 rounded-[20px] bg-primary px-6 py-6">
+          <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/60">
+            Typical project
+          </p>
+          <p className="mt-2 text-[1.4rem] font-semibold leading-tight tracking-[-0.02em] text-primary-foreground">
+            Five to eight weeks, start to fitted.
           </p>
           <Link
             href="/booking"
-            className="touch-target inline-flex items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary"
+            className="mt-5 flex items-center justify-between gap-3 rounded-full bg-primary-foreground py-2 pl-5 pr-2 text-[13.5px] font-semibold text-primary transition-transform duration-300 active:scale-[0.98]"
           >
             Start at stage one
-            <ArrowRight className="h-3.5 w-3.5" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <ArrowRight className="h-4 w-4" />
+            </span>
           </Link>
         </div>
       </div>

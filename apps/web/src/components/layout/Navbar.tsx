@@ -31,7 +31,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
-import { ArrowUpRight, Plus } from "lucide-react";
+import { ArrowUpRight } from "lucide-react";
 import { TextRoll } from "@/components/shared/TextRoll";
 import { NAV_LINKS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -40,11 +40,11 @@ import { cn } from "@/lib/utils";
 // note at the top of the file. Kept here as one object so the sheet cannot
 // drift into forest/cream by accident.
 const INK = {
-  ground: "#14151A",
-  bone: "#EFECE4",
-  boneSoft: "rgba(239,236,228,0.62)",
-  brass: "#C69248",
-  rule: "rgba(239,236,228,0.14)",
+  ground: "#20493A",
+  bone: "#F2F0EB",
+  boneSoft: "rgba(242,240,235,0.60)",
+  brass: "#D4C9B5",
+  rule: "rgba(242,240,235,0.16)",
 } as const;
 
 // Treatment for the desktop-only pieces that dock against the sand frame
@@ -57,10 +57,11 @@ const PIECE_HEIGHT = "h-12";
 // Every floating piece shares this corner radius too (logo card, dock, CTA).
 const PIECE_RADIUS = "rounded-2xl";
 
+/** The four service pages, pulled once for the phone sheet's grid. */
+const SERVICE_PAGES = NAV_LINKS.find((l) => l.pages)?.pages ?? [];
+
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Which page's contents are expanded inside the phone sheet.
-  const [mobileSection, setMobileSection] = useState<string | null>(null);
   const [activePath, setActivePath] = useState<string | null>(null);
   const pathname = usePathname();
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -201,7 +202,6 @@ export function Navbar() {
   if (pathname !== prevPathname) {
     setPrevPathname(pathname);
     setMobileOpen(false);
-    setMobileSection(null);
     setActivePath(null);
   }
 
@@ -298,31 +298,26 @@ export function Navbar() {
             and keeps its own 28px inset from it, which is 14px clear of the
             frame's own 14px band. */}
         <div className="relative mx-auto flex max-w-[1400px] items-start justify-between px-4 pt-4 md:max-w-none md:px-7 md:pt-6">
-          {/* Logo is the one piece visible in both contexts — dark glass +
-              white mark on mobile (base classes), solid sand + dark mark
-              on desktop (md: overrides + swapped image). Fully rounded on
-              all sides now that it floats clear of the frame. */}
+          {/* Same box, always — height/radius/padding never change, only
+              the fill does. Sand + forest mark over the page; once the ink
+              sheet is behind it the sand pill would sit on top of its own
+              backdrop, so the fill drops to transparent and the mark swaps
+              to the white cut instead of dimming a dark mark on dark ink. */}
           <Link
             ref={logoRef}
             href="/"
             className={cn(
-              // On a phone the mark sits flat on the page with no card
-              // around it at all — the ink sheet behind it when the menu is
-              // open supplies all the contrast it needs, and a glass pill
-              // floating over a photograph was the single busiest thing on
-              // the small layout. The desktop pill is unchanged.
-              "relative flex items-center overflow-hidden pointer-events-auto max-md:pl-1",
+              "relative flex items-center overflow-hidden pointer-events-auto px-5 transition-colors duration-300",
               PIECE_HEIGHT,
-              "md:rounded-2xl md:bg-enzo-sand md:px-5 md:text-enzo-forest",
+              PIECE_RADIUS,
+              mobileOpen ? "bg-transparent" : "bg-enzo-sand",
             )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
-            <img src="/logo/enzo-white.png" alt="Enzo Interiors" className="relative z-10 h-6 w-auto md:hidden" />
-            {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
             <img
-              src="/logo/enzo-forest.png"
+              src={mobileOpen ? "/logo/enzo-white.png" : "/logo/enzo-forest.png"}
               alt="Enzo Interiors"
-              className="relative z-10 hidden h-6 w-auto md:block"
+              className="relative z-10 h-6 w-auto"
             />
           </Link>
 
@@ -348,41 +343,37 @@ export function Navbar() {
             </Link>
           </div>
 
-          {/* The phone control is a word and a rule, not a hamburger in a
-              glass pill. Two stacked hairlines that cross into an X — the
-              state change is the whole affordance, and the label removes any
-              question about what the glyph is. Brass on the closed state so
-              the one interactive thing on a small screen is also the one
-              coloured thing. */}
+          {/* Same square, open or closed — only the fill and the glyph
+              inside animate. A three-bar hamburger morphs into an X in
+              place (middle bar fades, top/bottom rotate to meet at the
+              centre). The three bars sit at 0 / 7 / 14px in a 16px box —
+              whole pixels, not the 6.25px fractional offsets the previous
+              version used, which put the middle and bottom bars on a
+              sub-pixel boundary the browser anti-aliased into a visibly
+              fainter line than the top one. */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className={cn(
-              "pointer-events-auto flex items-center gap-2.5 px-1 md:hidden",
+              "pointer-events-auto flex w-12 items-center justify-center transition-colors duration-300 md:hidden",
               PIECE_HEIGHT,
+              PIECE_RADIUS,
+              mobileOpen ? "bg-transparent text-enzo-cream" : "bg-enzo-sand text-enzo-forest",
             )}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
           >
-            <span
-              className="font-display text-[10.5px] font-semibold uppercase tracking-[0.26em]"
-              style={{ color: mobileOpen ? INK.bone : INK.brass }}
-            >
-              {mobileOpen ? "Close" : "Menu"}
-            </span>
-            <span aria-hidden="true" className="relative block h-3 w-6">
+            <span aria-hidden="true" className="relative block h-4 w-[18px]">
               <span
-                className="absolute left-0 block h-[1.5px] w-full origin-center transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]"
-                style={{
-                  backgroundColor: mobileOpen ? INK.bone : INK.brass,
-                  transform: mobileOpen ? "translateY(5px) rotate(45deg)" : "translateY(1px)",
-                }}
+                className="absolute inset-x-0 top-0 block h-[2px] origin-center bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{ transform: mobileOpen ? "translateY(7px) rotate(45deg)" : "none" }}
               />
               <span
-                className="absolute left-0 block h-[1.5px] w-full origin-center transition-transform duration-400 ease-[cubic-bezier(0.32,0.72,0,1)]"
-                style={{
-                  backgroundColor: mobileOpen ? INK.bone : INK.brass,
-                  transform: mobileOpen ? "translateY(5px) rotate(-45deg)" : "translateY(9px)",
-                }}
+                className="absolute inset-x-0 top-1/2 block h-[2px] -translate-y-1/2 bg-current transition-opacity duration-200"
+                style={{ opacity: mobileOpen ? 0 : 1 }}
+              />
+              <span
+                className="absolute inset-x-0 bottom-0 block h-[2px] origin-center bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{ transform: mobileOpen ? "translateY(-7px) rotate(-45deg)" : "none" }}
               />
             </span>
           </button>
@@ -659,11 +650,10 @@ export function Navbar() {
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="flex flex-1 flex-col pt-4"
+                className="flex flex-col pt-4"
               >
                 {NAV_LINKS.map((link, i) => {
                   const isHere = pathname === link.path;
-                  const isOpen = mobileSection === link.path;
                   return (
                     <motion.div
                       key={link.path}
@@ -671,110 +661,90 @@ export function Navbar() {
                       className="border-b"
                       style={{ borderColor: INK.rule }}
                     >
-                      <div className="flex items-stretch">
-                        <Link
-                          href={link.path}
-                          onClick={() => setMobileOpen(false)}
-                          className="flex flex-1 items-baseline gap-4 py-5 active:opacity-60"
-                        >
-                          <span
-                            className="font-display text-[10.5px] font-semibold tabular-nums tracking-[0.2em]"
-                            style={{ color: isHere ? INK.brass : INK.boneSoft }}
-                          >
-                            {String(i + 1).padStart(2, "0")}
-                          </span>
-                          <span
-                            className="font-title text-[2.1rem] font-semibold leading-none tracking-[-0.04em]"
-                            style={{ color: INK.bone }}
-                          >
-                            {link.label}
-                          </span>
-                          {/* Where you already are, said with a mark rather
-                              than a colour shift no one would notice. */}
-                          {isHere && (
-                            <span
-                              aria-hidden="true"
-                              className="ml-1 block h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: INK.brass }}
-                            />
-                          )}
-                        </Link>
-
-                        {/* Opening the contents is a separate control from
-                            going to the page — tapping the name should go
-                            there, and a phone has no hover to carry the
-                            difference the way the desktop dock does. */}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setMobileSection((current) =>
-                              current === link.path ? null : link.path,
-                            )
-                          }
-                          aria-expanded={isOpen}
-                          aria-label={`${isOpen ? "Hide" : "Show"} ${link.label} sections`}
-                          className="-mr-2 flex w-12 shrink-0 items-center justify-center"
-                        >
-                          <Plus
-                            className="h-4 w-4 transition-transform duration-[400ms] ease-[cubic-bezier(0.32,0.72,0,1)]"
-                            style={{
-                              color: isOpen ? INK.brass : INK.boneSoft,
-                              transform: isOpen ? "rotate(135deg)" : "none",
-                            }}
-                          />
-                        </button>
-                      </div>
-
-                      <div
-                        className="grid transition-[grid-template-rows] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]"
-                        style={{ gridTemplateRows: isOpen ? "1fr" : "0fr" }}
+                      <Link
+                        href={link.path}
+                        onClick={() => setMobileOpen(false)}
+                        className="flex items-baseline gap-4 py-4 active:opacity-60"
                       >
-                        <div className="overflow-hidden">
-                          <ul className="pb-5 pl-[2.2rem]">
-                            {link.sections.map((section) => (
-                              <li key={section.href}>
-                                <Link
-                                  href={section.href}
-                                  onClick={() => setMobileOpen(false)}
-                                  className="flex items-baseline gap-3 py-2 active:opacity-60"
-                                >
-                                  <span
-                                    className="font-display w-6 shrink-0 text-[9.5px] font-semibold tabular-nums tracking-[0.16em]"
-                                    style={{ color: INK.brass }}
-                                  >
-                                    {section.index}
-                                  </span>
-                                  <span
-                                    className="text-[14.5px] leading-[1.4]"
-                                    style={{ color: INK.boneSoft }}
-                                  >
-                                    {section.label}
-                                  </span>
-                                </Link>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
+                        {/* Where you already are, said by stamping its own
+                            index rather than a colour shift on the label no
+                            one would notice, or a dot that could mean
+                            anything. The number every row already carries
+                            becomes the mark: on the current page it fills
+                            solid brass, like a die stamped into the sheet. */}
+                        <span
+                          className="font-display flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1 text-[10.5px] font-semibold tabular-nums tracking-[0.1em] transition-colors duration-300"
+                          style={{
+                            color: isHere ? INK.ground : INK.boneSoft,
+                            backgroundColor: isHere ? INK.brass : "transparent",
+                          }}
+                        >
+                          {String(i + 1).padStart(2, "0")}
+                        </span>
+                        <span
+                          className="font-title text-[2rem] font-semibold leading-none tracking-[-0.04em]"
+                          style={{ color: INK.bone }}
+                        >
+                          {link.label}
+                        </span>
+                      </Link>
                     </motion.div>
                   );
                 })}
               </motion.nav>
+
+              {/* The four services, flat. They were behind a per-row
+                  expander before, which meant the one thing most visitors
+                  open the menu for took two taps and a guess at which row
+                  hid it. A menu this short has the room to just show them. */}
+              {SERVICE_PAGES.length > 0 && (
+                <motion.div
+                  variants={ctaVariants}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  className="pt-8"
+                >
+                  <p
+                    className="font-display pb-3 text-[9.5px] font-semibold uppercase tracking-[0.22em]"
+                    style={{ color: INK.boneSoft }}
+                  >
+                    Services
+                  </p>
+                  <ul
+                    className="grid grid-cols-2 border-t border-l"
+                    style={{ borderColor: INK.rule }}
+                  >
+                    {SERVICE_PAGES.map((page) => (
+                      <li key={page.href} className="border-b border-r" style={{ borderColor: INK.rule }}>
+                        <Link
+                          href={page.href}
+                          onClick={() => setMobileOpen(false)}
+                          className="block px-3 py-3.5 text-[13px] active:opacity-60"
+                          style={{ color: INK.bone }}
+                        >
+                          {page.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              )}
 
               <motion.div
                 variants={ctaVariants}
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="pt-10"
+                className="mt-auto pt-10"
               >
                 <Link
                   href="/booking"
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-between gap-4 rounded-full py-4 pl-7 pr-3 text-[15px] font-medium active:scale-[0.985]"
+                  className="flex items-center justify-between gap-4 rounded-full py-3 pl-7 pr-3 text-[15px] font-medium active:scale-[0.985]"
                   style={{ backgroundColor: INK.brass, color: INK.ground }}
                 >
-                  Book a consultation
+                  Book Now
                   <span
                     className="flex h-10 w-10 items-center justify-center rounded-full"
                     style={{ backgroundColor: INK.ground, color: INK.brass }}
@@ -782,9 +752,6 @@ export function Navbar() {
                     <ArrowUpRight className="h-4 w-4" />
                   </span>
                 </Link>
-                <p className="mt-5 text-[12px] leading-[1.6]" style={{ color: INK.boneSoft }}>
-                  Free survey, in your home, across Leicester &amp; Leicestershire.
-                </p>
               </motion.div>
             </div>
           </motion.div>

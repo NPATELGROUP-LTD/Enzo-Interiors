@@ -511,11 +511,17 @@ export function WorkshopModule() {
           <div className="flex flex-col gap-5 lg:min-h-0 lg:gap-6 lg:overflow-y-auto">
             {SPECS.map((spec) => (
               <div key={spec.label} data-spec className="border-t border-enzo-cream/15 pt-4">
-                <div className="flex items-baseline gap-3">
+                {/* `justify-between` + a bumped-up label size only below
+                    `lg`: at phone width the value and its unit-word are the
+                    only two things on the line, so the word can afford to
+                    be a real right-hand column instead of a small tag
+                    crowding the number's baseline. `lg:` restores both to
+                    the original tight, left-running pair. */}
+                <div className="flex items-baseline justify-between gap-3 lg:justify-start">
                   <span className="font-display text-[1.6rem] font-semibold tracking-[-0.02em] text-enzo-cream">
                     {spec.value}
                   </span>
-                  <span className="font-display text-[10px] font-semibold uppercase tracking-[0.26em] text-enzo-sand">
+                  <span className="font-display text-right text-[11.5px] font-semibold uppercase tracking-[0.18em] text-enzo-sand lg:text-left lg:text-[10px] lg:tracking-[0.26em]">
                     {spec.label}
                   </span>
                 </div>

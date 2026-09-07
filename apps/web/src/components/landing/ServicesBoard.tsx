@@ -155,11 +155,18 @@ export function ServicesBoard({ services }: { services: Service[] }) {
                   {/* The plate. Its height is a fraction of SHELF_HEIGHT
                       from `lg` up — `calc()` on a clamp, so the whole shelf
                       scales with the viewport while the four plates keep
-                      their proportions to one another. Below `lg` the height
-                      is dropped for a plain 4/3, because there is no shelf. */}
+                      their proportions to one another. Below `lg` that
+                      fraction is exactly what needs to disappear: the shelf
+                      idea (four heights on one baseline) doesn't exist in a
+                      single stacked column, so a plain 4/3 replaces it for
+                      every plate alike. The height is written as a custom
+                      property rather than the CSS `height` property itself
+                      so `lg:h-[var(--plate-h)]` can pick it up only from
+                      `lg` — below that no height utility is set at all, and
+                      `max-lg:aspect-[4/3]` is free to size the box. */}
                   <div
-                    className="relative overflow-hidden rounded-[22px] bg-enzo-forest max-lg:aspect-[4/3] focus-visible:ring-2 focus-visible:ring-ring group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-4"
-                    style={{ height: `calc(${SHELF_HEIGHT} * ${height})` }}
+                    className="relative overflow-hidden rounded-[22px] bg-enzo-forest max-lg:aspect-[4/3] lg:h-[var(--plate-h)] focus-visible:ring-2 focus-visible:ring-ring group-focus-visible:ring-2 group-focus-visible:ring-ring group-focus-visible:ring-offset-4"
+                    style={{ "--plate-h": `calc(${SHELF_HEIGHT} * ${height})` } as React.CSSProperties}
                   >
                     <ImageWithFallback
                       src={service.image}
