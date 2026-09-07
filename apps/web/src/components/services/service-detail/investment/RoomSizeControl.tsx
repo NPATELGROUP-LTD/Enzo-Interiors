@@ -9,6 +9,7 @@
 // after a font swap or a translation.
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { ROOM_SIZE_LABELS, ROOM_SIZES, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +26,7 @@ export function RoomSizeControl({
 }: RoomSizeControlProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dark = tone === "dark";
+  const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
     const root = rootRef.current;
@@ -36,7 +38,6 @@ export function RoomSizeControl({
     const place = (immediate: boolean) => {
       const button = buttons[ROOM_SIZES.indexOf(value)];
       if (!button) return;
-      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       gsap.to(pill, {
         x: button.offsetLeft,
         width: button.offsetWidth,
@@ -49,7 +50,7 @@ export function RoomSizeControl({
     const onResize = () => place(true);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
-  }, [value]);
+  }, [value, reduced]);
 
   return (
     <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:gap-6">

@@ -49,7 +49,7 @@ export interface ConsentState {
 }
 
 /** Raise this when a new category is introduced, to re-ask everyone. */
-export const CONSENT_VERSION = 1;
+const CONSENT_VERSION = 1;
 
 const KEY = "enzo.consent";
 
@@ -122,16 +122,6 @@ export function setConsent(choice: Record<ConsentCategory, boolean>): void {
   listeners.forEach((fn) => fn());
 }
 
-/** Withdrawal: clears the record so the banner asks again. */
-export function clearConsent(): void {
-  try {
-    window.localStorage.removeItem(KEY);
-  } catch {
-    /* nothing to clear */
-  }
-  snapshot = null;
-  listeners.forEach((fn) => fn());
-}
 
 /**
  * The gate every future non-essential script must sit behind. Returns false

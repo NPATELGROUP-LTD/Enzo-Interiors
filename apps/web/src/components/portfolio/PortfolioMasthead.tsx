@@ -25,7 +25,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { useGSAP } from "@/hooks/useGSAP";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
@@ -37,7 +37,7 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
   const [claimed, setClaimed] = useState(false);
-  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reduced = usePrefersReducedMotion();
 
   const pick = useCallback((index: number) => {
     setClaimed(true);

@@ -45,6 +45,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
 
@@ -123,7 +124,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
   const stopRefs = useRef<(HTMLLIElement | null)[]>([]);
   const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
   const plateRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reduced = usePrefersReducedMotion();
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   // ── Desktop: the scrubbed deal ──

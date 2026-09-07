@@ -13,10 +13,11 @@
 // specification takes the other, ruled like every other schedule on the
 // site.
 //
-// Modal contract, matching QuoteRequestModal so the two behave the same:
-// Escape closes, the body is locked while it is open, focus moves into the
-// sheet and returns to whatever opened it, and Tab is trapped inside.
-// Arrow keys step to the next and previous project without closing.
+// A native <dialog> opened with showModal(), which is where Escape, the Tab
+// trap, `inert` on the page behind, and focus restore to whatever opened the
+// sheet all come from — none of that is hand-written here. Only two things
+// are: the page scroll lock (<dialog> does not lock it) and the arrow keys
+// that step to the next and previous project without closing.
 import { useCallback, useEffect, useRef } from "react";
 import { ArrowLeft, ArrowRight, X } from "lucide-react";
 import gsap from "gsap";
@@ -41,78 +42,49 @@ export function CaseStudySheet({
   onClose,
   onStep,
 }: CaseStudySheetProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
-  const returnFocusTo = useRef<HTMLElement | null>(null);
   const reduced = usePrefersReducedMotion();
   const open = item !== null;
 
-  // Remembered before the sheet steals focus, so closing puts the visitor
-  // back on the row or tile they opened.
-  useEffect(() => {
-    if (open) returnFocusTo.current = document.activeElement as HTMLElement;
-  }, [open]);
-
+  // Closed through the element, not just through React state: it is
+  // `dialog.close()` that returns focus to the row or tile the visitor
+  // opened the sheet from. Escape goes down the same path via onCancel.
   const close = useCallback(() => {
+    dialogRef.current?.close();
     onClose();
-    returnFocusTo.current?.focus();
   }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    if (!dialog.open) dialog.showModal();
 
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        close();
-        return;
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        onStep(1);
-        return;
-      }
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        onStep(-1);
-        return;
-      }
-      // Trap. Without this, Tab walks out of the sheet and into the page
-      // behind it, which for a screen-reader or keyboard visitor means the
-      // modal is not modal at all.
-      if (event.key === "Tab") {
-        const panel = panelRef.current;
-        if (!panel) return;
-        const focusable = panel.querySelectorAll<HTMLElement>(
-          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        );
-        if (!focusable.length) return;
-        const first = focusable[0]!;
-        const last = focusable[focusable.length - 1]!;
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
+    // The one part <dialog> does not do: it makes the page inert, not still.
     const root = document.documentElement;
     const previousOverflow = root.style.overflow;
     root.style.overflow = "hidden";
-    document.addEventListener("keydown", onKeyDown);
-
-    const focusTimer = window.setTimeout(() => {
-      panelRef.current?.querySelector<HTMLElement>("button")?.focus();
-    }, 40);
-
     return () => {
       root.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKeyDown);
-      window.clearTimeout(focusTimer);
     };
-  }, [open, close, onStep]);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        onStep(1);
+      } else if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        onStep(-1);
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onStep]);
 
   // Enter. Exit is a plain unmount: an exit animation on a modal delays the
   // one thing the visitor has just asked for, and the guidance is explicit
@@ -161,7 +133,16 @@ export function CaseStudySheet({
   ];
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-stretch justify-center">
+    <dialog
+      ref={dialogRef}
+      onCancel={onClose}
+      aria-labelledby="case-study-title"
+      // Everything after `z-[80]` neutralises the UA dialog styles (fitted
+      // width/height, 1em padding, solid border, canvas background, capped
+      // max-width/height, its own scroll box and its backdrop) so the sheet
+      // lays out exactly as the plain overlay it replaced.
+      className="fixed inset-0 z-[80] m-0 flex h-full max-h-none w-full max-w-none items-stretch justify-center overflow-visible border-0 bg-transparent p-0 [&::backdrop]:bg-transparent"
+    >
       <div
         ref={scrimRef}
         aria-hidden="true"
@@ -171,9 +152,6 @@ export function CaseStudySheet({
 
       <div
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="case-study-title"
         className="relative m-auto flex max-h-[94svh] w-full max-w-[1400px] flex-col overflow-y-auto bg-enzo-dark text-enzo-cream md:max-h-[90svh] md:flex-row"
       >
         {/* ── The photograph ── */}
@@ -292,6 +270,6 @@ export function CaseStudySheet({
           </div>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 }

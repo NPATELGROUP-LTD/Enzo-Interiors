@@ -15,7 +15,7 @@
 import type { ServiceDetail } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { ModelViewer, type ModelSpec } from "./ModelViewer";
-import type { Viewpoint } from "./scene/sceneKit";
+import type { Viewpoint } from "@/lib/scene-common";
 import type { UnitKind } from "./scene/ServiceScene";
 
 interface ModelConfig {

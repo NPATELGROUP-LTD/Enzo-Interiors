@@ -16,18 +16,20 @@ import { useFrame } from "@react-three/fiber";
 import type { Group, Mesh } from "three";
 import {
   BRASS,
-  Books,
   CHARCOAL,
   CLAY,
-  FLOOR_Y,
   FOREST,
   FOREST_DEEP,
-  Garment,
   LINEN,
   SAGE,
   SAND,
   SCREEN,
   STONE,
+} from "@/lib/scene-common";
+import {
+  Books,
+  FLOOR_Y,
+  Garment,
   WALL_Z,
   useEasedOpen,
   usePanelGeometry,

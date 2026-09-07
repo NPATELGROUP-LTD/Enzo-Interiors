@@ -28,7 +28,7 @@ import Link from "next/link";
 import gsap from "gsap";
 import { ArrowRight } from "lucide-react";
 import { useGSAP } from "@/hooks/useGSAP";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DUR, EASE } from "@/lib/motion";
 import { getServiceMetrics, spellCount } from "@/lib/service-metrics";
 import type { ServiceDetail } from "@/lib/content";
@@ -52,7 +52,7 @@ export function IndexHero({ services }: IndexHeroProps) {
   // the room's own left wall instead of the stage's edge — see the caption
   // below. Null until the drawing has measured itself once.
   const [frame, setFrame] = useState<PlanFrame | null>(null);
-  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reducedMotion = usePrefersReducedMotion();
 
   // Stable identity: RoomPlanDrawing keys its measuring effect on this, and a
   // fresh closure each render would re-observe on every state change.

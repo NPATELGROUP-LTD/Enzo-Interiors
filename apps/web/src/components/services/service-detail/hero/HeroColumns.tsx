@@ -29,7 +29,7 @@ import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import type { ServiceDetail } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
-import { HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
+import { heroCommonParts, heroRestMotion, HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
 
 /** Panels the photograph is cut into. Three reads as a run of bays; two
  *  reads as an accident and four makes each panel a letterbox slot. */
@@ -46,19 +46,15 @@ export function HeroColumns({
   const facts = getHeroFacts(service).slice(0, PANELS);
 
   useGSAP(sectionRef, (section, reduced) => {
-    const meta = gsap.utils.toArray<HTMLElement>("[data-hero-meta]", section);
-    const lines = gsap.utils.toArray<HTMLElement>("[data-hero-line]", section);
-    const body = gsap.utils.toArray<HTMLElement>("[data-hero-body]", section);
+    const parts = heroCommonParts(section);
+    const { meta, lines, body, rule } = parts;
     const panels = gsap.utils.toArray<HTMLElement>("[data-hero-panel]", section);
     const photos = gsap.utils.toArray<HTMLElement>("[data-hero-photo]", section);
-    const rule = section.querySelector<HTMLElement>("[data-hero-rule]");
 
     if (reduced) {
-      gsap.set([...meta, ...body], { opacity: 1, y: 0 });
-      gsap.set(lines, { opacity: 1, yPercent: 0, y: 0 });
+      heroRestMotion(parts);
       gsap.set(panels, { clipPath: "inset(0 0 0 0)" });
       gsap.set(photos, { scale: 1, xPercent: 0 });
-      if (rule) gsap.set(rule, { scaleX: 1 });
       return;
     }
 

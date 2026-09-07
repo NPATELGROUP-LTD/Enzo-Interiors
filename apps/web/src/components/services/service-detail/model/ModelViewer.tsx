@@ -74,7 +74,7 @@ import {
   ZOOM_MIN,
   type OrbitState,
   type Viewpoint,
-} from "./scene/sceneKit";
+} from "@/lib/scene-common";
 import type { UnitKind } from "./scene/ServiceScene";
 
 const ServiceScene = dynamic(() => import("./scene/ServiceScene"), {
@@ -88,7 +88,7 @@ export interface ModelSpec {
   note: string;
 }
 
-export interface ModelViewerProps {
+interface ModelViewerProps {
   id: string;
   kind: UnitKind;
   /** Section heading. */

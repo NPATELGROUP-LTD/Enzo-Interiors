@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
 import type { PricingTier } from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
-import { GBP } from "./RollingFigure";
+import { GBP } from "@/lib/service-metrics";
 
 export function InvestmentDoors({
   category,

@@ -25,31 +25,27 @@ import { useMemo, useRef, type RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Group } from "three";
-
-const FOREST = "#1B4335";
-const FOREST_DEEP = "#122A22";
-const SAGE = "#8A9E8C";
-const SAND = "#D4C9B5";
-const BRASS = "#C4A87A";
-const SCREEN = "#0B0E0D";
-const PLASTER = "#D2CABB";
-const PLASTER_DEEP = "#BCB3A3";
-const OAK = "#A98F6A";
-const LINEN = "#C3B9A6";
-const LINEN_DEEP = "#AEA391";
-const CLAY = "#A8785E";
-const CHARCOAL = "#3B3B39";
-
-export interface Viewpoint {
-  id: string;
-  label: string;
-  note: string;
-  azimuth: number;
-  /** Radians from +Y. Below PI/2 looks down at the unit, above looks up. */
-  polar: number;
-  radius: number;
-  targetY: number;
-}
+import {
+  AZIMUTH_LIMIT,
+  BRASS,
+  CHARCOAL,
+  CLAY,
+  FOREST,
+  FOREST_DEEP,
+  LINEN,
+  LINEN_DEEP,
+  neutralOrbit,
+  OAK,
+  PLASTER,
+  PLASTER_DEEP,
+  SAGE,
+  SAND,
+  SCREEN,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  type OrbitState,
+  type Viewpoint,
+} from "@/lib/scene-common";
 
 export const VIEWPOINTS: Viewpoint[] = [
   {
@@ -89,34 +85,6 @@ export const VIEWPOINTS: Viewpoint[] = [
     targetY: 0.42,
   },
 ];
-
-/**
- * Live camera offsets, written by the parent's pointer/keyboard handlers and
- * read by the render loop — never through React state, so turning the model
- * costs no renders. All three are offsets from the current viewpoint; `zoom`
- * multiplies the viewpoint's own radius so a close viewpoint and a far one
- * zoom by the same proportion.
- */
-export interface OrbitState {
-  azimuth: number;
-  polar: number;
-  zoom: number;
-}
-
-/**
- * How far off the viewpoint the visitor may turn, in radians. Bounded for the
- * same reason the service-page viewer is (see scene/sceneKit): the unit is a
- * run fixed to a wall, and an unbounded drag walks the camera round behind
- * that wall to look at the back of a plasterboard plane.
- */
-export const AZIMUTH_LIMIT = 0.95;
-export const ZOOM_MIN = 0.62;
-export const ZOOM_MAX = 1.35;
-
-/** The rest state — also what "recentre" restores. */
-export function neutralOrbit(): OrbitState {
-  return { azimuth: 0, polar: 0, zoom: 1 };
-}
 
 /** Rounded, chamfered flat panel — reads as solid material under raking light. */
 function usePanelGeometry(width: number, height: number, depth: number, radius: number) {

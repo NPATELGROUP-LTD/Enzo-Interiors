@@ -46,6 +46,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import type { PortfolioItem } from "@/lib/content";
@@ -89,6 +90,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
   // Matches the grid's own `sm:` breakpoint exactly, so "desktop" here means
   // precisely the viewports where the full mosaic actually renders.
   const isMosaic = useMediaQuery("(min-width: 640px)");
+  const reducedMotion = usePrefersReducedMotion();
 
   const categories = useMemo(
     () => [ALL, ...Array.from(new Set(items.map((item) => item.category)))],
@@ -111,7 +113,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
   const beginFilter = (next: string) => {
     if (next === filter) return;
     const grid = gridRef.current;
-    if (grid && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (grid && !reducedMotion) {
       flipState.current = Flip.getState(grid.querySelectorAll("[data-tile]"));
     }
     setFilter(next);
@@ -152,14 +154,13 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
     const active = bar.querySelector<HTMLElement>('[data-tab][aria-pressed="true"]');
     if (!rule || !active) return;
 
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     gsap.to(rule, {
       x: active.offsetLeft,
       width: active.offsetWidth,
-      duration: reduced ? 0 : 0.45,
+      duration: reducedMotion ? 0 : 0.45,
       ease: "power3.out",
     });
-  }, [filter, categories.length, isMosaic]);
+  }, [filter, categories.length, isMosaic, reducedMotion]);
 
   // A fresh page of mobile tiles has no scroll-triggered reveal of its own
   // — the one below fires once, on mount, over whatever was on screen then.
@@ -176,7 +177,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
       const tiles = grid.querySelectorAll<HTMLElement>("[data-tile]");
       const added = Array.from(tiles).slice(prevMobilePage.current * MOBILE_PAGE_SIZE);
       if (added.length) {
-        if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        if (reducedMotion) {
           gsap.set(added, { clipPath: "inset(0 0 0% 0)" });
         } else {
           gsap.fromTo(
@@ -193,7 +194,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
       }
     }
     prevMobilePage.current = mobilePage;
-  }, [mobilePage, isMosaic]);
+  }, [mobilePage, isMosaic, reducedMotion]);
 
   useGSAP(sectionRef, (section, reduced) => {
     const tiles = gsap.utils.toArray<HTMLElement>("[data-tile]", section);

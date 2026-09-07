@@ -22,8 +22,6 @@ import { useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-export const ELEVATION_STAGE_COUNT = 5;
-
 interface ElevationDrawingProps {
   /** Index of the furthest stage that should be inked in (0-based). */
   active: number;

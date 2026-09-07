@@ -55,7 +55,7 @@ import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import type { ServiceDetail } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
-import { HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
+import { heroCommonParts, heroRestMotion, HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
 
 /**
  * How many slats the plate is covered by. Five reads as a run of panels; any
@@ -80,22 +80,18 @@ export function HeroAperture({
   const accentIndex = words.length - 1;
 
   useGSAP(sectionRef, (section, reduced) => {
-    const meta = gsap.utils.toArray<HTMLElement>("[data-hero-meta]", section);
-    const lines = gsap.utils.toArray<HTMLElement>("[data-hero-line]", section);
-    const body = gsap.utils.toArray<HTMLElement>("[data-hero-body]", section);
+    const parts = heroCommonParts(section);
+    const { meta, lines, body, rule } = parts;
     const photo = section.querySelector<HTMLElement>("[data-hero-photo]");
     const shutters = gsap.utils.toArray<HTMLElement>("[data-hero-shutter]", section);
     const seams = gsap.utils.toArray<HTMLElement>("[data-hero-seam]", section);
-    const rule = section.querySelector<HTMLElement>("[data-hero-rule]");
 
     if (reduced) {
-      gsap.set([...meta, ...body], { opacity: 1, y: 0 });
-      gsap.set(lines, { opacity: 1, yPercent: 0, y: 0 });
+      heroRestMotion(parts);
       // The panels are simply already off, rather than animating off.
       gsap.set(shutters, { yPercent: -100 });
       gsap.set(seams, { opacity: 0 });
       if (photo) gsap.set(photo, { scale: 1 });
-      if (rule) gsap.set(rule, { scaleX: 1 });
       return;
     }
 

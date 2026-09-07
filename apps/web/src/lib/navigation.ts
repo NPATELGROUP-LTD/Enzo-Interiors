@@ -1,18 +1,11 @@
 // The site's navigation model — one source of truth for the header.
 //
 // ── Why the panels only ever point inside their own page ──
-// The hover panels used to be a grab-bag: "Home" offered /services,
-// /portfolio and /booking; "Portfolio" offered two service pages; "About"
-// offered /services and /contact. So every panel was a shortcut to somewhere
-// else, three of the five listed the same handful of destinations, and
-// pointing at a page's name told you nothing about that page.
-//
-// A panel now lists the *sections of the page it belongs to*, in the order
-// they appear on it, each anchored to a real element id. Pointing at
-// "Portfolio" tells you what is on /portfolio; pointing at "Contact" tells
-// you what is on /contact. The panel becomes a table of contents, which is
-// the one thing a name in a menu bar can usefully expand into — and it is
-// the only arrangement where five panels are five different things.
+// A panel lists the *sections of the page it belongs to*, in the order they
+// appear on it, each anchored to a real element id — never links to other
+// pages. The panel is a table of contents, which is the one thing a name in
+// a menu bar can usefully expand into, and the only arrangement where five
+// panels are five different things.
 //
 // Every `href` below is `<page path>#<section id>`. The ids are set on the
 // section elements themselves; if one is renamed, it is renamed here too and
@@ -25,7 +18,7 @@ import {
   Mail,
 } from "lucide-react";
 
-export interface NavSection {
+interface NavSection {
   /** Sheet index as the page itself letters it — "01", "C3", "A2". */
   index: string;
   label: string;
@@ -35,13 +28,13 @@ export interface NavSection {
 }
 
 /** A child *page*, not a section of this one. Only Services has any. */
-export interface NavPage {
+interface NavPage {
   label: string;
   href: string;
   description: string;
 }
 
-export interface NavLink {
+interface NavLink {
   label: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;

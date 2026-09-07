@@ -1,5 +1,3 @@
-"use client";
-
 // The chrome every service hero shares.
 //
 // The four heroes are four genuinely different compositions, but they are
@@ -13,13 +11,14 @@
 // one `tone`, because that is the thing that must not be re-decided per file
 // (a cream pill is invisible on the cream masthead, which is the bug this
 // solves once).
+import gsap from "gsap";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import type { HeroFact } from "./heroFacts";
 
 /** `light` = cream / warm grey grounds. `dark` = near-black / forest. */
-export type HeroTone = "light" | "dark";
+type HeroTone = "light" | "dark";
 
 /**
  * The sheet rule: sheet index, service name, and a hairline that draws
@@ -206,4 +205,25 @@ export function HeroTitleLine({
       </span>
     </span>
   );
+}
+
+/**
+ * The four elements every hero's reveal drives, however differently it
+ * drives them. Each variant queries its own mechanism parts (shutters,
+ * doors, panels, band) on top of these.
+ */
+export function heroCommonParts(section: HTMLElement) {
+  return {
+    meta: gsap.utils.toArray<HTMLElement>("[data-hero-meta]", section),
+    lines: gsap.utils.toArray<HTMLElement>("[data-hero-line]", section),
+    body: gsap.utils.toArray<HTMLElement>("[data-hero-body]", section),
+    rule: section.querySelector<HTMLElement>("[data-hero-rule]"),
+  };
+}
+
+/** The shared reduced-motion end state: type and rule simply already there. */
+export function heroRestMotion(parts: ReturnType<typeof heroCommonParts>) {
+  gsap.set([...parts.meta, ...parts.body], { opacity: 1, y: 0 });
+  gsap.set(parts.lines, { opacity: 1, yPercent: 0, y: 0 });
+  if (parts.rule) gsap.set(parts.rule, { scaleX: 1 });
 }

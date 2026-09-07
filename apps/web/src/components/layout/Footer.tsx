@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, ArrowRight, Phone, Check } from "lucide-react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { CookieSettingsButton } from "@/components/legal/CookieSettingsButton";
 import { revealOnScroll, scrollTimeline } from "@/hooks/useGSAP";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
@@ -13,8 +12,6 @@ import { FooterMap } from "@/components/layout/FooterMap";
 import { TextRoll } from "@/components/shared/TextRoll";
 import { HOURS_ROWS } from "@/lib/studio-hours";
 import { cn } from "@/lib/utils";
-
-gsap.registerPlugin(ScrollTrigger);
 
 // Exactly one more than socialLinks below — on any of these four pages the
 // current one gets filtered out (see filteredPageLinks in the component),

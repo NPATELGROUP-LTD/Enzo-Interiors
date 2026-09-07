@@ -1,12 +1,7 @@
 // Picks which of the four hero designs a service page uses.
 //
 // ── One family, four mechanisms ──
-// An earlier set gave the four pages four different *geometries* on the same
-// near-black ground running the same sequence, which read as one hero with
-// the parts moved. The set after that fixed the grounds but left four
-// unrelated reveals.
-//
-// These four are built the other way round: one shared grammar — an
+// These four are built around one shared grammar — an
 // oversized masked masthead, a sheet rule, the same four facts, the same two
 // actions (all of it in heroParts.tsx) — and then one *mechanism* per page,
 // chosen for what that service actually is:
@@ -44,7 +39,6 @@ const VARIANTS = [
   HeroDoors,
 ] as const;
 
-export const HERO_VARIANT_COUNT = VARIANTS.length;
 
 export function ServiceHero({
   service,

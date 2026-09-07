@@ -13,22 +13,19 @@
 // runs.
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
-
-export const GBP = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-  maximumFractionDigits: 0,
-});
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { GBP } from "@/lib/service-metrics";
 
 export function RollingFigure({ value }: { value: number }) {
   const ref = useRef<HTMLSpanElement>(null);
   const shown = useRef(value);
+  const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
     const node = ref.current;
     if (!node) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (reduced) {
       shown.current = value;
       node.textContent = GBP.format(value);
       return;
@@ -53,7 +50,7 @@ export function RollingFigure({ value }: { value: number }) {
       // second change counts on from there instead of jumping back.
       shown.current = proxy.value;
     };
-  }, [value]);
+  }, [value, reduced]);
 
   return <span ref={ref}>{GBP.format(value)}</span>;
 }

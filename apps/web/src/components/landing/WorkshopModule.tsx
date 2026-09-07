@@ -33,11 +33,11 @@ import { cn } from "@/lib/utils";
 import {
   AZIMUTH_LIMIT,
   neutralOrbit,
-  VIEWPOINTS,
   ZOOM_MAX,
   ZOOM_MIN,
   type OrbitState,
-} from "./MediaWallScene";
+} from "@/lib/scene-common";
+import { VIEWPOINTS } from "./MediaWallScene";
 
 const MediaWallScene = dynamic(() => import("./MediaWallScene"), {
   ssr: false,

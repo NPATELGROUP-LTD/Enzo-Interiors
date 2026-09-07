@@ -15,7 +15,7 @@
 // in-progress draft never blows up the public page.
 import type { ServiceDetail } from "@/lib/content";
 
-export interface ServiceMetrics {
+interface ServiceMetrics {
   /** Cheapest tier's displayed price, e.g. "£1,500". Null when no tiers. */
   fromPriceLabel: string | null;
   /** That same price as a number, for relative bar widths. */
@@ -33,6 +33,13 @@ export interface ServiceMetrics {
   stages: number;
   tiers: number;
 }
+
+/** The site's one currency formatter: 4500 -> "£4,500". */
+export const GBP = new Intl.NumberFormat("en-GB", {
+  style: "currency",
+  currency: "GBP",
+  maximumFractionDigits: 0,
+});
 
 /** Parses a UK currency label like "£4,500" into 4500. Null if unparseable. */
 export function parsePriceLabel(label: string): number | null {

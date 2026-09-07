@@ -28,7 +28,7 @@ import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import type { ServiceDetail } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
-import { HeroActions, HeroFacts, HeroRule, HeroTitleLine } from "./heroParts";
+import { heroCommonParts, heroRestMotion, HeroActions, HeroFacts, HeroRule, HeroTitleLine } from "./heroParts";
 
 export function HeroDoors({
   service,
@@ -41,24 +41,20 @@ export function HeroDoors({
   const facts = getHeroFacts(service);
 
   useGSAP(sectionRef, (section, reduced) => {
-    const meta = gsap.utils.toArray<HTMLElement>("[data-hero-meta]", section);
-    const lines = gsap.utils.toArray<HTMLElement>("[data-hero-line]", section);
-    const body = gsap.utils.toArray<HTMLElement>("[data-hero-body]", section);
+    const parts = heroCommonParts(section);
+    const { meta, lines, body, rule } = parts;
     const left = section.querySelector<HTMLElement>("[data-hero-door='left']");
     const right = section.querySelector<HTMLElement>("[data-hero-door='right']");
     const photo = section.querySelector<HTMLElement>("[data-hero-photo]");
-    const rule = section.querySelector<HTMLElement>("[data-hero-rule]");
 
     if (reduced) {
-      gsap.set([...meta, ...body], { opacity: 1, y: 0 });
-      gsap.set(lines, { opacity: 1, yPercent: 0, y: 0 });
+      heroRestMotion(parts);
       // Doors simply are not there — an instant jump of two full-width
       // panels is exactly the motion someone asking for less of it wants
       // least. `autoAlpha` rather than `opacity` so they are taken out of
       // hit-testing too, not left as two invisible sheets over the picture.
       gsap.set([left, right].filter(Boolean), { autoAlpha: 0 });
       if (photo) gsap.set(photo, { scale: 1 });
-      if (rule) gsap.set(rule, { scaleX: 1 });
       return;
     }
 

@@ -52,7 +52,8 @@ import { cn } from "@/lib/utils";
 import type { PricingTier } from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
-import { RollingFigure, GBP } from "./RollingFigure";
+import { RollingFigure } from "./RollingFigure";
+import { GBP } from "@/lib/service-metrics";
 
 /**
  * What actually moves a media wall's price, in the order it usually moves

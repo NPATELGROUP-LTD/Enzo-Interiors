@@ -32,7 +32,6 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
 import { ArrowUpRight, Plus } from "lucide-react";
-import { Button } from "@/components/ui/Button";
 import { TextRoll } from "@/components/shared/TextRoll";
 import { NAV_LINKS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
@@ -77,15 +76,6 @@ export function Navbar() {
   // standard CSS and always animate reliably.
   const linksRowRef = useRef<HTMLDivElement>(null);
   const [closedWidth, setClosedWidth] = useState<number | null>(null);
-  useEffect(() => {
-    const el = linksRowRef.current;
-    if (!el) return;
-    const measure = () => setClosedWidth(el.scrollWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // The dock's horizontal position/width must be derived from the REAL
   // rendered gap between the logo and CTA, not a guessed inset — the logo
@@ -98,13 +88,16 @@ export function Navbar() {
   useLayoutEffect(() => {
     const logoEl = logoRef.current;
     const ctaEl = ctaRef.current;
-    if (!logoEl || !ctaEl) return;
+    const linksEl = linksRowRef.current;
+    if (!logoEl || !ctaEl || !linksEl) return;
 
     // Fixed breathing room kept clear between the dock and each neighbour,
     // on top of their real measured edges.
     const BREATHING_ROOM = 20;
 
     const measure = () => {
+      setClosedWidth(linksEl.scrollWidth);
+
       const logoRect = logoEl.getBoundingClientRect();
       const ctaRect = ctaEl.getBoundingClientRect();
       // Below md the CTA wrapper is `hidden` (display:none), which reports
@@ -120,18 +113,23 @@ export function Navbar() {
 
     measure();
 
-    // Observe the logo and CTA themselves — NOT the dock. The dock's own
-    // width changes as a *result* of the state this effect sets (closed
+    // Observe the links row, the logo and the CTA — NOT the dock. The dock's
+    // own width changes as a *result* of the state this effect sets (closed
     // <-> expanded), so observing it would create a feedback loop:
     // resize -> setDockBox -> render -> dock resizes -> resize -> ...
-    // Logo/CTA size only changes from viewport width, never from dockBox
+    // These three only change size from viewport width, never from dockBox
     // itself, so they're safe permanent observation targets.
-    const ro2 = new ResizeObserver(measure);
-    ro2.observe(logoEl);
-    ro2.observe(ctaEl);
+    const ro = new ResizeObserver(measure);
+    ro.observe(linksEl);
+    ro.observe(logoEl);
+    ro.observe(ctaEl);
+    // Not redundant with the observer: the dock's box is derived from the
+    // logo's and CTA's *positions*, and the CTA is anchored to the right
+    // edge. Widening the window moves ctaRect.left without changing the
+    // CTA's own size, so ResizeObserver never fires for it.
     window.addEventListener("resize", measure);
     return () => {
-      ro2.disconnect();
+      ro.disconnect();
       window.removeEventListener("resize", measure);
     };
   }, []);
@@ -329,25 +327,16 @@ export function Navbar() {
           </Link>
 
           <div ref={ctaRef} className="pointer-events-auto hidden md:block">
-            {/* variant="outline" gives a bold, unambiguous hover: it
-                inverts to a solid forest fill + cream text, rather than a
-                translucent tint layered over our custom colors (which was
-                muddy and low-contrast — a subtle hover state doesn't read
-                against a background this light in the first place). Fully
-                rounded now that the CTA floats clear of the frame. The
-                hover colors are spelled out explicitly here rather than
-                relying on the "outline" variant's own built-in
-                hover:bg-primary/hover:text-primary-foreground — those
-                never actually painted in testing (present in the class
-                list, genuinely `:hover`-matched, yet the computed
-                background stayed unchanged), so this takes direct control
-                instead of depending on that cascade behaving as expected. */}
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
+            {/* The hover inverts to a solid forest fill + cream text. A
+                translucent tint reads as muddy and low-contrast against a
+                background this light, so every hover colour is spelled out
+                explicitly rather than tinting the base. */}
+            <Link
+              href="/booking"
               className={cn(
-                "border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
+                "inline-flex items-center justify-center gap-2 px-6 py-2.5 text-[13px] tracking-wide",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "border border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
                 "transition-all duration-300 ease-out",
                 "hover:bg-enzo-forest hover:text-enzo-cream hover:border-enzo-forest",
                 "hover:shadow-[0_8px_24px_rgba(28,74,58,0.25)] hover:scale-105",
@@ -355,8 +344,8 @@ export function Navbar() {
                 PIECE_RADIUS,
               )}
             >
-              <Link href="/booking">Book a Consultation</Link>
-            </Button>
+              Book a Consultation
+            </Link>
           </div>
 
           {/* The phone control is a word and a rule, not a hamburger in a

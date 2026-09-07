@@ -1,6 +1,5 @@
 "use client";
 
-// Ported from Boilerplate:src/app/components/figma/ImageWithFallback.tsx.
 // Uses a plain <img> (not next/image) deliberately: the site's images are
 // external Unsplash/randomuser placeholder URLs today, and next/image would
 // require every such host allow-listed in next.config.ts's

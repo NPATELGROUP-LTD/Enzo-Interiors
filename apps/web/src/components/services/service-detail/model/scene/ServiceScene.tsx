@@ -8,7 +8,8 @@
 // visitor who does not scroll to it.
 import { Canvas } from "@react-three/fiber";
 import type { RefObject } from "react";
-import { CameraRig, Room, SAND, SAGE, type OrbitState, type Viewpoint } from "./sceneKit";
+import { SAGE, SAND, type OrbitState, type Viewpoint } from "@/lib/scene-common";
+import { CameraRig, Room } from "./sceneKit";
 import { KitchenRun, MediaWall, WalkIn, WardrobeRun } from "./units";
 
 export type UnitKind = "kitchen" | "bedroom" | "media" | "walkin";

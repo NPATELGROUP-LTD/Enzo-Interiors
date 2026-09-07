@@ -31,7 +31,3 @@ export function variantIndex(
   return ((requested % count) + count) % count;
 }
 
-/** Props every section variant receives, so the pickers stay uniform. */
-export interface SectionVariantProps {
-  id: string;
-}

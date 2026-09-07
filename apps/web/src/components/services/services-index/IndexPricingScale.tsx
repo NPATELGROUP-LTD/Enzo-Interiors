@@ -49,16 +49,8 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import { getServiceMetrics } from "@/lib/service-metrics";
+import { GBP, getServiceMetrics } from "@/lib/service-metrics";
 import type { ServiceDetail } from "@/lib/content";
-
-gsap.registerPlugin(ScrollTrigger);
-
-const GBP = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-  maximumFractionDigits: 0,
-});
 
 /** Where the scale ends when everything published fits under it. */
 const AXIS_PREFERRED_MAX = 5000;

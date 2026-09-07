@@ -30,7 +30,7 @@ import { useEffect, useRef, useState } from "react";
 import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { useGSAP } from "@/hooks/useGSAP";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DUR, EASE } from "@/lib/motion";
 
 /** How long a word holds before the sentence moves on. */
@@ -47,7 +47,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
   const slotRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
   const [index, setIndex] = useState(0);
-  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const reduced = usePrefersReducedMotion();
 
   useEffect(() => {
     if (reduced || disciplines.length < 2) return;

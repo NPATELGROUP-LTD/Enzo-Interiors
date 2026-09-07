@@ -1,5 +1,3 @@
-"use client";
-
 // The four plates that sit beside /services §03.
 //
 // Each promise in IndexConstants is abstract — "one team", "surveyed first",

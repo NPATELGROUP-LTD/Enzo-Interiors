@@ -34,6 +34,7 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE } from "@/lib/motion";
 
 export interface TeamMember {
@@ -170,6 +171,7 @@ function Bench({
 }) {
   const stripRef = useRef<HTMLDivElement>(null);
   const carriageRef = useRef<HTMLSpanElement>(null);
+  const reduced = usePrefersReducedMotion();
   const [active, setActive] = useState(0);
 
   // Column widths as percentages of this row, from the rhythm.
@@ -188,7 +190,7 @@ function Bench({
     const carriage = carriageRef.current;
     if (!strip || !carriage) return;
     if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (reduced) return;
 
     const moveTo = gsap.quickTo(carriage, "x", { duration: 0.5, ease: "power3" });
 
@@ -229,7 +231,7 @@ function Bench({
       strip.removeEventListener("pointerleave", onLeave);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [row.length]);
+  }, [row.length, reduced]);
 
   return (
     <div className={className}>

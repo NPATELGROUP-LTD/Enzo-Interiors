@@ -10,7 +10,7 @@
 // Friday's split afternoon they would have changed one of them.
 
 /** Minutes past midnight, Europe/London. */
-export interface HoursWindow {
+interface HoursWindow {
   open: number;
   close: number;
 }

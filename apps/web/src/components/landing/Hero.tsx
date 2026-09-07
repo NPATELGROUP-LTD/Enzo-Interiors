@@ -10,11 +10,10 @@
 // mounts at all.
 //
 // This tracks the media query live, so dragging a desktop window narrow really
-// does swap to the mobile hero. That used to throw `removeChild`: GSAP's pin
-// re-parented the hero's <section> into a `.pin-spacer`, so React was
-// unmounting a node that had been moved out from under it. HeroSequence now
-// pins an inner element instead, leaving the <section> exactly where React put
-// it, which is what makes a live swap safe.
+// does swap to the mobile hero. That only works because HeroSequence pins an
+// inner element rather than the <section>: a pinned <section> is re-parented
+// into GSAP's `.pin-spacer`, and React then unmounts a node that has been
+// moved out from under it.
 import { useSyncExternalStore } from "react";
 import { HeroSequence } from "./HeroSequence";
 import { HeroStatic } from "./HeroStatic";
