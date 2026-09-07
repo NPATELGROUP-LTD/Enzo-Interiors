@@ -127,16 +127,6 @@ export function IndexHero({ services }: IndexHeroProps) {
       <div className="relative shell flex flex-1 flex-col pt-[6.5rem] md:pt-[8rem]">
         <div className="flex min-h-0 flex-1 flex-col gap-10 lg:flex-row lg:items-center lg:gap-14">
           <div className="lg:w-[44%]">
-            <p
-              data-hero-meta
-              className="font-display text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand opacity-0"
-              style={{ transform: "translateY(8px)" }}
-            >
-              Services
-              <span className="pl-3 text-enzo-cream/65">
-                {String(services.length).padStart(2, "0")}
-              </span>
-            </p>
 
             <h1
               id="services-index-heading"

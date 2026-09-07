@@ -247,7 +247,16 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
               <div
                 key={figure.label}
                 data-mast-body
-                className="flex items-baseline justify-between gap-4 border-b border-enzo-cream/15 py-4 opacity-0 sm:block sm:border-l sm:px-5 sm:py-7 md:px-8 md:py-9 lg:border-b-0"
+                className={cn(
+                  // Disciplines / Towns & villages repeat what the hero copy
+                  // and location chips already say on a phone-width screen —
+                  // cut to the two figures that add information there. Both
+                  // return at `sm`, where the grid has room for all four.
+                  figure.label === "Disciplines" || figure.label === "Towns & villages"
+                    ? "hidden"
+                    : "flex",
+                  "items-baseline justify-between gap-4 border-b border-enzo-cream/15 py-4 opacity-0 sm:block sm:border-l sm:px-5 sm:py-7 md:px-8 md:py-9 lg:border-b-0",
+                )}
                 style={{ transform: "translateY(14px)" }}
               >
                 <dd

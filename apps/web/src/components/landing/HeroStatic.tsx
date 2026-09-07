@@ -62,11 +62,11 @@ export function HeroStatic() {
           fitted by the same team.
         </p>
 
-        <div className="mt-6 flex flex-wrap items-center gap-3">
-          <HeroCtaButton href="/booking" label="Book Consultation" />
+        <div className="mt-6 flex flex-nowrap items-center gap-3">
+          <HeroCtaButton href="/booking" label="Book Consultation" className="h-[52px] shrink-0" />
           <Link
             href="/portfolio"
-            className="touch-target inline-flex items-center rounded-full border border-enzo-cream/25 px-6 py-3.5 text-[13px] font-semibold tracking-wide text-enzo-cream transition-colors duration-300 active:bg-enzo-cream/10"
+            className="touch-target inline-flex h-[52px] shrink-0 items-center justify-center rounded-full border border-enzo-cream/25 px-6 text-[13px] font-semibold tracking-wide text-enzo-cream transition-colors duration-300 active:bg-enzo-cream/10"
           >
             Our Work
           </Link>
@@ -120,13 +120,18 @@ export function HeroStatic() {
         ))}
       </dl>
 
-      <div
-        aria-hidden="true"
-        className="relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/65"
+      <button
+        type="button"
+        onClick={(e) =>
+          e.currentTarget
+            .closest("section")
+            ?.nextElementSibling?.scrollIntoView({ behavior: "smooth" })
+        }
+        className="touch-target relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/65 transition-colors duration-300 active:text-enzo-cream"
       >
         See how we work
         <ChevronDown className="h-3.5 w-3.5 animate-bounce" />
-      </div>
+      </button>
     </section>
   );
 }

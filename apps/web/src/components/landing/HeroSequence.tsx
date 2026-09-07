@@ -527,6 +527,10 @@ export function HeroSequence() {
     // handoff between them can't produce even a subpixel jump.
     if (resumingAtCta) renderCta(CTA_RESUME_FRACTION);
 
+    // No animation of its own (pure onUpdate watcher) — attached to an empty
+    // paused timeline so it measures on GSAP's deferred path instead of
+    // synchronously. See useGSAP.ts's revealOnScroll comment for why a bare
+    // ScrollTrigger.create here can crash with "reading 'end'".
     trigger = ScrollTrigger.create({
       trigger: stage,
       pin: stage,
@@ -536,6 +540,7 @@ export function HeroSequence() {
       scrub: SCRUB_SMOOTHING,
       anticipatePin: 1,
       onUpdate: handleUpdate,
+      animation: gsap.timeline({ paused: true }),
     });
 
     // Every trigger below this one had its start/end measured before this pin
