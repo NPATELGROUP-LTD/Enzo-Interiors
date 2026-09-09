@@ -1,0 +1,65 @@
+[
+  {
+    "id": "tst_hart",
+    "client_name": "Amelia Hart",
+    "rating": 5,
+    "review_text": "From the first survey to handover the whole thing was calm and well organised. The shaker doors are beautifully made and the fit around our very un-square walls is faultless.",
+    "project_id": "prj_hart_kitchen",
+    "is_published": true,
+    "created_at": "2026-07-30T09:00:00.000Z"
+  },
+  {
+    "id": "tst_bradley",
+    "client_name": "Tom Bradley",
+    "rating": 5,
+    "review_text": "The media wall completely changed the room. They hid every cable and the walnut is stunning in the evening light.",
+    "project_id": "prj_bradley_mediawall",
+    "is_published": true,
+    "created_at": "2026-06-29T09:00:00.000Z"
+  },
+  {
+    "id": "tst_okafor",
+    "client_name": "David O.",
+    "rating": 4,
+    "review_text": "Really good design work and genuinely helpful advice about the flue. Communication through the portal made it easy to keep track.",
+    "project_id": "prj_okafor_mediawall",
+    "is_published": true,
+    "created_at": "2026-08-04T09:00:00.000Z"
+  },
+  {
+    "id": "tst_patel",
+    "client_name": "Raj Patel",
+    "rating": 5,
+    "review_text": "Hannah listened properly to how we actually use the space. The walk-in is now the best-organised room in the house.",
+    "project_id": "prj_patel_wardrobe",
+    "is_published": true,
+    "created_at": "2026-08-16T09:00:00.000Z"
+  },
+  {
+    "id": "tst_langley",
+    "client_name": "Marie Langley",
+    "rating": 5,
+    "review_text": "Second project with Enzo and the standard has not slipped at all. Would not go anywhere else in Leicester.",
+    "project_id": null,
+    "is_published": true,
+    "created_at": "2026-05-12T09:00:00.000Z"
+  },
+  {
+    "id": "tst_whitmore",
+    "client_name": "Ian Whitmore",
+    "rating": 4,
+    "review_text": "Excellent joinery and a tidy team. Install ran a few days over but they kept us informed the whole way.",
+    "project_id": null,
+    "is_published": true,
+    "created_at": "2026-07-06T09:00:00.000Z"
+  },
+  {
+    "id": "tst_pending",
+    "client_name": "Eleanor Shaw",
+    "rating": 5,
+    "review_text": "Early days but the care taken over the listed-building constraints has been really reassuring.",
+    "project_id": "prj_shaw_bedroom",
+    "is_published": false,
+    "created_at": "2026-08-25T08:00:00.000Z"
+  }
+]

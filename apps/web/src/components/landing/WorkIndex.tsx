@@ -21,7 +21,7 @@ import gsap from "gsap";
 import { ArrowRight } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
 
@@ -59,25 +59,31 @@ export function WorkIndex({ items }: WorkIndexProps) {
       // The tiles themselves are the reveal — they rise and settle, rather
       // than only their captions fading in.
       if (tiles.length) {
-        gsap.from(tiles, {
-          opacity: 0,
-          y: 56,
-          scale: 0.96,
-          duration: 1,
-          ease: EASE.editorial,
-          stagger: 0.07,
-          scrollTrigger: { trigger: section, start: REVEAL_START, once: true },
-        });
+        fromOnScroll(
+          tiles,
+          {
+            opacity: 0,
+            y: 56,
+            scale: 0.96,
+            duration: 1,
+            ease: EASE.editorial,
+            stagger: 0.07,
+          },
+          { trigger: section, start: REVEAL_START },
+        );
       }
       if (cards.length) {
-        gsap.from(cards, {
-          opacity: 0,
-          y: 30,
-          duration: DUR.enter,
-          ease: EASE.enter,
-          stagger: 0.06,
-          scrollTrigger: { trigger: cards[0], start: REVEAL_START, once: true },
-        });
+        fromOnScroll(
+          cards,
+          {
+            opacity: 0,
+            y: 30,
+            duration: DUR.enter,
+            ease: EASE.enter,
+            stagger: 0.06,
+          },
+          { trigger: cards[0], start: REVEAL_START },
+        );
       }
 
       if (!desktop) return;
@@ -120,8 +126,9 @@ export function WorkIndex({ items }: WorkIndexProps) {
   );
 
   return (
-    <section ref={sectionRef} aria-labelledby="work-heading" className="relative bg-enzo-white">
-      <div className="mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+    <section ref={sectionRef} id="home-work"
+      aria-labelledby="work-heading" className="relative bg-enzo-white scroll-mt-24">
+      <div className="shell py-20 md:py-28">
         <h2 id="work-heading" className="sr-only">
           Recent work
         </h2>
@@ -136,7 +143,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
           actions={
             <Link
               href="/portfolio"
-              className="group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
+              className="touch-target group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
             >
               See all {items.length} projects
               <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-1" />
@@ -155,7 +162,6 @@ export function WorkIndex({ items }: WorkIndexProps) {
               key={item.id}
               href="/portfolio"
               data-work-tile
-              data-cursor="view"
               className={`group relative overflow-hidden rounded-[18px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${PLACEMENT[index]}`}
             >
               <ImageWithFallback
@@ -167,13 +173,19 @@ export function WorkIndex({ items }: WorkIndexProps) {
               />
               <span
                 aria-hidden="true"
-                className="absolute inset-0 bg-gradient-to-t from-enzo-forest/85 via-enzo-forest/15 to-transparent opacity-80 transition-opacity duration-500 group-hover:opacity-100"
+                // Heavier at the foot than it looks like it needs to be, on
+                // purpose: the title and location sit on top of a photograph
+                // this component does not choose, and at the old
+                // 85%-forest x 80%-opacity a pale kitchen shot put the
+                // 12px caption at roughly 3.5:1. At 95% x 90% the worst
+                // case a white photograph can produce is 5.2:1.
+                className="absolute inset-0 bg-gradient-to-t from-enzo-forest/95 via-enzo-forest/35 to-transparent opacity-90 transition-opacity duration-500 group-hover:opacity-100"
               />
               <span className="absolute inset-x-5 bottom-5 block translate-y-1 transition-transform duration-500 ease-out group-hover:translate-y-0">
                 <span className="block text-[1.15rem] font-semibold leading-tight tracking-[-0.02em] text-enzo-cream">
                   {item.title}
                 </span>
-                <span className="mt-1 flex items-center gap-2 text-[12px] text-enzo-cream/75">
+                <span className="mt-1 flex items-center gap-2 text-[12px] text-enzo-cream/90">
                   {item.location}
                   <span aria-hidden="true" className="h-px w-3 bg-enzo-sand" />
                   <span className="font-display tabular-nums">{item.year}</span>
@@ -234,12 +246,21 @@ export function WorkIndex({ items }: WorkIndexProps) {
           })}
         </ol>
 
+        {/* A full-width bordered button, not the same underlined text link
+            desktop tucks into the heading row — that link works there
+            because it rides beside a headline someone's eyes are already
+            on. Down here it would be the last thing in a long column of
+            photographs, easy to scroll straight past. A button-shaped
+            target the width of the column is the one thing in this list
+            that unmistakably says "there's more, tap here." */}
         <Link
           href="/portfolio"
-          className="mt-4 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary lg:hidden"
+          className="mt-2 flex items-center justify-between gap-3 rounded-full border border-primary/20 py-3 pl-6 pr-2 text-[14px] font-semibold text-primary transition-colors duration-300 active:bg-primary/5 lg:hidden"
         >
           See all {items.length} projects
-          <ArrowRight className="h-3.5 w-3.5" />
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <ArrowRight className="h-4 w-4" />
+          </span>
         </Link>
       </div>
     </section>

@@ -50,10 +50,12 @@ export function FooterMap({ compact = false }: { compact?: boolean }) {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Open Enzo Interiors service area in Google Maps"
-        data-cursor="view"
         className={cn(
           "absolute flex items-center gap-1.5 rounded-lg bg-enzo-sand font-semibold text-enzo-forest shadow-[0_4px_14px_rgba(0,0,0,0.35)] transition-[filter,transform] duration-200 hover:-translate-y-0.5 hover:brightness-110",
-          compact ? "bottom-1.5 left-1.5 p-1.5" : "bottom-3.5 left-3.5 px-3.5 py-2 text-[12px]",
+          // min-h-11 on the full version: a 32px chip floating over a map is
+          // the one control on this panel a thumb has to find, and it sits
+          // right on the panel's own edge where a miss lands on nothing.
+          compact ? "bottom-1.5 left-1.5 p-1.5" : "bottom-3.5 left-3.5 min-h-11 px-4 text-[12px]",
         )}
       >
         {!compact && "View On Google Maps"}

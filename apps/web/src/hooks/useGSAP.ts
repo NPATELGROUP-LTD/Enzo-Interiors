@@ -9,15 +9,15 @@
 // reduced-motion preference becomes a live condition rather than a
 // one-shot read — flipping the OS setting re-runs the callback and reverts
 // the motion instead of leaving a half-animated page behind.
-import { useEffect, type RefObject } from "react";
+import { useLayoutEffect, type RefObject } from "react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 gsap.registerPlugin(ScrollTrigger);
 
-export type GsapConditions = Record<string, boolean>;
+type GsapConditions = Record<string, boolean>;
 
-export type GsapSetup = (
+type GsapSetup = (
   /** The ref'd element, already null-checked. */
   root: HTMLElement,
   /** True when the visitor asked for reduced motion — render the end state. */
@@ -47,7 +47,7 @@ export function useGSAP(
   // the effect — the queries themselves are static strings in practice.
   const queryKey = JSON.stringify(queries ?? {});
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = ref.current;
     if (!root) return;
 
@@ -86,4 +86,88 @@ export function useGSAP(
     // explicit opt-in for re-running.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ref, queryKey, ...deps]);
+}
+
+/**
+ * Builds a timeline, then gives it a ScrollTrigger — in that order, always.
+ *
+ * A trigger passed into a tween or into `gsap.timeline({ scrollTrigger })`
+ * measures synchronously at construction, while the timeline is still empty
+ * and sibling triggers in the same commit are still un-measured. That is
+ * what fires `once: true` reveals against a pre-image-load page height, and
+ * what produces the "Cannot read properties of undefined (reading 'end')"
+ * crash. Attach every ScrollTrigger to an already-populated timeline and
+ * neither can happen — so `gsap.from(el, { scrollTrigger })` must not appear
+ * in this codebase.
+ *
+ * @param trigger  The element whose position drives the reveal.
+ * @param build    Populates the timeline. Runs before the trigger exists.
+ */
+export function revealOnScroll(
+  trigger: Element,
+  build: (timeline: gsap.core.Timeline) => void,
+  options: { start?: string; once?: boolean } = {},
+): gsap.core.Timeline {
+  return scrollTimeline(build, {
+    trigger,
+    start: options.start ?? "top 82%",
+    once: options.once ?? true,
+  });
+}
+
+/**
+ * The general form of `revealOnScroll`: any ScrollTrigger configuration —
+ * scrubs, ranges, pins, callbacks — driving a timeline that is fully
+ * populated before the trigger exists.
+ *
+ * Reach for this instead of passing `scrollTrigger` inside a tween's vars.
+ * The two are equivalent in what they animate and *not* equivalent in when
+ * they measure; see the note above for why that difference bites.
+ */
+export function scrollTimeline(
+  build: (timeline: gsap.core.Timeline) => void,
+  vars: ScrollTrigger.Vars,
+): gsap.core.Timeline {
+  const timeline = gsap.timeline({ paused: true });
+  build(timeline);
+  ScrollTrigger.create({ ...vars, animation: timeline });
+  return timeline;
+}
+
+/**
+ * The single most common shape in this codebase — "these elements animate in
+ * from somewhere once they are scrolled to" — as one call, so the safe
+ * pattern is also the shortest one to type.
+ *
+ * `targets` may be anything gsap accepts. `trigger` defaults to the first
+ * target, matching what the hand-written `gsap.from(x, { scrollTrigger: {
+ * trigger: x[0] }})` calls this replaced were doing.
+ */
+export function fromOnScroll(
+  targets: gsap.TweenTarget,
+  vars: gsap.TweenVars,
+  options: { trigger?: Element | null; start?: string; once?: boolean } = {},
+): gsap.core.Timeline | null {
+  const list = gsap.utils.toArray<Element>(targets);
+  const trigger = options.trigger ?? list[0];
+  if (!trigger) return null;
+
+  return revealOnScroll(trigger, (timeline) => timeline.from(targets, vars), {
+    start: options.start,
+    once: options.once,
+  });
+}
+
+/**
+ * A ScrollTrigger that only *watches* — `onUpdate`, `onEnter`, `onRefresh` —
+ * with no animation of its own.
+ *
+ * The empty paused timeline is not decoration: it is what puts a watcher on
+ * GSAP's deferred measurement path, same as every animated trigger above.
+ * `ScrollTrigger.create({ trigger, onUpdate })` with nothing attached
+ * measures synchronously and can trip the crash described on
+ * `revealOnScroll`. The timeline stays empty and does nothing.
+ */
+export function observeScroll(vars: ScrollTrigger.Vars): ScrollTrigger {
+  return ScrollTrigger.create({ ...vars, animation: gsap.timeline({ paused: true }) });
 }

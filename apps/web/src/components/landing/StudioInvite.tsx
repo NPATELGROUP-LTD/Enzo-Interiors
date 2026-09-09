@@ -14,14 +14,44 @@
 // visibly pull apart, stop and they settle back to their own pace. This is
 // the only place on the page where scrolling changes the *speed* of something
 // rather than its position.
+//
+// ── Second composition: the ask sits *in* the work, not under it ──
+// The first arrangement stacked them — rows, then a rule, then the ask in two
+// columns underneath. Two blocks that happened to share a background, and the
+// page's last word was the weaker of the two: by the time you reached the
+// booking copy the photographs had scrolled off and the section read as a
+// contact panel with a decorative header.
+//
+// The rows now run full-bleed as the section's ground, and the ask is a solid
+// forest panel that breaks into them from the left and overlaps the lower row
+// — the same asymmetric overlap the landing hero and §01 use, applied to the
+// close. The work keeps moving behind the thing it is evidence for, which is
+// the whole argument of the section in one composition: *this is what we did;
+// shall we do yours.*
+//
+// It is one panel in one colour, divided by a rule.
+//
+// Two earlier attempts got this wrong in opposite directions. First a 25%
+// forest-light tint on the right half — transparent over a row of moving
+// photographs, so the phone number and the email were legible only while a
+// dark tile happened to be passing behind them. Then a solid forest-light
+// fill, which was readable and introduced a second green: the panel stopped
+// reading as one object and became two blocks that had been pushed together.
+//
+// The answer was never the fill. The two halves are the same forest and the
+// division is a hairline — which is how every other pair of columns on this
+// site is separated, costs no contrast at all, and leaves the panel one
+// object. Nothing here is translucent, because nothing here needs to be: the
+// separation was never doing the work the transparency was asked to do.
 import { useRef } from "react";
+import Link from "next/link";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { ArrowUpRight, Mail, Phone } from "lucide-react";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { InstagramIcon } from "@/components/shared/icons";
 import { MagneticButton } from "@/components/shared/MagneticButton";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import type { PortfolioItem } from "@/lib/content";
 
@@ -60,7 +90,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
 
     let settleTimer: number | undefined;
 
-    const trigger = ScrollTrigger.create({
+    const trigger = observeScroll({
       trigger: section,
       start: "top bottom",
       end: "bottom top",
@@ -98,15 +128,27 @@ export function StudioInvite({ items }: StudioInviteProps) {
       },
     });
 
-    const contact = section.querySelector<HTMLElement>("[data-invite-contact]");
-    if (contact) {
-      gsap.from(contact, {
-        opacity: 0,
-        y: 30,
-        duration: DUR.enter,
-        ease: EASE.enter,
-        scrollTrigger: { trigger: contact, start: "top 88%", once: true },
-      });
+    // Two matches now, not one: the mobile card carries its own copy of
+    // this attribute (see the render below), and only one of the two is
+    // ever actually laid out at a given width — the other is `display:
+    // none` behind its `hidden lg:...` class. `offsetParent` filters that
+    // one straight back out; handing ScrollTrigger a trigger element with
+    // no box to measure is what was throwing "Cannot read properties of
+    // undefined (reading 'end')" out of its own internal recalculation.
+    const contacts = gsap.utils
+      .toArray<HTMLElement>("[data-invite-contact]", section)
+      .filter((el) => el.offsetParent !== null);
+    if (contacts.length) {
+      fromOnScroll(
+        contacts,
+        {
+          opacity: 0,
+          y: 30,
+          duration: DUR.enter,
+          ease: EASE.enter,
+        },
+        { trigger: contacts[0], start: "top 88%" },
+      );
     }
 
     return () => {
@@ -124,11 +166,12 @@ export function StudioInvite({ items }: StudioInviteProps) {
   return (
     <section
       ref={sectionRef}
+      id="home-studio"
       aria-labelledby="invite-heading"
-      className="relative overflow-hidden bg-enzo-dark"
+      className="relative overflow-hidden bg-enzo-dark scroll-mt-24"
     >
-      <div className="pt-16 md:pt-24">
-        <div className="mx-auto mb-7 flex max-w-[1500px] flex-wrap items-center justify-between gap-4 px-5 sm:px-6 md:px-12">
+      <div className="pt-16 md:pt-24 lg:pb-8">
+        <div className="shell mb-7 flex flex-wrap items-center justify-between gap-4">
           <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sage">
             Recent installs
           </span>
@@ -136,7 +179,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
             href={INSTAGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="group/ig inline-flex items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
+            className="group/ig inline-flex min-h-11 items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
           >
             <InstagramIcon
               size={14}
@@ -188,12 +231,17 @@ export function StudioInvite({ items }: StudioInviteProps) {
         </div>
       </div>
 
-      <div className="relative mx-auto max-w-[1500px] px-5 py-20 sm:px-6 md:px-12 md:py-28">
+      {/* The ask, lifted into the rows above it. The negative top margin is
+          the overlap; it only applies from `lg`, because below that the rows
+          are short and an overlapping panel would cover most of them. */}
+      <div className="relative shell pb-20 pt-12 md:pb-28 lg:-mt-24 lg:pt-0 xl:-mt-32">
         <h2 id="invite-heading" className="sr-only">
           Book a consultation
         </h2>
-        <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_minmax(0,320px)] lg:items-end lg:gap-20">
-          <div>
+
+        {/* ── Desktop: one forest panel, divided by a hairline ── */}
+        <div className="hidden gap-0 lg:grid lg:grid-cols-[minmax(0,1.05fr)_minmax(0,360px)]">
+          <div className="rounded-l-[22px] bg-enzo-forest px-12 pb-14 pt-14">
             <SectionIntro
               tone="dark"
               index="06"
@@ -202,13 +250,16 @@ export function StudioInvite({ items }: StudioInviteProps) {
               lines={["Let us measure", "your space."]}
               lede="An hour at your kitchen table, a tape measure and a few photographs. You get a drawing and a fixed price. Nothing else happens until you say so."
             />
-            <MagneticButton href="/booking" className="-ml-5 mt-5">
+            <MagneticButton href="/booking" className="-ml-5 mt-6">
               Book Consultation
             </MagneticButton>
           </div>
 
-          <div data-invite-contact className="border-t border-enzo-cream/15 pt-6 lg:pb-4">
-            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/60">
+          <div
+            data-invite-contact
+            className="rounded-r-[22px] border-l border-enzo-cream/15 bg-enzo-forest px-10 pb-14 pt-14"
+          >
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sand">
               Rather not book online
             </p>
             <div className="mt-5 flex flex-col gap-4">
@@ -217,7 +268,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
                 <span className="text-[15px]">07777 333052</span>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/60 transition-colors duration-300 group-hover/link:text-enzo-sand">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
                   Call
                 </span>
               </a>
@@ -226,15 +277,71 @@ export function StudioInvite({ items }: StudioInviteProps) {
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
                 <span className="truncate text-[15px]">hello@enzointeriors.co.uk</span>
-                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/60 transition-colors duration-300 group-hover/link:text-enzo-sand">
+                <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
                   Email
                 </span>
               </a>
-              <p className="text-[12.5px] leading-[1.65] text-enzo-cream/60">
+              <p className="text-[12.5px] leading-[1.65] text-enzo-cream/70">
                 Send photos of the room and rough measurements and we will come back with a
                 ballpark before we visit.
               </p>
             </div>
+          </div>
+        </div>
+
+        {/* ── Mobile: sand, not forest ──
+            The desktop panel repeated here would be the third same-coloured
+            block in a row on a phone — this card, stacked directly on the
+            marquee rows above and the footer's own forest immediately
+            below. Sand breaks the run instead of extending it: one warm,
+            light beat between two dark grounds, built as its own card
+            rather than the desktop grid narrowed into one column. */}
+        <div
+          data-invite-contact
+          className="rounded-[26px] bg-enzo-sand px-6 pb-7 pt-8 sm:px-8 lg:hidden"
+        >
+          <SectionIntro
+            index="06"
+            label="Next"
+            datum="free, no obligation"
+            lines={["Let us measure", "your space."]}
+            lede="An hour at your kitchen table and a tape measure. You get a drawing and a fixed price."
+          />
+
+          <Link
+            href="/booking"
+            className="mt-6 flex items-center justify-between gap-3 rounded-full bg-enzo-forest py-2 pl-6 pr-2 text-[14.5px] font-semibold text-enzo-cream transition-transform duration-300 active:scale-[0.98]"
+          >
+            Book Consultation
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-enzo-cream text-enzo-forest">
+              <ArrowUpRight className="h-4 w-4" />
+            </span>
+          </Link>
+
+          <div className="mt-6 border-t border-enzo-forest/15 pt-6">
+            <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest/55">
+              Rather not book online
+            </p>
+            <div className="mt-3.5 grid grid-cols-2 gap-3">
+              <a
+                href="tel:+447777333052"
+                className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
+              >
+                <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-[13.5px] font-semibold">Call</span>
+              </a>
+              <a
+                href="mailto:hello@enzointeriors.co.uk"
+                className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
+              >
+                <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="text-[13.5px] font-semibold">Email</span>
+              </a>
+            </div>
+            <p className="mt-4 text-[12.5px] leading-[1.6] text-enzo-forest/70">
+              Send photos of the room and rough measurements — we will come back with a
+              ballpark before we visit.
+            </p>
           </div>
         </div>
       </div>

@@ -1,0 +1,167 @@
+[
+  {
+    "id": "doc_jones_contract",
+    "client_id": "cli_sarah_jones",
+    "project_id": "prj_jones_kitchen",
+    "name": "Stoneygate Kitchen — Contract.pdf",
+    "type": "Contract",
+    "size_bytes": 284119,
+    "upload_date": "2026-05-25T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_sarah_jones/stoneygate-kitchen-contract.pdf"
+  },
+  {
+    "id": "doc_jones_plan",
+    "client_id": "cli_sarah_jones",
+    "project_id": "prj_jones_kitchen",
+    "name": "Kitchen Plan — Rev C.pdf",
+    "type": "Plan",
+    "size_bytes": 1482330,
+    "upload_date": "2026-06-11T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_sarah_jones/kitchen-plan-rev-c.pdf"
+  },
+  {
+    "id": "doc_jones_mood",
+    "client_id": "cli_sarah_jones",
+    "project_id": "prj_jones_wardrobe",
+    "name": "Wardrobe Mood Board.pdf",
+    "type": "MoodBoard",
+    "size_bytes": 3920774,
+    "upload_date": "2026-07-19T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_sarah_jones/wardrobe-mood-board.pdf"
+  },
+  {
+    "id": "doc_jones_invoice",
+    "client_id": "cli_sarah_jones",
+    "project_id": "prj_jones_kitchen",
+    "name": "INV-2026-0001.pdf",
+    "type": "Invoice",
+    "size_bytes": 96442,
+    "upload_date": "2026-05-24T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_sarah_jones/inv-2026-0001.pdf"
+  },
+  {
+    "id": "doc_okafor_render",
+    "client_id": "cli_david_okafor",
+    "project_id": "prj_okafor_mediawall",
+    "name": "Media Wall Render — Rev B.pdf",
+    "type": "MoodBoard",
+    "size_bytes": 5114208,
+    "upload_date": "2026-08-26T08:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_david_okafor/media-wall-render-rev-b.pdf"
+  },
+  {
+    "id": "doc_okafor_quote",
+    "client_id": "cli_david_okafor",
+    "project_id": "prj_okafor_mediawall",
+    "name": "Quote — Oadby Media Wall.pdf",
+    "type": "Quote",
+    "size_bytes": 132889,
+    "upload_date": "2026-06-08T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_david_okafor/quote-oadby-media-wall.pdf"
+  },
+  {
+    "id": "doc_okafor_survey",
+    "client_id": "cli_david_okafor",
+    "project_id": "prj_okafor_mediawall",
+    "name": "Internal Survey Notes.pdf",
+    "type": "Plan",
+    "size_bytes": 214006,
+    "upload_date": "2026-06-06T09:00:00.000Z",
+    "client_visible": false,
+    "storage_url": "placeholder://documents/cli_david_okafor/internal-survey-notes.pdf"
+  },
+  {
+    "id": "doc_hart_contract",
+    "client_id": "cli_amelia_hart",
+    "project_id": "prj_hart_kitchen",
+    "name": "Wigston Kitchen — Contract.pdf",
+    "type": "Contract",
+    "size_bytes": 279540,
+    "upload_date": "2026-04-29T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_amelia_hart/wigston-kitchen-contract.pdf"
+  },
+  {
+    "id": "doc_hart_handover",
+    "client_id": "cli_amelia_hart",
+    "project_id": "prj_hart_kitchen",
+    "name": "Handover & Care Guide.pdf",
+    "type": "Plan",
+    "size_bytes": 861223,
+    "upload_date": "2026-07-28T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_amelia_hart/handover-care-guide.pdf"
+  },
+  {
+    "id": "doc_patel_contract",
+    "client_id": "cli_raj_patel",
+    "project_id": "prj_patel_wardrobe",
+    "name": "Birstall Wardrobe — Contract.pdf",
+    "type": "Contract",
+    "size_bytes": 268781,
+    "upload_date": "2026-06-23T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_raj_patel/birstall-wardrobe-contract.pdf"
+  },
+  {
+    "id": "doc_patel_plan",
+    "client_id": "cli_raj_patel",
+    "project_id": "prj_patel_wardrobe",
+    "name": "Wardrobe Elevations.pdf",
+    "type": "Plan",
+    "size_bytes": 1190455,
+    "upload_date": "2026-07-01T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_raj_patel/wardrobe-elevations.pdf"
+  },
+  {
+    "id": "doc_shaw_mood",
+    "client_id": "cli_eleanor_shaw",
+    "project_id": "prj_shaw_bedroom",
+    "name": "Bedroom Mood Board.pdf",
+    "type": "MoodBoard",
+    "size_bytes": 4402119,
+    "upload_date": "2026-08-24T08:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_eleanor_shaw/bedroom-mood-board.pdf"
+  },
+  {
+    "id": "doc_shaw_quote",
+    "client_id": "cli_eleanor_shaw",
+    "project_id": "prj_shaw_bedroom",
+    "name": "Quote — Market Harborough Bedroom.pdf",
+    "type": "Quote",
+    "size_bytes": 128310,
+    "upload_date": "2026-07-18T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_eleanor_shaw/quote-market-harborough-bedroom.pdf"
+  },
+  {
+    "id": "doc_bradley_invoice",
+    "client_id": "cli_tom_bradley",
+    "project_id": "prj_bradley_mediawall",
+    "name": "INV-2026-0005.pdf",
+    "type": "Invoice",
+    "size_bytes": 94118,
+    "upload_date": "2026-06-26T09:00:00.000Z",
+    "client_visible": true,
+    "storage_url": "placeholder://documents/cli_tom_bradley/inv-2026-0005.pdf"
+  },
+  {
+    "id": "doc_mensah_internal",
+    "client_id": "cli_grace_mensah",
+    "project_id": "prj_mensah_kitchen",
+    "name": "Margin Working — Internal.pdf",
+    "type": "Quote",
+    "size_bytes": 76930,
+    "upload_date": "2026-08-05T09:00:00.000Z",
+    "client_visible": false,
+    "storage_url": "placeholder://documents/cli_grace_mensah/margin-working-internal.pdf"
+  }
+]

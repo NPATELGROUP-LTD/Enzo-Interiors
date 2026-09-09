@@ -21,8 +21,6 @@
 
 @source "../**/*.{js,jsx,ts,tsx,mdx}";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   --font-size: 16px;
   --background: #F2F0EB;
@@ -36,7 +34,12 @@
   --secondary: #8A9E8C;
   --secondary-foreground: #1C4A3A;
   --muted: #EAE7E0;
-  --muted-foreground: #6B6B65;
+  /* #67675F, not #6B6B65. Secondary copy is set in this colour on three
+     different grounds, and against the darkest of them (--muted, #EAE7E0,
+     which carries whole sections) #6B6B65 measured 4.34:1 — under AA for
+     text below 24px. Four points darker clears it on all three: 5.01 on
+     --background, 5.45 on --card, 4.62 on --muted. */
+  --muted-foreground: #67675F;
   --accent: #D4C9B5;
   --accent-foreground: #1C4A3A;
   --destructive: #D94040;
@@ -44,24 +47,11 @@
   --border: #C4B8A8;
   --input: transparent;
   --input-background: #F5F4F0;
-  --switch-background: #C4B8A8;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
   --ring: #1C4A3A;
-  --chart-1: #1C4A3A;
-  --chart-2: #8A9E8C;
-  --chart-3: #D4C9B5;
-  --chart-4: #2C4A35;
-  --chart-5: #3D6347;
   --radius: 0.75rem;
-  --sidebar: #1C4A3A;
-  --sidebar-foreground: #F2F0EB;
-  --sidebar-primary: #F2F0EB;
-  --sidebar-primary-foreground: #1C4A3A;
   --sidebar-accent: #2A5A4A;
-  --sidebar-accent-foreground: #F2F0EB;
-  --sidebar-border: #2A5A4A;
-  --sidebar-ring: #8A9E8C;
 
   /* Enzo custom tokens */
   --enzo-cream: #F2F0EB;
@@ -82,33 +72,10 @@
   --font-display: var(--font-space-grotesk), sans-serif;
 }
 
-.dark {
-  --background: #111110;
-  --foreground: #F0EEE9;
-  --card: #1C1C1A;
-  --card-foreground: #F0EEE9;
-  --popover: #1C1C1A;
-  --popover-foreground: #F0EEE9;
-  --primary: #4A8C5C;
-  --primary-foreground: #F0EEE9;
-  --secondary: #2A2A28;
-  --secondary-foreground: #F0EEE9;
-  --muted: #2A2A28;
-  --muted-foreground: #8A8A82;
-  --accent: #2A2A28;
-  --accent-foreground: #F0EEE9;
-  --destructive: #D94040;
-  --destructive-foreground: #ffffff;
-  --border: #2A2A28;
-  --input: #2A2A28;
-  --ring: #4A8C5C;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
@@ -118,31 +85,15 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
   --color-destructive-foreground: var(--destructive-foreground);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-input-background: var(--input-background);
-  --color-switch-background: var(--switch-background);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
 
   --color-enzo-cream: var(--enzo-cream);
   --color-enzo-forest: var(--enzo-forest);
@@ -185,6 +136,15 @@
        smooth-scroll on the same element fights it — the browser and Lenis both
        animate scrollTop, which is what made the page feel like it was
        resisting the wheel instead of gliding with it. */
+
+    /* Reserve the scrollbar's lane instead of letting it paint over the
+       page. Overlay scrollbars (Windows 11, and Chrome's device-toolbar
+       emulation) take no layout width, so the last ~15px of every section
+       renders *underneath* the scrollbar: right-ranged type and full-width
+       plates then read as though they are jammed against the screen edge
+       while the left margin looks correct. Reserving the gutter is what
+       makes the two margins actually match on screen. */
+    scrollbar-gutter: stable;
   }
 
   /* Archivo is a grotesque, not a high-contrast serif: it needs more weight
@@ -275,13 +235,8 @@
  * animation instead of a uniform fade, driven directly off this same
  * attribute via a MutationObserver in Navbar.tsx.
  *
- * Wrapped in `@layer utilities` (Tailwind's own last/highest-priority
- * layer here) rather than left unlayered — empirically, in this Turbopack
- * + Tailwind v4 build, unlayered rules in this file were losing to
- * Tailwind's layered utility rules despite matching and despite no
- * competing opacity declaration existing anywhere, which cascade-layer
- * semantics say shouldn't happen; layering it explicitly is what actually
- * wins the cascade in practice. */
+ * Layered explicitly; unlayered rules in this file lose to Tailwind's
+ * utility layer here. */
 @layer utilities {
   .site-frame {
     transition: opacity 0.7s ease;
@@ -290,4 +245,117 @@
     opacity: 0;
     pointer-events: none;
   }
+}
+
+/* Budget slider on the service pages' investment section
+   (components/services/service-detail/investment/InvestmentSlider.tsx).
+   Styled here rather than inline because ::-webkit-slider-thumb and
+   ::-moz-range-thumb cannot be expressed as inline styles or as Tailwind
+   utilities, and a native range input is still the right control: it is
+   keyboard-operable, announces its value, and supports touch drag for free. */
+@layer components {
+  /* Hit-area expander for standalone text CTAs.
+
+     The site's call-to-action links are 13px type on a hairline underline —
+     a 24-25px tall box. That is a fine *look* and a poor *target*: WCAG 2.5.8
+     asks for 24x24 CSS px and every mobile guideline asks for 44. Padding the
+     link would drag its underline away from its text, so the target is grown
+     with a transparent pseudo-element instead: the box the finger hits is
+     44px tall, the box the eye sees is unchanged, and nothing in the layout
+     moves. Only for links that stand alone — a link inside a sentence is
+     explicitly exempt from 2.5.8 and must not be padded, because that would
+     overlap the lines above and below it. */
+  .touch-target {
+    position: relative;
+  }
+
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -10px;
+  }
+
+  .enzo-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    outline: none;
+  }
+
+  .enzo-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(28, 74, 58, 0.35);
+    cursor: grab;
+    transition: transform 200ms ease;
+  }
+
+  .enzo-range::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.12);
+  }
+
+  .enzo-range::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(28, 74, 58, 0.35);
+    cursor: grab;
+  }
+
+  .enzo-range:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+
+  .enzo-range:focus-visible::-moz-range-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+}
+
+/* ── The page shell ──────────────────────────────────────────────────────
+ *
+ * The one place the page's measure is defined, instead of repeating
+ * `mx-auto max-w-[1500px] px-5 sm:px-6 md:px-12` in fifty sections. The cap
+ * is deliberate: every section is composed against a known measure, and a
+ * fluid full-bleed column pulls split headings away from their own ledes.
+ */
+@layer components {
+  .shell {
+    width: 100%;
+    max-width: 1500px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4.5vw, 3rem);
+  }
+}
+
+/* ── Landing §05: the testimonial columns ──────────────────────────────────
+ *
+ * Each column holds its list twice and travels exactly half its own height,
+ * so the second copy arrives where the first began and the loop has no seam.
+ * Written as a keyframe rather than driven from JS because the only thing
+ * that ever needs to change is the play state — and `animation-play-state` is
+ * a one-property pause that costs nothing, where a JS loop would have to be
+ * torn down and rebuilt every time somebody hovered a card.
+ */
+@keyframes voices-scroll {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-50%); }
+}
+
+@keyframes voices-scroll-reverse {
+  from { transform: translateY(-50%); }
+  to   { transform: translateY(0); }
 }

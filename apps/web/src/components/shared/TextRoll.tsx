@@ -2,27 +2,56 @@
 
 // Standalone character-roll hover text. Each glyph carries two stacked
 // copies (current + incoming) that swap places on a vertical axis; hovering
-// staggers the swap outward from the center so the whole word "rolls" at
-// once. Adapted from the Skiper UI TextRoll pattern (skiper58) for reuse
-// anywhere in the site — nav links, buttons, list items — independent of
-// its original navigation-menu context.
+// staggers the swap left-to-right so the whole word "rolls" at once.
+// Adapted from the Skiper UI TextRoll pattern (skiper58) for reuse anywhere
+// in the site — nav links, buttons, list items — independent of its
+// original navigation-menu context.
 //
 // Each letter's `animate` target is computed directly from a single
-// `active` boolean in this component's own scope (rather than relying on
+// `active` boolean in this component's own scope rather than relying on
 // Framer Motion's variant-string propagation through the intervening plain
-// <div>s) — that propagation path turned out not to reliably reach nested
-// children here, so driving every letter explicitly is the robust option.
+// <div>s, which does not reliably reach nested children here.
 import { motion } from "motion/react";
 import React, { useState } from "react";
 import { cn } from "@/lib/utils";
 
 const STAGGER = 0.025;
 
-export interface TextRollProps {
+// The outgoing row and the incoming row differ only in where each glyph
+// travels to. Declared at module scope, not inside TextRoll: a component
+// redefined per render is a new type every render, so React would remount
+// these spans and the roll would restart from scratch on every hover.
+function Row({
+  letters,
+  to,
+  incoming,
+}: {
+  letters: string[];
+  to: string | number;
+  incoming?: boolean;
+}) {
+  return (
+    <div
+      className={cn("flex select-none", incoming && "absolute inset-0")}
+      aria-hidden={incoming || undefined}
+    >
+      {letters.map((letter, i) => (
+        <motion.span
+          key={i}
+          animate={{ y: to }}
+          transition={{ ease: [0.4, 0, 0.2, 1], delay: STAGGER * i, duration: 0.35 }}
+          className="inline-block"
+        >
+          {letter === " " ? " " : letter}
+        </motion.span>
+      ))}
+    </div>
+  );
+}
+
+interface TextRollProps {
   children: string;
   className?: string;
-  /** Stagger the roll outward from the center instead of left-to-right. */
-  center?: boolean;
   /**
    * Controls the roll from outside instead of the element's own hover
    * state. Use this when a larger ancestor (e.g. a nav link's full padded
@@ -34,12 +63,7 @@ export interface TextRollProps {
   hovered?: boolean;
 }
 
-export const TextRoll: React.FC<TextRollProps> = ({
-  children,
-  className,
-  center = false,
-  hovered,
-}) => {
+export const TextRoll: React.FC<TextRollProps> = ({ children, className, hovered }) => {
   const [selfHovered, setSelfHovered] = useState(false);
   const isControlled = hovered !== undefined;
   const active = isControlled ? hovered : selfHovered;
@@ -52,42 +76,8 @@ export const TextRoll: React.FC<TextRollProps> = ({
       className={cn("relative inline-block overflow-hidden", className)}
       style={{ lineHeight: 1 }}
     >
-      <div className="flex select-none">
-        {letters.map((letter, i) => {
-          const delay = center
-            ? STAGGER * Math.abs(i - (letters.length - 1) / 2)
-            : STAGGER * i;
-
-          return (
-            <motion.span
-              animate={{ y: active ? "-100%" : 0 }}
-              transition={{ ease: [0.4, 0, 0.2, 1], delay, duration: 0.35 }}
-              className="inline-block"
-              key={i}
-            >
-              {letter === " " ? "\u00A0" : letter}
-            </motion.span>
-          );
-        })}
-      </div>
-      <div className="absolute inset-0 flex select-none" aria-hidden="true">
-        {letters.map((letter, i) => {
-          const delay = center
-            ? STAGGER * Math.abs(i - (letters.length - 1) / 2)
-            : STAGGER * i;
-
-          return (
-            <motion.span
-              animate={{ y: active ? 0 : "100%" }}
-              transition={{ ease: [0.4, 0, 0.2, 1], delay, duration: 0.35 }}
-              className="inline-block"
-              key={i}
-            >
-              {letter === " " ? "\u00A0" : letter}
-            </motion.span>
-          );
-        })}
-      </div>
+      <Row letters={letters} to={active ? "-100%" : 0} />
+      <Row letters={letters} to={active ? 0 : "100%"} incoming />
     </span>
   );
 };

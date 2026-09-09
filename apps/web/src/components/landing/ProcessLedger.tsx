@@ -21,15 +21,22 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ArrowRight } from "lucide-react";
 import { SectionIntro } from "@/components/shared/SectionIntro";
-import { useGSAP } from "@/hooks/useGSAP";
+import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { ElevationDrawing } from "./ElevationDrawing";
 
 /** Viewport-heights of scroll each stage holds the stage for. */
 const STAGE_VH = 85;
+
+/**
+ * The pinned frame's column template, used by BOTH rows — the heading/lede
+ * above and the drawing/stage below. Declared once because the whole point is
+ * that the two agree; two hand-matched template strings would drift the first
+ * time either was touched.
+ */
+const PINNED_COLUMNS = "minmax(0,1fr) minmax(0,23rem)";
 
 const STAGES = [
   {
@@ -99,7 +106,7 @@ export function ProcessLedger() {
       } else {
         const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
         if (drawing) {
-          ScrollTrigger.create({
+          observeScroll({
             trigger: drawing,
             start: "top 80%",
             once: true,
@@ -112,26 +119,32 @@ export function ProcessLedger() {
 
       const cards = gsap.utils.toArray<HTMLElement>("[data-stage-card]", section);
       if (cards.length) {
-        gsap.from(cards, {
-          opacity: 0,
-          y: 28,
-          duration: DUR.enter,
-          ease: EASE.enter,
-          stagger: 0.08,
-          scrollTrigger: { trigger: cards[0], start: REVEAL_START, once: true },
-        });
+        fromOnScroll(
+          cards,
+          {
+            opacity: 0,
+            y: 28,
+            duration: DUR.enter,
+            ease: EASE.enter,
+            stagger: 0.08,
+          },
+          { trigger: cards[0], start: REVEAL_START },
+        );
       }
 
       const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
       if (drawing) {
-        gsap.from(drawing, {
-          opacity: 0,
-          y: 40,
-          scale: 0.97,
-          duration: 1,
-          ease: EASE.editorial,
-          scrollTrigger: { trigger: drawing, start: "top 88%", once: true },
-        });
+        fromOnScroll(
+          drawing,
+          {
+            opacity: 0,
+            y: 40,
+            scale: 0.97,
+            duration: 1,
+            ease: EASE.editorial,
+          },
+          { trigger: drawing, start: "top 88%" },
+        );
       }
 
       return cleanupActive;
@@ -141,89 +154,234 @@ export function ProcessLedger() {
 
   const current = STAGES[active]!;
 
+  // Declared once, rendered in whichever of the two frames the current width
+  // uses (see the comment at the sticky frame). Only ever one of them is
+  // displayed, so the duplicated <h2> never reaches the accessibility tree.
+  // `splitTemplate` matches the content grid below exactly, so the heading
+  // sits over the drawing and the lede sits over the stage column — one spine
+  // down the whole pinned frame instead of two rows that happen to share a
+  // width. See SectionIntro for why the default split is wrong here.
+  const intro = (
+    <SectionIntro
+      layout="split"
+      splitTemplate={PINNED_COLUMNS}
+      index="02"
+      label="Process"
+      datum="five to eight weeks"
+      lines={["Drawn, made and fitted", "by the same hands."]}
+      lede="Five stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does."
+    />
+  );
+
   return (
-    <section ref={sectionRef} aria-labelledby="process-heading" className="bg-muted">
-      <div className="mx-auto max-w-[1500px] px-5 pt-20 sm:px-6 md:px-12 md:pt-28">
-        <h2 id="process-heading" className="sr-only">
-          Our process
-        </h2>
-        <SectionIntro
-          index="02"
-          label="Process"
-          datum="five to eight weeks"
-          lines={["Drawn, made and fitted", "by the same hands."]}
-          lede="Five stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does."
-        />
-      </div>
+    <section ref={sectionRef} id="home-process"
+      aria-labelledby="process-heading" className="bg-muted scroll-mt-24">
+      <h2 id="process-heading" className="sr-only">
+        Our process
+      </h2>
+
+      {/* Below `lg` there is no sticky stage to put the heading inside, so it
+          opens the section the way every other one does. */}
+      <div className="shell pt-20 md:pt-28 lg:hidden">{intro}</div>
 
       {/* ── Desktop: sticky stage, scroll-driven ── */}
       <div
         data-process-track
-        className="relative mt-12 hidden lg:block"
+        className="relative hidden lg:block"
         style={{ height: `${STAGE_VH * STAGES.length}vh` }}
       >
-        <div className="sticky top-0 flex h-screen items-center">
-          <div className="mx-auto w-full max-w-[1500px] px-12">
-            <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,320px)] items-center gap-12 xl:gap-16">
-              <div data-process-drawing>
-                <ElevationDrawing active={active} />
-              </div>
+        {/* ── The pinned frame, laid out exactly as §A4 on a service page ──
+            One viewport tall, and read top-down: the sheet rule, the heading
+            and the lede sit in a `shrink-0` block with the header's clearance
+            padded into it, and everything below takes `flex-1` of whatever is
+            left. Nothing is centred, so nothing can drift under the navbar
+            when the content grows, and the title, the index and the datum are
+            all on screen for the whole traverse rather than only at the start
+            of it.
 
-              <div>
-                <div className="flex items-baseline gap-3">
-                  <span className="font-display text-[13px] font-semibold tabular-nums text-primary">
-                    {String(active + 1).padStart(2, "0")}
-                  </span>
-                  <span className="font-display text-[11px] uppercase tracking-[0.24em] text-enzo-forest-light">
-                    {current.datum}
-                  </span>
+            Two earlier attempts are worth recording because both are the
+            obvious thing to reach for and both fail. `justify-center` on a
+            100vh box overflows *both* ends the moment the content is taller
+            than the box — the drawing ran off the bottom and the heading slid
+            up under the header. Letting the frame take its natural height and
+            stick below the header fixed that and lost the point: the frame
+            then sized itself to its content, so the drawing had no ceiling to
+            be measured against and the composition changed shape with every
+            viewport. A fixed frame with a flexible middle is the arrangement
+            that holds. */}
+        <div className="sticky top-0 flex h-[100svh] flex-col overflow-hidden">
+          <div className="shell shrink-0 pt-[7.5rem]">
+            {/* Title one step down from its usual clamp, as §A4 does: a
+                3.5rem headline inside a frame that also has to hold a drawing
+                and a column of copy is a headline taking someone else's
+                room. */}
+            {intro}
+          </div>
+
+          {/* The middle takes what is left. `min-h-0` is what allows a flex
+              child to shrink below its content size — without it the row keeps
+              its natural height and the frame overflows regardless of what
+              the drawing is told to do. The bottom padding keeps the drawing
+              clear of the stage readout pinned under it. */}
+          <div className="flex min-h-0 flex-1 items-center overflow-hidden pb-[clamp(2rem,5vh,4rem)] pt-[clamp(1rem,3vh,2.5rem)]">
+            <div className="shell h-full w-full">
+              <div
+                // gap-x-12 and not xl:gap-x-16: SectionIntro's split row uses
+                // gap-x-12, and two grids can only share a spine if they share
+                // a gutter. At xl the content row was 68px against the intro's
+                // 51px, which made the first column 17px narrower and pushed
+                // everything in it out of line with the heading above.
+                className="grid h-full min-h-0 w-full items-center gap-x-12 [grid-template-columns:var(--pinned-cols)]"
+                style={{ "--pinned-cols": PINNED_COLUMNS } as React.CSSProperties}
+              >
+                {/* ── The drawing ──
+                    Bounded by the frame, not by the column it sits in. Every
+                    ancestor from the sticky frame down now has a definite
+                    height, so `h-full` here is a real number and the 16:9
+                    ratio turns it into a width — the reverse of the first
+                    version, which sized the drawing off the column and
+                    therefore off the *window width*, producing a 728px-tall
+                    drawing on a 1900px screen and shoving the heading off the
+                    top of its own section.
+
+                    The budget is written as a *max-width* converted through
+                    the 16:9 ratio rather than as a max-height, and that is not
+                    a stylistic choice: `h-auto` leaves the height indefinite,
+                    `aspect-ratio` then has nothing to resolve from, and the
+                    box collapses to nothing. (It did — 293px wide.) Driving
+                    from width means the sheet fills its column until doing so
+                    would make it taller than the frame allows, and stops
+                    exactly there — so it is never clipped and never crowds the
+                    stage readout below it.
+
+                    The budget is `100svh - 26rem`, not a flat fraction of the
+                    viewport. A fraction looks right at one height and fails at
+                    the others, because the block above the drawing is a fixed
+                    cost — the header clearance plus the heading — not a
+                    proportional one. Subtracting that cost leaves the real
+                    remainder at every height: at 700px it yields a small sheet
+                    with room to breathe, at 1100px a large one, and neither
+                    ends up 12px off the bottom of the frame. 62rem is the
+                    ceiling, so a very tall window does not turn the drawing
+                    into the whole page. */}
+                {/* Left-aligned, not centred. Centring the sheet inside its
+                    column put its left edge ~90px in from the heading's, so
+                    the two most prominent things in the frame — the title and
+                    the drawing — agreed with nothing. Ranged left they share
+                    an edge, and the slack falls into the gutter between the
+                    columns where it reads as spacing rather than as drift. */}
+                <div
+                  data-process-drawing
+                  className="flex h-full min-h-0 w-full items-center justify-start"
+                >
+                  <ElevationDrawing
+                    active={active}
+                    className="aspect-[16/9] h-auto w-full max-w-[min(100%,62rem,calc((100svh-26rem)*16/9))]"
+                  />
                 </div>
 
-                {/* key remounts the block so the crossfade replays per stage */}
-                <div
-                  key={active}
-                  className="animate-in fade-in slide-in-from-bottom-2 duration-500 motion-reduce:animate-none"
-                >
-                  <h3 className="mt-3 text-[2rem] font-semibold leading-[1.05] tracking-[-0.03em] text-primary xl:text-[2.4rem]">
-                    {current.title}
-                  </h3>
-                  <p className="mt-4 text-[15px] leading-[1.75] text-foreground/80">
-                    {current.body}
+              {/* ── The stage column ──
+                  Rebuilt for the width it actually has. It was a top-heavy
+                  stack with four different vertical gaps (3 / 4 / 8 / 8) and,
+                  at the foot, five stage names laid into five equal flex
+                  columns. That last part was the real fault: the names are
+                  6 to 12 characters long and the columns were ~68px each, so
+                  "CONSULTATION" truncated while "DESIGN" sat in a third of
+                  its box — five labels of one size pretending to be a scale.
+
+                  The bar keeps the five equal segments, because *those* are
+                  genuinely equal: one per stage, filled up to where you are.
+                  The names come out from under it and run as a single wrapping
+                  line, which is what a list of five short words wants to be in
+                  a column this wide. Nothing truncates at any width, and the
+                  active one is the only thing carrying full contrast. */}
+              <div className="flex flex-col gap-6">
+                <div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-display text-[13px] font-semibold tabular-nums text-primary">
+                      {String(active + 1).padStart(2, "0")}
+                    </span>
+                    <span className="font-display text-[11px] uppercase tracking-[0.24em] text-enzo-forest-light">
+                      {current.datum}
+                    </span>
+                  </div>
+
+                  {/* key remounts the block so the crossfade replays per stage */}
+                  <div
+                    key={active}
+                    className="animate-in fade-in slide-in-from-bottom-2 duration-500 motion-reduce:animate-none"
+                  >
+                    <h3
+                      className="mt-3 font-title font-semibold leading-[1.05] tracking-[-0.03em] text-primary"
+                      style={{ fontSize: "clamp(1.7rem, 2.2vw, 2.3rem)" }}
+                    >
+                      {current.title}
+                    </h3>
+                    <p className="mt-4 max-w-[34ch] text-[15px] leading-[1.7] text-foreground/80">
+                      {current.body}
+                    </p>
+                  </div>
+                </div>
+
+                <div>
+                  {/* Five equal segments, filled to the current stage. */}
+                  <ol
+                    className="flex gap-1.5"
+                    aria-label={`Stage ${active + 1} of ${STAGES.length}`}
+                  >
+                    {STAGES.map((stage, index) => (
+                      <li key={stage.title} className="flex-1">
+                        <span
+                          className="block h-[3px] w-full overflow-hidden rounded-full bg-primary/15"
+                          aria-current={index === active ? "step" : undefined}
+                        >
+                          <span
+                            className="block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-out"
+                            style={{ transform: `scaleX(${index <= active ? 1 : 0})` }}
+                          />
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+
+                  {/* The names, as one wrapping line rather than five boxes.
+                      aria-hidden because the <ol> above already announces the
+                      position and the heading announces the stage — this is
+                      the same information a third time, for the eye only. */}
+                  <p
+                    aria-hidden="true"
+                    className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-[0.12em]"
+                  >
+                    {STAGES.map((stage, index) => (
+                      <span key={stage.title} className="flex items-center gap-2">
+                        <span
+                          className="transition-colors duration-300"
+                          style={{
+                            color:
+                              index === active
+                                ? "var(--enzo-forest)"
+                                // 80%, not 45%: measured against the real
+                                // tokens, forest needs four fifths strength to
+                                // clear 4.5:1 on cream (75% lands at 4.40),
+                                // and these are the names of the stages, not
+                                // a hairline.
+                                : "color-mix(in oklab, var(--enzo-forest) 80%, transparent)",
+                            fontWeight: index === active ? 600 : 400,
+                          }}
+                        >
+                          {stage.title}
+                        </span>
+                        {index < STAGES.length - 1 && (
+                          <span className="text-primary/25">/</span>
+                        )}
+                      </span>
+                    ))}
                   </p>
                 </div>
 
-                {/* Segmented progress — five real segments, so the visitor can
-                    see both where they are and how much is left. */}
-                <ol className="mt-10 flex gap-1.5" aria-label="Process stages">
-                  {STAGES.map((stage, index) => (
-                    <li key={stage.title} className="flex-1">
-                      <span
-                        className="block h-[3px] w-full overflow-hidden rounded-full bg-primary/15"
-                        aria-current={index === active ? "step" : undefined}
-                      >
-                        <span
-                          className="block h-full origin-left rounded-full bg-primary transition-transform duration-500 ease-out"
-                          style={{ transform: `scaleX(${index <= active ? 1 : 0})` }}
-                        />
-                      </span>
-                      <span
-                        className="mt-2 block truncate text-[10.5px] uppercase tracking-[0.14em] transition-colors duration-300"
-                        style={{
-                          color:
-                            index === active
-                              ? "var(--enzo-forest)"
-                              : "color-mix(in oklab, var(--enzo-forest) 45%, transparent)",
-                        }}
-                      >
-                        {stage.title}
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-
                 <Link
                   href="/booking"
-                  className="group/book mt-10 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
+                  className="touch-target group/book inline-flex w-fit items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
                 >
                   Start at stage one
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/book:translate-x-1" />
@@ -231,11 +389,12 @@ export function ProcessLedger() {
               </div>
             </div>
           </div>
+          </div>
         </div>
       </div>
 
       {/* ── Mobile: drawing once, then a plain list ── */}
-      <div className="mx-auto max-w-[1500px] px-5 pb-20 sm:px-6 lg:hidden">
+      <div className="shell pb-20 lg:hidden">
         <div data-process-drawing className="mt-10">
           <ElevationDrawing active={active} />
         </div>
@@ -265,16 +424,28 @@ export function ProcessLedger() {
           ))}
         </ol>
 
-        <div className="mt-8 flex flex-wrap items-center justify-between gap-4 rounded-[16px] bg-card px-5 py-4">
-          <p className="text-[13px] leading-[1.6] text-foreground/75">
-            Typical project: <span className="text-primary">five to eight weeks</span>.
+        {/* A solid block, not a thin bordered strip with a text link — the
+            desktop stage column can end on "Start at stage one" as a quiet
+            line of text because it sits inside a frame that has already
+            spent a full viewport making its case. On a phone this is the
+            section's last word before the page moves on, so the datum reads
+            as a real stat and the CTA is a full pill sized for a thumb,
+            not a caption someone has to aim for. */}
+        <div className="mt-8 rounded-[20px] bg-primary px-6 py-6">
+          <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/60">
+            Typical project
+          </p>
+          <p className="mt-2 text-[1.4rem] font-semibold leading-tight tracking-[-0.02em] text-primary-foreground">
+            Five to eight weeks, start to fitted.
           </p>
           <Link
             href="/booking"
-            className="inline-flex items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary"
+            className="mt-5 flex items-center justify-between gap-3 rounded-full bg-primary-foreground py-2 pl-5 pr-2 text-[13.5px] font-semibold text-primary transition-transform duration-300 active:scale-[0.98]"
           >
             Start at stage one
-            <ArrowRight className="h-3.5 w-3.5" />
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+              <ArrowRight className="h-4 w-4" />
+            </span>
           </Link>
         </div>
       </div>

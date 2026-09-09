@@ -15,12 +15,11 @@
 // theme.css. Both fade in together only once the CTA segment arrives,
 // marking the shift from "intro" to "the site starts here."
 //
-// Chapters are given generous scroll distance and a heavy scrub smoothing
+// Chapters are given generous scroll distance and a direct (unsmoothed) scrub
 // factor specifically so a fast flick-scroll still gets time to visibly
-// play out the parallax rather than blowing through it in a frame or two —
-// scrub adds lag between raw scroll position and the value ScrollTrigger
-// reports, so even an instant huge scroll delta "catches up" over ~2.4s of
-// real time instead of snapping straight there.
+// play out the parallax rather than blowing through it in a frame or two.
+// See SCRUB_SMOOTHING and TRANSITION_PX below for how the two are tuned and
+// why the scrub is direct rather than eased.
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
@@ -40,15 +39,37 @@ const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
 // intro lands near 8,600px: roughly a third of the travel, while each room
 // still gets several screen-heights of scrub rather than flicking past.
 const PX_PER_FRAME = 14;
-const TRANSITION_PX = 850;
+// The transitions are the only two places in the sequence with something to
+// *read* — a room's 144 frames are a moving photograph, but a transition
+// holds a line of copy on a still. At 850px those two chapters travelled at
+// exactly the same rate as the photography either side of them, which meant
+// the text arrived and left inside about half a screen of wheel: fast enough
+// that most people never learned it was there, and anyone who did notice had
+// to scroll back up to finish the sentence.
+//
+// Scroll distance *is* the speed control here — the animation is scrubbed, so
+// giving a chapter more pixels makes the same motion take more wheel. 1700
+// roughly doubles the time the copy is legible without slowing the rooms, so
+// the sequence now has a rhythm (move, pause to read, move) rather than one
+// constant rate throughout.
+const TRANSITION_PX = 1700;
 const CTA_PX = 1100;
 const MAX_DPR = 1.5;
-// Lower = less lag between raw scroll and what's rendered (snappier feel);
-// still keeps SOME smoothing so a fast flick-scroll doesn't blow through
-// the parallax chapters in a single frame. Lowered with PX_PER_FRAME: over
-// a third of the distance, the old 1.6 read as the sequence lagging behind
-// the wheel rather than gliding with it.
-const SCRUB_SMOOTHING = 1.1;
+// ── Why this is `true` and not a number ──
+// A numeric scrub adds a *second* easing on top of the one Lenis already
+// applies to the document scroll. The page smooths the wheel, and then
+// ScrollTrigger smooths the smoothed value again before it reaches the frame
+// index — so the frames arrive visibly behind the pointer, and stopping the
+// wheel does not stop the sequence: it keeps drifting for another second and
+// a bit while the scrub catches up. On a 144-frame photographic sequence that
+// reads as the page being laggy rather than as the motion being smooth, which
+// is the opposite of the intent.
+//
+// `scrub: true` binds the frame to the scroll position with no extra lag of
+// its own. The motion is still smooth — Lenis is still easing the scroll it
+// is fed — but the sequence now stops when the wheel stops, and the frame
+// under your finger is the frame you asked for.
+const SCRUB_SMOOTHING = true;
 
 // Set once the visitor has scrolled all the way to the CTA segment.
 // sessionStorage (not localStorage) so it's per-tab: a fresh tab always
@@ -506,6 +527,10 @@ export function HeroSequence() {
     // handoff between them can't produce even a subpixel jump.
     if (resumingAtCta) renderCta(CTA_RESUME_FRACTION);
 
+    // No animation of its own (pure onUpdate watcher) — attached to an empty
+    // paused timeline so it measures on GSAP's deferred path instead of
+    // synchronously. See useGSAP.ts's revealOnScroll comment for why a bare
+    // ScrollTrigger.create here can crash with "reading 'end'".
     trigger = ScrollTrigger.create({
       trigger: stage,
       pin: stage,
@@ -515,6 +540,7 @@ export function HeroSequence() {
       scrub: SCRUB_SMOOTHING,
       anticipatePin: 1,
       onUpdate: handleUpdate,
+      animation: gsap.timeline({ paused: true }),
     });
 
     // Every trigger below this one had its start/end measured before this pin
@@ -609,7 +635,7 @@ export function HeroSequence() {
                 style={{ width: `${loadProgress}%` }}
               />
             </div>
-            <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/60">
+            <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/70">
               <span className="font-sans text-[11px] uppercase tracking-[0.22em]">Loading the showcase</span>
               <span className="shrink-0 font-sans text-[11px] tabular-nums tracking-[0.08em] text-enzo-cream/75">
                 {loadProgress}%
@@ -771,7 +797,7 @@ export function HeroSequence() {
               {/* Subtext */}
               <p
                 ref={ctaSubRef}
-                className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/60 opacity-0"
+                className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/70 opacity-0"
               >
                 One free consultation. Zero pressure. Built for you.
               </p>
@@ -793,7 +819,7 @@ export function HeroSequence() {
                     />
                   </div>
                   <p className="font-display mt-3 text-[13px] font-semibold text-enzo-cream">Wardrobe Suite</p>
-                  <p className="font-sans text-[12px] text-enzo-cream/50">Bespoke. Handcrafted.</p>
+                  <p className="font-sans text-[12px] text-enzo-cream/70">Bespoke. Handcrafted.</p>
                 </div>
 
                 <div ref={ctaChip2Ref} className="relative z-10 -mt-10 flex h-[150px] items-center opacity-0">

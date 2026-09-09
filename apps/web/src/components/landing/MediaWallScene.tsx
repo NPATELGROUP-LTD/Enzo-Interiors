@@ -25,31 +25,27 @@ import { useMemo, useRef, type RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
 import type { Group } from "three";
-
-const FOREST = "#1B4335";
-const FOREST_DEEP = "#122A22";
-const SAGE = "#8A9E8C";
-const SAND = "#D4C9B5";
-const BRASS = "#C4A87A";
-const SCREEN = "#0B0E0D";
-const PLASTER = "#D2CABB";
-const PLASTER_DEEP = "#BCB3A3";
-const OAK = "#A98F6A";
-const LINEN = "#C3B9A6";
-const LINEN_DEEP = "#AEA391";
-const CLAY = "#A8785E";
-const CHARCOAL = "#3B3B39";
-
-export interface Viewpoint {
-  id: string;
-  label: string;
-  note: string;
-  azimuth: number;
-  /** Radians from +Y. Below PI/2 looks down at the unit, above looks up. */
-  polar: number;
-  radius: number;
-  targetY: number;
-}
+import {
+  AZIMUTH_LIMIT,
+  BRASS,
+  CHARCOAL,
+  CLAY,
+  FOREST,
+  FOREST_DEEP,
+  LINEN,
+  LINEN_DEEP,
+  neutralOrbit,
+  OAK,
+  PLASTER,
+  PLASTER_DEEP,
+  SAGE,
+  SAND,
+  SCREEN,
+  ZOOM_MAX,
+  ZOOM_MIN,
+  type OrbitState,
+  type Viewpoint,
+} from "@/lib/scene-common";
 
 export const VIEWPOINTS: Viewpoint[] = [
   {
@@ -89,12 +85,6 @@ export const VIEWPOINTS: Viewpoint[] = [
     targetY: 0.42,
   },
 ];
-
-/** Live drag offsets, written by the parent's pointer handlers. */
-export interface OrbitState {
-  azimuth: number;
-  polar: number;
-}
 
 /** Rounded, chamfered flat panel — reads as solid material under raking light. */
 function usePanelGeometry(width: number, height: number, depth: number, radius: number) {
@@ -384,13 +374,17 @@ function MediaWall({
     // Showcase mode ignores the pointer entirely and plays a slow, hands-off
     // loop: a gentle turn plus doors easing open and shut.
     const orbit = showcase
-      ? { azimuth: Math.sin(time * 0.2) * 0.3, polar: 0 }
-      : (orbitRef.current ?? { azimuth: 0, polar: 0 });
+      ? { azimuth: Math.sin(time * 0.2) * 0.3, polar: 0, zoom: 1 }
+      : (orbitRef.current ?? neutralOrbit());
     const target = showcase ? (Math.sin(time * 0.38) > 0 ? 1 : 0) : doorsOpen ? 1 : 0;
 
-    const azimuth = view.azimuth + orbit.azimuth;
+    // Clamped here rather than in the handler so every input is bounded by
+    // the same rule and the limit cannot be bypassed by writing the ref.
+    const azimuth =
+      view.azimuth +
+      THREE.MathUtils.clamp(orbit.azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT);
     const polar = THREE.MathUtils.clamp(view.polar + orbit.polar, 1.05, 1.72);
-    const r = view.radius;
+    const r = view.radius * THREE.MathUtils.clamp(orbit.zoom, ZOOM_MIN, ZOOM_MAX);
 
     const targetPosition = new THREE.Vector3(
       r * Math.sin(polar) * Math.sin(azimuth),

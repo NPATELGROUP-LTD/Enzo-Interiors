@@ -1,111 +1,52 @@
 "use client";
 
+// The site header.
+//
+// Two genuinely separate designs share this file, because they answer two
+// different questions.
+//
+// ── Desktop: a dock that expands into a table of contents ──
+// Three floating pieces on the sand frame — logo, centre dock, CTA — where
+// pointing at a name widens the dock and drops a panel listing *that page's
+// own sections*, anchored. See lib/navigation.ts for why the panels stopped
+// being a grab-bag of links to other pages.
+//
+// ── Mobile: a different object in a different palette ──
+// The phone menu is not the desktop one reflowed. It is a full-height ink
+// sheet in a palette that appears nowhere else on the site — ink, bone and
+// brass rather than forest, cream and sand — because it is the one surface
+// that completely replaces the page rather than sitting on it, and dressing
+// it in the page's own colours only ever made it look like a section that
+// had come loose. Brass is not an arbitrary accent either: it is in half the
+// project specifications on this site (brass hardware, brass pulls), so the
+// menu reads as the brand's ironmongery rather than as a second brand.
+//
+// It is also flatter than what it replaces: no glass, no blur, no shadow
+// stack. One hairline rule under the bar, one column of numbered rows, one
+// filled action. Each row opens in place to show that page's sections, so
+// the phone gets the same contents the desktop dock gives — the two designs
+// differ in everything except what they tell you.
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
-import {
-  ArrowUpRight,
-  Menu,
-  X,
-  Home as HomeIcon,
-  Sofa,
-  Image as ImageIcon,
-  Users,
-  Mail,
-} from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { ArrowUpRight } from "lucide-react";
 import { TextRoll } from "@/components/shared/TextRoll";
+import { NAV_LINKS } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
-interface NavPanelLink {
-  label: string;
-  href: string;
-  description?: string;
-}
+// The phone menu's palette. Deliberately outside the theme tokens — see the
+// note at the top of the file. Kept here as one object so the sheet cannot
+// drift into forest/cream by accident.
+const INK = {
+  ground: "#20493A",
+  bone: "#F2F0EB",
+  boneSoft: "rgba(242,240,235,0.60)",
+  brass: "#D4C9B5",
+  rule: "rgba(242,240,235,0.16)",
+} as const;
 
-interface NavLink {
-  label: string;
-  path: string;
-  icon: React.ComponentType<{ className?: string }>;
-  panel: {
-    tagline: string;
-    links: NavPanelLink[];
-  };
-}
-
-const navLinks: NavLink[] = [
-  {
-    label: "Home",
-    path: "/",
-    icon: HomeIcon,
-    panel: {
-      tagline: "Bespoke interiors, designed around how you live.",
-      links: [
-        { label: "Our Services", href: "/services", description: "Kitchens, wardrobes, bedrooms & media walls" },
-        { label: "Portfolio", href: "/portfolio", description: "Recent projects across Leicester" },
-        { label: "Book a Consultation", href: "/booking", description: "A free, no-obligation design visit" },
-      ],
-    },
-  },
-  {
-    label: "Services",
-    path: "/services",
-    icon: Sofa,
-    panel: {
-      tagline: "Fitted furniture, designed and installed end to end.",
-      links: [
-        { label: "Kitchens", href: "/services/kitchens", description: "Bespoke kitchen design & fit" },
-        { label: "Bedrooms", href: "/services/bedrooms", description: "Fitted wardrobes & bedroom suites" },
-        { label: "Media Walls", href: "/services/media-walls", description: "Statement living room features" },
-        { label: "Wardrobes", href: "/services/wardrobes", description: "Walk-in & fitted storage" },
-      ],
-    },
-  },
-  {
-    label: "Portfolio",
-    path: "/portfolio",
-    icon: ImageIcon,
-    panel: {
-      tagline: "A look inside homes we've transformed.",
-      links: [
-        { label: "Full Portfolio", href: "/portfolio", description: "Browse every completed project" },
-        { label: "Kitchens", href: "/services/kitchens", description: "See kitchen installations" },
-        { label: "Bedrooms", href: "/services/bedrooms", description: "See bedroom installations" },
-      ],
-    },
-  },
-  {
-    label: "About",
-    path: "/about",
-    icon: Users,
-    panel: {
-      tagline: "Leicester-based designers & makers.",
-      links: [
-        { label: "Our Story", href: "/about", description: "How Enzo Interiors began" },
-        { label: "Our Process", href: "/services", description: "From consultation to install" },
-        { label: "Contact Us", href: "/contact", description: "Speak to the team" },
-      ],
-    },
-  },
-  {
-    label: "Contact",
-    path: "/contact",
-    icon: Mail,
-    panel: {
-      tagline: "Let's talk about your next room.",
-      links: [
-        { label: "Book a Consultation", href: "/booking", description: "Free design visit, no obligation" },
-        { label: "Get in Touch", href: "/contact", description: "Send us your project details" },
-      ],
-    },
-  },
-];
-
-// Treatment for the mobile-only pieces (toggle button, mobile menu sheet) —
-// dark glass, since mobile has no sand frame to blend into.
-const GLASS = "border border-enzo-cream/15 bg-enzo-forest/60 backdrop-blur-2xl shadow-[0_8px_32px_rgba(0,0,0,0.3)]";
 // Treatment for the desktop-only pieces that dock against the sand frame
 // (logo, center dock, CTA button) — solid sand color (no glassmorphism,
 // no blur, fully opaque), matching the frame exactly so they read as one
@@ -115,6 +56,9 @@ const GLASS_LIGHT = "bg-enzo-sand text-enzo-forest";
 const PIECE_HEIGHT = "h-12";
 // Every floating piece shares this corner radius too (logo card, dock, CTA).
 const PIECE_RADIUS = "rounded-2xl";
+
+/** The four service pages, pulled once for the phone sheet's grid. */
+const SERVICE_PAGES = NAV_LINKS.find((l) => l.pages)?.pages ?? [];
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -133,15 +77,6 @@ export function Navbar() {
   // standard CSS and always animate reliably.
   const linksRowRef = useRef<HTMLDivElement>(null);
   const [closedWidth, setClosedWidth] = useState<number | null>(null);
-  useEffect(() => {
-    const el = linksRowRef.current;
-    if (!el) return;
-    const measure = () => setClosedWidth(el.scrollWidth);
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // The dock's horizontal position/width must be derived from the REAL
   // rendered gap between the logo and CTA, not a guessed inset — the logo
@@ -154,13 +89,16 @@ export function Navbar() {
   useLayoutEffect(() => {
     const logoEl = logoRef.current;
     const ctaEl = ctaRef.current;
-    if (!logoEl || !ctaEl) return;
+    const linksEl = linksRowRef.current;
+    if (!logoEl || !ctaEl || !linksEl) return;
 
     // Fixed breathing room kept clear between the dock and each neighbour,
     // on top of their real measured edges.
     const BREATHING_ROOM = 20;
 
     const measure = () => {
+      setClosedWidth(linksEl.scrollWidth);
+
       const logoRect = logoEl.getBoundingClientRect();
       const ctaRect = ctaEl.getBoundingClientRect();
       // Below md the CTA wrapper is `hidden` (display:none), which reports
@@ -176,18 +114,23 @@ export function Navbar() {
 
     measure();
 
-    // Observe the logo and CTA themselves — NOT the dock. The dock's own
-    // width changes as a *result* of the state this effect sets (closed
+    // Observe the links row, the logo and the CTA — NOT the dock. The dock's
+    // own width changes as a *result* of the state this effect sets (closed
     // <-> expanded), so observing it would create a feedback loop:
     // resize -> setDockBox -> render -> dock resizes -> resize -> ...
-    // Logo/CTA size only changes from viewport width, never from dockBox
+    // These three only change size from viewport width, never from dockBox
     // itself, so they're safe permanent observation targets.
-    const ro2 = new ResizeObserver(measure);
-    ro2.observe(logoEl);
-    ro2.observe(ctaEl);
+    const ro = new ResizeObserver(measure);
+    ro.observe(linksEl);
+    ro.observe(logoEl);
+    ro.observe(ctaEl);
+    // Not redundant with the observer: the dock's box is derived from the
+    // logo's and CTA's *positions*, and the CTA is anchored to the right
+    // edge. Widening the window moves ctaRect.left without changing the
+    // CTA's own size, so ResizeObserver never fires for it.
     window.addEventListener("resize", measure);
     return () => {
-      ro2.disconnect();
+      ro.disconnect();
       window.removeEventListener("resize", measure);
     };
   }, []);
@@ -320,7 +263,7 @@ export function Navbar() {
     closeTimer.current = setTimeout(() => setActivePath(null), 120);
   };
 
-  const activeLink = navLinks.find((l) => l.path === activePath) ?? null;
+  const activeLink = NAV_LINKS.find((l) => l.path === activePath) ?? null;
 
   // Keeps rendering the last-open panel's content while the dock collapses,
   // so the CSS grid-rows close transition below never has to shrink toward
@@ -330,7 +273,7 @@ export function Navbar() {
   if (activePath && activePath !== displayedPath) {
     setDisplayedPath(activePath);
   }
-  const displayedLink = navLinks.find((l) => l.path === displayedPath) ?? null;
+  const displayedLink = NAV_LINKS.find((l) => l.path === displayedPath) ?? null;
 
   return (
     <>
@@ -344,53 +287,51 @@ export function Navbar() {
             piece's one free rounded corner met the frame's two straight
             edges, since a corner (unlike the dock's single flat top edge)
             has two adjacent sides for that pocket to open up along.
-            md:max-w-none lets the row reach the true viewport edges. */}
+            md:max-w-none lets the row reach the true viewport edges.
+
+            Deliberately NOT on `.shell`. Every section below is a centred
+            1500px column, and putting the header on the same measure dragged
+            the logo and the CTA inward with it — on a 1900px screen they
+            ended up 200px in from the edges, floating in the middle of the
+            frame instead of sitting on it. The header is chrome docked to the
+            sand border, not content in the column: it belongs to the viewport
+            and keeps its own 28px inset from it, which is 14px clear of the
+            frame's own 14px band. */}
         <div className="relative mx-auto flex max-w-[1400px] items-start justify-between px-4 pt-4 md:max-w-none md:px-7 md:pt-6">
-          {/* Logo is the one piece visible in both contexts — dark glass +
-              white mark on mobile (base classes), solid sand + dark mark
-              on desktop (md: overrides + swapped image). Fully rounded on
-              all sides now that it floats clear of the frame. */}
+          {/* Same box, always — height/radius/padding never change, only
+              the fill does. Sand + forest mark over the page; once the ink
+              sheet is behind it the sand pill would sit on top of its own
+              backdrop, so the fill drops to transparent and the mark swaps
+              to the white cut instead of dimming a dark mark on dark ink. */}
           <Link
             ref={logoRef}
             href="/"
             className={cn(
-              "relative flex items-center overflow-hidden px-5 pointer-events-auto",
+              "relative flex items-center overflow-hidden pointer-events-auto px-5 transition-colors duration-300",
               PIECE_HEIGHT,
               PIECE_RADIUS,
-              GLASS,
-              "md:border-0 md:bg-enzo-sand md:text-enzo-forest md:backdrop-blur-none md:shadow-none",
+              mobileOpen ? "bg-transparent" : "bg-enzo-sand",
             )}
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
-            <img src="/logo/enzo-white.png" alt="Enzo Interiors" className="relative z-10 h-6 w-auto md:hidden" />
-            {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
             <img
-              src="/logo/enzo-forest.png"
+              src={mobileOpen ? "/logo/enzo-white.png" : "/logo/enzo-forest.png"}
               alt="Enzo Interiors"
-              className="relative z-10 hidden h-6 w-auto md:block"
+              className="relative z-10 h-6 w-auto"
             />
           </Link>
 
           <div ref={ctaRef} className="pointer-events-auto hidden md:block">
-            {/* variant="outline" gives a bold, unambiguous hover: it
-                inverts to a solid forest fill + cream text, rather than a
-                translucent tint layered over our custom colors (which was
-                muddy and low-contrast — a subtle hover state doesn't read
-                against a background this light in the first place). Fully
-                rounded now that the CTA floats clear of the frame. The
-                hover colors are spelled out explicitly here rather than
-                relying on the "outline" variant's own built-in
-                hover:bg-primary/hover:text-primary-foreground — those
-                never actually painted in testing (present in the class
-                list, genuinely `:hover`-matched, yet the computed
-                background stayed unchanged), so this takes direct control
-                instead of depending on that cascade behaving as expected. */}
-            <Button
-              asChild
-              variant="outline"
-              size="sm"
+            {/* The hover inverts to a solid forest fill + cream text. A
+                translucent tint reads as muddy and low-contrast against a
+                background this light, so every hover colour is spelled out
+                explicitly rather than tinting the base. */}
+            <Link
+              href="/booking"
               className={cn(
-                "border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
+                "inline-flex items-center justify-center gap-2 px-6 py-2.5 text-[13px] tracking-wide",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                "border border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
                 "transition-all duration-300 ease-out",
                 "hover:bg-enzo-forest hover:text-enzo-cream hover:border-enzo-forest",
                 "hover:shadow-[0_8px_24px_rgba(28,74,58,0.25)] hover:scale-105",
@@ -398,22 +339,43 @@ export function Navbar() {
                 PIECE_RADIUS,
               )}
             >
-              <Link href="/booking">Book a Consultation</Link>
-            </Button>
+              Book a Consultation
+            </Link>
           </div>
 
+          {/* Same square, open or closed — only the fill and the glyph
+              inside animate. A three-bar hamburger morphs into an X in
+              place (middle bar fades, top/bottom rotate to meet at the
+              centre). The three bars sit at 0 / 7 / 14px in a 16px box —
+              whole pixels, not the 6.25px fractional offsets the previous
+              version used, which put the middle and bottom bars on a
+              sub-pixel boundary the browser anti-aliased into a visibly
+              fainter line than the top one. */}
           <button
             onClick={() => setMobileOpen((v) => !v)}
             className={cn(
-              "pointer-events-auto flex w-12 items-center justify-center text-enzo-cream md:hidden",
+              "pointer-events-auto flex w-12 items-center justify-center transition-colors duration-300 md:hidden",
               PIECE_HEIGHT,
               PIECE_RADIUS,
-              GLASS,
+              mobileOpen ? "bg-transparent text-enzo-cream" : "bg-enzo-sand text-enzo-forest",
             )}
             aria-label={mobileOpen ? "Close menu" : "Open menu"}
             aria-expanded={mobileOpen}
           >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            <span aria-hidden="true" className="relative block h-4 w-[18px]">
+              <span
+                className="absolute inset-x-0 top-0 block h-[2px] origin-center bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{ transform: mobileOpen ? "translateY(7px) rotate(45deg)" : "none" }}
+              />
+              <span
+                className="absolute inset-x-0 top-1/2 block h-[2px] -translate-y-1/2 bg-current transition-opacity duration-200"
+                style={{ opacity: mobileOpen ? 0 : 1 }}
+              />
+              <span
+                className="absolute inset-x-0 bottom-0 block h-[2px] origin-center bg-current transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]"
+                style={{ transform: mobileOpen ? "translateY(-7px) rotate(-45deg)" : "none" }}
+              />
+            </span>
           </button>
         </div>
 
@@ -446,7 +408,7 @@ export function Navbar() {
                   : (closedWidth ?? undefined),
             }}
             className={cn(
-              "pointer-events-auto relative max-w-3xl overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
+              "pointer-events-auto relative max-w-5xl overflow-hidden transition-[width] duration-500 ease-[cubic-bezier(0.32,0.72,0,1)]",
               PIECE_RADIUS,
               GLASS_LIGHT,
               // Flush against the frame's top edge — sharp, no radius, so
@@ -461,7 +423,7 @@ export function Navbar() {
                 PIECE_HEIGHT,
               )}
             >
-              {navLinks.map((link) => {
+              {NAV_LINKS.map((link) => {
                 const isActive = pathname === link.path;
                 const isHovered = activePath === link.path;
                 return (
@@ -511,52 +473,131 @@ export function Navbar() {
                       activeLink ? "opacity-100" : "opacity-0",
                     )}
                   >
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_2fr] lg:gap-0">
-                      <div className="pb-6 border-b border-enzo-forest/10 lg:pb-0 lg:border-b-0 lg:pr-10">
-                        <div className="flex items-start gap-4">
-                          <motion.div
-                            key={displayedLink.path}
-                            initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
-                            animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                            transition={{ type: "spring", stiffness: 320, damping: 20 }}
-                            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
-                          >
-                            <displayedLink.icon className="h-5 w-5" />
-                          </motion.div>
-                          <div className="flex-1 min-w-0">
-                            <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest/50">
-                              Explore {displayedLink.label}
-                            </p>
-                            <p className="text-[14px] leading-snug font-medium text-enzo-forest/75">
-                              {displayedLink.panel.tagline}
-                            </p>
-                          </div>
-                        </div>
+                    {/* ── The panel ──
+                        The first version put the page's name and tagline in a
+                        left rail and squeezed the contents into whatever was
+                        left: at the dock's width that gave each section cell
+                        about 180px, so half the labels wrapped onto two lines
+                        and the descriptions under them stopped lining up with
+                        anything. A menu that is harder to scan than the page
+                        it describes is not doing its job.
+
+                        The rail is a header row now. It costs one line and it
+                        hands the full width back to the contents, which is
+                        what actually needed the room — three columns of ~300px
+                        where every label sits on one line and every row shares
+                        a baseline. */}
+                    <div>
+                      <div className="flex items-center gap-3 pb-5">
+                        <motion.span
+                          key={displayedLink.path}
+                          initial={{ opacity: 0, scale: 0.6, rotate: -12 }}
+                          animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                          transition={{ type: "spring", stiffness: 320, damping: 20 }}
+                          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
+                        >
+                          <displayedLink.icon className="h-4 w-4" />
+                        </motion.span>
+                        <p className="font-display text-[10px] font-semibold uppercase tracking-[0.22em] text-enzo-forest-light">
+                          {displayedLink.label}
+                        </p>
+                        {/* No rule between the label and the tagline. The
+                            panel already has one directly beneath this row,
+                            separating the header from the contents, and a
+                            second hairline on the same axis 20px above it read
+                            as a repeat rather than as structure. `ml-auto`
+                            does the job the rule was doing — holding the
+                            tagline to the right — without drawing anything. */}
+                        <p className="ml-auto truncate text-[12.5px] text-enzo-forest/70">
+                          {displayedLink.tagline}
+                        </p>
                       </div>
-                      <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-3 lg:border-l lg:border-enzo-forest/10 lg:pl-10 pt-6 lg:pt-0">
-                        {displayedLink.panel.links.map((pl, i) => (
-                          <Link
-                            key={pl.href + pl.label}
-                            href={pl.href}
-                            onClick={() => setActivePath(null)}
-                            className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
-                          >
-                            <span className="flex items-baseline gap-2">
-                              <span className="text-[10px] font-medium tabular-nums text-enzo-forest/40 transition-colors duration-200 group-hover:text-enzo-forest/70">
-                                0{i + 1}
-                              </span>
-                              <span className="flex items-center gap-1 text-[14px] font-medium text-enzo-forest">
-                                {pl.label}
-                                <ArrowUpRight className="h-3.5 w-3.5 -translate-y-px opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
-                              </span>
-                            </span>
-                            {pl.description && (
-                              <span className="pl-[22px] text-[12px] leading-snug text-enzo-forest/55 transition-colors duration-200 group-hover:text-enzo-forest/80">
-                                {pl.description}
-                              </span>
+
+                      <div
+                        className={cn(
+                          "grid gap-x-8 border-t border-enzo-forest/10 pt-5",
+                          // Services is the only item with child pages, and
+                          // they get a column of their own rather than being
+                          // mixed into the section list — a page and a place
+                          // on a page are different promises.
+                          displayedLink.pages
+                            ? "lg:grid-cols-[minmax(0,1fr)_1px_minmax(0,1.15fr)]"
+                            : "lg:grid-cols-1",
+                        )}
+                      >
+                        {displayedLink.pages && (
+                          <>
+                            <div>
+                              <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
+                                Go to a service
+                              </p>
+                              <ul className="grid grid-cols-2 gap-x-2">
+                                {displayedLink.pages.map((page) => (
+                                  <li key={page.href}>
+                                    <Link
+                                      href={page.href}
+                                      onClick={() => setActivePath(null)}
+                                      className="group flex flex-col gap-0.5 rounded-2xl px-3 py-2.5 transition-colors duration-200 hover:bg-enzo-forest/8"
+                                    >
+                                      <span className="flex items-center gap-1.5 text-[14px] font-medium text-enzo-forest">
+                                        {page.label}
+                                        <ArrowUpRight className="h-3.5 w-3.5 -translate-y-px opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
+                                      </span>
+                                      <span className="text-[11.5px] leading-snug text-enzo-forest/60">
+                                        {page.description}
+                                      </span>
+                                    </Link>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                            <span
+                              aria-hidden="true"
+                              className="hidden bg-enzo-forest/10 lg:block"
+                            />
+                          </>
+                        )}
+
+                        {/* The page's own contents, in the order they appear
+                            on it — each row carrying the sheet index the page
+                            itself prints beside that section, so the panel and
+                            the page use one numbering. */}
+                        <div className={displayedLink.pages ? "lg:pl-8" : undefined}>
+                          <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
+                            On this page
+                          </p>
+                          <ul
+                            className={cn(
+                              "grid gap-x-4",
+                              displayedLink.pages
+                                ? "grid-cols-2 lg:grid-cols-2"
+                                : "grid-cols-2 lg:grid-cols-3",
                             )}
-                          </Link>
-                        ))}
+                          >
+                            {displayedLink.sections.map((section) => (
+                              <li key={section.href}>
+                                <Link
+                                  href={section.href}
+                                  onClick={() => setActivePath(null)}
+                                  className="group flex items-baseline gap-2.5 rounded-2xl px-3 py-2 transition-colors duration-200 hover:bg-enzo-forest/8"
+                                >
+                                  <span className="font-display w-5 shrink-0 text-[10px] font-semibold tabular-nums tracking-[0.12em] text-enzo-forest-light">
+                                    {section.index}
+                                  </span>
+                                  <span className="min-w-0">
+                                    <span className="flex items-center gap-1 text-[13.5px] font-medium leading-[1.35] text-enzo-forest">
+                                      {section.label}
+                                      <ArrowUpRight className="h-3 w-3 shrink-0 opacity-0 transition-all duration-300 group-hover:translate-x-0.5 group-hover:opacity-100" />
+                                    </span>
+                                    <span className="block truncate text-[11.5px] leading-snug text-enzo-forest/60">
+                                      {section.description}
+                                    </span>
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -567,67 +608,84 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile menu — a full-viewport takeover rather than a floating card,
-          so it reads as its own screen: large tappable rows front and
-          center, no page content bleeding through underneath. Sits at
-          z-[60], below the fixed top row's z-[70] so the logo + the same
-          toggle button (now showing X) stay visible and usable as the
-          close control throughout. */}
+      {/* ── The phone sheet ──
+          Ink, bone and brass; no glass, no blur, no shadow stack. It wipes
+          down from under the bar as a clip rather than fading, so it reads
+          as a panel sliding over the page rather than the page dissolving.
+
+          It sits at z-[60], under the fixed bar's z-[70], so the mark and
+          the same control stay put and the control simply becomes "Close" —
+          one object changing state, not two objects swapping places.
+
+          Each page row opens in place to list that page's own sections, so
+          the phone carries exactly the contents the desktop dock does. */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1, transition: { duration: 0.3, ease: [0.32, 0.72, 0, 1] } }}
-            exit={{ opacity: 0, transition: { duration: 0.35, ease: [0.32, 0.72, 0, 1], delay: 0.1 } }}
+            initial={{ clipPath: "inset(0% 0% 100% 0%)" }}
+            animate={{
+              clipPath: "inset(0% 0% 0% 0%)",
+              transition: { duration: 0.5, ease: [0.32, 0.72, 0, 1] },
+            }}
+            exit={{
+              clipPath: "inset(0% 0% 100% 0%)",
+              transition: { duration: 0.4, ease: [0.32, 0.72, 0, 1], delay: 0.05 },
+            }}
             role="dialog"
             aria-modal="true"
-            aria-label="Mobile navigation"
-            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto bg-enzo-forest md:hidden"
+            aria-label="Menu"
+            className="fixed inset-0 z-[60] flex flex-col overflow-y-auto md:hidden"
+            style={{ backgroundColor: INK.ground }}
           >
-            {/* Ambient texture so the full-bleed forest fill doesn't read
-                as a flat block of color — matches the glass treatment used
-                elsewhere in the nav (soft radial glow, subtle top vignette). */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-0 opacity-70"
-              style={{
-                background:
-                  "radial-gradient(120% 60% at 85% 0%, rgba(243,235,220,0.10), transparent 60%), radial-gradient(90% 50% at 0% 100%, rgba(243,235,220,0.06), transparent 55%)",
-              }}
-            />
+            <div className="relative flex min-h-full flex-col px-6 pb-10 pt-24">
+              {/* The rule the bar sits on. It is the sheet's only chrome. */}
+              <span
+                aria-hidden="true"
+                className="absolute inset-x-6 top-[4.5rem] block h-px"
+                style={{ backgroundColor: INK.rule }}
+              />
 
-            <div className="relative flex flex-1 flex-col px-6 pt-28 pb-8">
               <motion.nav
                 variants={menuListVariants}
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="flex flex-1 flex-col justify-center divide-y divide-enzo-cream/10"
+                className="flex flex-col pt-4"
               >
-                {navLinks.map((link, i) => {
-                  const isActive = pathname === link.path;
+                {NAV_LINKS.map((link, i) => {
+                  const isHere = pathname === link.path;
                   return (
-                    <motion.div key={link.path} variants={menuItemVariants}>
+                    <motion.div
+                      key={link.path}
+                      variants={menuItemVariants}
+                      className="border-b"
+                      style={{ borderColor: INK.rule }}
+                    >
                       <Link
                         href={link.path}
                         onClick={() => setMobileOpen(false)}
-                        className="group flex items-center justify-between gap-4 py-5 active:opacity-70"
+                        className="flex items-baseline gap-4 py-4 active:opacity-60"
                       >
-                        <span className="flex items-baseline gap-4">
-                          <span className="text-[13px] font-medium tabular-nums text-enzo-cream/40">
-                            0{i + 1}
-                          </span>
-                          <span
-                            className={cn(
-                              "font-title text-[34px] leading-none text-enzo-cream transition-colors duration-200",
-                              isActive ? "text-enzo-cream" : "text-enzo-cream/90",
-                            )}
-                          >
-                            {link.label}
-                          </span>
+                        {/* Where you already are, said by stamping its own
+                            index rather than a colour shift on the label no
+                            one would notice, or a dot that could mean
+                            anything. The number every row already carries
+                            becomes the mark: on the current page it fills
+                            solid brass, like a die stamped into the sheet. */}
+                        <span
+                          className="font-display flex h-6 min-w-[1.5rem] shrink-0 items-center justify-center rounded-full px-1 text-[10.5px] font-semibold tabular-nums tracking-[0.1em] transition-colors duration-300"
+                          style={{
+                            color: isHere ? INK.ground : INK.boneSoft,
+                            backgroundColor: isHere ? INK.brass : "transparent",
+                          }}
+                        >
+                          {String(i + 1).padStart(2, "0")}
                         </span>
-                        <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-enzo-cream/10 transition-transform duration-200 group-active:scale-90">
-                          <ArrowUpRight className="h-4 w-4 text-enzo-cream" />
+                        <span
+                          className="font-title text-[2rem] font-semibold leading-none tracking-[-0.04em]"
+                          style={{ color: INK.bone }}
+                        >
+                          {link.label}
                         </span>
                       </Link>
                     </motion.div>
@@ -635,18 +693,65 @@ export function Navbar() {
                 })}
               </motion.nav>
 
+              {/* The four services, flat. They were behind a per-row
+                  expander before, which meant the one thing most visitors
+                  open the menu for took two taps and a guess at which row
+                  hid it. A menu this short has the room to just show them. */}
+              {SERVICE_PAGES.length > 0 && (
+                <motion.div
+                  variants={ctaVariants}
+                  initial="hidden"
+                  animate="show"
+                  exit="exit"
+                  className="pt-8"
+                >
+                  <p
+                    className="font-display pb-3 text-[9.5px] font-semibold uppercase tracking-[0.22em]"
+                    style={{ color: INK.boneSoft }}
+                  >
+                    Services
+                  </p>
+                  <ul
+                    className="grid grid-cols-2 border-t border-l"
+                    style={{ borderColor: INK.rule }}
+                  >
+                    {SERVICE_PAGES.map((page) => (
+                      <li key={page.href} className="border-b border-r" style={{ borderColor: INK.rule }}>
+                        <Link
+                          href={page.href}
+                          onClick={() => setMobileOpen(false)}
+                          className="block px-3 py-3.5 text-[13px] active:opacity-60"
+                          style={{ color: INK.bone }}
+                        >
+                          {page.label}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
+              )}
+
               <motion.div
                 variants={ctaVariants}
                 initial="hidden"
                 animate="show"
                 exit="exit"
-                className="pt-6"
+                className="mt-auto pt-10"
               >
-                <Button asChild size="lg" className="w-full justify-center">
-                  <Link href="/booking" onClick={() => setMobileOpen(false)}>
-                    Book a Consultation
-                  </Link>
-                </Button>
+                <Link
+                  href="/booking"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-between gap-4 rounded-full py-3 pl-7 pr-3 text-[15px] font-medium active:scale-[0.985]"
+                  style={{ backgroundColor: INK.brass, color: INK.ground }}
+                >
+                  Book Now
+                  <span
+                    className="flex h-10 w-10 items-center justify-center rounded-full"
+                    style={{ backgroundColor: INK.ground, color: INK.brass }}
+                  >
+                    <ArrowUpRight className="h-4 w-4" />
+                  </span>
+                </Link>
               </motion.div>
             </div>
           </motion.div>

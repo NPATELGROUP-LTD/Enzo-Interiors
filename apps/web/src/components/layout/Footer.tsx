@@ -5,13 +5,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, ArrowRight, Phone, Check } from "lucide-react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { CookieSettingsButton } from "@/components/legal/CookieSettingsButton";
+import { revealOnScroll, scrollTimeline } from "@/hooks/useGSAP";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
 import { FooterMap } from "@/components/layout/FooterMap";
 import { TextRoll } from "@/components/shared/TextRoll";
+import { HOURS_ROWS } from "@/lib/studio-hours";
 import { cn } from "@/lib/utils";
-
-gsap.registerPlugin(ScrollTrigger);
 
 // Exactly one more than socialLinks below — on any of these four pages the
 // current one gets filtered out (see filteredPageLinks in the component),
@@ -30,39 +30,31 @@ const socialLinks = [
   { href: "/contact", Icon: Phone, label: "WhatsApp" },
 ];
 
-// Real hours, with consecutive identical rows combined (Tue–Thu all read
-// "10:00 – 17:00" and are back-to-back, so they collapse into one row;
-// Saturday matches the same hours too but sits right after Friday's
-// different, split hours, so it stays its own row rather than being
-// grouped with Tue–Thu across that break).
-const hoursRows = [
-  { day: "Monday", time: "Closed" },
-  { day: "Tuesday – Thursday", time: "10:00 – 17:00" },
-  { day: "Friday", time: "10:00 – 12:30, 14:30 – 17:00" },
-  { day: "Saturday", time: "10:00 – 17:00" },
-  { day: "Sunday", time: "Closed" },
-];
+// The printed hours come from lib/studio-hours, which /contact also reads to
+// answer "are they open right now?". They were two separate literals until
+// the contact page needed the times as numbers — one of them would have
+// gone stale the first time Friday's split afternoon moved.
 
-const LABEL = "text-[10px] font-semibold uppercase tracking-[0.3em] text-enzo-cream/50";
+const LABEL = "text-[10px] font-semibold uppercase tracking-[0.3em] text-enzo-cream/70";
 
 function HoursList() {
   return (
     <div>
       <p className={cn(LABEL, "mb-4")}>Opening Hours</p>
       <div className="flex flex-col divide-y divide-enzo-cream/10">
-        {hoursRows.map((row) => (
+        {HOURS_ROWS.map((row) => (
           <div
             key={row.day}
             className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-2 py-2.5 text-[13px] transition-colors duration-200 hover:bg-enzo-cream/5"
           >
             <span className="font-medium text-enzo-cream">{row.day}</span>
-            <span className={cn("tabular-nums text-enzo-cream/60", row.time === "Closed" && "text-enzo-cream/35")}>
+            <span className={cn("tabular-nums text-enzo-cream/70", row.time === "Closed" && "text-enzo-cream/65")}>
               {row.time}
             </span>
           </div>
         ))}
       </div>
-      <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/60">
+      <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/70">
         <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
         Consultation calls are available by appointment, outside these hours.
       </p>
@@ -93,7 +85,7 @@ function NewsletterForm({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Your email address"
-          className="min-w-0 flex-1 bg-transparent text-[14px] text-enzo-cream placeholder:text-enzo-cream/40 focus:outline-none"
+          className="min-w-0 flex-1 bg-transparent py-2.5 text-[14px] text-enzo-cream placeholder:text-enzo-cream/65 focus:outline-none"
           required
         />
         {/* Same pill-icon-chip mechanic as HeroCtaButton: two overlapping
@@ -105,9 +97,8 @@ function NewsletterForm({
             already exits/enters from. */}
         <button
           type="submit"
-          data-cursor="view"
           aria-label="Subscribe"
-          className="group relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-enzo-sand text-enzo-forest transition-all duration-300 hover:scale-110 hover:bg-enzo-sage"
+          className="group relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-enzo-sand text-enzo-forest transition-all duration-300 hover:scale-110 hover:bg-enzo-sage"
         >
           <ArrowRight className="h-4 w-4 -rotate-45 transition-all duration-300 ease-out group-hover:translate-x-3 group-hover:-translate-y-3 group-hover:opacity-0" />
           <ArrowRight className="absolute h-4 w-4 -translate-x-3 translate-y-3 -rotate-45 opacity-0 transition-all duration-300 ease-out group-hover:translate-x-0 group-hover:translate-y-0 group-hover:opacity-100" />
@@ -158,12 +149,18 @@ export function Footer() {
 
     const mm = gsap.matchMedia();
     mm.add("(prefers-reduced-motion: no-preference)", () => {
-      const parallax = gsap.timeline({
-        scrollTrigger: { trigger: footer, start: "top bottom", end: "bottom top", scrub: 0.9 },
-      });
-      if (headlineRef.current) {
-        parallax.fromTo(headlineRef.current, { yPercent: 6 }, { yPercent: -6, ease: "none" }, 0);
-      }
+      // Populated first, triggered second — see hooks/useGSAP.ts. A
+      // trigger handed to gsap.timeline() measures while the timeline is
+      // still empty, in the same synchronous pass every other reveal on the
+      // page is being created.
+      const parallax = scrollTimeline(
+        (timeline) => {
+          if (headlineRef.current) {
+            timeline.fromTo(headlineRef.current, { yPercent: 6 }, { yPercent: -6, ease: "none" }, 0);
+          }
+        },
+        { trigger: footer, start: "top bottom", end: "bottom top", scrub: 0.9 },
+      );
 
       const q = (selector: string) => gsap.utils.toArray<HTMLElement>(footer.querySelectorAll(selector));
       const pages = q(".reveal-pages");
@@ -182,17 +179,20 @@ export function Footer() {
       gsap.set(map, { scale: 0.94, opacity: 0 });
       gsap.set(bottom, { y: 16, opacity: 0 });
 
-      const intro = gsap.timeline({
-        scrollTrigger: { trigger: footer, start: "top 85%", once: true },
-      });
-      intro
-        .to(pages, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
-        .to(headline, { scale: 1, opacity: 1, duration: 0.8, ease: "back.out(1.5)" }, 0.1)
-        .to(follow, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
-        .to(contact, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 0.3)
-        .to(hours, { y: 0, scale: 1, opacity: 1, duration: 0.65, ease: "back.out(1.7)" }, 0.38)
-        .to(map, { scale: 1, opacity: 1, duration: 0.7, ease: "power2.out" }, 0.46)
-        .to(bottom, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 0.55);
+      const intro = revealOnScroll(
+        footer,
+        (timeline) => {
+          timeline
+            .to(pages, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
+            .to(headline, { scale: 1, opacity: 1, duration: 0.8, ease: "back.out(1.5)" }, 0.1)
+            .to(follow, { x: 0, opacity: 1, duration: 0.6, ease: "power3.out", stagger: 0.07 }, 0)
+            .to(contact, { y: 0, opacity: 1, duration: 0.7, ease: "power3.out" }, 0.3)
+            .to(hours, { y: 0, scale: 1, opacity: 1, duration: 0.65, ease: "back.out(1.7)" }, 0.38)
+            .to(map, { scale: 1, opacity: 1, duration: 0.7, ease: "power2.out" }, 0.46)
+            .to(bottom, { y: 0, opacity: 1, duration: 0.5, ease: "power2.out" }, 0.55);
+        },
+        { start: "top 85%" },
+      );
 
       return () => {
         parallax.scrollTrigger?.kill();
@@ -226,7 +226,7 @@ export function Footer() {
         className="pointer-events-none absolute -top-5 left-1/2 hidden h-10 w-28 -translate-x-1/2 rounded-t-full bg-enzo-forest md:block"
       />
 
-      <div className="relative z-10 mx-auto max-w-6xl px-6 pb-10 pt-12 sm:px-10 md:px-12 md:pb-14 md:pt-14">
+      <div className="relative z-10 shell pb-10 pt-12 md:pb-14 md:pt-14">
         {/* ── Mobile (< md): simple composition, no bubble effect.
             Headline on its own line, then two columns — page links on the
             left, social icons on the right — plain pills and icon buttons,
@@ -246,7 +246,6 @@ export function Footer() {
                   <li key={item.href} className="reveal-pages">
                     <Link
                       href={item.href}
-                      data-cursor="view"
                       className="flex min-h-11 items-center text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
                     >
                       {item.label}
@@ -266,7 +265,6 @@ export function Footer() {
                       target={href.startsWith("http") ? "_blank" : undefined}
                       rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
                       aria-label={label}
-                      data-cursor="view"
                       className="flex min-h-11 items-center gap-2 text-[15px] font-semibold text-enzo-cream/85 transition-colors duration-200 active:text-enzo-sand"
                     >
                       <Icon size={15} className="text-enzo-sand" />
@@ -279,30 +277,36 @@ export function Footer() {
           </div>
         </div>
 
-        {/* ── md+: headline + flanking Follow / Pages columns, the
-            centrepiece flanked by social on the left and page links on the
-            right — the reference's Follow-left / Pages-right layout. ── */}
+        {/* ── md+: the headline in the centre, flanked by its two navs —
+            Pages on the left, Follow on the right.
+
+            This used to render the *Follow* nav twice, once in each flank,
+            with no Pages column at all, and two `md:order-*` utilities on
+            top: the headline was ordered 2 and the left nav 1, while the
+            right-hand nav carried no order at all and therefore sorted
+            ahead of both. So the row actually painted as Follow, Follow,
+            headline — two identical link lists jammed together on the left
+            and the centrepiece shoved to the right edge. Source order is
+            now the visual order (Pages, headline, Follow), so there is no
+            `order` to disagree with. ── */}
         <div className="hidden items-center gap-6 md:grid md:grid-cols-[1fr_2fr_1fr]">
-          <nav aria-label="Follow Enzo Interiors" className="md:order-1 md:text-left">
-            <p className={cn(LABEL, "mb-5")}>Follow</p>
+          <nav aria-label="Site pages" className="md:text-left">
+            <p className={cn(LABEL, "mb-5")}>Pages</p>
             <ul className="space-y-3.5">
-              {socialLinks.map(({ href, label }) => (
-                <li key={label} className="reveal-follow">
-                  <a
-                    href={href}
-                    target={href.startsWith("http") ? "_blank" : undefined}
-                    rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    data-cursor="view"
+              {filteredPageLinks.map((item) => (
+                <li key={item.href} className="reveal-pages">
+                  <Link
+                    href={item.href}
                     className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
-                    <TextRoll>{label}</TextRoll>
-                  </a>
+                    <TextRoll>{item.label}</TextRoll>
+                  </Link>
                 </li>
               ))}
             </ul>
           </nav>
 
-          <div ref={headlineRef} className="reveal-headline group md:order-2 md:text-center">
+          <div ref={headlineRef} className="reveal-headline group md:text-center">
             {/* Deliberately not TextRoll here — that letter-roll is the
                 Pages/Follow links' signature move, and reusing it on the
                 headline made it read as just another link-like element
@@ -339,7 +343,6 @@ export function Footer() {
                     href={href}
                     target={href.startsWith("http") ? "_blank" : undefined}
                     rel={href.startsWith("http") ? "noopener noreferrer" : undefined}
-                    data-cursor="view"
                     className="inline-block text-[20px] font-semibold text-enzo-cream/80 transition-colors duration-200 hover:text-enzo-cream"
                   >
                     <TextRoll>{label}</TextRoll>
@@ -361,8 +364,7 @@ export function Footer() {
             <p className={cn(LABEL, "mb-3")}>Begin A Conversation</p>
             <a
               href="mailto:hello@enzointeriors.co.uk"
-              data-cursor="view"
-              className="group inline-flex flex-wrap items-baseline gap-x-2 text-[1.2rem] font-bold leading-[1.1] tracking-tight text-enzo-cream"
+              className="group touch-target inline-flex flex-wrap items-baseline gap-x-2 text-[1.2rem] font-bold leading-[1.1] tracking-tight text-enzo-cream"
             >
               <span className="bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_2px] bg-left-bottom bg-no-repeat pb-0.5 transition-[background-size] duration-500 ease-out group-hover:bg-[length:100%_2px]">
                 hello@enzointeriors.co.uk
@@ -371,8 +373,7 @@ export function Footer() {
             </a>
             <a
               href="tel:+447777333052"
-              data-cursor="view"
-              className="mt-3 flex items-center gap-2 text-[14px] text-enzo-cream/70 transition-colors hover:text-enzo-cream"
+              className="mt-3 flex min-h-11 items-center gap-2 text-[14px] text-enzo-cream/70 transition-colors hover:text-enzo-cream"
             >
               <Phone className="h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
               07777 333052
@@ -404,25 +405,40 @@ export function Footer() {
           underline-sweep hover as every other link in this footer, instead
           of a bare colour change, for one consistent interaction language
           throughout. */}
-      <div className="reveal-bottom relative z-10 mx-auto flex max-w-6xl flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 px-6 py-8 sm:flex-row sm:px-10 md:px-12">
+      <div className="reveal-bottom relative z-10 shell flex flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 py-8 sm:flex-row">
         <div className="text-center text-[13px] sm:text-left">
           <p className="font-semibold text-enzo-cream">
             &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
           </p>
-          <p className="mt-1 text-enzo-cream/50">
+          <p className="mt-1 text-enzo-cream/70">
             Made by <span className="font-semibold text-enzo-sand">NPATEL GROUP LTD</span>
           </p>
         </div>
-        <div className="flex items-center gap-6 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream">
-          <a href="#" className="group relative">
+        {/* The three notices, plus the consent-withdrawal control. The last
+            one is not decoration: UK GDPR Art. 7(3) requires withdrawing
+            consent to be as easy as giving it, which means reachable from
+            every page rather than buried in a policy. */}
+        <nav
+          aria-label="Legal"
+          className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream"
+        >
+          <Link href="/privacy" className="group relative touch-target">
             Privacy Policy
             <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </a>
-          <a href="#" className="group relative">
+          </Link>
+          <Link href="/terms" className="group relative touch-target">
             Terms
             <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </a>
-        </div>
+          </Link>
+          <Link href="/cookies" className="group relative touch-target">
+            Cookies
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </Link>
+          <CookieSettingsButton className="group relative touch-target uppercase tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand">
+            Cookie settings
+            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+          </CookieSettingsButton>
+        </nav>
       </div>
     </footer>
   );

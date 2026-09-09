@@ -7,12 +7,12 @@
 // would no longer be a usable array — confirmed by a 500 during manual
 // verification). See ./page.tsx and ./BookingWizard.tsx.
 //
-// Slugs match src/lib/content/services.ts / the [category] route's
-// SERVICE_SLUGS, not the boilerplate's short "kitchen"/"bedroom" ids — this
-// is what makes the `?service=kitchens` prefill from a real Service Detail
-// page's URL line up. Kept local to the booking feature (not imported from
-// the [category] route) for the same colocation reasoning that route's
-// data.ts documents: no `GET /content/*` endpoint backs this list yet.
+// Slugs match src/lib/content/services.ts's `slug` field — the same source
+// getServiceSlugs() feeds to the [category] route — not the boilerplate's
+// short "kitchen"/"bedroom" ids. That is what makes the `?service=kitchens`
+// prefill from a real Service Detail page's URL line up. Kept local to the
+// booking feature because this list carries booking-specific presentation
+// (an icon per service) that the content record deliberately does not.
 import { ChefHat, Bed, Tv, DoorOpen } from "lucide-react";
 
 export const BOOKING_SERVICES = [

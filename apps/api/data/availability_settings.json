@@ -1,0 +1,58 @@
+[
+  {
+    "id": "avl_0",
+    "day_of_week": 0,
+    "start_time": "00:00",
+    "end_time": "00:00",
+    "slot_duration_mins": 60,
+    "is_closed": true
+  },
+  {
+    "id": "avl_1",
+    "day_of_week": 1,
+    "start_time": "09:00",
+    "end_time": "17:30",
+    "slot_duration_mins": 60,
+    "is_closed": false
+  },
+  {
+    "id": "avl_2",
+    "day_of_week": 2,
+    "start_time": "09:00",
+    "end_time": "17:30",
+    "slot_duration_mins": 60,
+    "is_closed": false
+  },
+  {
+    "id": "avl_3",
+    "day_of_week": 3,
+    "start_time": "09:00",
+    "end_time": "17:30",
+    "slot_duration_mins": 60,
+    "is_closed": false
+  },
+  {
+    "id": "avl_4",
+    "day_of_week": 4,
+    "start_time": "09:00",
+    "end_time": "19:00",
+    "slot_duration_mins": 60,
+    "is_closed": false
+  },
+  {
+    "id": "avl_5",
+    "day_of_week": 5,
+    "start_time": "09:00",
+    "end_time": "17:00",
+    "slot_duration_mins": 60,
+    "is_closed": false
+  },
+  {
+    "id": "avl_6",
+    "day_of_week": 6,
+    "start_time": "10:00",
+    "end_time": "14:00",
+    "slot_duration_mins": 30,
+    "is_closed": false
+  }
+]

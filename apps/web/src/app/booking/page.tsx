@@ -5,15 +5,26 @@
 //
 // This file stays a thin Server Component shell: it reads `?service=` /
 // `?tier=` (the Quote-to-Booking Handoff described in
-// docs/Enzo_Interiors_App_Flow_v4.md — see ../(marketing)/services/[category]/
-// QuoteModal.tsx's "Book a Consultation" CTA for the producing side) and
+// docs/Enzo_Interiors_App_Flow_v4.md — see
+// src/components/services/QuoteModal.tsx's "Book a free consultation" CTA
+// for the producing side) and
 // validates them against known values before handing them to the actual
 // step logic in ./BookingWizard.tsx, which needs interactive state and so
 // must be a Client Component.
+import type { Metadata } from "next";
 import { BookingWizard } from "./BookingWizard";
 import { BOOKING_SERVICES, type BookingServiceId } from "./services";
 
-// Mirrors the tier labels used by ../(marketing)/services/[category]/data.ts's
+// Every other route sets its own title; without this one the booking wizard
+// inherited the root layout's bare "Enzo Interiors", so a tab parked
+// mid-booking was indistinguishable from the homepage.
+export const metadata: Metadata = {
+  title: "Book a consultation — Enzo Interiors",
+  description:
+    "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price.",
+};
+
+// Mirrors the tier labels used by src/lib/content/services.ts's
 // `pricing[].tier` values (Essential / Premium / Luxury) — kept local since
 // nothing beyond display formatting needs the full pricing data here.
 const VALID_TIERS = new Set(["Essential", "Premium", "Luxury"]);

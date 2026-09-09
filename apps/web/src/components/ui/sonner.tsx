@@ -1,11 +1,8 @@
 "use client";
 
-// Adapted from Boilerplate:src/app/components/ui/sonner.tsx. The original
-// wrapped sonner in next-themes' useTheme() to pick light/dark. This app
-// has no theme toggle (no next-themes dependency, no dark-mode switch
-// anywhere in apps/web) so the toast theme is pinned to "light" to match
-// the site's fixed light design rather than adding next-themes solely for
-// this one component.
+// The toast theme is pinned to "light": this app has no theme toggle (no
+// next-themes dependency, no dark-mode switch anywhere in apps/web), so
+// there is nothing to read a preference from.
 import { Toaster as Sonner, type ToasterProps } from "sonner";
 
 function Toaster({ ...props }: ToasterProps) {

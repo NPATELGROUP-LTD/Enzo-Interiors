@@ -14,12 +14,9 @@
 // differently-laid-out sections read as one page.
 import { useRef, type ReactNode } from "react";
 import gsap from "gsap";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useGSAP } from "@/hooks/useGSAP";
+import { useGSAP, scrollTimeline } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-
-gsap.registerPlugin(ScrollTrigger);
 
 // Initial states live in inline `style` rather than Tailwind's translate-* /
 // scale-* utilities on purpose. Tailwind v4 compiles those to the standalone
@@ -30,7 +27,7 @@ gsap.registerPlugin(ScrollTrigger);
 const HIDDEN_UP = { transform: "translateY(8px)" } as const;
 const HIDDEN_UP_LEDE = { transform: "translateY(12px)" } as const;
 
-export interface SectionIntroProps {
+interface SectionIntroProps {
   /** Zero-padded section index, e.g. "01". Omit for sections outside the run. */
   index?: string;
   /** Short section name — the rule's left-hand caption. */
@@ -40,7 +37,20 @@ export interface SectionIntroProps {
   /** Headline, one array entry per visual line so each can mask up on its own. */
   lines: ReactNode[];
   lede?: ReactNode;
-  /** `dark` inverts the palette for sections on forest/near-black grounds. */
+  /**
+   * A shorter lede for narrow screens. When given, it replaces `lede` below
+   * `sm` — long intro paragraphs are readable beside a headline on desktop
+   * and a wall of text above the fold on a phone. Both are rendered and one
+   * is hidden by breakpoint rather than measured in JS, so the swap survives
+   * SSR with no layout flash.
+   */
+  ledeShort?: ReactNode;
+  /**
+   * Which palette the heading is set in.
+   *
+   *   light  forest type — for cream, white and warm-grey grounds
+   *   dark   cream type  — for forest and near-black grounds
+   */
   tone?: "light" | "dark";
   className?: string;
   /** Extra classes for the <h2> — mostly to override the clamped font size. */
@@ -51,6 +61,23 @@ export interface SectionIntroProps {
    * intro leaves half the row empty.
    */
   layout?: "stacked" | "split";
+  /**
+   * Overrides the `split` layout's column template, for a section that wants
+   * its heading and lede to land on the *same* grid as the content beneath
+   * them rather than on the intro's own proportions.
+   *
+   * Without it a split intro divides the row 0.8fr / 1fr and ranges the lede
+   * right, which is correct for a section whose content below is a full-width
+   * list — the lede then sits against the same right edge everything else
+   * does. It is wrong for a section built on an asymmetric two-column grid:
+   * the lede lands at the page edge while the column it ought to head up
+   * starts hundreds of pixels short of it, and the two read as unrelated.
+   *
+   * Passing the content grid's own template lines the two rows up into a
+   * single spine, and the lede ranges left because it is now heading a
+   * column rather than closing a row.
+   */
+  splitTemplate?: string;
   /**
    * Rendered at the right end of the metadata rule, e.g. a "see all" link.
    * Lives inside this component's own box (rather than as an external
@@ -67,10 +94,12 @@ export function SectionIntro({
   datum,
   lines,
   lede,
+  ledeShort,
   tone = "light",
   className,
   titleClassName,
   layout = "stacked",
+  splitTemplate,
   actions,
 }: SectionIntroProps) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -97,33 +126,21 @@ export function SectionIntro({
     // explicitly puts the same visual state into the property being animated.
     gsap.set(titleLines, { yPercent: 100, y: 0 });
 
-    // Populate the timeline first, attach the ScrollTrigger second.
-    // Passing `scrollTrigger` straight into gsap.timeline() evaluates the
-    // trigger synchronously, while the timeline is still empty — so any
-    // heading already inside the viewport on load "plays" a zero-length
-    // timeline, finishes instantly, and then sits at progress 0 forever
-    // once the tweens are appended. Only headings below the fold would ever
-    // animate. Building it paused and handing it to ScrollTrigger.create
-    // afterwards means the trigger always sees the finished timeline.
-    const tl = gsap.timeline({ paused: true });
-
-    tl.to(meta, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.05 })
-      // The rule draws before the headline lands, so the heading reads as
-      // "measure first, then name the thing".
-      .to(rule, { scaleX: 1, duration: 0.9, ease: EASE.editorial }, 0.05)
-      .to(
-        titleLines,
-        { yPercent: 0, duration: DUR.editorial, ease: EASE.editorial, stagger: 0.09 },
-        0.18,
-      )
-      .to(ledeEl, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter }, 0.5);
-
-    ScrollTrigger.create({
-      trigger: root,
-      start: REVEAL_START,
-      once: true,
-      animation: tl,
-    });
+    scrollTimeline(
+      (tl) => {
+        tl.to(meta, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter, stagger: 0.05 })
+          // The rule draws before the headline lands, so the heading reads as
+          // "measure first, then name the thing".
+          .to(rule, { scaleX: 1, duration: 0.9, ease: EASE.editorial }, 0.05)
+          .to(
+            titleLines,
+            { yPercent: 0, duration: DUR.editorial, ease: EASE.editorial, stagger: 0.09 },
+            0.18,
+          )
+          .to(ledeEl, { opacity: 1, y: 0, duration: DUR.enter, ease: EASE.enter }, 0.5);
+      },
+      { trigger: root, start: REVEAL_START, once: true },
+    );
   });
 
   const split = layout === "split";
@@ -212,9 +229,20 @@ export function SectionIntro({
       <div
         className={cn(
           "mt-6",
-          split &&
-            "grid gap-x-12 gap-y-4 lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)] lg:items-end",
+          split && "grid gap-y-4 lg:items-end",
+          split && "gap-x-12",
+          split && !splitTemplate && "lg:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)]",
+          // Through a custom property rather than a plain inline style: an
+          // inline `grid-template-columns` applies at every width, which would
+          // force a phone into two 20rem-ish columns. The variable lets the
+          // template be scoped to `lg` like every other column rule here.
+          split && splitTemplate && "lg:[grid-template-columns:var(--intro-split)]",
         )}
+        style={
+          split && splitTemplate
+            ? ({ "--intro-split": splitTemplate } as React.CSSProperties)
+            : undefined
+        }
       >
         <h2
           className={cn(
@@ -240,12 +268,26 @@ export function SectionIntro({
             data-intro-lede
             className={cn(
               "text-[15px] leading-[1.7] opacity-0",
-              split ? "lg:pb-1.5 lg:text-right" : "max-w-[46ch] mt-5",
+              // Only where a short form exists: a lede written for both
+              // widths keeps the section's normal 15px everywhere, and the
+              // ones that opted in read as a caption on a phone rather than
+              // a second paragraph.
+              ledeShort && "max-sm:text-[13.5px] max-sm:leading-[1.6]",
+              split && !splitTemplate && "lg:pb-1.5 lg:text-right",
+              split && splitTemplate && "lg:pb-1.5 max-w-[42ch]",
+              !split && "max-w-[46ch] mt-5",
               dark ? "text-enzo-cream/70" : "text-foreground/80",
             )}
             style={HIDDEN_UP_LEDE}
           >
-            {lede}
+            {ledeShort ? (
+              <>
+                <span className="sm:hidden">{ledeShort}</span>
+                <span className="max-sm:hidden">{lede}</span>
+              </>
+            ) : (
+              lede
+            )}
           </p>
         )}
       </div>

@@ -36,14 +36,3 @@ export const STAGGER = 0.06;
  * page rhythm instead of each firing at a different depth.
  */
 export const REVEAL_START = "top 82%";
-
-/**
- * `true` when the visitor has asked for reduced motion. Callers use this
- * to render the final state immediately rather than skipping the content.
- * Safe to call during render only on the client — guard with a mount
- * check or use it inside effects.
- */
-export function prefersReducedMotion(): boolean {
-  if (typeof window === "undefined") return false;
-  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-}

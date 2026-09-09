@@ -13,13 +13,13 @@ export interface HeroRoom {
   frameCount: number;
 }
 
-export interface TransitionCopy {
+interface TransitionCopy {
   eyebrow: string;
   heading: string;
   body: string;
 }
 
-export interface HeroTransition {
+interface HeroTransition {
   id: "mediawall-to-kitchen" | "kitchen-to-bedroom";
   fromRoomId: HeroRoom["id"];
   toRoomId: HeroRoom["id"];

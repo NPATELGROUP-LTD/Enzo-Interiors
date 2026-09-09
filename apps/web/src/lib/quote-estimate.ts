@@ -11,32 +11,19 @@
 //
 // Base prices are NOT invented here — they're parsed at call time from the
 // same `pricing[].from` strings already authored in
-// `./app/(marketing)/services/[category]/data.ts` (e.g. "£4,500"), so this
-// module never duplicates/hardcodes a second copy of those figures.
+// `src/lib/content/services.ts` (e.g. "£4,500"), so this module never
+// duplicates/hardcodes a second copy of those figures.
+
+import { parsePriceLabel } from "@/lib/service-metrics";
 
 export type RoomSize = "small" | "medium" | "large";
 
-export interface EstimateQuoteInput {
-  /** Service category slug, e.g. "kitchens" — matches `SERVICE_SLUGS`. */
-  category: string;
-  /** Pricing tier name for that category, e.g. "Essential" | "Premium" | "Luxury". */
-  tier: string;
-  /** The tier's displayed starting price, e.g. "£4,500" (from `pricing[].from`). */
-  basePriceLabel: string;
-  roomSize: RoomSize;
-}
-
-export interface EstimateQuoteResult {
-  low: number;
-  high: number;
-}
-
 /**
- * Room-size multipliers applied to a tier's "from" price to produce a
+ * Room-size multipliers applied to a tier's "from " price to produce a
  * low-high range. Chosen so that:
- *  - "small" projects can land at or slightly below the advertised "from"
+ *  - "small" projects can land at or slightly below the advertised "from "
  *    price (a smaller-than-typical room costing less than the headline figure),
- *  - "medium" (the assumed baseline the "from" price was written for) brackets
+ *  - "medium" (the assumed baseline the "from " price was written for) brackets
  *    the base price itself, skewed slightly upward (rooms are rarely *exactly*
  *    the minimum spec),
  *  - "large" projects scale up substantially, reflecting more cabinetry/units/
@@ -51,17 +38,6 @@ const ROOM_SIZE_MULTIPLIERS: Record<RoomSize, { low: number; high: number }> = {
 };
 
 /**
- * Parses a UK currency label like "£4,500" into a plain number (4500).
- * Returns null if the string doesn't contain a parseable number.
- */
-function parsePriceLabel(label: string): number | null {
-  const digits = label.replace(/[^0-9.]/g, "");
-  if (!digits) return null;
-  const value = Number(digits);
-  return Number.isFinite(value) ? value : null;
-}
-
-/**
  * Computes an instant low-high estimate range for a given category/tier/room
  * size combination. Pure and synchronous (no network, no React) so it
  * resolves in well under the <200ms budget from
@@ -71,9 +47,15 @@ function parsePriceLabel(label: string): number | null {
  * should always pass a real `pricing[].from` value from data.ts, but this
  * keeps the function total rather than throwing).
  */
-export function estimateQuote(
-  input: EstimateQuoteInput
-): EstimateQuoteResult | null {
+export function estimateQuote(input: {
+  /** Service category slug, e.g. "kitchens" — matches `getServiceSlugs()`. */
+  category: string;
+  /** Pricing tier name for that category, e.g. "Essential" | "Premium" | "Luxury". */
+  tier: string;
+  /** The tier's displayed starting price, e.g. "£4,500" (from `pricing[].from`). */
+  basePriceLabel: string;
+  roomSize: RoomSize;
+}): { low: number; high: number } | null {
   const basePrice = parsePriceLabel(input.basePriceLabel);
   if (basePrice === null) return null;
 
@@ -84,17 +66,6 @@ export function estimateQuote(
   const high = Math.round((basePrice * multiplier.high) / 50) * 50;
 
   return { low, high };
-}
-
-const GBP_FORMATTER = new Intl.NumberFormat("en-GB", {
-  style: "currency",
-  currency: "GBP",
-  maximumFractionDigits: 0,
-});
-
-/** Formats a low-high range as "£4,500 – £5,900". */
-export function formatPriceRange(low: number, high: number): string {
-  return `${GBP_FORMATTER.format(low)} – ${GBP_FORMATTER.format(high)}`;
 }
 
 export const ROOM_SIZE_LABELS: Record<RoomSize, string> = {
