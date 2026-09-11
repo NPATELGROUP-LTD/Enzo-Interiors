@@ -14,6 +14,10 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 let registered = false;
+let instance: Lenis | null = null;
+
+/** The live Lenis instance, or null when smooth scroll is off (reduced motion). */
+export const getLenis = () => instance;
 
 export function SmoothScroll({ children }: { children: ReactNode }) {
   useEffect(() => {
@@ -50,6 +54,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
     });
 
     lenis.on("scroll", ScrollTrigger.update);
+    instance = lenis;
 
     const update = (time: number) => lenis.raf(time * 1000);
     gsap.ticker.add(update);
@@ -57,6 +62,7 @@ export function SmoothScroll({ children }: { children: ReactNode }) {
 
     return () => {
       gsap.ticker.remove(update);
+      instance = null;
       lenis.destroy();
     };
   }, []);

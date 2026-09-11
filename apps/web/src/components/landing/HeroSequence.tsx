@@ -6,8 +6,9 @@
 // themselves), ending in an asymmetric parallax CTA. Everything is one
 // continuous story on a single master ScrollTrigger pin+scrub: since
 // nothing here plays back in real time anymore, every segment is purely
-// scroll-position-driven and therefore trivially, exactly reversible —
-// no locking, no direction tricks, no boundary hand-off bugs.
+// scroll-position-driven and therefore trivially, exactly reversible. The
+// one exception is the end-frame hold (see HOLD_PX), which takes the scroll
+// over briefly to pin each room and then glide into the next scene.
 //
 // The intro (rooms + chapters) reads as an unbranded cinematic teaser: no
 // Navbar, no site frame, just a "scroll to begin" cue — see the
@@ -24,6 +25,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { getLenis } from "@/components/shared/SmoothScroll";
+import { EASE } from "@/lib/motion";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
 import { RotatingBadge } from "./RotatingBadge";
@@ -54,6 +57,21 @@ const PX_PER_FRAME = 14;
 // constant rate throughout.
 const TRANSITION_PX = 1700;
 const CTA_PX = 1100;
+// End-frame hold: each room's last frame stays put for HOLD_PX of scroll
+// (the way §02 holds a stage) under a caption and a "scroll to continue"
+// cue. Arriving from above stops Lenis and settles onto HOLD_REST, so a hard
+// flick can't carry straight through the pin; once the wheel has been quiet
+// for QUIET_MS (trackpad inertia keeps firing long after the finger lifts),
+// the next nudge down glides on its own into the next scene.
+const HOLD_PX = 600;
+/** Short of 1: the exact boundary already belongs to the next segment. */
+const HOLD_REST = 0.8;
+/** Where an advance lands in a chapter — doors open, copy fully up. */
+const TRANSITION_REST = 0.7;
+const NUDGE_PX = 8;
+const SETTLE_S = 0.6;
+const ADVANCE_S = 1.8;
+const QUIET_MS = 200;
 const MAX_DPR = 1.5;
 // ── Why this is `true` and not a number ──
 // A numeric scrub adds a *second* easing on top of the one Lenis already
@@ -89,16 +107,18 @@ const CTA_RESUME_FRACTION = 0.85;
 
 let scrollTriggerRegistered = false;
 
-type Layer = "room" | "transition0" | "transition1" | "cta";
+type Layer = "room" | "hold" | "transition0" | "transition1" | "cta";
 
 type Segment =
   | { type: "room"; roomIndex: number; px: number }
+  | { type: "hold"; roomIndex: number; px: number }
   | { type: "transition"; transitionIndex: number; px: number }
   | { type: "cta"; px: number };
 
 const SEGMENTS: Segment[] = [];
 HERO_ROOMS.forEach((_, roomIndex) => {
   SEGMENTS.push({ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME });
+  SEGMENTS.push({ type: "hold", roomIndex, px: HOLD_PX });
   if (roomIndex < HERO_TRANSITIONS.length) {
     SEGMENTS.push({ type: "transition", transitionIndex: roomIndex, px: TRANSITION_PX });
   }
@@ -106,6 +126,18 @@ HERO_ROOMS.forEach((_, roomIndex) => {
 SEGMENTS.push({ type: "cta", px: CTA_PX });
 
 const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
+const SEGMENT_STARTS = SEGMENTS.map((_, i) => SEGMENTS.slice(0, i).reduce((sum, s) => sum + s.px, 0));
+
+/** Where the hold at segment `i` starts, where it rests, and where its advance lands. */
+function holdStops(i: number) {
+  const next = SEGMENTS[i + 1]!;
+  const landing = next.type === "cta" ? CTA_RESUME_FRACTION : TRANSITION_REST;
+  return {
+    start: SEGMENT_STARTS[i]!,
+    rest: SEGMENT_STARTS[i]! + HOLD_PX * HOLD_REST,
+    next: SEGMENT_STARTS[i + 1]! + next.px * landing,
+  };
+}
 // The absolute (whole-timeline) px position CTA_RESUME_FRACTION resolves
 // to — i.e. how far into the pinned scroll range "resume at the CTA"
 // actually targets.
@@ -137,6 +169,8 @@ export function HeroSequence() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const progressBarRef = useRef<HTMLDivElement | null>(null);
   const scrollHintRef = useRef<HTMLDivElement | null>(null);
+  const holdRef = useRef<HTMLDivElement | null>(null);
+  const holdCopyRef = useRef<HTMLDivElement | null>(null);
 
   // Chapter 1 — double-door reveal (mediawall -> kitchen).
   const t0BgRef = useRef<HTMLDivElement | null>(null);
@@ -236,6 +270,15 @@ export function HeroSequence() {
     const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
+
+    // End-frame hold state — see HOLD_PX.
+    let armedHold = -1;
+    let snapping = false;
+    let stoppedLenis = false;
+    let lastWheelAt = 0;
+    let quietTimer: number | undefined;
+    const settleEase = gsap.parseEase(EASE.enter);
+    const advanceEase = gsap.parseEase(EASE.swap);
 
     function drawImageCover(img: HTMLImageElement) {
       const cw = canvas!.width / dpr;
@@ -361,12 +404,12 @@ export function HeroSequence() {
         const isLast = i === SEGMENTS.length - 1;
         if (px < acc + seg.px || isLast) {
           const localPx = Math.max(0, Math.min(seg.px, px - acc));
-          return { seg, localProgress: seg.px === 0 ? 0 : localPx / seg.px };
+          return { seg, index: i, localProgress: seg.px === 0 ? 0 : localPx / seg.px };
         }
         acc += seg.px;
       }
       const last = SEGMENTS[SEGMENTS.length - 1]!;
-      return { seg: last, localProgress: 1 };
+      return { seg: last, index: SEGMENTS.length - 1, localProgress: 1 };
     }
 
     // Chapter 1: mediawall's last frame splits down the middle and opens
@@ -461,6 +504,48 @@ export function HeroSequence() {
       });
     }
 
+    function settle(index: number) {
+      const lenis = getLenis();
+      if (!lenis || !trigger) return;
+      snapping = true;
+      stoppedLenis = true;
+      lenis.stop();
+      lenis.scrollTo(trigger.start + holdStops(index).rest, {
+        duration: SETTLE_S,
+        easing: settleEase,
+        force: true,
+        onComplete: () => armWhenQuiet(index),
+      });
+    }
+
+    function armWhenQuiet(index: number) {
+      if (disposed) return;
+      const wait = QUIET_MS - (performance.now() - lastWheelAt);
+      if (wait > 0) {
+        quietTimer = window.setTimeout(() => armWhenQuiet(index), wait);
+        return;
+      }
+      armedHold = index;
+      snapping = false;
+      stoppedLenis = false;
+      getLenis()?.start();
+    }
+
+    function advance(target: number) {
+      const lenis = getLenis();
+      if (!lenis || !trigger) return;
+      snapping = true;
+      lenis.scrollTo(trigger.start + target, {
+        duration: ADVANCE_S,
+        easing: advanceEase,
+        lock: true,
+        force: true,
+        onComplete: () => {
+          snapping = false;
+        },
+      });
+    }
+
     function handleUpdate(self: ScrollTrigger) {
       const rawPx = self.progress * TOTAL_PX;
 
@@ -477,17 +562,39 @@ export function HeroSequence() {
         resumingAtCta = false;
       }
 
-      const { seg, localProgress } = findSegmentAt(rawPx);
+      const { seg, index, localProgress } = findSegmentAt(rawPx);
 
       if (seg.type === "room") {
         setActiveRoom(seg.roomIndex);
         setLayer("room");
         renderRoomFrame(seg.roomIndex, 1 + localProgress * (FRAME_COUNT - 1));
+      } else if (seg.type === "hold") {
+        setActiveRoom(seg.roomIndex);
+        setLayer("hold");
+        renderRoomFrame(seg.roomIndex, FRAME_COUNT);
       } else if (seg.type === "transition") {
         if (seg.transitionIndex === 0) renderTransition0(localProgress);
         else renderTransition1(localProgress);
       } else {
         renderCta(localProgress);
+      }
+
+      const holdReveal = seg.type === "hold" ? windowed(localProgress, 0, 0.35, HOLD_REST, 1) : 0;
+      if (holdRef.current) holdRef.current.style.opacity = String(holdReveal);
+      if (holdCopyRef.current) holdCopyRef.current.style.transform = `translateY(${(1 - holdReveal) * 24}px)`;
+
+      if (!snapping) {
+        if (armedHold >= 0) {
+          const stops = holdStops(armedHold);
+          if (rawPx < stops.start) {
+            armedHold = -1;
+          } else if (rawPx > stops.rest + NUDGE_PX) {
+            armedHold = -1;
+            if (rawPx < stops.next) advance(stops.next);
+          }
+        } else if (seg.type === "hold" && self.direction === 1) {
+          settle(index);
+        }
       }
 
       updateProgressUI(rawPx);
@@ -555,8 +662,13 @@ export function HeroSequence() {
 
     resizeCanvas();
 
+    const onWheel = () => {
+      lastWheelAt = performance.now();
+    };
+
     window.addEventListener("resize", onWindowResize);
     window.addEventListener("orientationchange", onWindowResize);
+    window.addEventListener("wheel", onWheel, { passive: true });
 
     // Drives the loader below directly with real decode progress instead
     // of a fixed animation timeline.
@@ -570,6 +682,9 @@ export function HeroSequence() {
       disposed = true;
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener("orientationchange", onWindowResize);
+      window.removeEventListener("wheel", onWheel);
+      window.clearTimeout(quietTimer);
+      if (stoppedLenis) getLenis()?.start();
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
       // Revert the pin before React removes the section. Without the explicit
       // revert flag, ScrollTrigger can leave its spacer/placeholder in the DOM
@@ -588,6 +703,8 @@ export function HeroSequence() {
   const bedroomRoom = HERO_ROOMS[2]!;
   const transition0 = HERO_TRANSITIONS[0]!;
   const transition1 = HERO_TRANSITIONS[1]!;
+  const activeRoom = HERO_ROOMS[activeRoomIndex]!;
+  const showRoom = activeLayer === "room" || activeLayer === "hold";
 
   return (
     <section ref={sectionRef} className="relative w-full">
@@ -603,7 +720,7 @@ export function HeroSequence() {
       <canvas
         ref={canvasRef}
         className="absolute inset-0 block h-full w-full transition-opacity duration-300 ease-linear"
-        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+        style={{ opacity: showRoom ? 1 : 0 }}
       />
 
       {/* Frame loader — covers the canvas until the first room's 144
@@ -618,11 +735,11 @@ export function HeroSequence() {
       <div
         aria-live="polite"
         aria-label="Loading the showcase"
-        aria-hidden={framesReady || activeLayer !== "room"}
+        aria-hidden={framesReady || !showRoom}
         className="absolute inset-0 z-[20] grid place-items-center bg-enzo-dark transition-opacity duration-500 ease-out"
         style={{
-          opacity: framesReady || activeLayer !== "room" ? 0 : 1,
-          pointerEvents: framesReady || activeLayer !== "room" ? "none" : "auto",
+          opacity: framesReady || !showRoom ? 0 : 1,
+          pointerEvents: framesReady || !showRoom ? "none" : "auto",
         }}
       >
         <div className="flex w-full max-w-xs flex-col items-center px-6 text-center">
@@ -862,8 +979,41 @@ export function HeroSequence() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 z-[1] bg-gradient-to-b from-black/45 via-black/10 to-black/40"
-        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+        style={{ opacity: showRoom ? 1 : 0 }}
       />
+
+      {/* End-frame hold: the room's last frame held still under a caption and
+          a "scroll to continue" cue. Opacity is scrubbed in handleUpdate. */}
+      <div
+        ref={holdRef}
+        className="pointer-events-none absolute inset-0 z-[2] opacity-0"
+        aria-hidden={activeLayer !== "hold"}
+      >
+        <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
+        <div ref={holdCopyRef} className="absolute bottom-24 left-6 max-w-[36rem] sm:left-10">
+          <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
+            The finished {activeRoom.label.toLowerCase()}
+          </span>
+          <h2 className="font-title text-[clamp(2.5rem,4.6vw,4.25rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-enzo-cream">
+            {activeRoom.hold.heading}
+          </h2>
+          <p className="mt-4 max-w-[40ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
+            {activeRoom.hold.body}
+          </p>
+          <div className="mt-8 flex items-center gap-4">
+            <span className="grid h-10 w-10 place-items-center rounded-full border border-enzo-cream/40 text-enzo-cream">
+              <ChevronDown className="h-4 w-4 animate-bounce" />
+            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-enzo-cream">
+              Scroll to continue
+            </span>
+            <span aria-hidden="true" className="h-px w-8 bg-enzo-cream/30" />
+            <span className="text-[11px] uppercase tracking-[0.3em] text-enzo-cream/60">
+              Next · {HERO_ROOMS[activeRoomIndex + 1]?.label ?? "Your room"}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* Room label — fills the otherwise-empty top of the frame with the
           same editorial eyebrow style used in the transition chapters
@@ -872,7 +1022,7 @@ export function HeroSequence() {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute left-6 top-8 z-[4] flex items-center gap-3 text-enzo-cream/70 transition-opacity duration-300 sm:left-10 sm:top-10"
-        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+        style={{ opacity: showRoom ? 1 : 0 }}
       >
         <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.32em] text-enzo-sage">
           {String(activeRoomIndex + 1).padStart(2, "0")}
@@ -896,7 +1046,7 @@ export function HeroSequence() {
 
       <div
         className="absolute inset-x-0 bottom-8 z-[3] flex justify-center gap-2 transition-opacity duration-300"
-        style={{ opacity: activeLayer === "room" ? 1 : 0 }}
+        style={{ opacity: showRoom ? 1 : 0 }}
         role="presentation"
       >
         {HERO_ROOMS.map((room, i) => (

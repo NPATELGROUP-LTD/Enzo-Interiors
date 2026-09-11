@@ -11,6 +11,8 @@ export interface HeroRoom {
   /** public/frames/hero/{framesDir}/frame_0001.webp..frame_0144.webp */
   framesDir: string;
   frameCount: number;
+  /** Shown while the room's last frame is held, before it advances. */
+  hold: { heading: string; body: string };
 }
 
 interface TransitionCopy {
@@ -29,9 +31,36 @@ interface HeroTransition {
 export const FRAME_COUNT = 144;
 
 export const HERO_ROOMS: HeroRoom[] = [
-  { id: "mediawall", label: "Media Wall", framesDir: "mediawall", frameCount: FRAME_COUNT },
-  { id: "kitchen", label: "Kitchen", framesDir: "kitchen", frameCount: FRAME_COUNT },
-  { id: "bedroom", label: "Bedroom", framesDir: "bedroom", frameCount: FRAME_COUNT },
+  {
+    id: "mediawall",
+    label: "Media Wall",
+    framesDir: "mediawall",
+    frameCount: FRAME_COUNT,
+    hold: {
+      heading: "Every cable, out of sight.",
+      body: "Screen, storage, fire and lighting, built as one piece and scribed to your walls.",
+    },
+  },
+  {
+    id: "kitchen",
+    label: "Kitchen",
+    framesDir: "kitchen",
+    frameCount: FRAME_COUNT,
+    hold: {
+      heading: "Made for the way you cook.",
+      body: "Cabinetry, worktops and appliances, drawn around your room rather than a catalogue.",
+    },
+  },
+  {
+    id: "bedroom",
+    label: "Bedroom",
+    framesDir: "bedroom",
+    frameCount: FRAME_COUNT,
+    hold: {
+      heading: "Wall to wall, floor to ceiling.",
+      body: "Wardrobes, headboards and bedsides, built into the room instead of standing in it.",
+    },
+  },
 ];
 
 export const HERO_TRANSITIONS: HeroTransition[] = [
