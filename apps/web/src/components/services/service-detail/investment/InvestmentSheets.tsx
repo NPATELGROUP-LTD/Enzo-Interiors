@@ -121,7 +121,7 @@ export function InvestmentSheets({
                 className={cn(
                   "group relative flex flex-col rounded-[20px] p-8 transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-1.5",
                   isRecommended
-                    ? "bg-enzo-forest text-enzo-cream shadow-[0_18px_50px_-24px_rgba(28,74,58,0.75)] hover:shadow-[0_28px_60px_-24px_rgba(28,74,58,0.85)]"
+                    ? "bg-enzo-forest text-enzo-cream shadow-[0_18px_50px_-24px_rgba(16,46,45,0.75)] hover:shadow-[0_28px_60px_-24px_rgba(16,46,45,0.85)]"
                     : "border border-border/70 bg-background hover:shadow-[0_18px_44px_-28px_rgba(44,44,44,0.5)]",
                 )}
               >

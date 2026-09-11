@@ -88,7 +88,7 @@ import { NAV_LINKS } from "@/lib/navigation";
 // adjacent leaves disagreeing slightly. Five panels because it is enough for
 // the weave to read as a run at desktop width and still enough at 375px for
 // each panel to be a door rather than a slat.
-const PANELS = ["#163D30", "#1C4A3A", "#17402F", "#234F3E", "#1A4535"] as const;
+const PANELS = ["#0A2123", "#102E2D", "#0B2422", "#173331", "#0E2928"] as const;
 
 // The shadow gap: darker than every panel, because a reveal is a void.
 const GAP = "#0B1712";

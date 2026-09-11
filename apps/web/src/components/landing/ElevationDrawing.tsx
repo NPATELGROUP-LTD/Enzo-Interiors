@@ -101,7 +101,7 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
         className="pointer-events-none absolute inset-0"
         style={{
           backgroundImage:
-            "repeating-linear-gradient(to right, rgba(28,74,58,0.06) 0 1px, transparent 1px 24px), repeating-linear-gradient(to bottom, rgba(28,74,58,0.06) 0 1px, transparent 1px 24px)",
+            "repeating-linear-gradient(to right, rgba(16,46,45,0.06) 0 1px, transparent 1px 24px), repeating-linear-gradient(to bottom, rgba(16,46,45,0.06) 0 1px, transparent 1px 24px)",
         }}
       />
 

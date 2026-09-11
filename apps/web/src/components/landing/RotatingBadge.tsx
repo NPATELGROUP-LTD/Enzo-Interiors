@@ -56,7 +56,7 @@ export function RotatingBadge({
       <Link
         href={href}
         aria-label={label}
-        className="absolute flex items-center justify-center overflow-hidden rounded-full bg-enzo-forest text-enzo-cream shadow-[0_10px_28px_rgba(28,74,58,0.5)] transition-colors duration-300 group-hover/badge:bg-enzo-sage group-hover/badge:text-enzo-forest"
+        className="absolute flex items-center justify-center overflow-hidden rounded-full bg-enzo-forest text-enzo-cream shadow-[0_10px_28px_rgba(16,46,45,0.5)] transition-colors duration-300 group-hover/badge:bg-enzo-sage group-hover/badge:text-enzo-forest"
         style={{ inset: centerInset }}
       >
         <ArrowUpRight className="h-4 w-4 -translate-x-3 translate-y-3 opacity-0 transition-all duration-300 ease-out group-hover/badge:translate-x-0 group-hover/badge:translate-y-0 group-hover/badge:opacity-100" />

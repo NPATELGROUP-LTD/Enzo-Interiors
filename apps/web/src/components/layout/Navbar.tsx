@@ -334,7 +334,7 @@ export function Navbar() {
                 "border border-enzo-forest/30 bg-enzo-sand text-enzo-forest",
                 "transition-all duration-300 ease-out",
                 "hover:bg-enzo-forest hover:text-enzo-cream hover:border-enzo-forest",
-                "hover:shadow-[0_8px_24px_rgba(28,74,58,0.25)] hover:scale-105",
+                "hover:shadow-[0_8px_24px_rgba(16,46,45,0.25)] hover:scale-105",
                 PIECE_HEIGHT,
                 PIECE_RADIUS,
               )}

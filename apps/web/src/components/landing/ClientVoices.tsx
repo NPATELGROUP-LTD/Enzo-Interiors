@@ -157,7 +157,7 @@ export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) 
                       // The duplicated half is decoration: a screen reader
                       // should be told about nine people, not eighteen.
                       aria-hidden={index >= column.length ? true : undefined}
-                      className="rounded-2xl bg-enzo-white p-6 shadow-[0_2px_16px_rgba(28,74,58,0.05)]"
+                      className="rounded-2xl bg-enzo-white p-6 shadow-[0_2px_16px_rgba(16,46,45,0.05)]"
                     >
                       <div className="flex gap-1" aria-label="Five out of five">
                         {Array.from({ length: 5 }, (_, star) => (

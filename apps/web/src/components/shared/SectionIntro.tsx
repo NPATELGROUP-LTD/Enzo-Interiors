@@ -183,7 +183,7 @@ export function SectionIntro({
             data-intro-rule
             className="absolute inset-0 block origin-left"
             style={{
-              color: dark ? "rgba(212,201,181,0.55)" : "rgba(28,74,58,0.35)",
+              color: dark ? "rgba(212,201,181,0.55)" : "rgba(16,46,45,0.35)",
               transform: "scaleX(0)",
             }}
           >

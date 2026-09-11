@@ -29,11 +29,11 @@ export default function NotFound() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="relative z-10 text-center"
         >
-          <span className="font-title block" style={{ fontSize: "clamp(7rem, 18vw, 14rem)", fontWeight: 600, letterSpacing: "-0.05em", lineHeight: 0.9, color: "#1C4A3A" }}>
+          <span className="font-title block" style={{ fontSize: "clamp(7rem, 18vw, 14rem)", fontWeight: 600, letterSpacing: "-0.05em", lineHeight: 0.9, color: "var(--primary)" }}>
             404
           </span>
           <motion.div
-            className="h-px bg-[#1C4A3A]/30 mx-auto mt-4"
+            className="h-px bg-primary/30 mx-auto mt-4"
             initial={{ width: 0 }}
             animate={{ width: "80%" }}
             transition={{ duration: 1, delay: 0.5 }}
@@ -57,7 +57,7 @@ export default function NotFound() {
           >
             Page Not Found
           </motion.span>
-          <h2 className="text-[#1C4A3A] mt-4" style={{ fontSize: "clamp(1.8rem, 3vw, 2.5rem)" }}>
+          <h2 className="text-primary mt-4" style={{ fontSize: "clamp(1.8rem, 3vw, 2.5rem)" }}>
             This room doesn&apos;t exist — yet.
           </h2>
           <p className="text-[#6B6B65] mt-4 text-[15px] leading-relaxed">
@@ -67,13 +67,13 @@ export default function NotFound() {
           <div className="mt-8 flex flex-col sm:flex-row gap-3">
             <button
               onClick={() => router.back()}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-[#1C4A3A] text-[#1C4A3A] text-[14px] hover:bg-[#1C4A3A] hover:text-[#F2F0EB] transition-all duration-300"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-primary text-primary text-[14px] hover:bg-primary hover:text-primary-foreground transition-all duration-300"
             >
               <MoveLeft size={16} /> Go Back
             </button>
             <Link
               href="/"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-[#1C4A3A] text-[#F2F0EB] text-[14px] hover:bg-[#3D6347] transition-all duration-300 justify-center"
+              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground text-[14px] hover:bg-enzo-forest-light transition-all duration-300 justify-center"
             >
               <Home size={16} /> Go Home
             </Link>

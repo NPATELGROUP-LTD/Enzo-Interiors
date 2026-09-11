@@ -122,7 +122,7 @@ export function AboutValues({ values }: { values: AboutValue[] }) {
             <li
               key={value.title}
               data-value-row
-              className="border-t border-[rgba(28,74,58,0.16)] py-10 opacity-0 md:py-14 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-x-14"
+              className="border-t border-[rgba(16,46,45,0.16)] py-10 opacity-0 md:py-14 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)] lg:gap-x-14"
               style={{ transform: "translateY(20px)" }}
             >
               {/* ── The promise, read straight down ── */}
