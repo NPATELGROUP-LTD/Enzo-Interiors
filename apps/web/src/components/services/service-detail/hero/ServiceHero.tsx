@@ -25,7 +25,7 @@
 // Each hero renders its own quote button, because the button has to be
 // styled for its own ground — a cream pill is invisible on the cream
 // masthead. That is also why there is no `quoteCta` prop any more.
-import type { ServiceDetail } from "@/lib/content";
+import type { ServiceDetail, ServiceDetailContent } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { HeroMasthead } from "./HeroMasthead";
 import { HeroColumns } from "./HeroColumns";
@@ -44,12 +44,14 @@ export function ServiceHero({
   service,
   position,
   id,
+  content,
 }: {
   service: ServiceDetail;
   /** Zero-based position in the published set — the default variant key. */
   position: number;
   id: string;
+  content: ServiceDetailContent["hero"];
 }) {
   const Hero = VARIANTS[variantIndex(position, VARIANTS.length, service.heroVariant)];
-  return <Hero service={service} id={id} />;
+  return <Hero service={service} id={id} content={content} />;
 }

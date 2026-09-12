@@ -41,6 +41,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
+import { fill, type AboutPageContent } from "@/lib/content";
 
 export interface AboutValue {
   /** The verb being refused — names the row: "Guess", "Subcontract", "Cut". */
@@ -53,7 +54,13 @@ export interface AboutValue {
   image: string;
 }
 
-export function AboutValues({ values }: { values: AboutValue[] }) {
+export function AboutValues({
+  values,
+  content,
+}: {
+  values: AboutValue[];
+  content: AboutPageContent["values"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -105,16 +112,16 @@ export function AboutValues({ values }: { values: AboutValue[] }) {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="about-values-heading" className="sr-only">
-          What we will not do
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="04"
-          label="Standing"
-          datum={`${values.length} promises`}
-          lines={["Three things", "we will not do."]}
-          lede="Anyone can claim craftsmanship. These are the ones you could catch us breaking, which is the only kind worth printing."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: values.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <ol className="mt-12 md:mt-16">
@@ -151,7 +158,7 @@ export function AboutValues({ values }: { values: AboutValue[] }) {
                     the same place down the page. */}
                 <div className="mt-7 max-w-[46ch] bg-enzo-forest px-5 py-4">
                   <span className="font-display block text-[9.5px] font-semibold uppercase tracking-[0.28em] text-enzo-sand">
-                    Instead
+                    {content.insteadLabel}
                   </span>
                   <p className="mt-1.5 font-title text-[15px] font-semibold leading-[1.35] text-enzo-cream md:text-[16px]">
                     {value.instead}

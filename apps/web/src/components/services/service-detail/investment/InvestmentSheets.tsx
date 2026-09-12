@@ -20,9 +20,15 @@ import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
+import { estimateQuote, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
-import type { PricingTier } from "@/lib/content";
+import {
+  fill,
+  type InvestmentVariantContent,
+  type PricingTier,
+  type ServiceDetailContent,
+  type SharedContent,
+} from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
 import { RollingFigure } from "./RollingFigure";
@@ -32,13 +38,20 @@ export function InvestmentSheets({
   category,
   pricing,
   id,
+  content,
+  common,
+  roomSizeContent,
 }: {
   category: string;
   pricing: PricingTier[];
   id: string;
+  content: InvestmentVariantContent;
+  common: ServiceDetailContent["investment"];
+  roomSizeContent: SharedContent["roomSize"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [roomSize, setRoomSize] = useState<RoomSize>("medium");
+  const { recommendedLabel = "", tierIndexLabel = "" } = content;
 
   // Middle sheet by position — a rule rather than a hardcoded index, so it
   // still points at something sensible with two tiers or five.
@@ -78,20 +91,24 @@ export function InvestmentSheets({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
-          Investment
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A5"
-          label="Investment"
-          datum={`${pricing.length} specifications`}
-          lines={["An honest range,", "before the survey."]}
-          lede="Pick the size of your room and every specification re-prices instantly. Indicative ranges — the firm figure comes after we have measured."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: pricing.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <div className="mt-10">
-          <RoomSizeControl value={roomSize} onChange={setRoomSize} />
+          <RoomSizeControl
+            value={roomSize}
+            onChange={setRoomSize}
+            content={roomSizeContent}
+          />
         </div>
 
         <div
@@ -127,7 +144,7 @@ export function InvestmentSheets({
               >
                 {isRecommended && (
                   <span className="absolute right-7 top-7 rounded-full bg-enzo-sand px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-enzo-forest">
-                    Most chosen
+                    {recommendedLabel}
                   </span>
                 )}
 
@@ -137,7 +154,10 @@ export function InvestmentSheets({
                     isRecommended ? "text-enzo-sand" : "text-enzo-forest-light",
                   )}
                 >
-                  {String(index + 1).padStart(2, "0")} / {tier.tier}
+                  {fill(tierIndexLabel, {
+                    index: String(index + 1).padStart(2, "0"),
+                    tier: tier.tier,
+                  })}
                 </span>
 
                 <p
@@ -161,7 +181,7 @@ export function InvestmentSheets({
                       <RollingFigure value={estimate.high} />
                     </>
                   ) : (
-                    "On application"
+                    common.onApplication
                   )}
                 </p>
                 <p
@@ -170,7 +190,10 @@ export function InvestmentSheets({
                     isRecommended ? "text-enzo-cream/70" : "text-muted-foreground",
                   )}
                 >
-                  {ROOM_SIZE_LABELS[roomSize].toLowerCase()} room · from {tier.from}
+                  {fill(common.roomFromLine, {
+                    size: roomSizeContent.sizes[roomSize].toLowerCase(),
+                    price: tier.from,
+                  })}
                 </p>
 
                 <p
@@ -214,7 +237,7 @@ export function InvestmentSheets({
                       : "bg-primary text-primary-foreground hover:bg-enzo-forest-light focus-visible:ring-ring focus-visible:ring-offset-background",
                   )}
                 >
-                  Get this quoted
+                  {common.quoteLabel}
                 </QuoteTriggerButton>
               </article>
             );
@@ -228,9 +251,7 @@ export function InvestmentSheets({
             drawing: under a line, not tucked against the thing it
             qualifies. */}
         <p className="mt-14 max-w-[70ch] border-t border-border/70 pt-6 text-[12.5px] leading-[1.7] text-muted-foreground md:mt-16">
-          Ranges scale the specification&rsquo;s starting price by room size.
-          They are a guide for planning, not a quotation — we do not price a
-          room we have not measured.
+          {content.footnote}
         </p>
       </div>
     </section>

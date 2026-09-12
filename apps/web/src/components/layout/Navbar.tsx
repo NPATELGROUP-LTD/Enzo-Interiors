@@ -8,8 +8,9 @@
 // ── Desktop: a dock that expands into a table of contents ──
 // Three floating pieces on the sand frame — logo, centre dock, CTA — where
 // pointing at a name widens the dock and drops a panel listing *that page's
-// own sections*, anchored. See lib/navigation.ts for why the panels stopped
-// being a grab-bag of links to other pages.
+// own sections*, anchored — not a grab-bag of links to other pages, which is
+// what made the panels interchangeable and therefore pointless. The rows
+// themselves are data: src/data/navigation.json.
 //
 // ── Mobile: a different object in a different palette ──
 // The phone menu is not the desktop one reflowed. It is a full-height ink
@@ -31,10 +32,30 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import gsap from "gsap";
-import { ArrowUpRight } from "lucide-react";
+import {
+  ArrowUpRight,
+  Home as HomeIcon,
+  Sofa,
+  Image as ImageIcon,
+  Users,
+  Mail,
+} from "lucide-react";
 import { TextRoll } from "@/components/shared/TextRoll";
-import { NAV_LINKS } from "@/lib/navigation";
+import type { Company, NavLink, SiteContent } from "@/lib/content";
 import { cn } from "@/lib/utils";
+
+/**
+ * The navigation rows carry an icon *name* rather than a component, because
+ * they come from src/data/navigation.json. This is the one place that turns a
+ * name back into a glyph.
+ */
+const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  Home: HomeIcon,
+  Sofa,
+  Image: ImageIcon,
+  Users,
+  Mail,
+};
 
 // The phone menu's palette. Deliberately outside the theme tokens — see the
 // note at the top of the file. Kept here as one object so the sheet cannot
@@ -57,10 +78,17 @@ const PIECE_HEIGHT = "h-12";
 // Every floating piece shares this corner radius too (logo card, dock, CTA).
 const PIECE_RADIUS = "rounded-2xl";
 
-/** The four service pages, pulled once for the phone sheet's grid. */
-const SERVICE_PAGES = NAV_LINKS.find((l) => l.pages)?.pages ?? [];
-
-export function Navbar() {
+export function Navbar({
+  nav,
+  content,
+  logos,
+}: {
+  nav: NavLink[];
+  content: SiteContent["navbar"];
+  logos: Company["logos"];
+}) {
+  /** The service pages, for the phone sheet's grid. */
+  const servicePages = nav.find((l) => l.pages)?.pages ?? [];
   const [mobileOpen, setMobileOpen] = useState(false);
   const [activePath, setActivePath] = useState<string | null>(null);
   const pathname = usePathname();
@@ -263,7 +291,7 @@ export function Navbar() {
     closeTimer.current = setTimeout(() => setActivePath(null), 120);
   };
 
-  const activeLink = NAV_LINKS.find((l) => l.path === activePath) ?? null;
+  const activeLink = nav.find((l) => l.path === activePath) ?? null;
 
   // Keeps rendering the last-open panel's content while the dock collapses,
   // so the CSS grid-rows close transition below never has to shrink toward
@@ -273,7 +301,8 @@ export function Navbar() {
   if (activePath && activePath !== displayedPath) {
     setDisplayedPath(activePath);
   }
-  const displayedLink = NAV_LINKS.find((l) => l.path === displayedPath) ?? null;
+  const displayedLink = nav.find((l) => l.path === displayedPath) ?? null;
+  const DisplayedIcon = displayedLink ? ICONS[displayedLink.icon] : null;
 
   return (
     <>
@@ -315,8 +344,8 @@ export function Navbar() {
           >
             {/* eslint-disable-next-line @next/next/no-img-element -- small fixed nav mark, not worth next/image's overhead */}
             <img
-              src={mobileOpen ? "/logo/enzo-white.png" : "/logo/enzo-forest.png"}
-              alt="Enzo Interiors"
+              src={mobileOpen ? logos.onDark.src : logos.onLight.src}
+              alt={mobileOpen ? logos.onDark.alt : logos.onLight.alt}
               className="relative z-10 h-6 w-auto"
             />
           </Link>
@@ -339,7 +368,7 @@ export function Navbar() {
                 PIECE_RADIUS,
               )}
             >
-              Book a Consultation
+              {content.ctaLabel}
             </Link>
           </div>
 
@@ -359,7 +388,7 @@ export function Navbar() {
               PIECE_RADIUS,
               mobileOpen ? "bg-transparent text-enzo-cream" : "bg-enzo-sand text-enzo-forest",
             )}
-            aria-label={mobileOpen ? "Close menu" : "Open menu"}
+            aria-label={mobileOpen ? content.closeMenuLabel : content.openMenuLabel}
             aria-expanded={mobileOpen}
           >
             <span aria-hidden="true" className="relative block h-4 w-[18px]">
@@ -423,7 +452,7 @@ export function Navbar() {
                 PIECE_HEIGHT,
               )}
             >
-              {NAV_LINKS.map((link) => {
+              {nav.map((link) => {
                 const isActive = pathname === link.path;
                 const isHovered = activePath === link.path;
                 return (
@@ -496,7 +525,7 @@ export function Navbar() {
                           transition={{ type: "spring", stiffness: 320, damping: 20 }}
                           className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-enzo-forest/10 text-enzo-forest"
                         >
-                          <displayedLink.icon className="h-4 w-4" />
+                          {DisplayedIcon && <DisplayedIcon className="h-4 w-4" />}
                         </motion.span>
                         <p className="font-display text-[10px] font-semibold uppercase tracking-[0.22em] text-enzo-forest-light">
                           {displayedLink.label}
@@ -529,7 +558,7 @@ export function Navbar() {
                           <>
                             <div>
                               <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
-                                Go to a service
+                                {content.servicePagesLabel}
                               </p>
                               <ul className="grid grid-cols-2 gap-x-2">
                                 {displayedLink.pages.map((page) => (
@@ -564,7 +593,7 @@ export function Navbar() {
                             the page use one numbering. */}
                         <div className={displayedLink.pages ? "lg:pl-8" : undefined}>
                           <p className="font-display mb-2 px-3 text-[9.5px] font-semibold uppercase tracking-[0.2em] text-enzo-forest/45">
-                            On this page
+                            {content.sectionsLabel}
                           </p>
                           <ul
                             className={cn(
@@ -633,7 +662,7 @@ export function Navbar() {
             }}
             role="dialog"
             aria-modal="true"
-            aria-label="Menu"
+            aria-label={content.menuLabel}
             className="fixed inset-0 z-[60] flex flex-col overflow-y-auto md:hidden"
             style={{ backgroundColor: INK.ground }}
           >
@@ -652,7 +681,7 @@ export function Navbar() {
                 exit="exit"
                 className="flex flex-col pt-4"
               >
-                {NAV_LINKS.map((link, i) => {
+                {nav.map((link, i) => {
                   const isHere = pathname === link.path;
                   return (
                     <motion.div
@@ -697,7 +726,7 @@ export function Navbar() {
                   expander before, which meant the one thing most visitors
                   open the menu for took two taps and a guess at which row
                   hid it. A menu this short has the room to just show them. */}
-              {SERVICE_PAGES.length > 0 && (
+              {servicePages.length > 0 && (
                 <motion.div
                   variants={ctaVariants}
                   initial="hidden"
@@ -709,13 +738,13 @@ export function Navbar() {
                     className="font-display pb-3 text-[9.5px] font-semibold uppercase tracking-[0.22em]"
                     style={{ color: INK.boneSoft }}
                   >
-                    Services
+                    {content.mobileServicesLabel}
                   </p>
                   <ul
                     className="grid grid-cols-2 border-t border-l"
                     style={{ borderColor: INK.rule }}
                   >
-                    {SERVICE_PAGES.map((page) => (
+                    {servicePages.map((page) => (
                       <li key={page.href} className="border-b border-r" style={{ borderColor: INK.rule }}>
                         <Link
                           href={page.href}
@@ -744,7 +773,7 @@ export function Navbar() {
                   className="flex items-center justify-between gap-4 rounded-full py-3 pl-7 pr-3 text-[15px] font-medium active:scale-[0.985]"
                   style={{ backgroundColor: INK.brass, color: INK.ground }}
                 >
-                  Book Now
+                  {content.mobileCtaLabel}
                   <span
                     className="flex h-10 w-10 items-center justify-center rounded-full"
                     style={{ backgroundColor: INK.ground, color: INK.brass }}

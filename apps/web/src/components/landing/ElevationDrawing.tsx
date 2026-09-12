@@ -21,10 +21,16 @@ import gsap from "gsap";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import type { HomeContent } from "@/lib/content";
 
 interface ElevationDrawingProps {
   /** Index of the furthest stage that should be inked in (0-based). */
   active: number;
+  /**
+   * The figures and labels lettered onto the sheet. They are copy, not
+   * geometry — the coordinates below are the drawing; these are what it says.
+   */
+  content: HomeContent["process"]["drawing"];
   className?: string;
 }
 
@@ -35,7 +41,7 @@ const STROKE = {
   heavy: 2.2,
 } as const;
 
-export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
+export function ElevationDrawing({ active, content, className }: ElevationDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const timelinesRef = useRef<gsap.core.Timeline[]>([]);
   const reducedRef = useRef(false);
@@ -108,7 +114,7 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
       <svg
         viewBox="0 0 960 540"
         role="img"
-        aria-label="Wardrobe elevation drawing, inking in stage by stage as the process advances"
+        aria-label={content.ariaLabel}
         // `h-full w-full` + `preserveAspectRatio` rather than `h-auto
         // w-full`: the auto height made the drawing's size a pure function of
         // the column it sat in, so on a wide screen it grew past the viewport
@@ -142,14 +148,14 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
           <line data-draw x1="96" y1="484" x2="96" y2="500" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
           <line data-draw x1="864" y1="484" x2="864" y2="500" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
           <rect data-fade x="440" y="479" width="80" height="26" rx="4" fill="var(--card)" />
-          <text data-fade x="480" y="497" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">3600</text>
+          <text data-fade x="480" y="497" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomWidth}</text>
 
           {/* Overall height dimension */}
           <line data-draw x1="52" y1="70" x2="52" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
           <line data-draw x1="44" y1="70" x2="60" y2="70" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
           <line data-draw x1="44" y1="452" x2="60" y2="452" stroke="currentColor" strokeWidth={STROKE.hair} vectorEffect="non-scaling-stroke" />
           <rect data-fade x="38" y="248" width="28" height="76" rx="4" fill="var(--card)" />
-          <text data-fade transform="translate(52 286) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">2440</text>
+          <text data-fade transform="translate(52 286) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomHeight}</text>
 
           {/* Figure for scale — 1.75 m against a 2.44 m ceiling */}
           <circle data-draw cx="640" cy="222" r="15" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
@@ -170,7 +176,7 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
           {/* Carcass width dimension, inside the room dimension */}
           <line data-draw x1="132" y1="92" x2="552" y2="92" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.7" vectorEffect="non-scaling-stroke" />
           <rect data-fade x="302" y="79" width="80" height="26" rx="4" fill="var(--card)" />
-          <text data-fade x="342" y="97" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">2100</text>
+          <text data-fade x="342" y="97" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.carcassWidth}</text>
         </g>
 
         {/* ── 02 Making — bays, shelves, rail, drawer box ── */}
@@ -204,7 +210,7 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
             <line data-draw x1="600" y1="392" x2="700" y2="392" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
             <line data-draw x1="600" y1="410" x2="676" y2="410" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
             <line data-draw x1="600" y1="428" x2="712" y2="428" stroke="currentColor" strokeWidth={STROKE.hair} opacity="0.8" vectorEffect="non-scaling-stroke" />
-            <text data-fade x="600" y="376" fill="currentColor" className="font-display" fontSize="13" letterSpacing="2">CUT LIST</text>
+            <text data-fade x="600" y="376" fill="currentColor" className="font-display" fontSize="13" letterSpacing="2">{content.cutListLabel}</text>
           </g>
         </g>
 
@@ -256,7 +262,7 @@ export function ElevationDrawing({ active, className }: ElevationDrawingProps) {
 
           <g transform="translate(760 118) rotate(-7)" className="text-primary">
             <rect data-fade x="-84" y="-24" width="168" height="48" rx="24" stroke="currentColor" strokeWidth={STROKE.thin} fill="var(--card)" vectorEffect="non-scaling-stroke" />
-            <text data-fade x="0" y="6" textAnchor="middle" fill="currentColor" className="font-display" fontSize="14" letterSpacing="3">HANDOVER</text>
+            <text data-fade x="0" y="6" textAnchor="middle" fill="currentColor" className="font-display" fontSize="14" letterSpacing="3">{content.handoverLabel}</text>
           </g>
         </g>
       </svg>

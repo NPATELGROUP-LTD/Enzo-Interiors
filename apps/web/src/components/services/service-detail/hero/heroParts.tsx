@@ -14,6 +14,7 @@
 import gsap from "gsap";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { fill, type ServiceDetailContent } from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import type { HeroFact } from "./heroFacts";
 
@@ -31,10 +32,13 @@ type HeroTone = "light" | "dark";
  * the sheet edge.
  */
 export function HeroRule({
+  index,
   category,
   tone,
   className,
 }: {
+  /** Sheet index — the hero's is the first of six, so "A1". */
+  index: string;
   category: string;
   tone: HeroTone;
   className?: string;
@@ -50,7 +54,7 @@ export function HeroRule({
         )}
         style={{ transform: "translateY(8px)" }}
       >
-        A1
+        {index}
       </span>
       <span
         data-hero-meta
@@ -124,20 +128,23 @@ export function HeroFacts({
  * The two actions. Quote first because it is the cheaper commitment, and
  * both sized past the 44px touch minimum on every ground.
  *
- * "Book a survey" rather than "Book a consultation": the pair sits in one
- * equal-width row below `sm`, and a 19-character label beside a 16-character
- * one either wraps or forces both pills down to a type size neither can
- * carry. It is also the truer word — the site calls this a free home survey
- * everywhere else it is mentioned.
+ * Both labels are authored copy, but their *lengths* are load-bearing: the
+ * pair sits in one equal-width row below `sm`, and a 19-character label
+ * beside a 16-character one either wraps or forces both pills down to a type
+ * size neither can carry. Hence "Book a survey" rather than "Book a
+ * consultation" — which is also the truer word, since the site calls this a
+ * free home survey everywhere else it is mentioned. Keep them short.
  */
 export function HeroActions({
   slug,
   tone,
   className,
+  content,
 }: {
   slug: string;
   tone: HeroTone;
   className?: string;
+  content: ServiceDetailContent["hero"]["actions"];
 }) {
   const dark = tone === "dark";
   return (
@@ -155,10 +162,10 @@ export function HeroActions({
             : "bg-primary text-primary-foreground hover:bg-enzo-forest-light focus-visible:ring-ring focus-visible:ring-offset-transparent",
         )}
       >
-        Get a free quote
+        {content.quoteLabel}
       </QuoteTriggerButton>
       <Link
-        href={`/booking?service=${slug}`}
+        href={fill(content.bookHref, { slug })}
         className={cn(
           "rounded-full border px-4 py-3.5 text-center text-[13.5px] whitespace-nowrap transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 sm:px-7 sm:text-[14px]",
           dark
@@ -166,7 +173,7 @@ export function HeroActions({
             : "border-border text-primary hover:border-primary focus-visible:ring-ring focus-visible:ring-offset-transparent",
         )}
       >
-        Book a survey
+        {content.bookLabel}
       </Link>
     </div>
   );

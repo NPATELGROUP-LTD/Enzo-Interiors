@@ -49,7 +49,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type PortfolioItem, type PortfolioPageContent } from "@/lib/content";
 
 /**
  * One roll per page load, taken at module scope so it is stable for the whole
@@ -79,9 +79,11 @@ function yearValue(item: PortfolioItem): number {
 export function PortfolioAnatomy({
   items,
   onOpen,
+  content,
 }: {
   items: PortfolioItem[];
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
+  content: PortfolioPageContent["anatomy"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -148,12 +150,19 @@ export function PortfolioAnatomy({
 
   if (!feature) return null;
 
-  const facts = [
-    { label: "Client", value: feature.client },
-    { label: "Where", value: feature.location },
-    { label: "On site", value: feature.duration },
-    { label: "Finished", value: feature.year },
-  ];
+  // Which fields are set out, and in what order, is authored; the values come
+  // off the record by key so a relabelled field cannot end up showing the
+  // wrong one.
+  const values: Record<string, string> = {
+    client: feature.client,
+    location: feature.location,
+    duration: feature.duration,
+    year: feature.year,
+  };
+  const facts = content.facts.map((fact) => ({
+    ...fact,
+    value: values[fact.key] ?? "",
+  }));
 
   return (
     <section
@@ -164,17 +173,20 @@ export function PortfolioAnatomy({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="anatomy-heading" className="sr-only">
-          One project in full
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="03"
-          label="In full"
-          datum={`${feature.category} · ${feature.year}`}
-          lines={["One of them,", "taken apart."]}
-          lede="The wall above is nine thumbnails. This is what is behind one of them — who it was for, how long we were in their house, what it is made of, and what actually got decided."
-          ledeShort="What is behind one of those thumbnails: who, where, how long, and what it is made of."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, {
+            category: feature.category,
+            year: feature.year,
+          })}
+          lines={content.lines}
+          lede={content.lede}
+          ledeShort={content.ledeShort}
         />
 
         <div className="mt-14 grid gap-10 md:mt-20 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] lg:items-center lg:gap-16">
@@ -209,7 +221,10 @@ export function PortfolioAnatomy({
                       {feature.title}
                     </span>
                     <span className="mt-0.5 block truncate text-[12.5px] text-enzo-forest/70">
-                      {feature.location} &middot; {feature.duration} on site
+                      {fill(content.captionMeta, {
+                        location: feature.location,
+                        duration: feature.duration,
+                      })}
                     </span>
                   </span>
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-enzo-forest text-enzo-cream transition-transform duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45">
@@ -239,7 +254,7 @@ export function PortfolioAnatomy({
                 </span>
                 <span className="block bg-enzo-cream px-3.5 py-3">
                   <span className="font-display block text-[9px] font-semibold uppercase tracking-[0.2em] text-enzo-forest-light">
-                    Also on the bench
+                    {content.runnerUpLabel}
                   </span>
                   <span className="mt-1 block truncate text-[12.5px] font-medium text-enzo-forest">
                     {runnerUp.title}
@@ -269,7 +284,7 @@ export function PortfolioAnatomy({
             <dl data-anatomy-row className="mt-9 grid grid-cols-2 gap-x-8">
               {facts.map((fact) => (
                 <div
-                  key={fact.label}
+                  key={fact.key}
                   className="border-t border-border/70 py-3.5"
                 >
                   <dt className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
@@ -285,7 +300,7 @@ export function PortfolioAnatomy({
             {feature.materials.length > 0 && (
               <div data-anatomy-row className="mt-8 border-t border-primary/25 pt-6">
                 <span className="font-display block text-[9.5px] font-semibold uppercase tracking-[0.22em] text-enzo-forest-light">
-                  Specified
+                  {content.specifiedLabel}
                 </span>
                 <ul className="mt-3 flex flex-wrap gap-x-2 gap-y-2">
                   {feature.materials.map((material) => (
@@ -306,7 +321,7 @@ export function PortfolioAnatomy({
               onClick={() => onOpen(feature.id)}
               className="touch-target group/cta mt-8 inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13.5px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
             >
-              Open the full record
+              {content.openLabel}
               <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/cta:translate-x-0.5 group-hover/cta:-translate-y-0.5" />
             </button>
           </div>

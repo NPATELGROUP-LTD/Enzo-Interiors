@@ -28,9 +28,10 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { REOPEN_EVENT, setConsent, useConsent } from "@/lib/consent";
+import type { SiteContent } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
-export function CookieBanner() {
+export function CookieBanner({ content }: { content: SiteContent["cookieBanner"] }) {
   const consent = useConsent();
   const [reopened, setReopened] = useState(false);
   const [detail, setDetail] = useState(false);
@@ -78,24 +79,22 @@ export function CookieBanner() {
       ref={panelRef}
       tabIndex={-1}
       role="region"
-      aria-label="Cookie choices"
+      aria-label={content.regionLabel}
       className="fixed inset-x-0 bottom-0 z-[110] p-3 focus:outline-none sm:p-5 md:p-6"
     >
       <div className="mx-auto w-full max-w-[64rem] rounded-[20px] border border-enzo-forest/15 bg-enzo-cream p-5 shadow-[0_18px_60px_rgba(16,26,22,0.28)] sm:p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
           <div className="min-w-0 flex-1">
             <h2 className="font-display text-[10.5px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-              Cookies
+              {content.eyebrow}
             </h2>
             <p className="mt-2 max-w-[62ch] text-[13.5px] leading-[1.65] text-enzo-forest/85">
-              This site sets one small item on your device so it remembers this
-              choice, and nothing else. We use no analytics, no advertising and
-              no third-party trackers — if that ever changes, we will ask first.{" "}
+              {content.body}{" "}
               <Link
                 href="/cookies"
                 className="underline decoration-enzo-forest/30 underline-offset-4 transition-colors hover:decoration-enzo-forest"
               >
-                Read the cookie policy
+                {content.policyLinkLabel}
               </Link>
               .
             </p>
@@ -105,24 +104,22 @@ export function CookieBanner() {
                 <li className="flex items-start justify-between gap-6 py-2">
                   <span>
                     <strong className="font-semibold text-enzo-forest">
-                      Strictly necessary
+                      {content.rows[0].title}
                     </strong>
                     <br />
-                    Remembers this choice and keeps the enquiry form working.
-                    Cannot be switched off.
+                    {content.rows[0].body}
                   </span>
                   <span className="shrink-0 pt-0.5 font-display text-[10px] uppercase tracking-[0.16em] text-enzo-forest/50">
-                    Always on
+                    {content.rows[0].state}
                   </span>
                 </li>
                 <li className="flex items-start justify-between gap-6 border-t border-enzo-forest/12 py-2">
                   <span>
                     <strong className="font-semibold text-enzo-forest">
-                      Analytics
+                      {content.rows[1].title}
                     </strong>
                     <br />
-                    Not in use today. Turning this on now permits it only if we
-                    add it later; leaving it off means we never will for you.
+                    {content.rows[1].body}
                   </span>
                   <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-0.5">
                     <input
@@ -132,7 +129,7 @@ export function CookieBanner() {
                       className="h-4 w-4 accent-enzo-forest"
                     />
                     <span className="font-display text-[10px] uppercase tracking-[0.16em]">
-                      Allow
+                      {content.rows[1].toggleLabel}
                     </span>
                   </label>
                 </li>
@@ -156,7 +153,7 @@ export function CookieBanner() {
                 "hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-cream",
               )}
             >
-              {detail ? "Save choices" : "Accept all"}
+              {detail ? content.saveLabel : content.acceptLabel}
             </button>
             <button
               type="button"
@@ -166,7 +163,7 @@ export function CookieBanner() {
                 "hover:border-enzo-forest hover:bg-enzo-forest/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-cream",
               )}
             >
-              Reject all
+              {content.rejectLabel}
             </button>
             <button
               type="button"
@@ -174,7 +171,7 @@ export function CookieBanner() {
               aria-expanded={detail}
               className="touch-target rounded-full px-2 py-1 text-[12.5px] text-enzo-forest/70 underline decoration-enzo-forest/25 underline-offset-4 transition-colors hover:text-enzo-forest focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest"
             >
-              {detail ? "Hide details" : "Choose individually"}
+              {detail ? content.hideDetailsLabel : content.showDetailsLabel}
             </button>
           </div>
         </div>

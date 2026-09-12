@@ -49,11 +49,9 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type PortfolioItem, type PortfolioPageContent } from "@/lib/content";
 
 gsap.registerPlugin(Flip);
-
-const ALL = "All work";
 
 /**
  * Tile sizes, cycled. Two wide-and-tall anchors per eight tiles is what
@@ -76,14 +74,18 @@ const MOBILE_PAGE_SIZE = 6;
 
 interface PortfolioWallProps {
   items: PortfolioItem[];
-  onOpen: (id: number) => void;
+  onOpen: (id: string) => void;
+  content: PortfolioPageContent["wall"];
 }
 
-export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
+export function PortfolioWall({ items, onOpen, content }: PortfolioWallProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const flipState = useRef<Flip.FlipState | null>(null);
+  // The "everything" tab is also the sentinel the filter compares against, so
+  // it is read from the copy rather than duplicated as a constant here.
+  const ALL = content.allLabel;
   const [filter, setFilter] = useState(ALL);
   const [mobilePage, setMobilePage] = useState(1);
 
@@ -94,12 +96,12 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
 
   const categories = useMemo(
     () => [ALL, ...Array.from(new Set(items.map((item) => item.category)))],
-    [items],
+    [items, ALL],
   );
 
   const shown = useMemo(
     () => (filter === ALL ? items : items.filter((item) => item.category === filter)),
-    [items, filter],
+    [items, filter, ALL],
   );
 
   // The full set on sm and up; a page of it below sm. This is the only
@@ -233,17 +235,17 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="portfolio-wall-heading" className="sr-only">
-          The work
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="02"
-          label="Wall"
-          datum={`${shown.length} shown`}
-          lines={["All of it,", "on one wall."]}
-          lede="Filter by discipline and the wall rearranges rather than reloading. Any tile opens its case study."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: shown.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* ── Tab bar: sm and up ──
@@ -252,7 +254,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
         <div
           ref={tabsRef}
           role="group"
-          aria-label="Filter by discipline"
+          aria-label={content.filterGroupLabel}
           className="relative mt-12 hidden items-center gap-x-7 border-b border-enzo-cream/15 pb-4 sm:flex sm:flex-wrap sm:gap-y-3 md:mt-14"
         >
           {categories.map((category) => {
@@ -291,7 +293,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
             that can end up under the wrong row. */}
         <div
           role="group"
-          aria-label="Filter by discipline"
+          aria-label={content.filterGroupLabel}
           className="mt-12 grid grid-cols-2 gap-2 sm:hidden"
         >
           {categories.map((category) => {
@@ -348,7 +350,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
               data-flip-id={item.id}
               type="button"
               onClick={() => onOpen(item.id)}
-              aria-label={`Open case study — ${item.title}`}
+              aria-label={fill(content.openTileLabel, { title: item.title })}
               className={cn(
                 "group relative aspect-[3/4] overflow-hidden bg-enzo-forest text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark sm:aspect-auto",
                 SHAPES[i % SHAPES.length],
@@ -367,7 +369,7 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
                   where there is no hover, it is simply always there. */}
               <span className="absolute inset-x-0 bottom-0 translate-y-0 bg-gradient-to-t from-enzo-dark/90 via-enzo-dark/45 to-transparent px-3 pb-3 pt-10 opacity-100 transition-[opacity,transform] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] sm:translate-y-3 sm:px-4 sm:pb-4 sm:pt-14 sm:opacity-0 sm:group-hover:translate-y-0 sm:group-hover:opacity-100 sm:group-focus-visible:translate-y-0 sm:group-focus-visible:opacity-100">
                 <span className="font-display block text-[9px] font-semibold uppercase tracking-[0.2em] text-enzo-sand sm:text-[9.5px] sm:tracking-[0.24em]">
-                  {item.category} — {item.year}
+                  {fill(content.tileMeta, { category: item.category, year: item.year })}
                 </span>
                 <span className="mt-1 block font-title text-[0.9rem] font-semibold leading-[1.2] tracking-[-0.02em] text-enzo-cream sm:mt-1.5 sm:text-[1.05rem]">
                   {item.title}
@@ -400,8 +402,12 @@ export function PortfolioWall({ items, onOpen }: PortfolioWallProps) {
               onClick={() => setMobilePage((page) => page + 1)}
               className="border border-enzo-cream/20 px-6 py-3 text-[13px] font-medium text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark"
             >
-              Show {Math.min(MOBILE_PAGE_SIZE, remaining)} more
-              <span className="ml-2 text-enzo-cream/65">({remaining} left)</span>
+              {fill(content.showMore, {
+                count: Math.min(MOBILE_PAGE_SIZE, remaining),
+              })}
+              <span className="ml-2 text-enzo-cream/65">
+                {fill(content.remaining, { count: remaining })}
+              </span>
             </button>
           </div>
         )}

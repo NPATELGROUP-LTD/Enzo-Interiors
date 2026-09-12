@@ -17,14 +17,23 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
-import type { ProcessStep } from "@/lib/content";
+import {
+  fill,
+  type ProcessStep,
+  type ProcessVariantContent,
+  type ServiceDetailContent,
+} from "@/lib/content";
 
 export function ProcessTimeline({
   steps,
   id,
+  content,
+  common,
 }: {
   steps: ProcessStep[];
   id: string;
+  content: ProcessVariantContent;
+  common: ServiceDetailContent["process"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
@@ -77,16 +86,18 @@ export function ProcessTimeline({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="process-heading" className="sr-only">
-          How it is built
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A4"
-          label="Sequence"
-          datum={`${steps.length} stages`}
-          lines={[`${spellCount(steps.length)} stages,`, "top to bottom."]}
-          lede="Nothing here is subcontracted and nothing skips a step."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: steps.length })}
+          lines={content.lines.map((line) =>
+            fill(line, { countWord: spellCount(steps.length) }),
+          )}
+          lede={content.lede}
         />
 
         <div className="mt-14 grid gap-10 md:mt-20 md:grid-cols-[minmax(0,14rem)_minmax(0,1fr)] md:gap-16">
@@ -101,7 +112,9 @@ export function ProcessTimeline({
               </span>
               <span className="mt-3 block h-px w-16 bg-enzo-sand" />
               <span className="mt-3 block text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                of {String(steps.length).padStart(2, "0")}
+                {fill(common.ofLabel, {
+                  total: String(steps.length).padStart(2, "0"),
+                })}
               </span>
               <span className="mt-6 block max-w-[12rem] text-[13px] leading-[1.5] text-enzo-forest-light">
                 {steps[active]?.step}
@@ -117,7 +130,7 @@ export function ProcessTimeline({
                 className="border-t border-border/60 py-8 last:border-b md:py-12"
               >
                 <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light md:hidden">
-                  Stage {index + 1} / {steps.length}
+                  {fill(common.stageLabel, { index: index + 1, total: steps.length })}
                 </span>
                 <h3
                   className="mt-2 font-title font-semibold leading-[1.1] tracking-[-0.03em] text-primary md:mt-0"

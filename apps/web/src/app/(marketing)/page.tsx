@@ -1,5 +1,5 @@
 // Landing page. Stays a Server Component (async, fetches services /
-// portfolio / testimonials from src/lib/content) composing the
+// portfolio / testimonials / page copy from src/lib/content) composing the
 // self-contained landing/* section components.
 //
 // Section order below is deliberate rather than inherited. The hero ends
@@ -25,24 +25,58 @@ import { WorkshopModule } from "@/components/landing/WorkshopModule";
 import { WorkIndex } from "@/components/landing/WorkIndex";
 import { ClientVoices } from "@/components/landing/ClientVoices";
 import { StudioInvite } from "@/components/landing/StudioInvite";
-import { getServices, getTestimonials, getPortfolioItems } from "@/lib/content";
+import {
+  getCompany,
+  getHeroRooms,
+  getPage,
+  getPortfolioItems,
+  getServices,
+  getTestimonials,
+  media,
+} from "@/lib/content";
 
 export default async function HomePage() {
-  const [services, testimonials, portfolioItems] = await Promise.all([
-    getServices(),
-    getTestimonials(),
-    getPortfolioItems(),
-  ]);
+  const [services, testimonials, portfolioItems, content, rooms, company] =
+    await Promise.all([
+      getServices(),
+      getTestimonials(),
+      getPortfolioItems(),
+      getPage("home"),
+      getHeroRooms(),
+      getCompany(),
+    ]);
+
+  // The hero's media ids are resolved here, on the server. The hero picks its
+  // variant at runtime in the browser, so it cannot look them up itself
+  // without shipping the whole media table to the client.
+  const heroImages = {
+    loaderLogo: media(content.hero.loader.logoId),
+    ctaCard: media(content.hero.cta.card.imageId),
+    ctaShowcase: content.hero.cta.imageIds.map(media),
+  };
 
   return (
     <div>
-      <Hero />
-      <ServicesBoard services={services} />
-      <ProcessLedger />
-      <WorkshopModule />
-      <WorkIndex items={portfolioItems} />
-      <ClientVoices testimonials={testimonials} />
-      <StudioInvite items={portfolioItems} />
+      <Hero
+        hero={content.hero}
+        heroStatic={content.heroStatic}
+        rooms={rooms}
+        images={heroImages}
+        staticImages={content.heroStatic.imageIds.map(media)}
+      />
+      <ServicesBoard services={services} content={content.servicesBoard} />
+      <ProcessLedger content={content.process} />
+      <WorkshopModule
+        content={content.workshop}
+        fallbackImage={media(content.workshop.fallback.imageId)}
+      />
+      <WorkIndex items={portfolioItems} content={content.work} />
+      <ClientVoices testimonials={testimonials} content={content.voices} />
+      <StudioInvite
+        items={portfolioItems}
+        content={content.invite}
+        company={company}
+      />
     </div>
   );
 }

@@ -48,6 +48,7 @@ import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
+import { fill, type AboutPageContent } from "@/lib/content";
 
 export interface Milestone {
   year: string;
@@ -110,16 +111,26 @@ function monthIndex(value: string): number | null {
   return Number(match[2]) * 12 + month;
 }
 
-function elapsed(from: string, to: string): string | null {
+function elapsed(
+  from: string,
+  to: string,
+  labels: { monthsOne: string; monthsOther: string },
+): string | null {
   const a = monthIndex(from);
   const b = monthIndex(to);
   if (a === null || b === null) return null;
   const months = b - a;
   if (months <= 0) return null;
-  return months === 1 ? "1 month" : `${months} months`;
+  return months === 1 ? labels.monthsOne : fill(labels.monthsOther, { count: months });
 }
 
-export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
+export function AboutJourney({
+  milestones,
+  content,
+}: {
+  milestones: Milestone[];
+  content: AboutPageContent["journey"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const stopRefs = useRef<(HTMLLIElement | null)[]>([]);
   const groupRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -233,21 +244,24 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="about-journey-heading" className="sr-only">
-          How we got here
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="03"
-          label="Journey"
+          index={content.index}
+          label={content.label}
           datum={
             total
-              ? `${spellCount(total)} months, ${spellCount(milestones.length)} stops`
-              : `${spellCount(milestones.length)} stops`
+              ? fill(content.datumWithTotal, {
+                  months: spellCount(total),
+                  stops: spellCount(milestones.length),
+                })
+              : fill(content.datumWithoutTotal, { stops: spellCount(milestones.length) })
           }
-          lines={["The road so far,", "in four stops."]}
-          lede="Four stops between the first bench and the fiftieth room, set down the page in the order they happened, with the months between them measured."
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* ── The field ──
@@ -262,7 +276,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
             const width = step.plate + GUTTER + step.text;
             const gap = GAPS[Math.min(index, GAPS.length - 1)]!;
             const months =
-              index > 0 ? elapsed(milestones[index - 1]!.year, milestone.year) : null;
+              index > 0 ? elapsed(milestones[index - 1]!.year, milestone.year, content) : null;
 
             // The run connects the previous plate's bottom-right corner to
             // this plate's top-right corner, expressed in this item's own
@@ -411,7 +425,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
             >
               <span className="block h-px flex-1 bg-enzo-cream/20" />
               <span className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-sand/85">
-                {spellCount(total)} months overall
+                {fill(content.overallLabel, { months: spellCount(total) })}
               </span>
             </li>
           )}
@@ -424,7 +438,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
         <ol className="mt-12 lg:hidden">
           {milestones.map((milestone, index) => {
             const months =
-              index > 0 ? elapsed(milestones[index - 1]!.year, milestone.year) : null;
+              index > 0 ? elapsed(milestones[index - 1]!.year, milestone.year, content) : null;
             return (
               <li
                 key={milestone.year}
@@ -483,7 +497,7 @@ export function AboutJourney({ milestones }: { milestones: Milestone[] }) {
             <li aria-hidden="true" className="mt-9 flex items-center gap-4">
               <span className="block h-px flex-1 bg-enzo-cream/20" />
               <span className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-sand/85">
-                {spellCount(total)} months overall
+                {fill(content.overallLabel, { months: spellCount(total) })}
               </span>
             </li>
           )}

@@ -30,7 +30,12 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
-import type { ProcessStep } from "@/lib/content";
+import {
+  fill,
+  type ProcessStep,
+  type ProcessVariantContent,
+  type ServiceDetailContent,
+} from "@/lib/content";
 
 /**
  * The unit, in the order it goes up. `at` is the completeness the part first
@@ -74,9 +79,13 @@ const PARTS: Part[] = [
 export function ProcessAssembly({
   steps,
   id,
+  content,
+  common,
 }: {
   steps: ProcessStep[];
   id: string;
+  content: ProcessVariantContent;
+  common: ServiceDetailContent["process"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -133,17 +142,19 @@ export function ProcessAssembly({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="process-heading" className="sr-only">
-          How it is built
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A4"
-          label="Assembly"
-          datum={`${steps.length} stages`}
-          lines={[`${spellCount(steps.length)} stages,`, "and it stands up."]}
-          lede="The drawings down the left are the same wardrobe at each stage. Nothing is subcontracted between them — the person who measured the wall is the person who hangs the doors."
-          ledeShort="The drawings are the same wardrobe at each stage. One team throughout."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: steps.length })}
+          lines={content.lines.map((line) =>
+            fill(line, { countWord: spellCount(steps.length) }),
+          )}
+          lede={content.lede}
+          ledeShort={content.ledeShort}
         />
 
         <ol className="mt-14 md:mt-20">
@@ -159,7 +170,7 @@ export function ProcessAssembly({
                 <svg
                   viewBox="0 0 120 150"
                   role="img"
-                  aria-label={`The wardrobe after stage ${index + 1}`}
+                  aria-label={fill(common.assemblyAriaLabel, { index: index + 1 })}
                   className="w-full text-primary"
                   fill="none"
                   strokeLinecap="round"
@@ -187,7 +198,9 @@ export function ProcessAssembly({
                         as a number because the drawing beside it is already
                         saying it as a picture. */}
                     <span className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                      {Math.round(((index + 1) / steps.length) * 100)}% built
+                      {fill(common.builtLabel, {
+                        percent: Math.round(((index + 1) / steps.length) * 100),
+                      })}
                     </span>
                   </span>
 

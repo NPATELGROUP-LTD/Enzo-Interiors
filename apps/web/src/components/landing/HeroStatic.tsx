@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
+import type { HomeContent, MediaItem } from "@/lib/content";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
 
@@ -20,12 +21,13 @@ import { HeroRotatingImage } from "./HeroRotatingImage";
 // hidden and only reveals them once this flag flips to "visible" — that reveal
 // is otherwise driven by HeroSequence's scroll sequence, which never mounts
 // here.
-const TRUST = [
-  { value: "Leicester", label: "Own workshop" },
-  { value: "Free", label: "Consultation" },
-];
-
-export function HeroStatic() {
+export function HeroStatic({
+  content,
+  images,
+}: {
+  content: HomeContent["heroStatic"];
+  images: MediaItem[];
+}) {
   useEffect(() => {
     document.body.dataset.heroChrome = "visible";
     return () => {
@@ -52,23 +54,26 @@ export function HeroStatic() {
           className="font-title font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream"
           style={{ fontSize: "clamp(2.4rem, 11vw, 3.4rem)" }}
         >
-          Fitted furniture,
+          {content.headingLead}
           <br />
-          <span className="text-enzo-sage">made to measure.</span>
+          <span className="text-enzo-sage">{content.headingAccent}</span>
         </h1>
 
         <p className="mt-4 max-w-[32ch] text-[15px] leading-[1.65] text-enzo-cream/70">
-          Kitchens, wardrobes and media walls, built in our workshop and
-          fitted by the same team.
+          {content.body}
         </p>
 
         <div className="mt-6 flex flex-nowrap items-center gap-3">
-          <HeroCtaButton href="/booking" label="Book Consultation" className="h-[52px] shrink-0" />
+          <HeroCtaButton
+            href={content.primaryCta.href}
+            label={content.primaryCta.label}
+            className="h-[52px] shrink-0"
+          />
           <Link
-            href="/portfolio"
+            href={content.secondaryCta.href}
             className="touch-target inline-flex h-[52px] shrink-0 items-center justify-center rounded-full border border-enzo-cream/25 px-6 text-[13px] font-semibold tracking-wide text-enzo-cream transition-colors duration-300 active:bg-enzo-cream/10"
           >
-            Our Work
+            {content.secondaryCta.label}
           </Link>
         </div>
       </div>
@@ -76,23 +81,7 @@ export function HeroStatic() {
       <div className="relative z-[1] w-full">
         <HeroRotatingImage
           aspect="landscape"
-          images={[
-            {
-              src: "/fireplaceMediawall.jpeg",
-              alt: "Bespoke media wall interior by Enzo Interiors",
-              title: "Bespoke Media Wall",
-            },
-            {
-              src: "/centeredKitchen.jpeg",
-              alt: "Bespoke kitchen interior by Enzo Interiors",
-              title: "Bespoke Kitchen",
-            },
-            {
-              src: "/Bedroom.jpeg",
-              alt: "Bespoke bedroom interior by Enzo Interiors",
-              title: "Bespoke Bedroom",
-            },
-          ]}
+          images={images}
           radius={20}
           notchRadius={0}
           notchFeather={0}
@@ -102,7 +91,7 @@ export function HeroStatic() {
       {/* Two facts, not three adjectives — the fastest way to read as a real
           company on a small screen. */}
       <dl className="relative z-[1] flex items-stretch gap-6 border-y border-enzo-cream/12 py-5">
-        {TRUST.map((item, index) => (
+        {content.trust.map((item, index) => (
           <div key={item.label} className="flex min-w-0 flex-1 items-center gap-6">
             <div className="min-w-0">
               <dt className="sr-only">{item.label}</dt>
@@ -113,7 +102,7 @@ export function HeroStatic() {
                 {item.label}
               </dd>
             </div>
-            {index < TRUST.length - 1 && (
+            {index < content.trust.length - 1 && (
               <span aria-hidden="true" className="ml-auto h-9 w-px shrink-0 bg-enzo-cream/12" />
             )}
           </div>
@@ -129,7 +118,7 @@ export function HeroStatic() {
         }
         className="touch-target relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/65 transition-colors duration-300 active:text-enzo-cream"
       >
-        See how we work
+        {content.scrollLabel}
         <ChevronDown className="h-3.5 w-3.5 animate-bounce" />
       </button>
     </section>

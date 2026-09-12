@@ -1,29 +1,33 @@
 // Facts every service hero shows, derived once so the four hero designs
 // stay four *layouts* rather than four slightly different sets of content.
 //
-// Nothing here is authored: lead time comes off the record, the starting
-// price is the cheapest published tier, and the survey/guarantee lines are
-// studio-wide constants. A service published in the Admin Content Manager
-// therefore arrives with a complete hero whichever variant it lands on.
+// The values come off the record — lead time from its timeline, the starting
+// price from the cheapest published tier — while the labels, and the two
+// studio-wide lines, are copy from src/data/pages/service-detail.json. A
+// service published in the Admin Content Manager therefore arrives with a
+// complete hero whichever variant it lands on.
 import { getServiceMetrics } from "@/lib/service-metrics";
-import type { ServiceDetail } from "@/lib/content";
+import type { ServiceDetail, ServiceDetailContent } from "@/lib/content";
 
 export interface HeroFact {
   label: string;
   value: string;
 }
 
-export function getHeroFacts(service: ServiceDetail): HeroFact[] {
+export function getHeroFacts(
+  service: ServiceDetail,
+  content: ServiceDetailContent["hero"]["facts"],
+): HeroFact[] {
   const metrics = getServiceMetrics(service);
 
   const facts: HeroFact[] = [
-    { label: "Lead time", value: metrics.timeline },
-    { label: "Survey", value: "Free, at home" },
-    { label: "Guarantee", value: "5 years" },
+    { label: content.leadTimeLabel, value: metrics.timeline },
+    { label: content.survey.label, value: content.survey.value },
+    { label: content.guarantee.label, value: content.guarantee.value },
   ];
 
   if (metrics.fromPriceLabel) {
-    facts.push({ label: "From", value: metrics.fromPriceLabel });
+    facts.push({ label: content.fromLabel, value: metrics.fromPriceLabel });
   }
   return facts;
 }

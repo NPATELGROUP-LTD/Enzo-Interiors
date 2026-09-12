@@ -62,6 +62,11 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
+import {
+  fill,
+  type ModelVariantContent,
+  type ServiceDetailContent,
+} from "@/lib/content";
 
 /** Local clamp — the render loop has its own, this keeps the ref tidy too. */
 function clamp(value: number, min: number, max: number): number {
@@ -82,25 +87,17 @@ const ServiceScene = dynamic(() => import("./scene/ServiceScene"), {
   loading: () => null,
 });
 
-export interface ModelSpec {
-  value: string;
-  label: string;
-  note: string;
-}
-
 interface ModelViewerProps {
   id: string;
   kind: UnitKind;
-  /** Section heading. */
-  label: string;
-  lines: string[];
-  lede: string;
-  /** Named camera positions — three or four reads best. */
-  viewpoints: Viewpoint[];
-  /** The one thing you can do to the model. */
-  control: { off: string; on: string };
-  /** Construction detail, not marketing claims. */
-  specs: ModelSpec[];
+  /**
+   * This unit's own copy — heading, lede, named camera positions (three or
+   * four reads best), the one thing you can do to the model, and the
+   * construction detail beside it. Millimetres and materials, not marketing.
+   */
+  content: ModelVariantContent;
+  /** The words the section shares whichever unit it happens to be showing. */
+  common: ServiceDetailContent["model"];
   /** Shown instead of the canvas under reduced motion. */
   fallbackImage: string;
   fallbackAlt: string;
@@ -109,15 +106,13 @@ interface ModelViewerProps {
 export function ModelViewer({
   id,
   kind,
-  label,
-  lines,
-  lede,
-  viewpoints,
-  control,
-  specs,
+  content,
+  common,
   fallbackImage,
   fallbackAlt,
 }: ModelViewerProps) {
+  const { control, specs } = content;
+  const viewpoints: Viewpoint[] = content.viewpoints;
   const stageRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<OrbitState>(neutralOrbit());
   const dragRef = useRef<{ active: boolean; x: number; y: number } | null>(null);
@@ -305,17 +300,17 @@ export function ModelViewer({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="model-heading" className="sr-only">
-          The model
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="A3"
-          label={label}
-          datum={isDesktop ? "drag to turn" : "turning itself"}
-          lines={lines}
-          lede={lede}
+          index={common.index}
+          label={content.label}
+          datum={isDesktop ? common.datumDesktop : common.datumShowcase}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* `items-stretch`: the rail and the stage are two cells of one row,
@@ -339,7 +334,10 @@ export function ModelViewer({
                 ? {
                     tabIndex: 0,
                     role: "application" as const,
-                    "aria-label": `${fallbackAlt}. Interactive model — arrow keys turn it, plus and minus zoom, zero recentres, Enter ${control.off.toLowerCase()}.`,
+                    "aria-label": fill(common.stageAriaLabel, {
+                      alt: fallbackAlt,
+                      control: control.off.toLowerCase(),
+                    }),
                   }
                 : {})}
               className={cn(
@@ -375,7 +373,7 @@ export function ModelViewer({
                   aria-hidden="true"
                   className="pointer-events-none absolute left-1/2 top-5 -translate-x-1/2 rounded-full bg-enzo-dark/70 px-4 py-2 text-[11px] uppercase tracking-[0.2em] text-enzo-cream/85 backdrop-blur-sm"
                 >
-                  Drag to turn · scroll to zoom
+                  {common.hint}
                 </span>
               )}
 
@@ -388,7 +386,7 @@ export function ModelViewer({
                 <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-enzo-dark/90 via-enzo-dark/70 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
                   <div
                     role="group"
-                    aria-label="Viewpoint"
+                    aria-label={common.viewpointGroupLabel}
                     className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full bg-enzo-dark/70 p-1 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                   >
                     {viewpoints.map((viewpoint, index) => {
@@ -422,7 +420,7 @@ export function ModelViewer({
                     type="button"
                     onClick={resetOrbit}
                     disabled={!hasMoved}
-                    aria-label="Recentre the model"
+                    aria-label={common.recentreLabel}
                     className={cn(
                       "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-enzo-dark/70 text-enzo-cream backdrop-blur-sm transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand",
                       hasMoved
@@ -460,14 +458,14 @@ export function ModelViewer({
             >
               {showcase || !canRender3D
                 ? canRender3D
-                  ? "Turning on its own here — open it on a larger screen to take the controls."
-                  : "Motion is off, so this is a photograph of the same room."
+                  ? common.showcaseNote
+                  : common.reducedNote
                 : view.note}
             </p>
 
             {!showcase && canRender3D && (
               <p className="mt-2 text-[11.5px] leading-[1.6] text-enzo-cream/45">
-                Illustrative render. Keyboard: arrows turn, +/− zoom, 0 recentres.
+                {common.keyboardNote}
               </p>
             )}
           </div>

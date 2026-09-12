@@ -52,20 +52,14 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { ServiceDetail } from "@/lib/content";
-
-const PHONE_DISPLAY = "0116 XXX XXXX";
-const PHONE_HREF = "tel:0116XXXXXXX";
-
-/** The title block's narrow cells — what the survey actually costs you. */
-const FACTS = [
-  { label: "Survey", value: "Free" },
-  { label: "On site", value: "60–90 min" },
-  { label: "Guarantee", value: "5 years" },
-];
+import { fill, type Company, type ServiceDetail, type ServicesPageContent } from "@/lib/content";
 
 interface IndexClosingProps {
   services: ServiceDetail[];
+  content: ServicesPageContent["closing"];
+  /** The studio's one number. This section used to carry its own placeholder
+   *  copy of it, which is how three pages came to quote three numbers. */
+  company: Company;
 }
 
 /** Registration tick — the corner marks a drawing sheet is trimmed to. */
@@ -86,7 +80,7 @@ function CornerTick({ at }: { at: "tl" | "tr" | "bl" | "br" }) {
   );
 }
 
-export function IndexClosing({ services }: IndexClosingProps) {
+export function IndexClosing({ services, content, company }: IndexClosingProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [service, setService] = useState<string | null>(null);
 
@@ -173,10 +167,10 @@ export function IndexClosing({ services }: IndexClosingProps) {
               style={{ transform: "translateY(10px)" }}
             >
               <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand">
-                05 — Book
+                {content.eyebrow}
               </span>
               <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/65">
-                Enzo Interiors — Leicestershire
+                {content.issuer}
               </span>
             </div>
 
@@ -186,7 +180,7 @@ export function IndexClosing({ services }: IndexClosingProps) {
                 className="font-title font-semibold leading-[1.0] tracking-[-0.045em] text-enzo-cream"
                 style={{ fontSize: "clamp(2.2rem, 5vw, 4.4rem)" }}
               >
-                {["We would rather", "measure than guess."].map((line) => (
+                {content.lines.map((line) => (
                   <span
                     key={line}
                     className="block overflow-hidden pb-[0.1em] -mb-[0.1em]"
@@ -207,9 +201,7 @@ export function IndexClosing({ services }: IndexClosingProps) {
                 className="text-[15px] leading-[1.7] text-enzo-cream/70 opacity-0 lg:pb-2 lg:text-right"
                 style={{ transform: "translateY(14px)" }}
               >
-                A free survey, in your own home. We measure every wall,
-                photograph the space, and tell you honestly what is worth
-                doing — before anybody writes a number down.
+                {content.lede}
               </p>
             </div>
 
@@ -221,7 +213,7 @@ export function IndexClosing({ services }: IndexClosingProps) {
               className="mt-12 hidden border-t border-enzo-cream/12 pt-8 opacity-0 md:mt-16 md:block"
               style={{ transform: "translateY(14px)" }}
             >
-              <legend className="sr-only">Which room are we looking at?</legend>
+              <legend className="sr-only">{content.question.legend}</legend>
               {/* Flex rather than an inline span: at phone widths the label
                   wraps, and a margin-indented "optional" then starts a line
                   three units in from everything else. A wrapped flex item
@@ -230,9 +222,9 @@ export function IndexClosing({ services }: IndexClosingProps) {
                 aria-hidden="true"
                 className="flex flex-wrap items-baseline gap-x-3 gap-y-1 font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/65"
               >
-                <span>Which room are we looking at?</span>
+                <span>{content.question.legend}</span>
                 <span className="normal-case tracking-normal text-enzo-cream/65">
-                  optional
+                  {content.question.optional}
                 </span>
               </p>
 
@@ -294,7 +286,7 @@ export function IndexClosing({ services }: IndexClosingProps) {
                 tighter below it: smaller padding and a smaller value size so
                 "60–90 min" sits comfortably in a ~90px column instead of the
                 20px-larger desktop size overflowing it. */}
-            {FACTS.map((fact) => (
+            {content.facts.map((fact) => (
               <div
                 key={fact.label}
                 className="border-r border-enzo-cream/12 px-3 py-5 last-of-type:border-r-0 md:px-8 md:py-7 lg:last-of-type:border-r"
@@ -320,7 +312,9 @@ export function IndexClosing({ services }: IndexClosingProps) {
                 {/* The button says what it will actually do once a room is
                     picked, which is the only feedback the choice needs. */}
                 <span className="relative">
-                  {chosen ? `Book a survey — ${chosen.title}` : "Book a free survey"}
+                  {chosen
+                    ? fill(content.ctaChosen, { title: chosen.title })
+                    : content.ctaDefault}
                 </span>
               </Link>
             </div>
@@ -332,14 +326,14 @@ export function IndexClosing({ services }: IndexClosingProps) {
           className="mt-6 flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 px-1 text-[12.5px] text-enzo-cream/65 opacity-0"
           style={{ transform: "translateY(10px)" }}
         >
-          <span>No obligation, nothing to sign.</span>
+          <span>{content.footerNote}</span>
           <span>
-            Rather talk?{" "}
+            {content.talkPrefix}{" "}
             <a
-              href={PHONE_HREF}
+              href={company.phone.href}
               className="tabular-nums text-enzo-cream/75 underline decoration-enzo-cream/25 decoration-1 underline-offset-[6px] transition-colors duration-300 hover:text-enzo-cream hover:decoration-enzo-sand"
             >
-              {PHONE_DISPLAY}
+              {company.phone.display}
             </a>
           </span>
         </div>

@@ -24,66 +24,48 @@
 // Every section is written against `ServiceDetail[]` of any length, because
 // in production the client publishes services themselves from the Admin
 // Content Manager — nothing here assumes there are four.
+//
+// §04's questions are the FAQ rows with no service of their own — the same
+// table each service page draws its own questions from, filtered the other
+// way. They used to be a second hand-written copy in this file, which is a
+// duplicate waiting to drift the first time one of the answers is corrected.
 import type { Metadata } from "next";
 import { IndexHero } from "@/components/services/services-index/IndexHero";
 import { IndexPricingScale } from "@/components/services/services-index/IndexPricingScale";
 import { IndexConstants } from "@/components/services/services-index/IndexConstants";
 import { QuestionsNotes } from "@/components/services/shared/QuestionsNotes";
 import { IndexClosing } from "@/components/services/services-index/IndexClosing";
-import { getServiceDetails, type FAQEntry } from "@/lib/content";
+import { getCompany, getGeneralFaqs, getPage, getServiceDetails } from "@/lib/content";
 
-export const metadata: Metadata = {
-  title: "Services — Enzo Interiors",
-  description:
-    "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. See where each discipline starts and what is included.",
-};
-
-// Cross-service questions — the ones that are the same whichever discipline
-// you pick. Per-service questions live on the service's own page.
-const FAQS: FAQEntry[] = [
-  {
-    q: "How long does a typical project take?",
-    a: "Most projects run 4–8 weeks from first consultation to final installation, covering design, manufacture and fitting. Each discipline's own lead time is on its page.",
-  },
-  {
-    q: "Do you offer free consultations?",
-    a: "Yes — a completely free, no-obligation home visit. We measure the space, photograph every wall, talk through how you use the room, and give you honest advice on what is worth doing.",
-  },
-  {
-    q: "What areas do you cover?",
-    a: "We are based in Leicester and cover the whole of Leicestershire, including Oadby, Wigston, Market Harborough, Loughborough and the surrounding villages.",
-  },
-  {
-    q: "Can I choose my own materials and colours?",
-    a: "Absolutely. Each discipline has its own range of finishes, and we bring physical samples to your home so you can see them in your own light before anything is ordered.",
-  },
-  {
-    q: "Do you provide a guarantee?",
-    a: "Every installation carries a five-year workmanship guarantee, in writing, whichever service you choose.",
-  },
-  {
-    q: "Can you combine more than one service?",
-    a: "Often, yes, and it usually works out better. A bedroom and its wardrobes designed together share finishes, and one visit and one fit means less disruption than booking them separately.",
-  },
-];
+export async function generateMetadata(): Promise<Metadata> {
+  const { metadata } = await getPage("services");
+  return metadata;
+}
 
 export default async function ServicesPage() {
-  const services = await getServiceDetails();
+  const [services, content, shared, faqs, company] = await Promise.all([
+    getServiceDetails(),
+    getPage("services"),
+    getPage("shared"),
+    getGeneralFaqs(),
+    getCompany(),
+  ]);
 
   return (
     <div>
-      <IndexHero services={services} />
-      <IndexPricingScale services={services} />
-      <IndexConstants />
+      <IndexHero services={services} content={content.hero} roomPlan={shared.roomPlan} />
+      <IndexPricingScale services={services} content={content.pricing} />
+      <IndexConstants content={content.constants} />
       <QuestionsNotes
-        id="services-questions"
-        index="04"
-        lines={["Asked before", "every job."]}
-        lede="The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
-        faqs={FAQS}
+        id={content.questions.id}
+        index={content.questions.index}
+        lines={content.questions.lines}
+        lede={content.questions.lede}
+        faqs={faqs}
+        content={shared.questions}
         mobileAccordion
       />
-      <IndexClosing services={services} />
+      <IndexClosing services={services} content={content.closing} company={company} />
     </div>
   );
 }

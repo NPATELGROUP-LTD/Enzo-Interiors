@@ -46,6 +46,9 @@ import { toast } from "sonner";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
+import { fill, type ContactPageContent } from "@/lib/content";
+
+type DocketContent = ContactPageContent["docket"];
 
 export interface RoomOption {
   value: string;
@@ -83,37 +86,36 @@ const REQUIRED: FieldName[] = ["name", "email", "room"];
  */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function validate(field: FieldName, value: string): string | null {
+/** What each rule says when it fails is authored copy, so it is passed in. */
+function validate(
+  field: FieldName,
+  value: string,
+  messages: DocketContent["errors"],
+): string | null {
   const trimmed = value.trim();
   switch (field) {
     case "name":
-      return trimmed ? null : "Tell us what to call you.";
+      return trimmed ? null : messages.name;
     case "email":
-      if (!trimmed) return "We need an email address to reply to.";
-      return EMAIL.test(trimmed) ? null : "That address is missing something — check it over.";
+      if (!trimmed) return messages.emailMissing;
+      return EMAIL.test(trimmed) ? null : messages.emailInvalid;
     case "room":
-      return trimmed ? null : "Pick the room you have in mind.";
+      return trimmed ? null : messages.room;
     default:
       return null;
   }
 }
 
-const FIELD_LABELS: Record<FieldName, string> = {
-  name: "Your name",
-  email: "Email",
-  phone: "Phone",
-  room: "The room",
-  place: "Where it is",
-  message: "Anything else",
-};
-
 export function ContactDocket({
-  id,
   rooms,
+  content,
 }: {
-  id?: string;
   rooms: RoomOption[];
+  content: DocketContent;
 }) {
+  // Named once here: the checklist, the error summary and the fields
+  // themselves all label the same six answers, and they must agree.
+  const labels = content.fieldLabels;
   const sectionRef = useRef<HTMLElement>(null);
   const summaryRef = useRef<HTMLDivElement>(null);
 
@@ -146,7 +148,7 @@ export function ContactDocket({
     // at you while you are still typing the first half of your address.
     setErrors((current) => {
       if (!current[field]) return current;
-      if (validate(field, value)) return current;
+      if (validate(field, value, content.errors)) return current;
       const next = { ...current };
       delete next[field];
       return next;
@@ -160,7 +162,7 @@ export function ContactDocket({
   const blur =
     (field: FieldName) =>
     (event: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-      const message = validate(field, event.target.value);
+      const message = validate(field, event.target.value, content.errors);
       setErrors((current) => {
         const next = { ...current };
         if (message) next[field] = message;
@@ -169,7 +171,9 @@ export function ContactDocket({
       });
     };
 
-  const answered = REQUIRED.filter((field) => !validate(field, values[field])).length;
+  const answered = REQUIRED.filter(
+    (field) => !validate(field, values[field], content.errors),
+  ).length;
   const errorList = (Object.keys(errors) as FieldName[]).filter((field) => errors[field]);
 
   const submit = (event: React.FormEvent) => {
@@ -177,7 +181,7 @@ export function ContactDocket({
 
     const found: Partial<Record<FieldName, string>> = {};
     REQUIRED.forEach((field) => {
-      const message = validate(field, values[field]);
+      const message = validate(field, values[field], content.errors);
       if (message) found[field] = message;
     });
 
@@ -195,7 +199,7 @@ export function ContactDocket({
     setSent(true);
     setValues(EMPTY);
     setErrors({});
-    toast.success("Enquiry received — we will be in touch.");
+    toast.success(content.toast);
   };
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -239,25 +243,23 @@ export function ContactDocket({
   const received = (
     <div role="status" className="py-2 sm:py-4">
       <span className="font-display text-[10px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-        Received
+        {content.received.label}
       </span>
       <p
         className="mt-4 max-w-[20ch] font-title font-semibold leading-[1.1] tracking-[-0.03em] text-primary"
         style={{ fontSize: "clamp(1.6rem, 3.4vw, 2.4rem)" }}
       >
-        That is with us.
+        {content.received.heading}
       </p>
       <p className="mt-5 max-w-[46ch] text-[14.5px] leading-[1.7] text-muted-foreground">
-        We read every enquiry ourselves — no call centre, no auto-responder
-        that goes nowhere. You will hear from us the same working day, and we
-        will offer two survey slots rather than asking you to guess at one.
+        {content.received.body}
       </p>
       <button
         type="button"
         onClick={() => setSent(false)}
         className="mt-8 w-full rounded-full border border-border px-6 py-3.5 text-[13.5px] text-primary transition-colors duration-300 hover:border-primary hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
       >
-        Send another
+        {content.received.againLabel}
       </button>
     </div>
   );
@@ -265,13 +267,13 @@ export function ContactDocket({
   return (
     <section
       ref={sectionRef}
-      id={id}
+      id={content.id}
       aria-labelledby="docket-heading"
       className="relative bg-card scroll-mt-24"
     >
       <div className="shell py-20 md:py-28">
         <h2 id="docket-heading" className="sr-only">
-          Send an enquiry
+          {content.srHeading}
         </h2>
 
         {/* ── Fourth design: a rail and a column, not a card ──
@@ -297,10 +299,10 @@ export function ContactDocket({
           <div className="lg:sticky lg:top-28 lg:self-start">
             <div className="flex items-baseline gap-3 border-b border-border/70 pb-4">
               <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-forest-light">
-                C2
+                {content.index}
               </span>
               <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.28em] text-primary/80">
-                Enquiry
+                {content.label}
               </span>
 
               {/* A count and a shape, so it reads at a glance without being
@@ -308,7 +310,7 @@ export function ContactDocket({
                   Superseded by the named checklist from `lg`. */}
               <span className="ml-auto flex items-center gap-2.5 lg:hidden">
                 <span className="text-[11px] tabular-nums text-muted-foreground">
-                  {answered} of {REQUIRED.length}
+                  {fill(content.counter, { answered, total: REQUIRED.length })}
                 </span>
                 <span aria-hidden="true" className="flex gap-1.5">
                   {REQUIRED.map((field, index) => (
@@ -328,11 +330,10 @@ export function ContactDocket({
               className="mt-7 font-title font-semibold leading-[1.1] tracking-[-0.035em] text-primary"
               style={{ fontSize: "clamp(1.7rem, 3.2vw, 2.5rem)" }}
             >
-              Three answers and we can start.
+              {content.heading}
             </p>
             <p className="mt-4 max-w-[44ch] text-[14.5px] leading-[1.7] text-muted-foreground">
-              Everything else is optional. Nothing here books anything, and
-              nobody rings you unless you ask.
+              {content.lede}
             </p>
 
             {/* The same three answers as the squares above, named and ticked
@@ -343,7 +344,7 @@ export function ContactDocket({
                 error summary is what actually reports what is missing. */}
             <ul className="mt-9 hidden lg:block" aria-hidden="true">
               {REQUIRED.map((field) => {
-                const done = !validate(field, values[field]);
+                const done = !validate(field, values[field], content.errors);
                 return (
                   <li
                     key={field}
@@ -365,7 +366,7 @@ export function ContactDocket({
                         done ? "text-primary" : "text-muted-foreground",
                       )}
                     >
-                      {FIELD_LABELS[field]}
+                      {labels[field]}
                     </span>
                   </li>
                 );
@@ -373,7 +374,7 @@ export function ContactDocket({
             </ul>
 
             <p className="mt-7 hidden max-w-[38ch] text-[12.5px] leading-[1.7] text-muted-foreground lg:block">
-              We survey before we quote — so this starts a visit, not a price.
+              {content.note}
             </p>
           </div>
 
@@ -396,8 +397,8 @@ export function ContactDocket({
                       className="font-display text-[10.5px] font-semibold uppercase tracking-[0.24em] text-destructive"
                     >
                       {errorList.length === 1
-                        ? "One answer to finish"
-                        : `${errorList.length} answers to finish`}
+                        ? content.errorSummaryOne
+                        : fill(content.errorSummaryOther, { count: errorList.length })}
                     </p>
                     <ul className="mt-3 space-y-1.5">
                       {errorList.map((field) => (
@@ -406,7 +407,10 @@ export function ContactDocket({
                             href={`#docket-${field}`}
                             className="text-[13.5px] text-foreground underline decoration-destructive/40 underline-offset-4 transition-colors hover:decoration-destructive"
                           >
-                            {FIELD_LABELS[field]} — {errors[field]}
+                            {fill(content.errorItem, {
+                              label: labels[field],
+                              error: errors[field],
+                            })}
                           </a>
                         </li>
                       ))}
@@ -420,7 +424,7 @@ export function ContactDocket({
                 <div className="grid gap-6 sm:grid-cols-2 sm:gap-5">
                   <Field
                     id="docket-name"
-                    label={FIELD_LABELS.name}
+                    label={labels.name}
                     error={errors.name}
                     required
                   >
@@ -434,14 +438,14 @@ export function ContactDocket({
                       onBlur={blur("name")}
                       aria-invalid={errors.name ? true : undefined}
                       aria-describedby={errors.name ? "docket-name-error" : undefined}
-                      placeholder="Priya Shah"
+                      placeholder={content.placeholders.name}
                       className={cn(inputClass, errors.name && "border-destructive/70")}
                     />
                   </Field>
 
                   <Field
                     id="docket-email"
-                    label={FIELD_LABELS.email}
+                    label={labels.email}
                     error={errors.email}
                     required
                   >
@@ -456,12 +460,12 @@ export function ContactDocket({
                       onBlur={blur("email")}
                       aria-invalid={errors.email ? true : undefined}
                       aria-describedby={errors.email ? "docket-email-error" : undefined}
-                      placeholder="you@email.co.uk"
+                      placeholder={content.placeholders.email}
                       className={cn(inputClass, errors.email && "border-destructive/70")}
                     />
                   </Field>
 
-                  <Field id="docket-phone" label={FIELD_LABELS.phone} hint="Only if you would rather we rang.">
+                  <Field id="docket-phone" label={labels.phone} hint={content.hints.phone}>
                     <input
                       id="docket-phone"
                       name="phone"
@@ -470,12 +474,12 @@ export function ContactDocket({
                       autoComplete="tel"
                       value={values.phone}
                       onChange={(event) => set("phone")(event.target.value)}
-                      placeholder="07XXX XXXXXX"
+                      placeholder={content.placeholders.phone}
                       className={inputClass}
                     />
                   </Field>
 
-                  <Field id="docket-place" label={FIELD_LABELS.place} hint="A town or a postcode is plenty.">
+                  <Field id="docket-place" label={labels.place} hint={content.hints.place}>
                     <input
                       id="docket-place"
                       name="place"
@@ -483,7 +487,7 @@ export function ContactDocket({
                       autoComplete="address-level2"
                       value={values.place}
                       onChange={(event) => set("place")(event.target.value)}
-                      placeholder="Oadby"
+                      placeholder={content.placeholders.place}
                       className={inputClass}
                     />
                   </Field>
@@ -500,7 +504,7 @@ export function ContactDocket({
                   aria-describedby={errors.room ? "docket-room-error" : undefined}
                 >
                   <legend className="font-display text-[10.5px] font-semibold uppercase tracking-[0.2em] text-foreground/70">
-                    {FIELD_LABELS.room}
+                    {labels.room}
                     <span aria-hidden="true" className="ml-1.5 text-enzo-forest-light">
                       *
                     </span>
@@ -548,8 +552,8 @@ export function ContactDocket({
                 <div className="mt-8">
                   <Field
                     id="docket-message"
-                    label={FIELD_LABELS.message}
-                    hint="Rough sizes, a deadline, what the room is doing wrong now — whatever is useful."
+                    label={labels.message}
+                    hint={content.hints.message}
                   >
                     <textarea
                       id="docket-message"
@@ -557,7 +561,7 @@ export function ContactDocket({
                       rows={4}
                       value={values.message}
                       onChange={(event) => set("message")(event.target.value)}
-                      placeholder="The kitchen is about 4 × 3 m and we would like it done before Christmas."
+                      placeholder={content.placeholders.message}
                       className={cn(inputClass, "resize-y")}
                     />
                   </Field>
@@ -572,13 +576,12 @@ export function ContactDocket({
                     type="submit"
                     className="w-full shrink-0 rounded-full bg-primary px-10 py-4 text-[14.5px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
                   >
-                    Send enquiry
+                    {content.submitLabel}
                   </button>
                   {/* The rail's copy of this line is hidden below `lg`, so
                       it reappears here — beside the button it qualifies. */}
                   <p className="text-[12.5px] leading-[1.6] text-muted-foreground lg:hidden">
-                    We survey before we quote — so this starts a visit, not a
-                    price.
+                    {content.note}
                   </p>
                 </div>
               </form>

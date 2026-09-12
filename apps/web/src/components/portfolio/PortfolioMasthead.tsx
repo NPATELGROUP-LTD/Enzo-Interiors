@@ -28,12 +28,18 @@ import { useGSAP } from "@/hooks/useGSAP";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
 import { DUR, EASE } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type PortfolioItem, type PortfolioPageContent } from "@/lib/content";
 
 /** How long one room holds before the plate cuts to the next. */
 const HOLD_MS = 4200;
 
-export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
+export function PortfolioMasthead({
+  items,
+  content,
+}: {
+  items: PortfolioItem[];
+  content: PortfolioPageContent["masthead"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
   const [claimed, setClaimed] = useState(false);
@@ -101,12 +107,18 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
       ? years[0]!
       : `${years[0]}–${years[years.length - 1]!.slice(-2)}`;
 
-  const figures = [
-    { value: String(items.length), label: "Rooms finished" },
-    { value: String(disciplines), label: "Disciplines" },
-    { value: String(towns), label: "Towns & villages" },
-    { value: span, label: "Years" },
-  ];
+  // Labels are authored; the values are counted here and matched by key, so
+  // renaming a label in the JSON cannot detach it from its figure.
+  const values: Record<string, string> = {
+    rooms: String(items.length),
+    disciplines: String(disciplines),
+    towns: String(towns),
+    years: span,
+  };
+  const figures = content.figures.map((figure) => ({
+    ...figure,
+    value: values[figure.key] ?? "",
+  }));
 
   return (
     <section
@@ -152,14 +164,16 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
               className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand opacity-0"
               style={{ transform: "translateY(8px)" }}
             >
-              01 — Archive
+              {content.eyebrow}
             </span>
             <span
               data-mast-body
               className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-cream/65 opacity-0"
               style={{ transform: "translateY(8px)" }}
             >
-              {String(items.length).padStart(2, "0")} finished
+              {fill(content.countLabel, {
+                count: String(items.length).padStart(2, "0"),
+              })}
             </span>
           </div>
 
@@ -168,7 +182,7 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
             className="mt-5 font-title font-semibold leading-[0.92] tracking-[-0.05em] md:mt-7"
             style={{ fontSize: "clamp(2.4rem, 7vw, 6rem)" }}
           >
-            {["Every room", "we have finished."].map((line) => (
+            {content.lines.map((line) => (
               <span key={line} className="block overflow-hidden pb-[0.08em] -mb-[0.08em]">
                 <span
                   data-mast-line
@@ -197,7 +211,7 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
 
             <div
               role="group"
-              aria-label="Choose a room"
+              aria-label={content.chooseLabel}
               className="flex flex-wrap items-center"
             >
               {items.map((item, index) => (
@@ -245,14 +259,14 @@ export function PortfolioMasthead({ items }: { items: PortfolioItem[] }) {
           <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
             {figures.map((figure) => (
               <div
-                key={figure.label}
+                key={figure.key}
                 data-mast-body
                 className={cn(
                   // Disciplines / Towns & villages repeat what the hero copy
                   // and location chips already say on a phone-width screen —
                   // cut to the two figures that add information there. Both
                   // return at `sm`, where the grid has room for all four.
-                  figure.label === "Disciplines" || figure.label === "Towns & villages"
+                  figure.key === "disciplines" || figure.key === "towns"
                     ? "hidden"
                     : "flex",
                   "items-baseline justify-between gap-4 border-b border-enzo-cream/15 py-4 opacity-0 sm:block sm:border-l sm:px-5 sm:py-7 md:px-8 md:py-9 lg:border-b-0",

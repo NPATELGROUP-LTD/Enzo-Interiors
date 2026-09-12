@@ -33,7 +33,12 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
-import type { ProcessStep } from "@/lib/content";
+import {
+  fill,
+  type ProcessStep,
+  type ProcessVariantContent,
+  type ServiceDetailContent,
+} from "@/lib/content";
 
 /** Viewport-heights of scroll allotted per stage. */
 const STAGE_VH = 64;
@@ -41,11 +46,19 @@ const STAGE_VH = 64;
 interface ProcessRailProps {
   steps: ProcessStep[];
   id: string;
+  content: ProcessVariantContent;
+  common: ServiceDetailContent["process"];
 }
 
-export function ProcessRail({ steps, id }: ProcessRailProps) {
+export function ProcessRail({ steps, id, content, common }: ProcessRailProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
+  // The heading is rendered twice — once in the pinned desktop stage and once
+  // above the mobile list — so its lines are filled once here.
+  const introLines = content.lines.map((line) =>
+    fill(line, { countWord: spellCount(steps.length) }),
+  );
+  const introDatum = fill(content.datum, { count: steps.length });
 
   useGSAP(
     sectionRef,
@@ -172,18 +185,18 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
       className="relative bg-muted scroll-mt-24"
     >
       <h2 id="service-process-heading" className="sr-only">
-        How it is built
+        {common.srHeading}
       </h2>
 
       {/* Below lg the heading is an ordinary one, above an ordinary list. */}
       <div className="shell pt-20 md:pt-28 lg:hidden">
         <SectionIntro
           layout="split"
-          index="A4"
-          label="Sequence"
-          datum={`${steps.length} stages`}
-          lines={[`${spellCount(steps.length)} stages,`, "in order."]}
-          lede="Nothing here is subcontracted and nothing skips a step. Keep scrolling and the sequence moves with you."
+          index={common.index}
+          label={content.label}
+          datum={introDatum}
+          lines={introLines}
+          lede={content.lede}
         />
       </div>
 
@@ -198,11 +211,11 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
           <div className="shell shrink-0 pt-[7.5rem]">
             <SectionIntro
               layout="split"
-              index="A4"
-              label="Sequence"
-              datum={`${steps.length} stages`}
-              lines={[`${spellCount(steps.length)} stages,`, "in order."]}
-              lede="Nothing here is subcontracted and nothing skips a step. Keep scrolling and the sequence moves with you."
+              index={common.index}
+              label={content.label}
+              datum={introDatum}
+              lines={introLines}
+              lede={content.lede}
               titleClassName="!text-[clamp(1.7rem,2.8vw,2.6rem)]"
             />
           </div>
@@ -236,7 +249,10 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-                      Stage {index + 1} / {steps.length}
+                      {fill(common.stageLabel, {
+                        index: index + 1,
+                        total: steps.length,
+                      })}
                     </span>
                   </div>
 
@@ -296,7 +312,7 @@ export function ProcessRail({ steps, id }: ProcessRailProps) {
                 className="absolute -left-8 top-2 h-[7px] w-[7px] rounded-full bg-enzo-sand ring-4 ring-muted"
               />
               <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-                Stage {index + 1} / {steps.length}
+                {fill(common.stageLabel, { index: index + 1, total: steps.length })}
               </span>
               <h3 className="mt-2 font-title text-[1.2rem] font-semibold leading-[1.15] tracking-[-0.025em] text-primary">
                 {step.step}

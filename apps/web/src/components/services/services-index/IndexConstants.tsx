@@ -51,47 +51,26 @@ import { useRef, useState } from "react";
 import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
+import type { ServicesPageContent } from "@/lib/content";
 import { ConstantMark } from "./ConstantMarks";
 
-interface Constant {
-  title: string;
-  body: string;
-  datum: string;
-}
-
-const CONSTANTS: Constant[] = [
-  {
-    title: "One team, start to finish",
-    body: "The person who measures your room is the person who draws it, and our own fitters install it. No subcontractors, no handovers, nobody blaming the last trade.",
-    datum: "0 subcontractors",
-  },
-  {
-    title: "Surveyed before it is quoted",
-    body: "We come to you, measure every wall, and photograph the space before a number is written down. A quote given over the phone is a guess.",
-    datum: "60–90 min visit",
-  },
-  {
-    title: "Drawn in 3D before it is cut",
-    body: "You see the room you are buying — finishes, handles, internal layout — and sign it off before a single sheet goes on the saw.",
-    datum: "Included, always",
-  },
-  {
-    title: "Five-year workmanship guarantee",
-    body: "Every installation, every discipline, in writing. If something we fitted moves, sticks or fails, we come back and put it right.",
-    datum: "5 years",
-  },
-];
-
-export function IndexConstants() {
+export function IndexConstants({
+  content,
+}: {
+  content: ServicesPageContent["constants"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const [reached, setReached] = useState(0);
+  // How many promises there are is a property of the copy, not a constant:
+  // the marker's travel and the reading line are divided by it.
+  const total = content.items.length;
 
   useGSAP(sectionRef, (section, reduced) => {
     const list = section.querySelector<HTMLElement>("[data-constants-list]");
     const marker = section.querySelector<HTMLElement>("[data-constants-marker]");
 
     if (reduced) {
-      setReached(CONSTANTS.length);
+      setReached(total);
       if (marker) gsap.set(marker, { scaleY: 1 });
       return;
     }
@@ -109,10 +88,7 @@ export function IndexConstants() {
         gsap.set(marker, { scaleY: progress });
       }
 
-      const index = Math.min(
-        CONSTANTS.length,
-        Math.floor(progress * CONSTANTS.length + 0.35),
-      );
+      const index = Math.min(total, Math.floor(progress * total + 0.35));
       setReached((current) => (current === index ? current : index));
     };
 
@@ -133,17 +109,17 @@ export function IndexConstants() {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="services-constants-heading" className="sr-only">
-          What every job includes
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="03"
-          label="Constant"
-          datum="on every job"
-          lines={["Four things that", "never vary."]}
-          lede="Whichever discipline you pick, and whatever it costs, these are fixed. They are the reason the schedule above is worth trusting."
+          index={content.index}
+          label={content.label}
+          datum={content.datum}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <div
@@ -162,7 +138,7 @@ export function IndexConstants() {
             style={{ transform: "scaleY(0)" }}
           />
 
-          {CONSTANTS.map((item, index) => {
+          {content.items.map((item, index) => {
             // Scroll is the only thing that finishes a promise now. Hover used
             // to do it too, which sounded generous and made the section
             // impossible to follow: the four items are a *sequence* down a
@@ -251,6 +227,7 @@ export function IndexConstants() {
                   <ConstantMark
                     index={index}
                     on={live}
+                    content={content.marks}
                     className="hidden w-full lg:block"
                   />
                 </div>

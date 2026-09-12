@@ -36,8 +36,9 @@ import {
   ZOOM_MAX,
   ZOOM_MIN,
   type OrbitState,
+  type Viewpoint,
 } from "@/lib/scene-common";
-import { VIEWPOINTS } from "./MediaWallScene";
+import type { HomeContent, MediaItem } from "@/lib/content";
 
 const MediaWallScene = dynamic(() => import("./MediaWallScene"), {
   ssr: false,
@@ -52,15 +53,17 @@ const MediaWallScene = dynamic(() => import("./MediaWallScene"), {
  */
 const PANEL_COLUMNS = "minmax(0,1fr) minmax(0,20rem)";
 
-/** Construction facts, not process claims — deliberately not overlapping §02. */
-const SPECS = [
-  { value: "18 mm", label: "Carcass", note: "Moisture-resistant board, edge-banded on every visible face." },
-  { value: "4 mm", label: "Shadow gap", note: "Consistent across the run and scribed to the wall at both ends." },
-  { value: "75 in", label: "TV recess", note: "Cut to your screen, with cable routes dropped before we fit." },
-  { value: "5 yr", label: "Guarantee", note: "On every joint, hinge and soft-close runner we fit." },
-];
-
-export function WorkshopModule() {
+// The specs beside the model are construction facts, not process claims —
+// deliberately not overlapping §02 — and they are authored with the rest of
+// this section's copy.
+export function WorkshopModule({
+  content,
+  fallbackImage,
+}: {
+  content: HomeContent["workshop"];
+  /** Shown instead of the canvas under reduced motion. */
+  fallbackImage: MediaItem;
+}) {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const orbitRef = useRef<OrbitState>(neutralOrbit());
@@ -75,7 +78,8 @@ export function WorkshopModule() {
   const prefersReducedMotion = usePrefersReducedMotion();
   const showcase = !isDesktop;
   const canRender3D = !prefersReducedMotion;
-  const view = VIEWPOINTS[viewIndex]!;
+  const viewpoints: Viewpoint[] = content.viewpoints;
+  const view = viewpoints[viewIndex]!;
 
   // Hold the WebGL context back until the section is genuinely nearby.
   //
@@ -274,22 +278,18 @@ export function WorkshopModule() {
 
       <div className="relative shell flex flex-col py-20 md:py-28 lg:min-h-0 lg:flex-1 lg:py-[clamp(2.5rem,5vh,4.5rem)]">
         <h2 id="craft-heading" className="sr-only">
-          How it is built
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           splitTemplate={PANEL_COLUMNS}
           tone="dark"
-          index="03"
-          label="Construction"
-          datum="18 mm carcass"
-          lines={["Built like furniture,", "not like flat-pack."]}
-          lede={
-            showcase
-              ? "A media wall, drawn to the millimetre — turning through open and shut."
-              : "Turn it, open the doors, look inside. A media wall, drawn to the millimetre."
-          }
+          index={content.index}
+          label={content.label}
+          datum={content.datum}
+          lines={content.lines}
+          lede={showcase ? content.ledeShowcase : content.lede}
         />
 
         {/* ── One screen, one sequence ──
@@ -332,8 +332,7 @@ export function WorkshopModule() {
                 ? {
                     tabIndex: 0,
                     role: "application" as const,
-                    "aria-label":
-                      "Interactive media wall model — arrow keys turn it, plus and minus zoom, zero recentres, Enter opens the doors.",
+                    "aria-label": content.controls.stageAriaLabel,
                   }
                 : {})}
               className="relative aspect-[3/4] w-full max-h-[220px] overflow-hidden rounded-[22px] border border-enzo-cream/10 bg-enzo-forest/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-forest sm:aspect-[16/10] sm:max-h-none lg:aspect-auto lg:min-h-0 lg:flex-1"
@@ -345,7 +344,7 @@ export function WorkshopModule() {
               {canRender3D && sceneReady ? (
                 <>
                   <MediaWallScene
-                    view={showcase ? VIEWPOINTS[1]! : view}
+                    view={showcase ? viewpoints[1]! : view}
                     orbitRef={orbitRef}
                     doorsOpen={doorsOpen}
                     showcase={showcase}
@@ -354,7 +353,7 @@ export function WorkshopModule() {
                   {showcase ? (
                     <span className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-gradient-to-t from-enzo-dark/85 to-transparent px-4 pb-4 pt-10 text-center text-[11.5px] leading-snug text-enzo-cream/85">
                       <Monitor className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                      Open on a desktop to turn it and open the doors yourself
+                      {content.controls.showcaseNote}
                     </span>
                   ) : (
                     <>
@@ -365,7 +364,7 @@ export function WorkshopModule() {
                         style={{ opacity: hasOrbited ? 0 : 1 }}
                       >
                         <span className="rounded-full bg-enzo-dark/70 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-enzo-cream/85 backdrop-blur-sm">
-                          Drag to turn · scroll to zoom
+                          {content.controls.hint}
                         </span>
                       </div>
 
@@ -386,10 +385,10 @@ export function WorkshopModule() {
                       <div className="absolute inset-x-0 bottom-0 flex items-center gap-3 bg-gradient-to-t from-enzo-dark/90 via-enzo-dark/70 to-transparent px-3 pb-3 pt-10 sm:px-4 sm:pb-4">
                         <div
                           role="group"
-                          aria-label="Camera viewpoints"
+                          aria-label={content.controls.viewpointGroupLabel}
                           className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-full bg-enzo-dark/70 p-1 backdrop-blur-sm [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
                         >
-                          {VIEWPOINTS.map((viewpoint, index) => {
+                          {viewpoints.map((viewpoint, index) => {
                             const isActive = index === viewIndex;
                             return (
                               <button
@@ -419,7 +418,7 @@ export function WorkshopModule() {
                           data-viewer-control
                           onClick={resetOrbit}
                           disabled={!hasOrbited}
-                          aria-label="Recentre the model"
+                          aria-label={content.controls.recentreLabel}
                           className={cn(
                             "flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-enzo-dark/70 text-enzo-cream backdrop-blur-sm transition-all duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand",
                             hasOrbited
@@ -463,7 +462,9 @@ export function WorkshopModule() {
                               }}
                             />
                           </span>
-                          {doorsOpen ? "Doors open" : "Open the doors"}
+                          {doorsOpen
+                            ? content.controls.doorsOpenLabel
+                            : content.controls.doorsClosedLabel}
                         </button>
                       </div>
                     </>
@@ -471,8 +472,8 @@ export function WorkshopModule() {
                 </>
               ) : (
                 <ImageWithFallback
-                  src="/fireplaceMediawall.jpeg"
-                  alt="Bespoke media wall built by Enzo Interiors"
+                  src={fallbackImage.src}
+                  alt={content.fallback.alt}
                   loading="lazy"
                   className="h-full w-full object-cover"
                 />
@@ -480,8 +481,7 @@ export function WorkshopModule() {
             </div>
 
             <p className="mt-3 text-[11.5px] leading-[1.5] text-enzo-cream/60 lg:order-last lg:mt-2 lg:max-w-[70ch] lg:text-[11px]">
-              Illustrative 3D render only — not the actual finished piece. Your final design is
-              built to the exact specification, materials and measurements agreed with you.
+              {content.disclaimer}
             </p>
 
             {/* The viewpoint's note, under the stage rather than over the
@@ -509,7 +509,7 @@ export function WorkshopModule() {
               stage reads as a specification; an evenly-spread one reads as a
               column that could not decide how tall it was. */}
           <div className="flex flex-col gap-5 lg:min-h-0 lg:gap-6 lg:overflow-y-auto">
-            {SPECS.map((spec) => (
+            {content.specs.map((spec) => (
               <div key={spec.label} data-spec className="border-t border-enzo-cream/15 pt-4">
                 {/* `justify-between` + a bumped-up label size only below
                     `lg`: at phone width the value and its unit-word are the

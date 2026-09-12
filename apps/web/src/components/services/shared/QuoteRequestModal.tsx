@@ -38,6 +38,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { fill, type SharedContent } from "@/lib/content";
 
 export interface QuoteRequestInfo {
   /** Pricing tier the visitor selected, e.g. "Premium". */
@@ -54,14 +55,6 @@ const QuoteModalContext = createContext<QuoteModalContextValue | null>(null);
 
 const EMPTY_FORM = { name: "", email: "", phone: "", budget: "", details: "" };
 
-const BUDGETS = [
-  "Under £3,000",
-  "£3,000 – £5,000",
-  "£5,000 – £10,000",
-  "£10,000 – £20,000",
-  "£20,000+",
-];
-
 function bookingHref(category: string, tier?: string) {
   const params = new URLSearchParams({ service: category });
   if (tier) params.set("tier", tier);
@@ -76,11 +69,14 @@ const LABEL_CLASS =
 export function QuoteModalRoot({
   serviceTitle,
   category,
+  content,
   children,
 }: {
   serviceTitle: string;
   /** Service slug, e.g. "kitchens" — feeds the "Book a Consultation" link. */
   category: string;
+  /** The sheet's labels and its budget bands, from src/data/pages/shared.json. */
+  content: SharedContent["quoteModal"];
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -133,10 +129,10 @@ export function QuoteModalRoot({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const suffix = requestInfo.tier ? ` (${requestInfo.tier} specification)` : "";
-    toast.success(
-      `Quote request submitted for ${serviceTitle}${suffix}. We'll be in touch within 24 hours.`,
-    );
+    const suffix = requestInfo.tier
+      ? fill(content.toastTierSuffix, { tier: requestInfo.tier })
+      : "";
+    toast.success(fill(content.toast, { service: serviceTitle, suffix }));
     setIsOpen(false);
     setForm(EMPTY_FORM);
     setRequestInfo({});
@@ -187,7 +183,7 @@ export function QuoteModalRoot({
               <div className="flex items-start justify-between gap-6">
                 <div>
                   <span className="font-display text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-                    Quote request
+                    {content.eyebrow}
                   </span>
                   <h2
                     id="quote-modal-heading"
@@ -197,7 +193,7 @@ export function QuoteModalRoot({
                   </h2>
                   {requestInfo.tier && (
                     <p className="mt-1 text-[13px] text-muted-foreground">
-                      {requestInfo.tier} specification
+                      {fill(content.tierNote, { tier: requestInfo.tier })}
                     </p>
                   )}
                   {requestInfo.estimateLabel && (
@@ -206,14 +202,16 @@ export function QuoteModalRoot({
                         aria-hidden="true"
                         className="h-1.5 w-1.5 rounded-full bg-enzo-sand"
                       />
-                      Estimated {requestInfo.estimateLabel}
+                      {fill(content.estimateLabel, {
+                        estimate: requestInfo.estimateLabel,
+                      })}
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
                   onClick={close}
-                  aria-label="Close quote request"
+                  aria-label={content.closeLabel}
                   className="-mr-1 -mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-colors duration-200 hover:border-primary hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   <X className="h-4 w-4" />
@@ -223,7 +221,7 @@ export function QuoteModalRoot({
               <form onSubmit={handleSubmit} className="mt-7 space-y-4">
                 <div>
                   <label htmlFor="quote-name" className={LABEL_CLASS}>
-                    Full name
+                    {content.fields.name.label}
                   </label>
                   <input
                     id="quote-name"
@@ -234,14 +232,14 @@ export function QuoteModalRoot({
                       setForm({ ...form, name: event.target.value })
                     }
                     className={FIELD_CLASS}
-                    placeholder="Your name"
+                    placeholder={content.fields.name.placeholder}
                   />
                 </div>
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label htmlFor="quote-email" className={LABEL_CLASS}>
-                      Email
+                      {content.fields.email.label}
                     </label>
                     <input
                       id="quote-email"
@@ -253,12 +251,12 @@ export function QuoteModalRoot({
                         setForm({ ...form, email: event.target.value })
                       }
                       className={FIELD_CLASS}
-                      placeholder="you@email.com"
+                      placeholder={content.fields.email.placeholder}
                     />
                   </div>
                   <div>
                     <label htmlFor="quote-phone" className={LABEL_CLASS}>
-                      Phone
+                      {content.fields.phone.label}
                     </label>
                     <input
                       id="quote-phone"
@@ -269,14 +267,14 @@ export function QuoteModalRoot({
                         setForm({ ...form, phone: event.target.value })
                       }
                       className={FIELD_CLASS}
-                      placeholder="07XXX XXXXXX"
+                      placeholder={content.fields.phone.placeholder}
                     />
                   </div>
                 </div>
 
                 <div>
                   <label htmlFor="quote-budget" className={LABEL_CLASS}>
-                    Budget range
+                    {content.fields.budget.label}
                   </label>
                   <select
                     id="quote-budget"
@@ -286,8 +284,8 @@ export function QuoteModalRoot({
                     }
                     className={FIELD_CLASS}
                   >
-                    <option value="">Select range…</option>
-                    {BUDGETS.map((budget) => (
+                    <option value="">{content.fields.budget.placeholder}</option>
+                    {content.budgets.map((budget) => (
                       <option key={budget}>{budget}</option>
                     ))}
                   </select>
@@ -295,7 +293,7 @@ export function QuoteModalRoot({
 
                 <div>
                   <label htmlFor="quote-details" className={LABEL_CLASS}>
-                    Project details
+                    {content.fields.details.label}
                   </label>
                   <textarea
                     id="quote-details"
@@ -306,7 +304,7 @@ export function QuoteModalRoot({
                       setForm({ ...form, details: event.target.value })
                     }
                     className={`${FIELD_CLASS} resize-none`}
-                    placeholder="Tell us about your space and what you're looking for…"
+                    placeholder={content.fields.details.placeholder}
                   />
                 </div>
 
@@ -314,7 +312,7 @@ export function QuoteModalRoot({
                   type="submit"
                   className="w-full rounded-full bg-primary py-3.5 text-[14px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
-                  Send quote request
+                  {content.submitLabel}
                 </button>
               </form>
 
@@ -323,7 +321,7 @@ export function QuoteModalRoot({
                 onClick={close}
                 className="mt-3 block rounded-full border border-border py-3 text-center text-[13.5px] text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Rather talk it through? Book a free consultation
+                {content.bookingLinkLabel}
               </Link>
             </motion.div>
           </motion.div>

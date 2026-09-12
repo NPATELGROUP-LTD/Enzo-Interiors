@@ -32,6 +32,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
+import type { Company, SharedContent } from "@/lib/content";
 
 interface BookSurveyCtaProps {
   /** Headline lines — one array entry per visual line. */
@@ -46,26 +47,13 @@ interface BookSurveyCtaProps {
   /** Alt text for that image — the service title reads best. */
   imageAlt?: string;
   id?: string;
+  /** The three survey stages and the browse line — the same on every service
+   *  page, so they live in src/data/pages/shared.json rather than per page. */
+  content: SharedContent["bookSurveyCta"];
+  /** The studio's one number. This section carried its own placeholder copy
+   *  of it until the company record became the single source. */
+  company: Company;
 }
-
-const PHONE_DISPLAY = "0116 XXX XXXX";
-const PHONE_HREF = "tel:0116XXXXXXX";
-
-/** What the visit actually is. Studio-wide, like the hero's facts. */
-const STAGES = [
-  {
-    title: "We measure",
-    body: "Every wall, every service and every awkward corner, photographed as we go.",
-  },
-  {
-    title: "We listen",
-    body: "How you use the room, what has to stay, and what you would rather spend it on.",
-  },
-  {
-    title: "You get drawings",
-    body: "And an honest figure — before anything is ordered and before anything is cut.",
-  },
-];
 
 export function BookSurveyCta({
   lines,
@@ -76,6 +64,8 @@ export function BookSurveyCta({
   image,
   imageAlt,
   id,
+  content,
+  company,
 }: BookSurveyCtaProps) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -185,7 +175,7 @@ export function BookSurveyCta({
               className="font-display block text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand opacity-0"
               style={{ transform: "translateY(10px)" }}
             >
-              A6 — Book
+              {content.eyebrow}
             </span>
 
             <h2
@@ -220,7 +210,7 @@ export function BookSurveyCta({
               className="mt-10 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              {STAGES.map((stage, index) => (
+              {content.stages.map((stage, index) => (
                 <li
                   key={stage.title}
                   className="grid grid-cols-[2.25rem_minmax(0,1fr)] gap-x-2 border-t border-enzo-cream/12 py-4 last:border-b"
@@ -264,10 +254,10 @@ export function BookSurveyCta({
               </Link>
 
               <a
-                href={PHONE_HREF}
+                href={company.phone.href}
                 className="block rounded-full border border-enzo-cream/20 px-9 py-4 text-center text-[14.5px] tabular-nums text-enzo-cream/70 transition-colors duration-300 hover:border-enzo-cream/50 hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark sm:inline sm:rounded-none sm:border-0 sm:p-0 sm:underline sm:decoration-enzo-cream/25 sm:decoration-1 sm:underline-offset-[6px] sm:hover:decoration-enzo-sand"
               >
-                {PHONE_DISPLAY}
+                {company.phone.display}
               </a>
             </div>
 
@@ -304,12 +294,12 @@ export function BookSurveyCta({
               className="mt-6 text-[12.5px] text-enzo-cream/65 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              Prefer to browse first?{" "}
+              {content.browsePrefix}{" "}
               <Link
-                href="/portfolio"
+                href={content.browseHref}
                 className="underline decoration-enzo-cream/25 decoration-1 underline-offset-4 transition-colors duration-300 hover:text-enzo-sand hover:decoration-enzo-sand"
               >
-                See finished rooms
+                {content.browseLabel}
               </Link>
             </p>
           </div>

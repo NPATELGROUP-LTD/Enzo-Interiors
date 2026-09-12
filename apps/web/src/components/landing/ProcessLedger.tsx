@@ -25,6 +25,7 @@ import { ArrowRight } from "lucide-react";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
+import { fill, type HomeContent } from "@/lib/content";
 import { ElevationDrawing } from "./ElevationDrawing";
 
 /** Viewport-heights of scroll each stage holds the stage for. */
@@ -38,37 +39,10 @@ const STAGE_VH = 85;
  */
 const PINNED_COLUMNS = "minmax(0,1fr) minmax(0,23rem)";
 
-const STAGES = [
-  {
-    title: "Consultation",
-    datum: "60–90 min",
-    body: "We come to you, measure the room properly, photograph every wall and ask how you actually use the space.",
-  },
-  {
-    title: "Design",
-    datum: "5–7 days",
-    body: "You get a 3D visual of the finished room and a fixed, itemised quote — refined until you stop finding things to change.",
-  },
-  {
-    title: "Making",
-    datum: "2–4 weeks",
-    body: "Cut, edged and assembled in our Leicester workshop by the people who drew it. Every panel is made for your room.",
-  },
-  {
-    title: "Fitting",
-    datum: "2–5 days",
-    body: "Scribed to your walls, levelled and sealed. Floors covered, dust contained, every gap lined up.",
-  },
-  {
-    title: "Handover",
-    datum: "same day",
-    body: "We walk the room with you, clear the snag list, then leave care notes and a five-year workmanship guarantee.",
-  },
-];
-
-export function ProcessLedger() {
+export function ProcessLedger({ content }: { content: HomeContent["process"] }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
+  const stages = content.stages;
 
   useGSAP(
     sectionRef,
@@ -85,7 +59,7 @@ export function ProcessLedger() {
           const rect = track.getBoundingClientRect();
           const total = rect.height - window.innerHeight;
           const progress = total > 0 ? gsap.utils.clamp(0, 1, -rect.top / total) : 0;
-          const index = Math.min(STAGES.length - 1, Math.floor(progress * STAGES.length));
+          const index = Math.min(stages.length - 1, Math.floor(progress * stages.length));
           setActive((current) => (current === index ? current : index));
         };
 
@@ -110,7 +84,7 @@ export function ProcessLedger() {
             trigger: drawing,
             start: "top 80%",
             once: true,
-            onEnter: () => setActive(STAGES.length - 1),
+            onEnter: () => setActive(stages.length - 1),
           });
         }
       }
@@ -152,7 +126,7 @@ export function ProcessLedger() {
     { queries: { desktop: "(min-width: 1024px)" } },
   );
 
-  const current = STAGES[active]!;
+  const current = stages[active]!;
 
   // Declared once, rendered in whichever of the two frames the current width
   // uses (see the comment at the sticky frame). Only ever one of them is
@@ -165,11 +139,11 @@ export function ProcessLedger() {
     <SectionIntro
       layout="split"
       splitTemplate={PINNED_COLUMNS}
-      index="02"
-      label="Process"
-      datum="five to eight weeks"
-      lines={["Drawn, made and fitted", "by the same hands."]}
-      lede="Five stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does."
+      index={content.index}
+      label={content.label}
+      datum={content.datum}
+      lines={content.lines}
+      lede={content.lede}
     />
   );
 
@@ -177,7 +151,7 @@ export function ProcessLedger() {
     <section ref={sectionRef} id="home-process"
       aria-labelledby="process-heading" className="bg-muted scroll-mt-24">
       <h2 id="process-heading" className="sr-only">
-        Our process
+        {content.srHeading}
       </h2>
 
       {/* Below `lg` there is no sticky stage to put the heading inside, so it
@@ -188,7 +162,7 @@ export function ProcessLedger() {
       <div
         data-process-track
         className="relative hidden lg:block"
-        style={{ height: `${STAGE_VH * STAGES.length}vh` }}
+        style={{ height: `${STAGE_VH * stages.length}vh` }}
       >
         {/* ── The pinned frame, laid out exactly as §A4 on a service page ──
             One viewport tall, and read top-down: the sheet rule, the heading
@@ -276,6 +250,7 @@ export function ProcessLedger() {
                 >
                   <ElevationDrawing
                     active={active}
+                    content={content.drawing}
                     className="aspect-[16/9] h-auto w-full max-w-[min(100%,62rem,calc((100svh-26rem)*16/9))]"
                   />
                 </div>
@@ -327,9 +302,12 @@ export function ProcessLedger() {
                   {/* Five equal segments, filled to the current stage. */}
                   <ol
                     className="flex gap-1.5"
-                    aria-label={`Stage ${active + 1} of ${STAGES.length}`}
+                    aria-label={fill(content.stagesAria, {
+                      current: active + 1,
+                      total: stages.length,
+                    })}
                   >
-                    {STAGES.map((stage, index) => (
+                    {stages.map((stage, index) => (
                       <li key={stage.title} className="flex-1">
                         <span
                           className="block h-[3px] w-full overflow-hidden rounded-full bg-primary/15"
@@ -352,7 +330,7 @@ export function ProcessLedger() {
                     aria-hidden="true"
                     className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-[0.12em]"
                   >
-                    {STAGES.map((stage, index) => (
+                    {stages.map((stage, index) => (
                       <span key={stage.title} className="flex items-center gap-2">
                         <span
                           className="transition-colors duration-300"
@@ -371,7 +349,7 @@ export function ProcessLedger() {
                         >
                           {stage.title}
                         </span>
-                        {index < STAGES.length - 1 && (
+                        {index < stages.length - 1 && (
                           <span className="text-primary/25">/</span>
                         )}
                       </span>
@@ -380,10 +358,10 @@ export function ProcessLedger() {
                 </div>
 
                 <Link
-                  href="/booking"
+                  href={content.ctaHref}
                   className="touch-target group/book inline-flex w-fit items-center gap-2 border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
                 >
-                  Start at stage one
+                  {content.ctaLabel}
                   <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/book:translate-x-1" />
                 </Link>
               </div>
@@ -396,11 +374,11 @@ export function ProcessLedger() {
       {/* ── Mobile: drawing once, then a plain list ── */}
       <div className="shell pb-20 lg:hidden">
         <div data-process-drawing className="mt-10">
-          <ElevationDrawing active={active} />
+          <ElevationDrawing active={active} content={content.drawing} />
         </div>
 
         <ol className="mt-8">
-          {STAGES.map((stage, index) => (
+          {stages.map((stage, index) => (
             <li
               key={stage.title}
               data-stage-card
@@ -433,16 +411,16 @@ export function ProcessLedger() {
             not a caption someone has to aim for. */}
         <div className="mt-8 rounded-[20px] bg-primary px-6 py-6">
           <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-primary-foreground/60">
-            Typical project
+            {content.mobileCard.label}
           </p>
           <p className="mt-2 text-[1.4rem] font-semibold leading-tight tracking-[-0.02em] text-primary-foreground">
-            Five to eight weeks, start to fitted.
+            {content.mobileCard.heading}
           </p>
           <Link
-            href="/booking"
+            href={content.ctaHref}
             className="mt-5 flex items-center justify-between gap-3 rounded-full bg-primary-foreground py-2 pl-5 pr-2 text-[13.5px] font-semibold text-primary transition-transform duration-300 active:scale-[0.98]"
           >
-            Start at stage one
+            {content.ctaLabel}
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
               <ArrowRight className="h-4 w-4" />
             </span>

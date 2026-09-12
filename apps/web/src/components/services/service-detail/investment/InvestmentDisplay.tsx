@@ -47,47 +47,50 @@ import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
+import { estimateQuote, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
-import type { PricingTier } from "@/lib/content";
+import {
+  fill,
+  type InvestmentVariantContent,
+  type PricingTier,
+  type ServiceDetailContent,
+  type SharedContent,
+} from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
 import { RollingFigure } from "./RollingFigure";
 import { GBP } from "@/lib/service-metrics";
 
-/**
- * What actually moves a media wall's price, in the order it usually moves
- * it. Fixed copy about the trade rather than per-service data: the client
- * authors tiers and features in the Content Manager, and would not author
- * this, but a range with nothing explaining its width is a range nobody
- * trusts.
- */
-const WHAT_MOVES_IT = [
-  {
-    label: "The wall behind",
-    body: "Masonry costs less to fix into than stud. Stud we open up and reinforce.",
-  },
-  {
-    label: "How much of it is media",
-    body: "A screen and a soundbar is one job. An amplifier, a subwoofer and a rack that has to breathe is another.",
-  },
-  {
-    label: "Where the cables come from ",
-    body: "A socket already on that wall is free. One that has to come across the room is not.",
-  },
-] as const;
+// "What moves the figure" is copy about the trade rather than per-service
+// data — the client authors tiers and features, and would not author this —
+// but it is still copy, so it lives with the rest of this layout's words in
+// src/data/pages/service-detail.json. A range with nothing explaining its
+// width is a range nobody trusts.
 
 export function InvestmentDisplay({
   category,
   pricing,
   id,
+  content,
+  common,
+  roomSizeContent,
 }: {
   category: string;
   pricing: PricingTier[];
   id: string;
+  content: InvestmentVariantContent;
+  common: ServiceDetailContent["investment"];
+  roomSizeContent: SharedContent["roomSize"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [roomSize, setRoomSize] = useState<RoomSize>("medium");
+  const {
+    specificationLabel = "",
+    frameHeader = "",
+    roomLabel = "",
+    movesLabel = "",
+    moves = [],
+  } = content;
   // Middle specification by position — a rule rather than a hardcoded index,
   // so it still points at something sensible with two tiers or five.
   const [selected, setSelected] = useState(() =>
@@ -149,16 +152,16 @@ export function InvestmentDisplay({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
-          Investment
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A5"
-          label="Display"
-          datum={`${pricing.length} specifications`}
-          lines={["Put one up,", "and see the figure."]}
-          lede="Pick a specification and a room size; the frame re-prices in place. Indicative ranges — the firm figure comes after we have measured."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: pricing.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* `items-stretch` is the fix for the dead pocket: the rail and the
@@ -168,16 +171,20 @@ export function InvestmentDisplay({
           {/* ── The rail: both controls, one column ── */}
           <div className="flex flex-col">
             <div className="border-t border-border/70 pt-6">
-              <RoomSizeControl value={roomSize} onChange={setRoomSize} />
+              <RoomSizeControl
+                value={roomSize}
+                onChange={setRoomSize}
+                content={roomSizeContent}
+              />
             </div>
 
             <div
               role="radiogroup"
-              aria-label="Specification"
+              aria-label={specificationLabel}
               className="mt-8 flex flex-1 flex-col"
             >
               <span className="font-display block text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-                Specification
+                {specificationLabel}
               </span>
 
               {/* flex-1 on the list and on each row: three tiers spread to
@@ -220,7 +227,7 @@ export function InvestmentDisplay({
                           {entry.tier}
                         </span>
                         <span className="mt-1 block text-[12px] text-muted-foreground">
-                          from {entry.from}
+                          {fill(common.fromLabel, { price: entry.from })}
                         </span>
                       </span>
                       <span
@@ -239,9 +246,7 @@ export function InvestmentDisplay({
               </div>
 
               <p className="mt-6 max-w-[38ch] text-[12.5px] leading-[1.7] text-muted-foreground">
-                Ranges scale the specification&rsquo;s starting price by room
-                size. A guide for planning, not a quotation — we do not price a
-                room we have not measured.
+                {content.footnote}
               </p>
             </div>
           </div>
@@ -268,10 +273,13 @@ export function InvestmentDisplay({
 
             <div className="relative flex items-start justify-between gap-6">
               <span className="font-display text-[10px] font-semibold uppercase tracking-[0.26em] text-enzo-sand">
-                {String(selected + 1).padStart(2, "0")} — {tier.tier}
+                {fill(frameHeader, {
+                  index: String(selected + 1).padStart(2, "0"),
+                  tier: tier.tier,
+                })}
               </span>
               <span className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-cream/65">
-                {ROOM_SIZE_LABELS[roomSize]} room
+                {fill(roomLabel, { size: roomSizeContent.sizes[roomSize] })}
               </span>
             </div>
 
@@ -287,7 +295,7 @@ export function InvestmentDisplay({
                     <RollingFigure value={estimate.high} />
                   </>
                 ) : (
-                  "On application"
+                  common.onApplication
                 )}
               </p>
               <p className="mt-3 max-w-[46ch] text-[14px] leading-[1.6] text-enzo-cream/70">
@@ -300,10 +308,10 @@ export function InvestmentDisplay({
                 they see two numbers with a dash between them. */}
             <div className="relative mt-9 flex-1 border-t border-enzo-cream/12 pt-6">
               <span className="font-display block text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-cream/55">
-                What moves the figure
+                {movesLabel}
               </span>
               <dl className="mt-4 grid gap-x-8 gap-y-4 sm:grid-cols-3">
-                {WHAT_MOVES_IT.map((reason) => (
+                {moves.map((reason) => (
                   <div key={reason.label}>
                     <dt className="flex items-baseline gap-2 text-[13px] font-medium text-enzo-cream">
                       <span aria-hidden="true" className="h-px w-3 shrink-0 bg-enzo-sand" />
@@ -333,7 +341,7 @@ export function InvestmentDisplay({
                 quoteInfo={{ tier: tier.tier, estimateLabel }}
                 className="mt-6 w-full rounded-full bg-enzo-cream py-3.5 text-[14px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark sm:w-auto sm:px-10"
               >
-                Get this quoted
+                {common.quoteLabel}
               </QuoteTriggerButton>
             </div>
           </div>

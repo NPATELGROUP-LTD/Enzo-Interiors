@@ -26,8 +26,10 @@ import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import { getStudioStatus, type StudioStatus } from "@/lib/studio-hours";
 import { cn } from "@/lib/utils";
+import type { Company, ContactPageContent, ContactRouteContent } from "@/lib/content";
 
-export interface ContactRoute {
+/** A route with its value and href resolved, whichever way they were authored. */
+interface ContactRoute {
   /** Sheet-style index — "01", "02", "03". */
   index: string;
   label: string;
@@ -41,29 +43,41 @@ export interface ContactRoute {
 }
 
 export function ContactMasthead({
-  title,
-  lede,
-  routes,
-  place,
+  content,
+  company,
 }: {
-  /** One array entry per masthead line. */
-  title: string[];
-  lede: string;
-  routes: ContactRoute[];
-  place: string;
+  content: ContactPageContent["masthead"];
+  company: Company;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [status, setStatus] = useState<StudioStatus | null>(null);
+  const hours = company.hours;
 
   // After mount, and then on the hour-boundary rhythm — a visitor who
   // leaves the page open through 17:00 should not be told for the rest of
   // the evening that the workshop is open.
   useEffect(() => {
-    const tick = () => setStatus(getStudioStatus());
+    const tick = () => setStatus(getStudioStatus(hours));
     tick();
     const timer = window.setInterval(tick, 60_000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [hours]);
+
+  // Two of the three routes name a field of the company record rather than
+  // repeating the number or the address in this page's copy.
+  const sources: Record<string, { value: string; href: string }> = {
+    phone: { value: company.phone.display, href: company.phone.href },
+    email: { value: company.email, href: company.emailHref },
+  };
+  const authored: ContactRouteContent[] = content.routes;
+  const routes: ContactRoute[] = authored.map((route) => ({
+    index: route.index,
+    label: route.label,
+    datum: route.datum,
+    value: route.value ?? (route.valueSource ? sources[route.valueSource]?.value : "") ?? "",
+    href: route.href ?? (route.hrefSource ? sources[route.hrefSource]?.href : "") ?? "",
+    external: route.external,
+  }));
 
   useGSAP(sectionRef, (section, reduced) => {
     const meta = gsap.utils.toArray<HTMLElement>("[data-meta]", section);
@@ -112,14 +126,14 @@ export function ContactMasthead({
             className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-forest-light opacity-0"
             style={{ transform: "translateY(8px)" }}
           >
-            C1
+            {content.index}
           </span>
           <span
             data-meta
             className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-primary/80 opacity-0"
             style={{ transform: "translateY(8px)" }}
           >
-            Contact
+            {content.label}
           </span>
 
           <span aria-hidden="true" className="relative h-px flex-1 overflow-hidden">
@@ -144,7 +158,7 @@ export function ContactMasthead({
                 )}
               />
             )}
-            {status ? status.label : place}
+            {status ? status.label : company.region}
           </span>
         </div>
 
@@ -156,7 +170,7 @@ export function ContactMasthead({
             className="font-title font-semibold leading-[0.86] tracking-[-0.06em]"
             style={{ fontSize: "clamp(2.9rem, 9vw, 7.5rem)" }}
           >
-            {title.map((line, i) => (
+            {content.title.map((line, i) => (
               <span
                 key={line}
                 className={cn(
@@ -180,7 +194,7 @@ export function ContactMasthead({
             className="max-w-[42ch] text-[15px] leading-[1.7] text-muted-foreground opacity-0 lg:pb-3 lg:text-right"
             style={{ transform: "translateY(14px)" }}
           >
-            {lede}
+            {content.lede}
           </p>
         </div>
 

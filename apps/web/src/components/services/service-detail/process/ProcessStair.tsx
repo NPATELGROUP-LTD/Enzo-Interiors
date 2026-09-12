@@ -19,7 +19,12 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { spellCount } from "@/lib/service-metrics";
-import type { ProcessStep } from "@/lib/content";
+import {
+  fill,
+  type ProcessStep,
+  type ProcessVariantContent,
+  type ServiceDetailContent,
+} from "@/lib/content";
 
 /** Maximum number of steps the indent keeps growing for. */
 const MAX_INDENT_STEPS = 4;
@@ -27,9 +32,13 @@ const MAX_INDENT_STEPS = 4;
 export function ProcessStair({
   steps,
   id,
+  content,
+  common,
 }: {
   steps: ProcessStep[];
   id: string;
+  content: ProcessVariantContent;
+  common: ServiceDetailContent["process"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -76,16 +85,18 @@ export function ProcessStair({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="process-heading" className="sr-only">
-          How it is built
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A4"
-          label="Sequence"
-          datum={`${steps.length} stages`}
-          lines={[`${spellCount(steps.length)} stages,`, "one after another."]}
-          lede="Each step starts where the last one finished. Nothing here is subcontracted."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: steps.length })}
+          lines={content.lines.map((line) =>
+            fill(line, { countWord: spellCount(steps.length) }),
+          )}
+          lede={content.lede}
         />
 
         <ol className="mt-14 md:mt-20">

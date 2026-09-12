@@ -17,15 +17,21 @@ import { PortfolioMasthead } from "./PortfolioMasthead";
 import { PortfolioWall } from "./PortfolioWall";
 import { PortfolioAnatomy } from "./PortfolioAnatomy";
 import { PortfolioClose } from "./PortfolioClose";
-import type { PortfolioItem } from "@/lib/content";
+import type { PortfolioItem, PortfolioPageContent } from "@/lib/content";
 
-export function PortfolioRoot({ items }: { items: PortfolioItem[] }) {
-  const [openId, setOpenId] = useState<number | null>(null);
+export function PortfolioRoot({
+  items,
+  content,
+}: {
+  items: PortfolioItem[];
+  content: PortfolioPageContent;
+}) {
+  const [openId, setOpenId] = useState<string | null>(null);
 
   const openIndex = items.findIndex((item) => item.id === openId);
   const open = openIndex >= 0 ? items[openIndex]! : null;
 
-  const onOpen = useCallback((id: number) => setOpenId(id), []);
+  const onOpen = useCallback((id: string) => setOpenId(id), []);
   const onClose = useCallback(() => setOpenId(null), []);
 
   // Wraps at both ends, so the sheet never presents a dead control.
@@ -43,10 +49,10 @@ export function PortfolioRoot({ items }: { items: PortfolioItem[] }) {
 
   return (
     <div>
-      <PortfolioMasthead items={items} />
-      <PortfolioWall items={items} onOpen={onOpen} />
-      <PortfolioAnatomy items={items} onOpen={onOpen} />
-      <PortfolioClose items={items} />
+      <PortfolioMasthead items={items} content={content.masthead} />
+      <PortfolioWall items={items} onOpen={onOpen} content={content.wall} />
+      <PortfolioAnatomy items={items} onOpen={onOpen} content={content.anatomy} />
+      <PortfolioClose items={items} content={content.close} />
 
       <CaseStudySheet
         item={open}
@@ -54,6 +60,7 @@ export function PortfolioRoot({ items }: { items: PortfolioItem[] }) {
         total={items.length}
         onClose={onClose}
         onStep={onStep}
+        content={content.caseStudy}
       />
     </div>
   );

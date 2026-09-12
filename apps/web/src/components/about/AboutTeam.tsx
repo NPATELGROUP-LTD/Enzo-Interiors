@@ -36,14 +36,11 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE } from "@/lib/motion";
+import { fill, type AboutPageContent, type TeamMember } from "@/lib/content";
 
-export interface TeamMember {
-  name: string;
-  role: string;
-  /** The part of a job this person is actually in front of. */
-  note: string;
-  image: string;
-}
+// The people are records, not copy: they come from the team table, which is
+// also where the founder's portrait above §06's note comes from, so the two
+// sections cannot end up showing different people.
 
 /** Unequal on both axes, cycled — so the top edge of the bench is ragged
  *  however many people there are, and it can never look like a grid. */
@@ -63,7 +60,13 @@ function chunk<T>(items: T[], size: number): T[][] {
   return rows;
 }
 
-export function AboutTeam({ team }: { team: TeamMember[] }) {
+export function AboutTeam({
+  team,
+  content,
+}: {
+  team: TeamMember[];
+  content: AboutPageContent["team"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(
@@ -130,17 +133,17 @@ export function AboutTeam({ team }: { team: TeamMember[] }) {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="about-team-heading" className="sr-only">
-          The people
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="05"
-          label="The bench"
-          datum={`${team.length} of us`}
-          lines={["This is everyone.", "All of us."]}
-          lede="Not a department each. The person who measures your room is on this row, and so is the person who will be standing in it with a screwdriver."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: team.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <div className="mt-14 md:mt-16">

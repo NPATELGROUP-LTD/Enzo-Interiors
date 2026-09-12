@@ -1,0 +1,132 @@
+{
+  "metadata": {
+    "title": "Contact — Enzo Interiors",
+    "description": "Tell us about the room. A free home survey across Leicester and Leicestershire, with drawings and an honest figure before anything is cut."
+  },
+  "masthead": {
+    "index": "C1",
+    "label": "Contact",
+    "title": ["Tell us about", "the room."],
+    "lede": "Three answers is enough to start. We survey before we quote — so the first thing you get from us is a visit and a drawing, not a price plucked off a page.",
+    "routes": [
+      {
+        "index": "01",
+        "label": "The docket",
+        "value": "Send the details",
+        "datum": "A reply the same working day",
+        "href": "#contact-docket"
+      },
+      {
+        "index": "02",
+        "label": "By phone",
+        "valueSource": "phone",
+        "datum": "Tuesday – Saturday, and by appointment",
+        "hrefSource": "phone",
+        "external": true
+      },
+      {
+        "index": "03",
+        "label": "By email",
+        "valueSource": "email",
+        "datum": "Read by the person who does the surveys",
+        "hrefSource": "email",
+        "external": true
+      }
+    ]
+  },
+  "docket": {
+    "id": "contact-docket",
+    "srHeading": "Send an enquiry",
+    "index": "C2",
+    "label": "Enquiry",
+    "heading": "Three answers and we can start.",
+    "lede": "Everything else is optional. Nothing here books anything, and nobody rings you unless you ask.",
+    "note": "We survey before we quote — so this starts a visit, not a price.",
+    "counter": "{answered} of {total}",
+    "fieldLabels": {
+      "name": "Your name",
+      "email": "Email",
+      "phone": "Phone",
+      "room": "The room",
+      "place": "Where it is",
+      "message": "Anything else"
+    },
+    "placeholders": {
+      "name": "Priya Shah",
+      "email": "you@email.co.uk",
+      "phone": "07XXX XXXXXX",
+      "place": "Oadby",
+      "message": "The kitchen is about 4 × 3 m and we would like it done before Christmas."
+    },
+    "hints": {
+      "phone": "Only if you would rather we rang.",
+      "place": "A town or a postcode is plenty.",
+      "message": "Rough sizes, a deadline, what the room is doing wrong now — whatever is useful."
+    },
+    "errors": {
+      "name": "Tell us what to call you.",
+      "emailMissing": "We need an email address to reply to.",
+      "emailInvalid": "That address is missing something — check it over.",
+      "room": "Pick the room you have in mind."
+    },
+    "errorSummaryOne": "One answer to finish",
+    "errorSummaryOther": "{count} answers to finish",
+    "errorItem": "{label} — {error}",
+    "otherRoomLabel": "Something else",
+    "submitLabel": "Send enquiry",
+    "toast": "Enquiry received — we will be in touch.",
+    "received": {
+      "label": "Received",
+      "heading": "That is with us.",
+      "body": "We read every enquiry ourselves — no call centre, no auto-responder that goes nowhere. You will hear from us the same working day, and we will offer two survey slots rather than asking you to guess at one.",
+      "againLabel": "Send another"
+    }
+  },
+  "when": {
+    "id": "contact-visit",
+    "index": "C3",
+    "label": "Timing",
+    "heading": "Write today. Finished when?",
+    "lede": "From the day your message arrives, on our current book. The first fortnight is the same whatever the room — we come and measure, then you get drawings and a firm figure. Nothing is cut until you have signed those off, so the clock below only starts once you are happy.",
+    "axisStart": "SEND",
+    "axisWeek": "W{week}",
+    "keyLeader": "Survey, drawings and your sign-off",
+    "keyBuild": "Made in the workshop and fitted",
+    "keyNote": "Indicative, on our current book. Your quotation carries the real dates."
+  },
+  "ready": {
+    "id": "contact-terms",
+    "index": "C4",
+    "label": "Before you write",
+    "heading": "You are readier than you think.",
+    "lede": "Almost everybody waits until they have had “a proper think” first, and the think never happens. Here is the honest list of what helps — and the much longer list of what people wait for and never needed.",
+    "helpfulLabel": "Useful, if you have it",
+    "helpful": [
+      {
+        "item": "Rough dimensions",
+        "note": "A tape measure and thirty seconds. Wrong by 100mm is fine — we re-measure everything anyway."
+      },
+      {
+        "item": "A photograph or two",
+        "note": "Taken on your phone, from the doorway. It tells us more about the room than a paragraph does."
+      },
+      {
+        "item": "A ceiling on the budget",
+        "note": "A range is plenty. It is what lets us tell you early if the room you have described does not fit it."
+      }
+    ],
+    "unnecessaryLabel": "Not needed, whatever you have been told",
+    "unnecessary": [
+      "Knowing what you want it to look like",
+      "Having chosen a finish, a handle or a worktop",
+      "Accurate measurements",
+      "A floor plan, or anything drawn",
+      "Having cleared the room out",
+      "Having decided you are definitely doing it",
+      "Having the money in place today",
+      "Knowing whether the wall is stud or masonry"
+    ],
+    "unnecessaryNote": "Every one of those is our job, not yours. Working them out is what the survey and the drawings are for.",
+    "closeLine": "Or skip all of it and just talk to somebody."
+  }
+}

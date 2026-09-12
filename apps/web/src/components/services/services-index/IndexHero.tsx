@@ -31,7 +31,12 @@ import { useGSAP } from "@/hooks/useGSAP";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DUR, EASE } from "@/lib/motion";
 import { getServiceMetrics, spellCount } from "@/lib/service-metrics";
-import type { ServiceDetail } from "@/lib/content";
+import {
+  fill,
+  type ServiceDetail,
+  type ServicesPageContent,
+  type SharedContent,
+} from "@/lib/content";
 import { RoomPlanDrawing, type PlanFrame } from "../shared/RoomPlanDrawing";
 
 /** How long an untouched drawing holds one service before moving on. */
@@ -39,9 +44,12 @@ const CYCLE_MS = 4200;
 
 interface IndexHeroProps {
   services: ServiceDetail[];
+  content: ServicesPageContent["hero"];
+  /** The plan drawing's own strings — it is shared with the detail pages. */
+  roomPlan: SharedContent["roomPlan"];
 }
 
-export function IndexHero({ services }: IndexHeroProps) {
+export function IndexHero({ services, content, roomPlan }: IndexHeroProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
   // Once a visitor has driven the drawing themselves, the page stops
@@ -133,8 +141,11 @@ export function IndexHero({ services }: IndexHeroProps) {
               className="mt-6 font-title font-semibold leading-[0.98] tracking-[-0.045em]"
               style={{ fontSize: "clamp(2.4rem, 5.4vw, 4.6rem)" }}
             >
-              {[`${spellCount(services.length)} disciplines.`, "One workshop."].map(
-                (line) => (
+              {/* The title counts the published disciplines, so a fifth
+                  service changes the headline on its own. */}
+              {content.headingLines
+                .map((line) => fill(line, { countWord: spellCount(services.length) }))
+                .map((line) => (
                   <span
                     key={line}
                     className="block overflow-hidden pb-[0.1em] -mb-[0.1em]"
@@ -147,8 +158,7 @@ export function IndexHero({ services }: IndexHeroProps) {
                       {line}
                     </span>
                   </span>
-                ),
-              )}
+                ))}
             </h1>
 
             <p
@@ -156,8 +166,7 @@ export function IndexHero({ services }: IndexHeroProps) {
               className="mt-6 max-w-[40ch] text-[15px] leading-[1.7] text-enzo-cream/70 opacity-0"
               style={{ transform: "translateY(8px)" }}
             >
-              Drawn for your room, built in our Leicester workshop, fitted by
-              the people who made it.
+              {content.lede}
             </p>
           </div>
 
@@ -179,7 +188,7 @@ export function IndexHero({ services }: IndexHeroProps) {
               <Link
                 href={`/services/${current.slug}`}
                 className="group/plan block focus-visible:outline-none"
-                aria-label={`Open ${current.title}`}
+                aria-label={fill(content.openLabel, { title: current.title })}
               >
                 <div className="relative aspect-[4/3] w-full lg:h-[calc(100%-2.5rem)] lg:max-h-[58vh]">
                   <RoomPlanDrawing
@@ -187,6 +196,7 @@ export function IndexHero({ services }: IndexHeroProps) {
                     slug={current.slug}
                     image={current.image}
                     caption={current.category}
+                    content={roomPlan}
                     // Position, not hash — so the four published services
                     // each draw a different room shape rather than risking
                     // two of them landing on the same one.
@@ -220,7 +230,7 @@ export function IndexHero({ services }: IndexHeroProps) {
                   }
                 >
                   <span className="shrink-0 whitespace-nowrap text-[13.5px] font-medium text-enzo-cream underline decoration-enzo-sand/50 decoration-1 underline-offset-[6px] transition-[text-decoration-color] duration-300 group-hover/plan:decoration-enzo-sand">
-                    Open {current.title}
+                    {fill(content.openLabel, { title: current.title })}
                   </span>
                   <span className="min-w-0 text-[12px] leading-[1.5] text-enzo-cream/65">
                     {current.description}
@@ -307,7 +317,8 @@ export function IndexHero({ services }: IndexHeroProps) {
                       }}
                     >
                       {metrics.timeline}
-                      {metrics.fromPriceLabel && ` · from ${metrics.fromPriceLabel}`}
+                      {metrics.fromPriceLabel &&
+                        fill(content.listPriceSuffix, { price: metrics.fromPriceLabel })}
                     </span>
                   </span>
 
@@ -324,7 +335,8 @@ export function IndexHero({ services }: IndexHeroProps) {
                       </span>
                       <span className="mt-1 block text-[13px] tabular-nums text-enzo-cream/70">
                         {metrics.timeline}
-                        {metrics.fromPriceLabel && ` · from ${metrics.fromPriceLabel}`}
+                        {metrics.fromPriceLabel &&
+                          fill(content.listPriceSuffix, { price: metrics.fromPriceLabel })}
                       </span>
                     </span>
                     <ArrowRight

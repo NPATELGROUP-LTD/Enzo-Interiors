@@ -17,8 +17,14 @@
 //
 // It stays a Server Component. There is nothing interactive on these pages,
 // which is the point.
+//
+// All three documents — their clauses, their intros and the date they were last
+// reviewed — are authored in src/data/pages/legal.json. A notice whose text
+// lives in a .tsx file is one a non-developer cannot correct, and these are
+// exactly the pages that get corrected by somebody who is not a developer.
 import Link from "next/link";
 import { ArrowUpRight } from "lucide-react";
+import { fill, type LegalPageContent } from "@/lib/content";
 
 export interface LegalClause {
   /** Anchor id, used by the contents rail. */
@@ -36,6 +42,7 @@ export function LegalSheet({
   updated,
   clauses,
   contact,
+  labels,
 }: {
   /** Sheet index, in the site's own lettering — legal pages take "L". */
   index: string;
@@ -46,6 +53,8 @@ export function LegalSheet({
   updated: string;
   clauses: LegalClause[];
   contact: { label: string; href: string }[];
+  /** The frame's own words, shared by all three documents. */
+  labels: LegalPageContent["sheet"];
 }) {
   return (
     <article className="bg-background text-primary">
@@ -62,15 +71,15 @@ export function LegalSheet({
           </span>
           <span aria-hidden="true" className="h-px flex-1 bg-primary/25" />
           <span className="whitespace-nowrap text-[11px] text-foreground/70">
-            Updated {updated}
+            {fill(labels.updatedLabel, { updated })}
           </span>
         </div>
 
         <div className="mt-10 grid gap-x-16 gap-y-10 md:mt-14 lg:grid-cols-[minmax(0,16rem)_minmax(0,1fr)]">
           {/* ── Contents ── */}
-          <nav aria-label="On this page" className="lg:sticky lg:top-28 lg:self-start">
+          <nav aria-label={labels.contentsNavLabel} className="lg:sticky lg:top-28 lg:self-start">
             <h2 className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-              Contents
+              {labels.contentsLabel}
             </h2>
             <ol className="mt-4">
               {clauses.map((clause, i) => (
@@ -121,7 +130,7 @@ export function LegalSheet({
                             aria-hidden="true"
                             className="mt-[0.72em] h-px w-3 shrink-0 bg-enzo-sand"
                           />
-                          <span>{item}</span>
+                          <span>{fill(item, { updated })}</span>
                         </li>
                       ))}
                     </ul>
@@ -130,7 +139,10 @@ export function LegalSheet({
                       key={j}
                       className="mt-4 max-w-[62ch] text-[15px] leading-[1.75] text-foreground/80"
                     >
-                      {block}
+                      {/* A clause may cite the review date — see the `changes`
+                          clause of the privacy notice — so the date is stated
+                          once, at the top of the document's own record. */}
+                      {fill(block, { updated })}
                     </p>
                   ),
                 )}
@@ -139,7 +151,7 @@ export function LegalSheet({
 
             <div className="mt-14 border-t border-primary/20 pt-7">
               <h2 className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-enzo-forest-light">
-                Questions about this
+                {labels.questionsLabel}
               </h2>
               <ul className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
                 {contact.map((item) => (

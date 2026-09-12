@@ -34,19 +34,21 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
-import type { ServiceDetail } from "@/lib/content";
+import { fill, type ServiceDetail, type ServiceDetailContent } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
 import { heroCommonParts, heroRestMotion, HeroActions, HeroFacts, HeroRule, HeroTitleLine } from "./heroParts";
 
 export function HeroMasthead({
   service,
   id,
+  content,
 }: {
   service: ServiceDetail;
   id: string;
+  content: ServiceDetailContent["hero"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
-  const facts = getHeroFacts(service);
+  const facts = getHeroFacts(service, content.facts);
 
   useGSAP(sectionRef, (section, reduced) => {
     const parts = heroCommonParts(section);
@@ -131,7 +133,7 @@ export function HeroMasthead({
       className="relative overflow-hidden bg-background text-primary"
     >
       <div className="shell pb-16 pt-[7.5rem] md:pt-[9rem]">
-        <HeroRule category={service.category} tone="light" />
+        <HeroRule index={content.index} category={service.category} tone="light" />
 
         {/* ── The masthead, and the column that pays for it ──
             The title used to run the full width with one word per line,
@@ -183,7 +185,7 @@ export function HeroMasthead({
               className="mt-7 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              <HeroActions slug={service.slug} tone="light" />
+              <HeroActions slug={service.slug} tone="light" content={content.actions} />
             </div>
           </div>
         </div>
@@ -220,10 +222,10 @@ export function HeroMasthead({
             style={{ transform: "translateY(14px)" }}
           >
             <span className="font-display text-[10px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-              Fig. 01
+              {content.caption.figure}
             </span>
             <span className="text-[12px] text-muted-foreground">
-              {service.category} — Leicester
+              {fill(content.caption.meta, { category: service.category })}
             </span>
           </span>
         </div>

@@ -39,28 +39,19 @@ import gsap from "gsap";
 import { ArrowUpRight } from "lucide-react";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type PortfolioItem, type PortfolioPageContent } from "@/lib/content";
 
-/**
- * The three things a survey opens with, in order. Deliberately the questions
- * and not the answers: the answers are the whole rest of the site.
- */
-const QUESTIONS = [
-  {
-    ask: "Which room is it?",
-    why: "A kitchen and a walk-in are different trades wearing the same coat. Knowing which one tells us who needs to come and look at it, and how long they should put aside.",
-  },
-  {
-    ask: "What is wrong with it now?",
-    why: "Nobody replaces furniture that works. The thing that annoys you daily is usually the thing the design has to solve first — and it is rarely the thing people lead with.",
-  },
-  {
-    ask: "What would you rather not spend?",
-    why: "Not a haggle. Knowing the ceiling early is what lets us say honestly whether the room you have described can be done for it, before either of us has spent an afternoon on drawings.",
-  },
-] as const;
+// The three questions are the ones the survey actually opens with — they live
+// beside the rest of this page's copy in src/data/pages/portfolio.json, so the
+// questions here and the questions the form asks are edited in one place.
 
-export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
+export function PortfolioClose({
+  items,
+  content,
+}: {
+  items: PortfolioItem[];
+  content: PortfolioPageContent["close"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -123,9 +114,9 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
               data-close-lead
               className="font-display flex items-center gap-3 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-forest/70"
             >
-              04
+              {content.index}
               <span aria-hidden="true" className="h-px w-10 bg-enzo-forest/30" />
-              <span>Your turn</span>
+              <span>{content.label}</span>
             </span>
 
             <h2
@@ -134,7 +125,7 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
               className="mt-6 max-w-[16ch] font-title font-semibold leading-[1.0] tracking-[-0.045em]"
               style={{ fontSize: "clamp(2.2rem, 5vw, 3.8rem)" }}
             >
-              We asked {items.length} other people these three things first.
+              {fill(content.heading, { count: items.length })}
             </h2>
           </div>
 
@@ -142,10 +133,7 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
             data-close-lead
             className="max-w-[52ch] text-[15.5px] leading-[1.75] text-enzo-forest/75 lg:pb-2"
           >
-            Every room above started as three answers given at somebody&rsquo;s
-            kitchen table. None of them needed measurements, a budget worked out
-            to the pound, or any idea what the finished thing should look like —
-            that part is our job, and it starts after this.
+            {content.lede}
           </p>
         </div>
 
@@ -154,7 +142,7 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
             The number sits in a hairline-ruled gutter rather than a badge: it
             is an order, not a score. */}
         <ol className="mt-16 md:mt-24">
-          {QUESTIONS.map((question, index) => (
+          {content.questions.map((question, index) => (
             <li key={question.ask} className="relative pt-7 md:pt-9">
               <span
                 aria-hidden="true"
@@ -197,14 +185,13 @@ export function PortfolioClose({ items }: { items: PortfolioItem[] }) {
           className="flex flex-col gap-5 border-t border-enzo-forest/25 pt-9 sm:flex-row sm:items-center sm:justify-between"
         >
           <p className="max-w-[44ch] text-[14px] leading-[1.7] text-enzo-forest/70">
-            Answer them in about a minute. We reply the same working day, and
-            the survey after it is free with nothing to sign.
+            {content.footerNote}
           </p>
           <Link
-            href="/contact#contact-docket"
+            href={content.ctaHref}
             className="group inline-flex shrink-0 items-center gap-3 rounded-full bg-enzo-forest py-2.5 pl-7 pr-2.5 text-[15px] font-medium text-enzo-cream transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-sand"
           >
-            Answer the three
+            {content.ctaLabel}
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-enzo-sand text-enzo-forest transition-transform duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45">
               <ArrowUpRight className="h-4 w-4" />
             </span>

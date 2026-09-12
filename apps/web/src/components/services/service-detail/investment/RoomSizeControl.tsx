@@ -10,19 +10,23 @@
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { ROOM_SIZE_LABELS, ROOM_SIZES, type RoomSize } from "@/lib/quote-estimate";
+import { ROOM_SIZES, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
+import type { SharedContent } from "@/lib/content";
 
 interface RoomSizeControlProps {
   value: RoomSize;
   onChange: (size: RoomSize) => void;
   tone?: "light" | "dark";
+  /** The control's label and the three size names. */
+  content: SharedContent["roomSize"];
 }
 
 export function RoomSizeControl({
   value,
   onChange,
   tone = "light",
+  content,
 }: RoomSizeControlProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const dark = tone === "dark";
@@ -61,7 +65,7 @@ export function RoomSizeControl({
           dark ? "text-enzo-sand" : "text-enzo-forest-light",
         )}
       >
-        Room size
+        {content.label}
       </span>
       <div
         ref={rootRef}
@@ -97,7 +101,7 @@ export function RoomSizeControl({
                   : "text-muted-foreground hover:text-primary focus-visible:ring-ring focus-visible:ring-offset-background",
             )}
           >
-            {ROOM_SIZE_LABELS[size]}
+            {content.sizes[size]}
           </button>
         ))}
       </div>

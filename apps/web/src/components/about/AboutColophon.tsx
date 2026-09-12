@@ -50,15 +50,15 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
+import { fill, type AboutPageContent, type TeamMember } from "@/lib/content";
 
 interface AboutColophonProps {
-  name: string;
-  role: string;
-  portrait: string;
-  paragraphs: string[];
-  /** When the note was written, and where — one quiet line at the end. */
+  content: AboutPageContent["colophon"];
+  /** Whose voice it is — the team record named by the copy's `authorId`, so
+   *  the face here and the face on the bench are the same person. */
+  author: TeamMember;
+  /** When the note was written — read off the last milestone. */
   written: string;
-  place: string;
 }
 
 /**
@@ -85,16 +85,9 @@ function splitClaim(paragraph: string): { claim: string; rest: string } {
   return { claim: paragraph.trim(), rest: "" };
 }
 
-export function AboutColophon({
-  name,
-  role,
-  portrait,
-  paragraphs,
-  written,
-  place,
-}: AboutColophonProps) {
+export function AboutColophon({ content, author, written }: AboutColophonProps) {
   const sectionRef = useRef<HTMLElement>(null);
-  const statements = paragraphs.map(splitClaim);
+  const statements = content.paragraphs.map(splitClaim);
 
   useGSAP(sectionRef, (section, reduced) => {
     const rise = gsap.utils.toArray<HTMLElement>("[data-note-rise]", section);
@@ -151,11 +144,11 @@ export function AboutColophon({
           className="font-display block text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-forest-light opacity-0"
           style={{ transform: "translateY(10px)" }}
         >
-          06 — The note
+          {content.eyebrow}
         </span>
 
         <h2 id="about-colophon-heading" className="sr-only">
-          Why we work this way
+          {content.srHeading}
         </h2>
 
         <div className="mt-10 grid gap-x-16 gap-y-12 md:mt-14 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
@@ -165,8 +158,8 @@ export function AboutColophon({
           <aside className="lg:sticky lg:top-28 lg:self-start">
             <div className="overflow-hidden rounded-[4px] bg-enzo-forest/10">
               <ImageWithFallback
-                src={portrait}
-                alt={name}
+                src={author.image}
+                alt={author.name}
                 data-note-photo
                 className="aspect-[4/5] w-full max-w-[15rem] object-cover will-change-transform lg:max-w-none"
               />
@@ -178,13 +171,19 @@ export function AboutColophon({
               style={{ transform: "translateY(12px)" }}
             >
               <p className="font-title text-[18px] font-semibold leading-tight text-primary">
-                {name}
+                {author.name}
               </p>
+              {/* The note's own description of the voice, not the bench's job
+                  title: on the bench he is what he does on a job, here he is
+                  who is talking to you. */}
               <p className="mt-1 text-[13.5px] leading-[1.5] text-foreground/70">
-                {role}
+                {content.role}
               </p>
               <p className="mt-5 border-t border-border/70 pt-4 text-[12px] leading-[1.6] text-foreground/60">
-                Written {written}, at {place.toLowerCase()}.
+                {fill(content.writtenLabel, {
+                  written,
+                  place: content.place.toLowerCase(),
+                })}
               </p>
             </div>
           </aside>

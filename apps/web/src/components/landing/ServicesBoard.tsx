@@ -31,7 +31,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
-import type { Service } from "@/lib/content";
+import { fill, type HomeContent, type Service } from "@/lib/content";
 
 /**
  * The plan: how tall each plate stands, as a fraction of the tallest.
@@ -65,7 +65,13 @@ const HEIGHTS = ["0.86", "1", "0.78", "0.94"] as const;
 /** The tallest plate, which every other height is a fraction of. */
 const SHELF_HEIGHT = "clamp(19rem, 30vw, 30rem)";
 
-export function ServicesBoard({ services }: { services: Service[] }) {
+export function ServicesBoard({
+  services,
+  content,
+}: {
+  services: Service[];
+  content: HomeContent["servicesBoard"];
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -121,7 +127,7 @@ export function ServicesBoard({ services }: { services: Service[] }) {
 
       <div className="relative shell py-20 md:py-28">
         <h2 id="services-heading" className="sr-only">
-          Services
+          {content.srHeading}
         </h2>
 
         {/* Split at the intro's own default. There is no two-column grid
@@ -131,11 +137,11 @@ export function ServicesBoard({ services }: { services: Service[] }) {
             for. */}
         <SectionIntro
           layout="split"
-          index="01"
-          label="Disciplines"
-          datum={`${services.length} of them`}
-          lines={["Four kinds of room.", "One bench."]}
-          lede="Nothing here is bought in and re-badged. Every carcass is cut, sprayed and fitted by the same people who measured the wall it goes on."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: services.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* ── The shelf ──
@@ -203,7 +209,9 @@ export function ServicesBoard({ services }: { services: Service[] }) {
                           {service.title}
                         </span>
                         <span className="mt-1 block text-[12.5px] text-foreground/70">
-                          {service.features.length} things included as standard
+                          {fill(content.featureCount, {
+                            count: service.features.length,
+                          })}
                         </span>
                       </span>
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground transition-transform duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:rotate-45">
@@ -233,14 +241,12 @@ export function ServicesBoard({ services }: { services: Service[] }) {
           data-board-footer
           className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-border/70 pt-7 lg:mt-20"
         >
-          <p className="text-[13.5px] text-foreground/70">
-            Not sure which of them you need? We work that out on the first visit.
-          </p>
+          <p className="text-[13.5px] text-foreground/70">{content.footerNote}</p>
           <Link
-            href="/services"
+            href={content.compareHref}
             className="touch-target group/all inline-flex items-center gap-2 border-b border-primary/25 pb-1 text-[13.5px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4"
           >
-            Compare all {services.length}
+            {fill(content.compareLabel, { count: services.length })}
             <ArrowUpRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-0.5 group-hover/all:-translate-y-0.5" />
           </Link>
         </div>

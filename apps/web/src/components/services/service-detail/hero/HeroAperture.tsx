@@ -53,7 +53,7 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
-import type { ServiceDetail } from "@/lib/content";
+import type { ServiceDetail, ServiceDetailContent } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
 import { heroCommonParts, heroRestMotion, HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
 
@@ -66,12 +66,14 @@ const SHUTTERS = 5;
 export function HeroAperture({
   service,
   id,
+  content,
 }: {
   service: ServiceDetail;
   id: string;
+  content: ServiceDetailContent["hero"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
-  const facts = getHeroFacts(service);
+  const facts = getHeroFacts(service, content.facts);
 
   // The last word takes the accent. Splitting on the last space rather than
   // on a fixed index means "Media Walls", "Walls" and "Home Cinema Walls"
@@ -169,7 +171,7 @@ export function HeroAperture({
       className="relative overflow-hidden bg-enzo-forest text-enzo-cream"
     >
       <div className="shell pb-16 pt-[7.5rem] md:pb-20 md:pt-[9rem]">
-        <HeroRule category={service.category} tone="dark" />
+        <HeroRule index={content.index} category={service.category} tone="dark" />
 
         {/* ── The plate, and the title beside it ──
             One relative box from `lg` up: the aperture is inset by a third
@@ -267,7 +269,7 @@ export function HeroAperture({
               className="mt-8 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              <HeroActions slug={service.slug} tone="dark" />
+              <HeroActions slug={service.slug} tone="dark" content={content.actions} />
             </div>
           </div>
 

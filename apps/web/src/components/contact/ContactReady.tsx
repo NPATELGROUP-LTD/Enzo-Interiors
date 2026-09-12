@@ -40,47 +40,19 @@ import gsap from "gsap";
 import { Check } from "lucide-react";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
+import type { Company, ContactPageContent } from "@/lib/content";
 
-/** Things that genuinely speed a quote up. Deliberately short. */
-const HELPFUL = [
-  {
-    item: "Rough dimensions",
-    note: "A tape measure and thirty seconds. Wrong by 100mm is fine — we re-measure everything anyway.",
-  },
-  {
-    item: "A photograph or two",
-    note: "Taken on your phone, from the doorway. It tells us more about the room than a paragraph does.",
-  },
-  {
-    item: "A ceiling on the budget",
-    note: "A range is plenty. It is what lets us tell you early if the room you have described does not fit it.",
-  },
-];
-
-/** Things people wait for and should not. Deliberately longer. */
-const UNNECESSARY = [
-  "Knowing what you want it to look like",
-  "Having chosen a finish, a handle or a worktop",
-  "Accurate measurements",
-  "A floor plan, or anything drawn",
-  "Having cleared the room out",
-  "Having decided you are definitely doing it",
-  "Having the money in place today",
-  "Knowing whether the wall is stud or masonry",
-];
+// Both lists — the short one of things that genuinely help and the deliberately
+// longer one of things people wait for and never needed — are authored in
+// src/data/pages/contact.json. The imbalance between them is the argument this
+// section makes, so their lengths are an editorial decision, not a layout one.
 
 export function ContactReady({
-  id,
-  phoneDisplay,
-  phoneHref,
-  emailDisplay,
-  emailHref,
+  content,
+  company,
 }: {
-  id?: string;
-  phoneDisplay: string;
-  phoneHref: string;
-  emailDisplay: string;
-  emailHref: string;
+  content: ContactPageContent["ready"];
+  company: Company;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -122,7 +94,7 @@ export function ContactReady({
   return (
     <section
       ref={sectionRef}
-      id={id}
+      id={content.id}
       aria-labelledby="ready-heading"
       className="relative bg-muted scroll-mt-24"
     >
@@ -133,8 +105,8 @@ export function ContactReady({
               data-lead
               className="font-display flex items-baseline gap-3 text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-forest-light"
             >
-              <span>C4</span>
-              <span className="text-primary/80">Before you write</span>
+              <span>{content.index}</span>
+              <span className="text-primary/80">{content.label}</span>
             </span>
 
             <h2
@@ -143,7 +115,7 @@ export function ContactReady({
               className="mt-5 max-w-[17ch] font-title font-semibold leading-[1.02] tracking-[-0.04em] text-primary sm:mt-6"
               style={{ fontSize: "clamp(2rem, 4.6vw, 3.4rem)" }}
             >
-              You are readier than you think.
+              {content.heading}
             </h2>
           </div>
 
@@ -151,10 +123,7 @@ export function ContactReady({
             data-lead
             className="text-[14.5px] leading-[1.7] text-foreground/70 sm:text-[15px] lg:pb-2"
           >
-            Almost everybody waits until they have had &ldquo;a proper think&rdquo;
-            first, and the think never happens. Here is the honest list of what
-            helps — and the much longer list of what people wait for and never
-            needed.
+            {content.lede}
           </p>
         </div>
 
@@ -164,10 +133,10 @@ export function ContactReady({
           {/* ── Useful ── */}
           <div>
             <h3 className="font-display border-t border-primary/25 pt-5 text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-              Useful, if you have it
+              {content.helpfulLabel}
             </h3>
             <ul className="mt-6">
-              {HELPFUL.map((entry) => (
+              {content.helpful.map((entry) => (
                 <li
                   key={entry.item}
                   data-helpful
@@ -197,10 +166,10 @@ export function ContactReady({
               that they simply do not count. */}
           <div>
             <h3 className="font-display border-t border-primary/25 pt-5 text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-              Not needed, whatever you have been told
+              {content.unnecessaryLabel}
             </h3>
             <ul className="mt-6">
-              {UNNECESSARY.map((item) => (
+              {content.unnecessary.map((item) => (
                 <li
                   key={item}
                   data-spare
@@ -211,8 +180,7 @@ export function ContactReady({
               ))}
             </ul>
             <p className="mt-5 max-w-[44ch] text-[13px] leading-[1.7] text-muted-foreground">
-              Every one of those is our job, not yours. Working them out is what
-              the survey and the drawings are for.
+              {content.unnecessaryNote}
             </p>
           </div>
         </div>
@@ -223,19 +191,19 @@ export function ContactReady({
           className="mt-14 flex flex-col gap-3 border-t border-primary/25 pt-8 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-6 md:mt-20"
         >
           <span className="text-[13.5px] text-muted-foreground sm:mr-2">
-            Or skip all of it and just talk to somebody.
+            {content.closeLine}
           </span>
           <a
-            href={phoneHref}
+            href={company.phone.href}
             className="block rounded-full bg-primary px-7 py-3.5 text-center text-[14px] tabular-nums text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:inline-block"
           >
-            {phoneDisplay}
+            {company.phone.display}
           </a>
           <a
-            href={emailHref}
+            href={company.emailHref}
             className="block rounded-full border border-border px-7 py-3.5 text-center text-[14px] text-primary transition-colors duration-300 hover:border-primary hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:inline-block"
           >
-            {emailDisplay}
+            {company.email}
           </a>
         </div>
       </div>

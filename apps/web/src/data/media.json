@@ -1,0 +1,149 @@
+[
+  {
+    "id": "svc-kitchen",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1771627278637-10eb2e9857b5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBmaXR0ZWQlMjBraXRjaGVuJTIwZGFyayUyMGRyYW1hdGljJTIwbGlnaHRpbmd8ZW58MXx8fHwxNzcyMzk4MjMwfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Fitted kitchen with dark cabinetry under dramatic lighting"
+  },
+  {
+    "id": "svc-bedroom",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1709544345907-ceea96cb69c2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxiZXNwb2tlJTIwZml0dGVkJTIwYmVkcm9vbSUyMHdhcm0lMjBpbnRlcmlvcnxlbnwxfHx8fDE3NzIzOTgyMzF8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Fitted bedroom in warm tones"
+  },
+  {
+    "id": "svc-media-wall",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1764344814733-930223ac186c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbnRlcnRhaW5tZW50JTIwY2VudGVyJTIwbWVkaWElMjB3YWxsJTIwbW9kZXJufGVufDF8fHx8MTc3MjM5ODIzN3ww&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Modern media wall"
+  },
+  {
+    "id": "svc-wardrobe",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1722942432154-067a239bc58d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxmaXR0ZWQlMjB3YXJkcm9iZSUyMHdhbGstaW4lMjBjbG9zZXQlMjBsdXh1cnl8ZW58MXx8fHwxNzcyMzk4MjMyfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Luxury walk-in wardrobe"
+  },
+  {
+    "id": "pf-sage-kitchen",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1721522282337-6b6d3e366463?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBraXRjaGVuJTIwc2FnZSUyMGdyZWVuJTIwZml0dGVkfGVufDF8fHx8MTc3MjM5ODIzMnww&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Sage green fitted kitchen"
+  },
+  {
+    "id": "pf-dark-kitchen",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1765766601532-90e9b96320c8?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBpbnRlcmlvciUyMGRlc2lnbiUyMGRhcmslMjBtb29keSUyMGtpdGNoZW58ZW58MXx8fHwxNzcyMzk4MjMzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Dark, moody luxury kitchen"
+  },
+  {
+    "id": "pf-contemporary-bedroom",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1765434669956-afcd50058d69?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtb2Rlcm4lMjBiZWRyb29tJTIwaW50ZXJpb3IlMjB3YXJtJTIwdG9uZXN8ZW58MXx8fHwxNzcyMzk4MjMzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Contemporary bedroom in warm tones"
+  },
+  {
+    "id": "pf-living-room",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1763647972062-5e9cd48fb282?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBsaXZpbmclMjByb29tJTIwaW50ZXJpb3IlMjB3YXJtfGVufDF8fHx8MTc3MjM5ODIzOHww&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Warm living room with a media wall"
+  },
+  {
+    "id": "pf-ensuite",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1572742482459-e04d6cfdd6f3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxsdXh1cnklMjBiYXRocm9vbSUyMGludGVyaW9yJTIwbWFyYmxlfGVufDF8fHx8MTc3MjM3MTAwOHww&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "Marble ensuite bathroom"
+  },
+  {
+    "id": "about-workshop",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1768471125958-78556538fadc?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxpbnRlcmlvciUyMGRlc2lnbmVyJTIwcG9ydHJhaXQlMjBwcm9mZXNzaW9uYWx8ZW58MXx8fHwxNzcyMjk3MTMzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+    "alt": "The Enzo Interiors workshop"
+  },
+  {
+    "id": "milestone-bench",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1503387762-592deb58ef4e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "A workbench and tools"
+  },
+  {
+    "id": "milestone-first-kitchen",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1556909212-d5b604d0c90d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "The first fitted kitchen"
+  },
+  {
+    "id": "milestone-own-fitters",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1581858726788-75bc0f6a952d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "Fitters at work"
+  },
+  {
+    "id": "milestone-fifty-rooms",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1493809842364-78817add7ffb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "A finished living room"
+  },
+  {
+    "id": "team-oyz-khan",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1560250097-0b93528c311a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "Portrait of Oyz Khan"
+  },
+  {
+    "id": "team-rhea-kaur",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "Portrait of Rhea Kaur"
+  },
+  {
+    "id": "team-tom-bradley",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "Portrait of Tom Bradley"
+  },
+  {
+    "id": "team-marek-nowak",
+    "source": "unsplash",
+    "src": "https://images.unsplash.com/photo-1521119989659-a83eee488004?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=1080",
+    "alt": "Portrait of Marek Nowak"
+  },
+  { "id": "face-women-1", "source": "randomuser", "src": "https://randomuser.me/api/portraits/women/1.jpg", "alt": "" },
+  { "id": "face-men-2", "source": "randomuser", "src": "https://randomuser.me/api/portraits/men/2.jpg", "alt": "" },
+  { "id": "face-women-3", "source": "randomuser", "src": "https://randomuser.me/api/portraits/women/3.jpg", "alt": "" },
+  { "id": "face-men-4", "source": "randomuser", "src": "https://randomuser.me/api/portraits/men/4.jpg", "alt": "" },
+  { "id": "face-women-5", "source": "randomuser", "src": "https://randomuser.me/api/portraits/women/5.jpg", "alt": "" },
+  { "id": "face-men-7", "source": "randomuser", "src": "https://randomuser.me/api/portraits/men/7.jpg", "alt": "" },
+  { "id": "face-women-6", "source": "randomuser", "src": "https://randomuser.me/api/portraits/women/6.jpg", "alt": "" },
+  { "id": "face-men-9", "source": "randomuser", "src": "https://randomuser.me/api/portraits/men/9.jpg", "alt": "" },
+  { "id": "face-women-8", "source": "randomuser", "src": "https://randomuser.me/api/portraits/women/8.jpg", "alt": "" },
+  {
+    "id": "local-bedroom",
+    "source": "local",
+    "src": "/Bedroom.jpeg",
+    "alt": "Bespoke bedroom interior by Enzo Interiors",
+    "title": "Bespoke Bedroom"
+  },
+  {
+    "id": "local-wardrobes",
+    "source": "local",
+    "src": "/Wardrobes.jpeg",
+    "alt": "Bespoke fitted wardrobes by Enzo Interiors",
+    "title": "Bespoke Wardrobes"
+  },
+  {
+    "id": "local-kitchen",
+    "source": "local",
+    "src": "/centeredKitchen.jpeg",
+    "alt": "Bespoke kitchen interior by Enzo Interiors",
+    "title": "Bespoke Kitchen"
+  },
+  {
+    "id": "local-media-wall",
+    "source": "local",
+    "src": "/fireplaceMediawall.jpeg",
+    "alt": "Bespoke media wall interior by Enzo Interiors",
+    "title": "Bespoke Media Wall"
+  },
+  { "id": "logo-forest", "source": "local", "src": "/logo/enzo-forest.png", "alt": "Enzo Interiors" },
+  { "id": "logo-white", "source": "local", "src": "/logo/enzo-white.png", "alt": "Enzo Interiors" }
+]

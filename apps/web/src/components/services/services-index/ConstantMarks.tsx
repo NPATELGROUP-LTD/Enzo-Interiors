@@ -28,18 +28,19 @@
 // edges — fade instead, via `Ink`.
 
 import { cn } from "@/lib/utils";
+import type { ServicesPageContent } from "@/lib/content";
 
 const DRAW_MS = 760;
 const CREAM = "#F2F0EB";
 const SAND = "#D4C9B5";
 
-/** Corner caption per plate, in the hero drawing's "PLAN — KITCHENS" voice. */
-const CAPTIONS = [
-  "Title block",
-  "Survey — corner",
-  "Iso — carcass",
-  "Stamp",
-];
+/**
+ * Every word inside these drawings — the corner captions, the title block's
+ * three rows, the number on the stamp — comes from the page's copy, because
+ * the guarantee the stamp prints is the same fact §03's fourth promise states
+ * in words and it must not be possible for the two to disagree.
+ */
+type MarksContent = ServicesPageContent["constants"]["marks"];
 
 interface StrokeProps extends React.SVGProps<SVGPathElement> {
   /** Ink this stroke in, or hold it un-drawn. */
@@ -103,14 +104,15 @@ function Ink({
 }
 
 interface ConstantMarkProps {
-  /** Which promise this belongs to — matches CONSTANTS' order. */
+  /** Which promise this belongs to — matches the copy's item order. */
   index: number;
   /** The marker has reached this promise, or a pointer is on it. */
   on: boolean;
+  content: MarksContent;
   className?: string;
 }
 
-export function ConstantMark({ index, on, className }: ConstantMarkProps) {
+export function ConstantMark({ index, on, content, className }: ConstantMarkProps) {
   return (
     <div
       aria-hidden="true"
@@ -131,7 +133,7 @@ export function ConstantMark({ index, on, className }: ConstantMarkProps) {
         // here, and the un-reached plates are most of the run.
         style={{ color: on ? "rgba(212,201,181,1)" : "rgba(212,201,181,0.65)" }}
       >
-        {CAPTIONS[index]}
+        {content.captions[index]}
       </span>
 
       <svg viewBox="0 0 260 156" className="block w-full">
@@ -146,9 +148,9 @@ export function ConstantMark({ index, on, className }: ConstantMarkProps) {
             transition: "opacity 420ms ease-out",
           }}
         >
-          <Drawing index={index} on ghost />
+          <Drawing index={index} on ghost content={content} />
         </g>
-        <Drawing index={index} on={on} />
+        <Drawing index={index} on={on} content={content} />
       </svg>
     </div>
   );
@@ -160,11 +162,23 @@ interface DrawingProps {
 }
 
 /** Picks the drawing for a promise. Rendered twice per plate — see above. */
-function Drawing({ index, on, ghost }: DrawingProps & { index: number }) {
-  if (index === 0) return <TitleBlock on={on} ghost={ghost} />;
+function Drawing({
+  index,
+  on,
+  ghost,
+  content,
+}: DrawingProps & { index: number; content: MarksContent }) {
+  if (index === 0) return <TitleBlock on={on} ghost={ghost} rows={content.titleBlockRows} />;
   if (index === 1) return <SurveyedCorner on={on} ghost={ghost} />;
   if (index === 2) return <IsoCarcass on={on} ghost={ghost} />;
-  return <GuaranteeStamp on={on} ghost={ghost} />;
+  return (
+    <GuaranteeStamp
+      on={on}
+      ghost={ghost}
+      value={content.stampValue}
+      label={content.stampLabel}
+    />
+  );
 }
 
 const LABEL = {
@@ -178,8 +192,7 @@ const LABEL = {
  * measured, who drew and who fitted. Three rows, and the same signatory
  * against all three, bracketed into one name.
  */
-function TitleBlock({ on, ghost }: DrawingProps) {
-  const rows = ["Measured", "Drawn", "Fitted"];
+function TitleBlock({ on, ghost, rows }: DrawingProps & { rows: string[] }) {
   return (
     <g>
       {/* The block, and its two internal rules. */}
@@ -293,7 +306,12 @@ function IsoCarcass({ on, ghost }: DrawingProps) {
  * lands. This was a circle with a tick in it, which read as a clock; the
  * promise is a specific number of years, so the plate says the number.
  */
-function GuaranteeStamp({ on, ghost }: DrawingProps) {
+function GuaranteeStamp({
+  on,
+  ghost,
+  value,
+  label,
+}: DrawingProps & { value: string; label: string }) {
   const cx = 130;
   const cy = 94;
   const ticks = [0, 1, 2, 3, 4].map((i) => {
@@ -342,7 +360,7 @@ function GuaranteeStamp({ on, ghost }: DrawingProps) {
           className="font-title"
           style={{ fontSize: 42, fontWeight: 600, letterSpacing: "-0.04em" }}
         >
-          5
+          {value}
         </text>
         <text
           x={cx}
@@ -352,7 +370,7 @@ function GuaranteeStamp({ on, ghost }: DrawingProps) {
           className="font-display"
           style={{ fontSize: 8.5, letterSpacing: "0.28em", textTransform: "uppercase" }}
         >
-          Years
+          {label}
         </text>
       </Ink>
     </g>

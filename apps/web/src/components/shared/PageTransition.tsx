@@ -30,7 +30,7 @@
 // the run is fitted and then lifted away rather than wiped on and wiped off,
 // and the new page is revealed from a horizontal band outward instead of
 // from one edge. The order of travel along the wall is spatial: moving
-// forward through the header (see lib/navigation.ts) fits the run left to
+// forward through the header (its order is src/data/navigation.json) fits the run left to
 // right, moving back fits it right to left.
 //
 // ── Cover first, navigate second ──
@@ -80,7 +80,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import gsap from "gsap";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
-import { NAV_LINKS } from "@/lib/navigation";
+import type { NavLink, SiteContent } from "@/lib/content";
 
 // Five leaves off the same board, all within the brand's forest. Ordered so
 // no two neighbours match and the run reads as material rather than as a
@@ -103,33 +103,43 @@ const side = (index: number) => (index % 2 === 0 ? -1 : 1);
 const ROUTE_TIMEOUT_MS = 2500;
 
 // Where a path sits in the header's own order, plus how this run should be
-// labelled — reusing the exact "index into NAV_LINKS, padded to two digits"
-// numbering the mobile menu already prints beside each page. Service detail
-// pages (not in NAV_LINKS themselves) inherit Services' position and label
-// with their own name rather than "Services", so /services/kitchens still
-// sorts as forward-of-Home but reads as "Bespoke Kitchens". Anything else
+// labelled — reusing the exact "index into the navigation, padded to two
+// digits" numbering the mobile menu already prints beside each page. Service
+// detail pages (not navigation entries themselves) inherit Services' position
+// and label with their own name rather than "Services", so /services/kitchens
+// still sorts as forward-of-Home but reads as "Bespoke Kitchens". Anything else
 // (booking, a future route) sorts past the end of the list — it always reads
 // as "forward".
-function locate(pathname: string): { order: number; index: string; label: string } {
-  const linkIndex = NAV_LINKS.findIndex((l) => l.path === pathname);
+function locate(
+  nav: NavLink[],
+  pathname: string,
+  fallbackLabel: string,
+): { order: number; index: string; label: string } {
+  const linkIndex = nav.findIndex((l) => l.path === pathname);
   if (linkIndex !== -1) {
-    return { order: linkIndex, index: String(linkIndex + 1).padStart(2, "0"), label: NAV_LINKS[linkIndex].label };
+    return { order: linkIndex, index: String(linkIndex + 1).padStart(2, "0"), label: nav[linkIndex].label };
   }
 
-  const parentIndex = NAV_LINKS.findIndex((l) => l.pages?.some((p) => p.href === pathname));
+  const parentIndex = nav.findIndex((l) => l.pages?.some((p) => p.href === pathname));
   if (parentIndex !== -1) {
-    const page = NAV_LINKS[parentIndex].pages?.find((p) => p.href === pathname);
+    const page = nav[parentIndex].pages?.find((p) => p.href === pathname);
     return {
       order: parentIndex,
       index: String(parentIndex + 1).padStart(2, "0"),
-      label: page?.label ?? NAV_LINKS[parentIndex].label,
+      label: page?.label ?? nav[parentIndex].label,
     };
   }
 
-  return { order: NAV_LINKS.length, index: String(NAV_LINKS.length + 1).padStart(2, "0"), label: "Enzo Interiors" };
+  return { order: nav.length, index: String(nav.length + 1).padStart(2, "0"), label: fallbackLabel };
 }
 
-export function PageTransition() {
+export function PageTransition({
+  nav,
+  content,
+}: {
+  nav: NavLink[];
+  content: SiteContent["pageTransition"];
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const reduced = usePrefersReducedMotion();
@@ -171,8 +181,9 @@ export function PageTransition() {
 
       event.preventDefault();
 
-      const to = locate(url.pathname);
-      forwardRef.current = to.order >= locate(window.location.pathname).order;
+      const to = locate(nav, url.pathname, content.fallbackLabel);
+      forwardRef.current =
+        to.order >= locate(nav, window.location.pathname, content.fallbackLabel).order;
       targetRef.current = { path: url.pathname, href: url.pathname + url.search + url.hash };
       landedRef.current = false;
       setPlate({ index: to.index, label: to.label });
@@ -191,7 +202,7 @@ export function PageTransition() {
 
     document.addEventListener("click", onClick, true);
     return () => document.removeEventListener("click", onClick, true);
-  }, [reduced, router, active]);
+  }, [reduced, router, active, nav, content.fallbackLabel]);
 
   // ── Close, navigate, hold, open ──
   useEffect(() => {
@@ -336,7 +347,7 @@ export function PageTransition() {
           <span className="text-[15px] font-medium text-enzo-cream">{plate.label}</span>
         </div>
         <p className="mt-2 font-display text-[9px] font-semibold uppercase tracking-[0.3em] text-enzo-sand/85">
-          Enzo Interiors — Leicester
+          {content.imprint}
         </p>
       </div>
     </div>

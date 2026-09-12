@@ -15,7 +15,8 @@
 // into GSAP's `.pin-spacer`, and React then unmounts a node that has been
 // moved out from under it.
 import { useSyncExternalStore } from "react";
-import { HeroSequence } from "./HeroSequence";
+import type { HeroRoomContent, HomeContent, MediaItem } from "@/lib/content";
+import { HeroSequence, type HeroSequenceImages } from "./HeroSequence";
 import { HeroStatic } from "./HeroStatic";
 
 type HeroVariant = "sequence" | "static";
@@ -41,7 +42,23 @@ function readVariant(): HeroVariant {
   return desktop && !reduced ? "sequence" : "static";
 }
 
-export function Hero() {
+// Both variants' copy and images arrive as props rather than being looked up
+// here: this component is a client component that decides at runtime which
+// hero to mount, so it cannot fetch, and resolving the media ids on the server
+// keeps the media table out of the browser bundle.
+export function Hero({
+  hero,
+  heroStatic,
+  rooms,
+  images,
+  staticImages,
+}: {
+  hero: HomeContent["hero"];
+  heroStatic: HomeContent["heroStatic"];
+  rooms: HeroRoomContent[];
+  images: HeroSequenceImages;
+  staticImages: MediaItem[];
+}) {
   // Server and first client render both return null, so the markup matches and
   // a neutral placeholder paints for one frame rather than the wrong variant's
   // real content flashing before it is replaced.
@@ -51,5 +68,9 @@ export function Hero() {
     return <div className="h-screen w-full bg-enzo-dark" />;
   }
 
-  return variant === "sequence" ? <HeroSequence /> : <HeroStatic />;
+  return variant === "sequence" ? (
+    <HeroSequence content={hero} rooms={rooms} images={images} />
+  ) : (
+    <HeroStatic content={heroStatic} images={staticImages} />
+  );
 }

@@ -17,6 +17,7 @@ import { useGSAP } from "@/hooks/useGSAP";
 import { EASE } from "@/lib/motion";
 import { buildRoomPlan } from "@/lib/room-plan";
 import { cn } from "@/lib/utils";
+import { fill, type SharedContent } from "@/lib/content";
 
 /**
  * Where the drawn room actually lands inside the component's own box, in CSS
@@ -45,6 +46,8 @@ interface RoomPlanDrawingProps {
   image: string;
   /** Small caption in the drawing's top-left, e.g. "Kitchens". */
   caption: string;
+  /** The drawing's own two strings — the printed caption and the alt text. */
+  content: SharedContent["roomPlan"];
   /**
    * Which of the four room shapes to draw. Passed by position from the
    * services index so each published service gets a different footprint;
@@ -64,6 +67,7 @@ export function RoomPlanDrawing({
   slug,
   image,
   caption,
+  content,
   pattern,
   onFrame,
   className,
@@ -187,7 +191,7 @@ export function RoomPlanDrawing({
         viewBox={`0 0 ${plan.width} ${plan.height}`}
         className="h-full w-full overflow-visible"
         role="img"
-        aria-label={`Plan drawing of a ${caption.toLowerCase()} installation`}
+        aria-label={fill(content.ariaLabel, { caption: caption.toLowerCase() })}
       >
         <defs>
           <clipPath id={clipId}>
@@ -351,7 +355,7 @@ export function RoomPlanDrawing({
           className="fill-enzo-sand font-display"
           style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase" }}
         >
-          Plan — {caption}
+          {fill(content.caption, { caption })}
         </text>
       </svg>
     </div>

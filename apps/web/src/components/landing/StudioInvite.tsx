@@ -53,17 +53,20 @@ import { MagneticButton } from "@/components/shared/MagneticButton";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, observeScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import type { Company, HomeContent, PortfolioItem } from "@/lib/content";
 
-const INSTAGRAM_URL = "https://instagram.com/enzo.interiors";
 const ROW_SECONDS = [52, 64];
 
 interface StudioInviteProps {
   items: PortfolioItem[];
+  content: HomeContent["invite"];
+  /** The number, the address and the Instagram handle, stated once. */
+  company: Company;
 }
 
-export function StudioInvite({ items }: StudioInviteProps) {
+export function StudioInvite({ items, content, company }: StudioInviteProps) {
   const sectionRef = useRef<HTMLElement>(null);
+  const instagram = company.socials.find((social) => social.id === "instagram");
 
   useGSAP(sectionRef, (section, reduced) => {
     if (reduced) return;
@@ -173,10 +176,10 @@ export function StudioInvite({ items }: StudioInviteProps) {
       <div className="pt-16 md:pt-24 lg:pb-8">
         <div className="shell mb-7 flex flex-wrap items-center justify-between gap-4">
           <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sage">
-            Recent installs
+            {content.recentLabel}
           </span>
           <a
-            href={INSTAGRAM_URL}
+            href={instagram?.href ?? "#"}
             target="_blank"
             rel="noopener noreferrer"
             className="group/ig inline-flex min-h-11 items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
@@ -185,7 +188,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
               size={14}
               className="transition-transform duration-300 group-hover/ig:-rotate-12"
             />
-            @enzo.interiors
+            {instagram?.handle ?? instagram?.label}
           </a>
         </div>
 
@@ -236,7 +239,7 @@ export function StudioInvite({ items }: StudioInviteProps) {
           are short and an overlapping panel would cover most of them. */}
       <div className="relative shell pb-20 pt-12 md:pb-28 lg:-mt-24 lg:pt-0 xl:-mt-32">
         <h2 id="invite-heading" className="sr-only">
-          Book a consultation
+          {content.srHeading}
         </h2>
 
         {/* ── Desktop: one forest panel, divided by a hairline ── */}
@@ -244,14 +247,14 @@ export function StudioInvite({ items }: StudioInviteProps) {
           <div className="rounded-l-[22px] bg-enzo-forest px-12 pb-14 pt-14">
             <SectionIntro
               tone="dark"
-              index="06"
-              label="Next"
-              datum="free, no obligation"
-              lines={["Let us measure", "your space."]}
-              lede="An hour at your kitchen table, a tape measure and a few photographs. You get a drawing and a fixed price. Nothing else happens until you say so."
+              index={content.index}
+              label={content.label}
+              datum={content.datum}
+              lines={content.lines}
+              lede={content.lede}
             />
-            <MagneticButton href="/booking" className="-ml-5 mt-6">
-              Book Consultation
+            <MagneticButton href={content.ctaHref} className="-ml-5 mt-6">
+              {content.ctaLabel}
             </MagneticButton>
           </div>
 
@@ -260,30 +263,29 @@ export function StudioInvite({ items }: StudioInviteProps) {
             className="rounded-r-[22px] border-l border-enzo-cream/15 bg-enzo-forest px-10 pb-14 pt-14"
           >
             <p className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sand">
-              Rather not book online
+              {content.contact.label}
             </p>
             <div className="mt-5 flex flex-col gap-4">
               <a
-                href="tel:+447777333052"
+                href={company.phone.href}
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
-                <span className="text-[15px]">07777 333052</span>
+                <span className="text-[15px]">{company.phone.display}</span>
                 <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
-                  Call
+                  {content.contact.callLabel}
                 </span>
               </a>
               <a
-                href="mailto:hello@enzointeriors.co.uk"
+                href={company.emailHref}
                 className="group/link flex items-baseline justify-between gap-4 border-b border-enzo-cream/10 pb-3 text-enzo-cream transition-colors duration-300 hover:border-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
               >
-                <span className="truncate text-[15px]">hello@enzointeriors.co.uk</span>
+                <span className="truncate text-[15px]">{company.email}</span>
                 <span className="text-[11px] uppercase tracking-[0.18em] text-enzo-cream/70 transition-colors duration-300 group-hover/link:text-enzo-sand">
-                  Email
+                  {content.contact.emailLabel}
                 </span>
               </a>
               <p className="text-[12.5px] leading-[1.65] text-enzo-cream/70">
-                Send photos of the room and rough measurements and we will come back with a
-                ballpark before we visit.
+                {content.contact.note}
               </p>
             </div>
           </div>
@@ -301,18 +303,18 @@ export function StudioInvite({ items }: StudioInviteProps) {
           className="rounded-[26px] bg-enzo-sand px-6 pb-7 pt-8 sm:px-8 lg:hidden"
         >
           <SectionIntro
-            index="06"
-            label="Next"
-            datum="free, no obligation"
-            lines={["Let us measure", "your space."]}
-            lede="An hour at your kitchen table and a tape measure. You get a drawing and a fixed price."
+            index={content.index}
+            label={content.label}
+            datum={content.datum}
+            lines={content.lines}
+            lede={content.ledeShort}
           />
 
           <Link
-            href="/booking"
+            href={content.ctaHref}
             className="mt-6 flex items-center justify-between gap-3 rounded-full bg-enzo-forest py-2 pl-6 pr-2 text-[14.5px] font-semibold text-enzo-cream transition-transform duration-300 active:scale-[0.98]"
           >
-            Book Consultation
+            {content.ctaLabel}
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-enzo-cream text-enzo-forest">
               <ArrowUpRight className="h-4 w-4" />
             </span>
@@ -320,27 +322,26 @@ export function StudioInvite({ items }: StudioInviteProps) {
 
           <div className="mt-6 border-t border-enzo-forest/15 pt-6">
             <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest/55">
-              Rather not book online
+              {content.contact.label}
             </p>
             <div className="mt-3.5 grid grid-cols-2 gap-3">
               <a
-                href="tel:+447777333052"
+                href={company.phone.href}
                 className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
               >
                 <Phone className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="text-[13.5px] font-semibold">Call</span>
+                <span className="text-[13.5px] font-semibold">{content.contact.callLabel}</span>
               </a>
               <a
-                href="mailto:hello@enzointeriors.co.uk"
+                href={company.emailHref}
                 className="flex items-center gap-2.5 rounded-2xl bg-enzo-forest/8 py-3.5 pl-4 pr-2 text-enzo-forest transition-colors duration-300 active:bg-enzo-forest/15"
               >
                 <Mail className="h-4 w-4 shrink-0" aria-hidden="true" />
-                <span className="text-[13.5px] font-semibold">Email</span>
+                <span className="text-[13.5px] font-semibold">{content.contact.emailLabel}</span>
               </a>
             </div>
             <p className="mt-4 text-[12.5px] leading-[1.6] text-enzo-forest/70">
-              Send photos of the room and rough measurements — we will come back with a
-              ballpark before we visit.
+              {content.contact.noteMobile}
             </p>
           </div>
         </div>

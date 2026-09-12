@@ -21,7 +21,7 @@
 // play out the parallax rather than blowing through it in a frame or two.
 // See SCRUB_SMOOTHING and TRANSITION_PX below for how the two are tuned and
 // why the scrub is direct rather than eased.
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -30,9 +30,19 @@ import { EASE } from "@/lib/motion";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
 import { RotatingBadge } from "./RotatingBadge";
-import { HERO_ROOMS, HERO_TRANSITIONS, roomFrameUrl } from "./hero-rooms";
+import {
+  fill,
+  type HeroRoomContent,
+  type HeroTransitionContent,
+  type HomeContent,
+  type MediaItem,
+} from "@/lib/content";
 
-const FRAME_COUNT = HERO_ROOMS[0]!.frameCount;
+/** public/frames/hero/{framesDir}/frame_0001.webp onward. */
+function roomFrameUrl(room: { framesDir: string }, frameIndex1: number): string {
+  return "/frames/hero/" + room.framesDir + "/frame_" + String(frameIndex1).padStart(4, "0") + ".webp";
+}
+
 // Scroll distance mapped to each frame — lower is faster (less scrolling
 // needed to get through a room's 144 frames).
 //
@@ -115,33 +125,64 @@ type Segment =
   | { type: "transition"; transitionIndex: number; px: number }
   | { type: "cta"; px: number };
 
-const SEGMENTS: Segment[] = [];
-HERO_ROOMS.forEach((_, roomIndex) => {
-  SEGMENTS.push({ type: "room", roomIndex, px: FRAME_COUNT * PX_PER_FRAME });
-  SEGMENTS.push({ type: "hold", roomIndex, px: HOLD_PX });
-  if (roomIndex < HERO_TRANSITIONS.length) {
-    SEGMENTS.push({ type: "transition", transitionIndex: roomIndex, px: TRANSITION_PX });
-  }
-});
-SEGMENTS.push({ type: "cta", px: CTA_PX });
+/**
+ * The whole scroll model, derived from the rooms the page publishes.
+ *
+ * This was a module-level constant built from a hardcoded room list. The rooms
+ * are records now, so the segment plan is a function of them: three rooms or
+ * five both lay out correctly, and the frame count is read off the records
+ * rather than asserted here.
+ */
+interface TimelineModel {
+  frameCount: number;
+  segments: Segment[];
+  totalPx: number;
+  /** Where the hold at segment i starts, rests, and where its advance lands. */
+  holdStops: (i: number) => { start: number; rest: number; next: number };
+  /**
+   * The absolute (whole-timeline) px position CTA_RESUME_FRACTION resolves to
+   * — how far into the pinned scroll range "resume at the CTA" targets.
+   */
+  ctaResumeRawPx: number;
+}
 
-const TOTAL_PX = SEGMENTS.reduce((sum, s) => sum + s.px, 0);
-const SEGMENT_STARTS = SEGMENTS.map((_, i) => SEGMENTS.slice(0, i).reduce((sum, s) => sum + s.px, 0));
+function buildTimeline(
+  rooms: HeroRoomContent[],
+  transitionCount: number,
+): TimelineModel {
+  const frameCount = rooms[0]?.frameCount ?? 0;
+  const segments: Segment[] = [];
 
-/** Where the hold at segment `i` starts, where it rests, and where its advance lands. */
-function holdStops(i: number) {
-  const next = SEGMENTS[i + 1]!;
-  const landing = next.type === "cta" ? CTA_RESUME_FRACTION : TRANSITION_REST;
+  rooms.forEach((_, roomIndex) => {
+    segments.push({ type: "room", roomIndex, px: frameCount * PX_PER_FRAME });
+    segments.push({ type: "hold", roomIndex, px: HOLD_PX });
+    if (roomIndex < transitionCount) {
+      segments.push({ type: "transition", transitionIndex: roomIndex, px: TRANSITION_PX });
+    }
+  });
+  segments.push({ type: "cta", px: CTA_PX });
+
+  const totalPx = segments.reduce((sum, s) => sum + s.px, 0);
+  const starts = segments.map((_, i) =>
+    segments.slice(0, i).reduce((sum, s) => sum + s.px, 0),
+  );
+
   return {
-    start: SEGMENT_STARTS[i]!,
-    rest: SEGMENT_STARTS[i]! + HOLD_PX * HOLD_REST,
-    next: SEGMENT_STARTS[i + 1]! + next.px * landing,
+    frameCount,
+    segments,
+    totalPx,
+    ctaResumeRawPx: totalPx - CTA_PX * (1 - CTA_RESUME_FRACTION),
+    holdStops(i: number) {
+      const next = segments[i + 1]!;
+      const landing = next.type === "cta" ? CTA_RESUME_FRACTION : TRANSITION_REST;
+      return {
+        start: starts[i]!,
+        rest: starts[i]! + HOLD_PX * HOLD_REST,
+        next: starts[i + 1]! + next.px * landing,
+      };
+    },
   };
 }
-// The absolute (whole-timeline) px position CTA_RESUME_FRACTION resolves
-// to — i.e. how far into the pinned scroll range "resume at the CTA"
-// actually targets.
-const CTA_RESUME_RAW_PX = TOTAL_PX - CTA_PX * (1 - CTA_RESUME_FRACTION);
 
 function clamp01(v: number): number {
   return Math.max(0, Math.min(1, v));
@@ -156,7 +197,23 @@ function windowed(p: number, inStart: number, inEnd: number, outStart: number, o
   return Math.min(fadeIn, fadeOut);
 }
 
-export function HeroSequence() {
+export interface HeroSequenceImages {
+  loaderLogo: MediaItem;
+  ctaCard: MediaItem;
+  ctaShowcase: MediaItem[];
+}
+
+export function HeroSequence({
+  content,
+  rooms,
+  images: media,
+}: {
+  content: HomeContent["hero"];
+  /** Each room's label is read off the service it shows — see getHeroRooms. */
+  rooms: HeroRoomContent[];
+  images: HeroSequenceImages;
+}) {
+  const transitions: HeroTransitionContent[] = content.transitions;
   const sectionRef = useRef<HTMLElement | null>(null);
   // ScrollTrigger pins this inner element, never the <section>. Pinning wraps
   // whatever it pins in a `.pin-spacer` div, which re-parents that node — and
@@ -222,7 +279,22 @@ export function HeroSequence() {
     };
   }, []);
 
+  const timeline = useMemo(
+    () => buildTimeline(rooms, transitions.length),
+    [rooms, transitions.length],
+  );
+
   useEffect(() => {
+    // Bound to the names these had as module constants, so every piece of
+    // scroll maths below reads exactly as it did before.
+    const {
+      frameCount: FRAME_COUNT,
+      segments: SEGMENTS,
+      totalPx: TOTAL_PX,
+      ctaResumeRawPx: CTA_RESUME_RAW_PX,
+      holdStops,
+    } = timeline;
+
     const section = sectionRef.current;
     const stage = stageRef.current;
     const canvas = canvasRef.current;
@@ -266,8 +338,8 @@ export function HeroSequence() {
     // discontinuity, since both already agree on the same state.
     let resumingAtCta = hasSeenCta;
 
-    const images: HTMLImageElement[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT));
-    const loaded: boolean[][] = HERO_ROOMS.map(() => new Array(FRAME_COUNT).fill(false));
+    const images: HTMLImageElement[][] = rooms.map(() => new Array(FRAME_COUNT));
+    const loaded: boolean[][] = rooms.map(() => new Array(FRAME_COUNT).fill(false));
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
 
@@ -327,7 +399,7 @@ export function HeroSequence() {
     }
 
     function preloadRoom(roomIndex: number, onProgress?: () => void): Promise<void> {
-      const room = HERO_ROOMS[roomIndex]!;
+      const room = rooms[roomIndex]!;
       return new Promise((resolve) => {
         let remaining = FRAME_COUNT;
         for (let i = 0; i < FRAME_COUNT; i++) {
@@ -465,7 +537,7 @@ export function HeroSequence() {
     // headline reveal (with luminous warm gradient text), subtext, buttons,
     // trust chips, plus a floating frosted consultation preview card on the right.
     function renderCta(localProgress: number) {
-      setActiveRoom(HERO_ROOMS.length - 1);
+      setActiveRoom(rooms.length - 1);
       setLayer("cta");
       if (ctaBgRef.current) {
         ctaBgRef.current.style.transform =
@@ -696,15 +768,22 @@ export function HeroSequence() {
       });
       gsap.killTweensOf(section);
     };
-  }, []);
+  }, [rooms, timeline]);
 
-  const mediawallRoom = HERO_ROOMS[0]!;
-  const kitchenRoom = HERO_ROOMS[1]!;
-  const bedroomRoom = HERO_ROOMS[2]!;
-  const transition0 = HERO_TRANSITIONS[0]!;
-  const transition1 = HERO_TRANSITIONS[1]!;
-  const activeRoom = HERO_ROOMS[activeRoomIndex]!;
+  const mediawallRoom = rooms[0]!;
+  const kitchenRoom = rooms[1]!;
+  const bedroomRoom = rooms[2]!;
+  const transition0 = transitions[0]!;
+  const transition1 = transitions[1]!;
+  const activeRoom = rooms[activeRoomIndex]!;
   const showRoom = activeLayer === "room" || activeLayer === "hold";
+  const FRAME_COUNT = timeline.frameCount;
+
+  // Decorative, and derived rather than authored: the two rooms this chapter
+  // moves between, alternating. Rename the service and the marquee follows.
+  const MARQUEE_SEP = "\u00a0\u00a0\u00b7\u00a0\u00a0";
+  const marqueePair = kitchenRoom.label + MARQUEE_SEP + bedroomRoom.label;
+  const marqueeText = marqueePair + MARQUEE_SEP + marqueePair;
 
   return (
     <section ref={sectionRef} className="relative w-full">
@@ -734,7 +813,7 @@ export function HeroSequence() {
           room frames are still finishing their preload in the background. */}
       <div
         aria-live="polite"
-        aria-label="Loading the showcase"
+        aria-label={content.loader.label}
         aria-hidden={framesReady || !showRoom}
         className="absolute inset-0 z-[20] grid place-items-center bg-enzo-dark transition-opacity duration-500 ease-out"
         style={{
@@ -744,7 +823,11 @@ export function HeroSequence() {
       >
         <div className="flex w-full max-w-xs flex-col items-center px-6 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element -- tiny fixed loader mark, not worth next/image's overhead */}
-          <img src="/logo/enzo-white.png" alt="Enzo Interiors" className="h-10 w-auto sm:h-12" />
+          <img
+            src={media.loaderLogo.src}
+            alt={media.loaderLogo.alt}
+            className="h-10 w-auto sm:h-12"
+          />
           <div className="mt-8 w-full">
             <div className="h-[3px] w-full overflow-hidden rounded-full bg-enzo-cream/15">
               <div
@@ -753,7 +836,9 @@ export function HeroSequence() {
               />
             </div>
             <div className="mt-4 flex items-center justify-between gap-4 text-enzo-cream/70">
-              <span className="font-sans text-[11px] uppercase tracking-[0.22em]">Loading the showcase</span>
+              <span className="font-sans text-[11px] uppercase tracking-[0.22em]">
+                {content.loader.label}
+              </span>
               <span className="shrink-0 font-sans text-[11px] tabular-nums tracking-[0.08em] text-enzo-cream/75">
                 {loadProgress}%
               </span>
@@ -804,13 +889,13 @@ export function HeroSequence() {
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 text-center">
           <div ref={t0ContentRef} className="max-w-lg opacity-0">
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-              {transition0.copy.eyebrow}
+              {transition0.eyebrow}
             </span>
             <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
-              {transition0.copy.heading}
+              {transition0.heading}
             </h2>
             <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
-              {transition0.copy.body}
+              {transition0.body}
             </p>
           </div>
         </div>
@@ -838,7 +923,7 @@ export function HeroSequence() {
           className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-title leading-none text-enzo-cream/[0.07]"
           style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
         >
-          Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom&nbsp;&nbsp;·&nbsp;&nbsp;Kitchen&nbsp;&nbsp;·&nbsp;&nbsp;Bedroom
+          {marqueeText}
         </div>
         <div className="pointer-events-none absolute inset-0 flex items-center justify-end px-8 md:px-16">
           <div className="absolute right-[10%] top-[14%] hidden md:block">
@@ -849,20 +934,20 @@ export function HeroSequence() {
               <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
               <div className="bg-enzo-sand px-4 py-2.5">
                 <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest">
-                  Kitchen — Complete
+                  {fill(transition1.cardLabel ?? "", { label: kitchenRoom.label })}
                 </span>
               </div>
             </div>
           </div>
           <div ref={t1ContentRef} className="max-w-md text-right opacity-0">
             <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-              {transition1.copy.eyebrow}
+              {transition1.eyebrow}
             </span>
             <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
-              {transition1.copy.heading}
+              {transition1.heading}
             </h2>
             <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
-              {transition1.copy.body}
+              {transition1.body}
             </p>
           </div>
         </div>
@@ -899,16 +984,21 @@ export function HeroSequence() {
                 className="font-display font-semibold leading-[0.98] tracking-[-0.055em] text-enzo-cream"
                 style={{ fontSize: "clamp(3.15rem, 4.8vw, 4.25rem)" }}
               >
-                <span className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
-                  <span ref={ctaLine1Ref} className="block whitespace-nowrap" style={{ transform: "translateY(100%)" }}>
-                    Stop <em className="text-enzo-sage not-italic">Dreaming</em>.
+                {content.cta.lines.map((line, index) => (
+                  <span
+                    key={line.accent}
+                    className="block overflow-hidden pb-[0.12em] -mb-[0.12em]"
+                  >
+                    <span
+                      ref={index === 0 ? ctaLine1Ref : ctaLine2Ref}
+                      className="block whitespace-nowrap"
+                      style={{ transform: "translateY(100%)" }}
+                    >
+                      {line.lead} <em className="text-enzo-sage not-italic">{line.accent}</em>
+                      {line.tail}
+                    </span>
                   </span>
-                </span>
-                <span className="block overflow-hidden pb-[0.12em] -mb-[0.12em]">
-                  <span ref={ctaLine2Ref} className="block whitespace-nowrap" style={{ transform: "translateY(100%)" }}>
-                    Start <em className="text-enzo-sage not-italic">Building</em>.
-                  </span>
-                </span>
+                ))}
               </h2>
 
               {/* Subtext */}
@@ -916,12 +1006,15 @@ export function HeroSequence() {
                 ref={ctaSubRef}
                 className="font-sans mt-5 line-clamp-2 max-w-[44ch] text-[15px] font-normal leading-[1.7] text-enzo-cream/70 opacity-0"
               >
-                One free consultation. Zero pressure. Built for you.
+                {content.cta.sub}
               </p>
 
               {/* Pill CTA — label + embedded arrow circle */}
               <div ref={ctaButtonsRef} className="mt-9 opacity-0">
-                <HeroCtaButton href="/booking" label="Book Free Consultation" />
+                <HeroCtaButton
+                  href={content.cta.buttonHref}
+                  label={content.cta.buttonLabel}
+                />
               </div>
 
               {/* Thumbnail card + rotating badge, inline row */}
@@ -929,18 +1022,26 @@ export function HeroSequence() {
                 <div ref={ctaChip1Ref} className="w-[260px] shrink-0 opacity-0">
                   <div className="overflow-hidden rounded-2xl">
                     <img
-                      src="/Wardrobes.jpeg"
-                      alt="Bespoke fitted wardrobes by Enzo Interiors"
-                      title="Bespoke Wardrobes"
+                      src={media.ctaCard.src}
+                      alt={media.ctaCard.alt}
+                      title={media.ctaCard.title ?? media.ctaCard.alt}
                       className="block aspect-[3/2] w-full object-cover"
                     />
                   </div>
-                  <p className="font-display mt-3 text-[13px] font-semibold text-enzo-cream">Wardrobe Suite</p>
-                  <p className="font-sans text-[12px] text-enzo-cream/70">Bespoke. Handcrafted.</p>
+                  <p className="font-display mt-3 text-[13px] font-semibold text-enzo-cream">
+                    {content.cta.card.title}
+                  </p>
+                  <p className="font-sans text-[12px] text-enzo-cream/70">
+                    {content.cta.card.sub}
+                  </p>
                 </div>
 
                 <div ref={ctaChip2Ref} className="relative z-10 -mt-10 flex h-[150px] items-center opacity-0">
-                  <RotatingBadge label="View Portfolio" href="/portfolio" size={150} />
+                  <RotatingBadge
+                    label={content.cta.badge.label}
+                    href={content.cta.badge.href}
+                    size={150}
+                  />
                 </div>
               </div>
             </div>
@@ -950,23 +1051,7 @@ export function HeroSequence() {
               <HeroRotatingImage
                 imageRef={ctaBgRef}
                 className="max-w-[480px]"
-                images={[
-                  {
-                    src: "/Bedroom.jpeg",
-                    alt: "Bespoke bedroom interior by Enzo Interiors",
-                    title: "Bespoke Bedroom",
-                  },
-                  {
-                    src: "/centeredKitchen.jpeg",
-                    alt: "Bespoke kitchen interior by Enzo Interiors",
-                    title: "Bespoke Kitchen",
-                  },
-                  {
-                    src: "/fireplaceMediawall.jpeg",
-                    alt: "Bespoke media wall interior by Enzo Interiors",
-                    title: "Bespoke Media Wall",
-                  },
-                ]}
+                images={media.ctaShowcase}
                 notchRadius={0}
                 notchFeather={0}
               />
@@ -992,7 +1077,7 @@ export function HeroSequence() {
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/30 to-transparent" />
         <div ref={holdCopyRef} className="absolute bottom-24 left-6 max-w-[36rem] sm:left-10">
           <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-            The finished {activeRoom.label.toLowerCase()}
+            {fill(content.hold.eyebrow, { label: activeRoom.label.toLowerCase() })}
           </span>
           <h2 className="font-title text-[clamp(2.5rem,4.6vw,4.25rem)] font-semibold leading-[1.02] tracking-[-0.035em] text-enzo-cream">
             {activeRoom.hold.heading}
@@ -1005,11 +1090,13 @@ export function HeroSequence() {
               <ChevronDown className="h-4 w-4 animate-bounce" />
             </span>
             <span className="text-[11px] font-semibold uppercase tracking-[0.3em] text-enzo-cream">
-              Scroll to continue
+              {content.hold.cue}
             </span>
             <span aria-hidden="true" className="h-px w-8 bg-enzo-cream/30" />
             <span className="text-[11px] uppercase tracking-[0.3em] text-enzo-cream/60">
-              Next · {HERO_ROOMS[activeRoomIndex + 1]?.label ?? "Your room"}
+              {fill(content.hold.next, {
+                label: rooms[activeRoomIndex + 1]?.label ?? content.hold.nextFallback,
+              })}
             </span>
           </div>
         </div>
@@ -1028,7 +1115,7 @@ export function HeroSequence() {
           {String(activeRoomIndex + 1).padStart(2, "0")}
         </span>
         <span className="h-px w-8 bg-enzo-cream/30" />
-        <span className="font-sans text-[11px] uppercase tracking-[0.32em]">{HERO_ROOMS[activeRoomIndex]!.label}</span>
+        <span className="font-sans text-[11px] uppercase tracking-[0.32em]">{activeRoom.label}</span>
       </div>
 
       {/* Scroll cue — the only other UI visible at the very start, since
@@ -1040,7 +1127,7 @@ export function HeroSequence() {
         className="pointer-events-none absolute inset-x-0 bottom-20 z-[4] flex flex-col items-center gap-3 text-enzo-cream/70"
       >
         <span className="h-8 w-px bg-enzo-cream/30" />
-        <span className="text-[11px] uppercase tracking-[0.35em]">Scroll to Begin</span>
+        <span className="text-[11px] uppercase tracking-[0.35em]">{content.scrollHint}</span>
         <ChevronDown className="h-4 w-4 animate-bounce" />
       </div>
 
@@ -1049,7 +1136,7 @@ export function HeroSequence() {
         style={{ opacity: showRoom ? 1 : 0 }}
         role="presentation"
       >
-        {HERO_ROOMS.map((room, i) => (
+        {rooms.map((room, i) => (
           <span
             key={room.id}
             className="h-[3px] w-8 overflow-hidden rounded-full bg-enzo-cream/25"

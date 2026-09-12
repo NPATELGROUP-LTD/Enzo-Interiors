@@ -26,19 +26,21 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
-import type { ServiceDetail } from "@/lib/content";
+import type { ServiceDetail, ServiceDetailContent } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
 import { heroCommonParts, heroRestMotion, HeroActions, HeroFacts, HeroRule, HeroTitleLine } from "./heroParts";
 
 export function HeroDoors({
   service,
   id,
+  content,
 }: {
   service: ServiceDetail;
   id: string;
+  content: ServiceDetailContent["hero"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
-  const facts = getHeroFacts(service);
+  const facts = getHeroFacts(service, content.facts);
 
   useGSAP(sectionRef, (section, reduced) => {
     const parts = heroCommonParts(section);
@@ -145,7 +147,7 @@ export function HeroDoors({
 
       {/* ── The masthead, underneath ── */}
       <div className="shell pb-16 pt-10 md:pb-20 md:pt-14">
-        <HeroRule category={service.category} tone="light" />
+        <HeroRule index={content.index} category={service.category} tone="light" />
 
         {/* The title took a `1fr` column and the lede a 30rem one, so a
             two-word masthead sat beside a single line of type and about
@@ -177,7 +179,12 @@ export function HeroDoors({
               className="mt-7 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              <HeroActions slug={service.slug} tone="light" className="lg:justify-end" />
+              <HeroActions
+                slug={service.slug}
+                tone="light"
+                className="lg:justify-end"
+                content={content.actions}
+              />
             </div>
           </div>
         </div>

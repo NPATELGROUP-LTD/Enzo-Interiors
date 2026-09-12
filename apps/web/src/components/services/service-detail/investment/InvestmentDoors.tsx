@@ -20,9 +20,15 @@ import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
+import { estimateQuote, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
-import type { PricingTier } from "@/lib/content";
+import {
+  fill,
+  type InvestmentVariantContent,
+  type PricingTier,
+  type ServiceDetailContent,
+  type SharedContent,
+} from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
 import { GBP } from "@/lib/service-metrics";
@@ -31,13 +37,20 @@ export function InvestmentDoors({
   category,
   pricing,
   id,
+  content,
+  common,
+  roomSizeContent,
 }: {
   category: string;
   pricing: PricingTier[];
   id: string;
+  content: InvestmentVariantContent;
+  common: ServiceDetailContent["investment"];
+  roomSizeContent: SharedContent["roomSize"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [roomSize, setRoomSize] = useState<RoomSize>("medium");
+  const { srTierLabel = "", srRangeLabel = "" } = content;
   const [open, setOpen] = useState(Math.floor((pricing.length - 1) / 2));
 
   const priced = pricing.map((tier) => ({
@@ -84,21 +97,26 @@ export function InvestmentDoors({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
-          Investment
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           tone="dark"
-          index="A5"
-          label="Specifications"
-          datum={`${pricing.length} to open`}
-          lines={["Open the one", "you want priced."]}
-          lede="Each specification is a door. Point at one and it opens onto what is behind it. Indicative ranges — the firm figure comes after we have measured."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: pricing.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <div className="mt-10">
-          <RoomSizeControl value={roomSize} onChange={setRoomSize} tone="dark" />
+          <RoomSizeControl
+            value={roomSize}
+            onChange={setRoomSize}
+            tone="dark"
+            content={roomSizeContent}
+          />
         </div>
 
         {/* ── lg and up: the doors ── */}
@@ -121,9 +139,12 @@ export function InvestmentDoors({
                   className="absolute inset-0 z-10 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-enzo-sand"
                 >
                   <span className="sr-only">
-                    {tier.tier} specification
+                    {fill(srTierLabel, { tier: tier.tier })}
                     {estimate
-                      ? `, ${GBP.format(estimate.low)} to ${GBP.format(estimate.high)}`
+                      ? fill(srRangeLabel, {
+                          low: GBP.format(estimate.low),
+                          high: GBP.format(estimate.high),
+                        })
                       : ""}
                   </span>
                 </button>
@@ -172,11 +193,14 @@ export function InvestmentDoors({
                         {GBP.format(estimate.high)}
                       </>
                     ) : (
-                      "On application"
+                      common.onApplication
                     )}
                   </p>
                   <p className="mt-1.5 text-[12px] text-enzo-cream/70">
-                    {ROOM_SIZE_LABELS[roomSize].toLowerCase()} room · from {tier.from}
+                    {fill(common.roomFromLine, {
+                      size: roomSizeContent.sizes[roomSize].toLowerCase(),
+                      price: tier.from,
+                    })}
                   </p>
                   <p className="mt-4 max-w-[44ch] text-[14px] leading-[1.6] text-enzo-cream/70">
                     {tier.desc}
@@ -201,7 +225,7 @@ export function InvestmentDoors({
                     }}
                     className="pointer-events-auto mt-6 w-fit rounded-full bg-enzo-cream px-7 py-3 text-[13.5px] font-medium text-enzo-forest transition-colors duration-300 hover:bg-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-dark"
                   >
-                    Get this quoted
+                    {common.quoteLabel}
                   </QuoteTriggerButton>
                 </div>
               </article>
@@ -226,7 +250,7 @@ export function InvestmentDoors({
                 <span className="text-[13.5px] tabular-nums text-enzo-sand">
                   {estimate
                     ? `${GBP.format(estimate.low)} – ${GBP.format(estimate.high)}`
-                    : "On application"}
+                    : common.onApplication}
                 </span>
               </div>
               <p className="mt-2 text-[13.5px] leading-[1.6] text-enzo-cream/70">
@@ -241,15 +265,14 @@ export function InvestmentDoors({
                 }}
                 className="mt-4 w-full rounded-full border border-enzo-cream/25 py-3 text-[13.5px] text-enzo-cream transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-sand"
               >
-                Get this quoted
+                {common.quoteLabel}
               </QuoteTriggerButton>
             </div>
           ))}
         </div>
 
         <p className="mt-8 max-w-[70ch] text-[12px] leading-[1.7] text-enzo-cream/65">
-          Ranges scale each specification&rsquo;s starting price by room size. A
-          guide for planning, not a quotation.
+          {content.footnote}
         </p>
       </div>
     </section>

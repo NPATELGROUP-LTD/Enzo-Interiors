@@ -17,11 +17,18 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
+import type { AboutPageContent, Company } from "@/lib/content";
 
-const PHONE_DISPLAY = "0116 XXX XXXX";
-const PHONE_HREF = "tel:0116XXXXXXX";
-
-export function AboutClose() {
+export function AboutClose({
+  content,
+  company,
+}: {
+  content: AboutPageContent["close"];
+  /** The number is the company's one number — this section used to carry its
+   *  own placeholder copy of it, which is how the site came to quote three
+   *  different numbers on three different pages. */
+  company: Company;
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -89,7 +96,7 @@ export function AboutClose() {
             />
           </span>
           <span className="font-display shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand">
-            07 — Meet us
+            {content.eyebrow}
           </span>
           <span aria-hidden="true" className="h-px flex-1 overflow-hidden">
             <span
@@ -105,7 +112,7 @@ export function AboutClose() {
           className="mx-auto mt-12 max-w-[16ch] text-center font-title font-semibold leading-[1.0] tracking-[-0.045em] md:mt-16"
           style={{ fontSize: "clamp(2.2rem, 5.4vw, 4.4rem)" }}
         >
-          {["You have met us.", "Now let us meet", "your room."].map((line) => (
+          {content.lines.map((line) => (
             <span key={line} className="block overflow-hidden pb-[0.1em] -mb-[0.1em]">
               <span
                 data-close-line
@@ -123,9 +130,7 @@ export function AboutClose() {
           className="mx-auto mt-7 max-w-[48ch] text-center text-[15px] leading-[1.7] text-enzo-cream/70 opacity-0"
           style={{ transform: "translateY(14px)" }}
         >
-          A free survey, in your own home, with nothing to sign at the end of
-          it. We measure, we photograph, we tell you honestly what is worth
-          doing — and then you decide.
+          {content.body}
         </p>
 
         <div
@@ -134,20 +139,20 @@ export function AboutClose() {
           style={{ transform: "translateY(14px)" }}
         >
           <Link
-            href="/booking"
+            href={content.ctaHref}
             className="group relative overflow-hidden rounded-full bg-enzo-cream px-9 py-4 text-[14.5px] font-medium text-enzo-forest transition-colors duration-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
           >
             <span
               aria-hidden="true"
               className="absolute inset-0 origin-bottom scale-y-0 bg-enzo-sand transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-y-100"
             />
-            <span className="relative">Book a free survey</span>
+            <span className="relative">{content.ctaLabel}</span>
           </Link>
           <a
-            href={PHONE_HREF}
+            href={company.phone.href}
             className="text-[14.5px] tabular-nums text-enzo-cream/70 underline decoration-enzo-cream/25 decoration-1 underline-offset-[6px] transition-colors duration-300 hover:text-enzo-cream hover:decoration-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
           >
-            {PHONE_DISPLAY}
+            {company.phone.display}
           </a>
         </div>
 
@@ -156,12 +161,12 @@ export function AboutClose() {
           className="mt-10 text-center text-[12.5px] text-enzo-cream/65 opacity-0"
           style={{ transform: "translateY(14px)" }}
         >
-          Rather see the work first?{" "}
+          {content.browsePrefix}{" "}
           <Link
-            href="/portfolio"
+            href={content.browseHref}
             className="underline decoration-enzo-cream/25 decoration-1 underline-offset-4 transition-colors duration-300 hover:text-enzo-sand hover:decoration-enzo-sand"
           >
-            The whole archive
+            {content.browseLabel}
           </Link>
         </p>
       </div>

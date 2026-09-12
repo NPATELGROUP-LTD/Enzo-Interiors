@@ -20,9 +20,15 @@ import gsap from "gsap";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
-import { estimateQuote, ROOM_SIZE_LABELS, type RoomSize } from "@/lib/quote-estimate";
+import { estimateQuote, type RoomSize } from "@/lib/quote-estimate";
 import { cn } from "@/lib/utils";
-import type { PricingTier } from "@/lib/content";
+import {
+  fill,
+  type InvestmentVariantContent,
+  type PricingTier,
+  type ServiceDetailContent,
+  type SharedContent,
+} from "@/lib/content";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 import { RoomSizeControl } from "./RoomSizeControl";
 import { GBP } from "@/lib/service-metrics";
@@ -31,13 +37,26 @@ export function InvestmentSlider({
   category,
   pricing,
   id,
+  content,
+  common,
+  roomSizeContent,
 }: {
   category: string;
   pricing: PricingTier[];
   id: string;
+  content: InvestmentVariantContent;
+  common: ServiceDetailContent["investment"];
+  roomSizeContent: SharedContent["roomSize"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [roomSize, setRoomSize] = useState<RoomSize>("medium");
+  const {
+    budgetLabel = "",
+    buysLabel = "",
+    sliderSrLabel = "",
+    rangeLine = "",
+    ctaLabel = "",
+  } = content;
   // 0–1 along the budget range. Starts a third in, so the section opens on
   // a real answer rather than at the cheapest possible one.
   const [t, setT] = useState(0.34);
@@ -111,20 +130,24 @@ export function InvestmentSlider({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="investment-heading" className="sr-only">
-          Investment
+          {common.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A5"
-          label="Budget"
-          datum={`${bands.length} specifications`}
-          lines={["Tell us the budget.", "We'll tell you", "what it buys."]}
-          lede="Set your room size, then move the slider. Indicative ranges — the firm figure comes after we have measured."
+          index={common.index}
+          label={content.label}
+          datum={fill(content.datum, { count: bands.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         <div className="mt-10">
-          <RoomSizeControl value={roomSize} onChange={setRoomSize} />
+          <RoomSizeControl
+            value={roomSize}
+            onChange={setRoomSize}
+            content={roomSizeContent}
+          />
         </div>
 
         <div
@@ -136,7 +159,7 @@ export function InvestmentSlider({
             <div className="flex flex-wrap items-end justify-between gap-6">
               <div>
                 <span className="font-display block text-[10.5px] font-semibold uppercase tracking-[0.26em] text-enzo-forest-light">
-                  Your budget
+                  {budgetLabel}
                 </span>
                 <span
                   className="mt-3 block font-title font-semibold leading-none tabular-nums tracking-[-0.045em] text-primary"
@@ -147,7 +170,7 @@ export function InvestmentSlider({
               </div>
               <div className="text-right">
                 <span className="block text-[11px] uppercase tracking-[0.22em] text-muted-foreground">
-                  Buys you
+                  {buysLabel}
                 </span>
                 <span className="mt-2 block font-title text-[1.4rem] font-semibold tracking-[-0.03em] text-enzo-forest-light">
                   {current.tier.tier}
@@ -157,7 +180,10 @@ export function InvestmentSlider({
 
             <label className="mt-8 block">
               <span className="sr-only">
-                Budget, from {GBP.format(floor)} to {GBP.format(ceiling)}
+                {fill(sliderSrLabel, {
+                  floor: GBP.format(floor),
+                  ceiling: GBP.format(ceiling),
+                })}
               </span>
               <input
                 type="range"
@@ -222,9 +248,12 @@ export function InvestmentSlider({
 
             <div className="md:pt-1">
               <p className="text-[12.5px] text-muted-foreground">
-                {ROOM_SIZE_LABELS[roomSize]} room · {current.tier.tier} range{" "}
-                {GBP.format(current.estimate!.low)} –{" "}
-                {GBP.format(current.estimate!.high)}
+                {fill(rangeLine, {
+                  size: roomSizeContent.sizes[roomSize],
+                  tier: current.tier.tier,
+                  low: GBP.format(current.estimate!.low),
+                  high: GBP.format(current.estimate!.high),
+                })}
               </p>
               <QuoteTriggerButton
                 quoteInfo={{
@@ -233,16 +262,14 @@ export function InvestmentSlider({
                 }}
                 className="mt-5 w-full rounded-full bg-primary py-3.5 text-[14px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Quote me at this budget
+                {ctaLabel}
               </QuoteTriggerButton>
             </div>
           </div>
         </div>
 
         <p className="mt-6 max-w-[70ch] text-[12px] leading-[1.7] text-muted-foreground">
-          Ranges scale each specification&rsquo;s starting price by room size. A
-          guide for planning, not a quotation — we do not price a room we have
-          not measured.
+          {content.footnote}
         </p>
       </div>
     </section>

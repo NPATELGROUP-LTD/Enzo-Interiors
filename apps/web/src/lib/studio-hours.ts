@@ -1,51 +1,15 @@
-// The workshop's opening hours, in one place.
+// Is the workshop open right now, and if not, when next?
 //
-// Two shapes of the same fact, because two things need it and they need it
-// differently: the footer prints a grouped table a human reads, and the
-// contact page answers "can I ring them right now?" — which needs the hours
-// as numbers a clock can be compared against.
+// The hours themselves are data, not code: they live on the company record in
+// src/data/company.json, in one place, in the form a person would edit them
+// ("10:00"). The content layer parses them into minutes (see lib/content) and
+// this module answers the only question the site asks of them.
 //
-// Keeping both here rather than typing the times twice is the whole point:
-// the two used to be separate literals, and the first time somebody changed
-// Friday's split afternoon they would have changed one of them.
-
-/** Minutes past midnight, Europe/London. */
-interface HoursWindow {
-  open: number;
-  close: number;
-}
-
-const at = (hour: number, minute = 0) => hour * 60 + minute;
-
-/** Keyed by JS day index — 0 is Sunday. An empty array is a closed day. */
-export const STUDIO_HOURS: Record<number, HoursWindow[]> = {
-  0: [],
-  1: [],
-  2: [{ open: at(10), close: at(17) }],
-  3: [{ open: at(10), close: at(17) }],
-  4: [{ open: at(10), close: at(17) }],
-  // Friday shuts over lunch, which is exactly the case a single
-  // open/close pair per day cannot describe.
-  5: [
-    { open: at(10), close: at(12, 30) },
-    { open: at(14, 30), close: at(17) },
-  ],
-  6: [{ open: at(10), close: at(17) }],
-};
-
-/**
- * The printed table. Consecutive identical days are combined (Tue–Thu all
- * read the same and are back-to-back); Saturday matches them too but sits
- * the far side of Friday's split hours, so it stays its own row rather than
- * being grouped across the break.
- */
-export const HOURS_ROWS = [
-  { day: "Monday", time: "Closed" },
-  { day: "Tuesday – Thursday", time: "10:00 – 17:00" },
-  { day: "Friday", time: "10:00 – 12:30, 14:30 – 17:00" },
-  { day: "Saturday", time: "10:00 – 17:00" },
-  { day: "Sunday", time: "Closed" },
-] as const;
+// Two shapes of the same fact exist on that record because two surfaces need it
+// differently: the footer prints a grouped table a human reads, and the contact
+// page answers "can I ring them right now?" — which needs the hours as numbers
+// a clock can be compared against.
+import { fill, type StudioHours } from "@/lib/content";
 
 const DAY_NAMES = [
   "Sunday",
@@ -114,30 +78,40 @@ export interface StudioStatus {
  * server rendering "Opens Tuesday" into HTML a client then hydrates as
  * "Open until 17:00" is a hydration mismatch.
  */
-export function getStudioStatus(now: Date = new Date()): StudioStatus {
+export function getStudioStatus(
+  hours: StudioHours,
+  now: Date = new Date(),
+): StudioStatus {
   const { day, minutes } = londonNow(now);
+  const labels = hours.status;
 
-  const openWindow = STUDIO_HOURS[day]?.find(
+  const openWindow = hours.weekly[day]?.find(
     (window) => minutes >= window.open && minutes < window.close,
   );
   if (openWindow) {
-    return { open: true, label: `Open until ${clock(openWindow.close)}` };
+    return { open: true, label: fill(labels.openUntil, { time: clock(openWindow.close) }) };
   }
 
   // Later today first, then forward through the week. Seven days covers
   // every case; the eighth would be today again.
-  const laterToday = STUDIO_HOURS[day]?.find((window) => window.open > minutes);
+  const laterToday = hours.weekly[day]?.find((window) => window.open > minutes);
   if (laterToday) {
-    return { open: false, label: `Opens ${clock(laterToday.open)} today` };
+    return {
+      open: false,
+      label: fill(labels.opensLaterToday, { time: clock(laterToday.open) }),
+    };
   }
 
   for (let ahead = 1; ahead <= 7; ahead += 1) {
     const next = (day + ahead) % 7;
-    const window = STUDIO_HOURS[next]?.[0];
+    const window = hours.weekly[next]?.[0];
     if (!window) continue;
-    const when = ahead === 1 ? "tomorrow" : DAY_NAMES[next];
-    return { open: false, label: `Opens ${when} ${clock(window.open)}` };
+    const when = ahead === 1 ? labels.tomorrow : DAY_NAMES[next];
+    return {
+      open: false,
+      label: fill(labels.opensOn, { day: when, time: clock(window.open) }),
+    };
   }
 
-  return { open: false, label: "By appointment" };
+  return { open: false, label: labels.byAppointment };
 }

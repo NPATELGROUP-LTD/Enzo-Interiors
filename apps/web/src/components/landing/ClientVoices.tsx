@@ -42,7 +42,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { cn } from "@/lib/utils";
-import type { Testimonial } from "@/lib/content";
+import { fill, type HomeContent, type Testimonial } from "@/lib/content";
 
 /** The boilerplate's own three durations, in seconds. */
 const COLUMN_SECONDS = [15, 19, 17];
@@ -59,7 +59,13 @@ function toColumns(items: Testimonial[], count = 3): Testimonial[][] {
   return columns;
 }
 
-export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) {
+export function ClientVoices({
+  testimonials,
+  content,
+}: {
+  testimonials: Testimonial[];
+  content: HomeContent["voices"];
+}) {
   const reducedMotion = usePrefersReducedMotion();
   const [paused, setPaused] = useState(false);
   const columns = useMemo(() => toColumns(testimonials), [testimonials]);
@@ -76,7 +82,7 @@ export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) 
     >
       <div className="shell py-20 md:py-28">
         <h2 id="voices-heading" className="sr-only">
-          Client reviews
+          {content.srHeading}
         </h2>
 
         {/* The heading is the site's own device — the measuring rule with
@@ -92,11 +98,11 @@ export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) 
             the lede ends. */}
         <SectionIntro
           layout="split"
-          index="05"
-          label="Clients"
-          datum={`${testimonials.length} reviews · Leicestershire`}
-          lines={["What people say", "once we have gone."]}
-          lede="The real test of fitted furniture is the year after the fitters leave. Every review we have is here — not a selection of the good ones."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: testimonials.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* ── The wall ──
@@ -159,7 +165,7 @@ export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) 
                       aria-hidden={index >= column.length ? true : undefined}
                       className="rounded-2xl bg-enzo-white p-6 shadow-[0_2px_16px_rgba(16,46,45,0.05)]"
                     >
-                      <div className="flex gap-1" aria-label="Five out of five">
+                      <div className="flex gap-1" aria-label={content.ratingLabel}>
                         {Array.from({ length: 5 }, (_, star) => (
                           <Star
                             key={star}
@@ -215,7 +221,7 @@ export function ClientVoices({ testimonials }: { testimonials: Testimonial[] }) 
               ) : (
                 <Pause className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              {still ? "Start the reviews moving" : "Pause the reviews"}
+              {still ? content.playLabel : content.pauseLabel}
             </button>
           </div>
         )}

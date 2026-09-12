@@ -44,6 +44,7 @@ import { useRef } from "react";
 import gsap from "gsap";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
+import { fill, type ContactPageContent } from "@/lib/content";
 
 export interface LeadTime {
   /** Discipline name, e.g. "Kitchens". */
@@ -60,11 +61,11 @@ const DESIGN_WEEKS = 1;
 const LEADER = SURVEY_WEEKS + DESIGN_WEEKS;
 
 export function ContactWhen({
-  id,
   leadTimes,
+  content,
 }: {
-  id?: string;
   leadTimes: LeadTime[];
+  content: ContactPageContent["when"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
 
@@ -124,7 +125,7 @@ export function ContactWhen({
   return (
     <section
       ref={sectionRef}
-      id={id}
+      id={content.id}
       aria-labelledby="when-heading"
       className="relative bg-enzo-forest scroll-mt-24"
     >
@@ -135,8 +136,8 @@ export function ContactWhen({
               data-lead
               className="font-display flex items-baseline gap-3 text-[10.5px] font-semibold uppercase tracking-[0.28em] text-enzo-sand"
             >
-              <span>C3</span>
-              <span className="text-enzo-cream/70">Timing</span>
+              <span>{content.index}</span>
+              <span className="text-enzo-cream/70">{content.label}</span>
             </span>
 
             <h2
@@ -145,7 +146,7 @@ export function ContactWhen({
               className="mt-5 max-w-[16ch] font-title font-semibold leading-[1.02] tracking-[-0.04em] text-enzo-cream sm:mt-6"
               style={{ fontSize: "clamp(2rem, 4.6vw, 3.4rem)" }}
             >
-              Write today. Finished when?
+              {content.heading}
             </h2>
           </div>
 
@@ -153,10 +154,7 @@ export function ContactWhen({
             data-lead
             className="text-[14.5px] leading-[1.7] text-enzo-cream/65 sm:text-[15px] lg:pb-2"
           >
-            From the day your message arrives, on our current book. The first
-            fortnight is the same whatever the room — we come and measure, then
-            you get drawings and a firm figure. Nothing is cut until you have
-            signed those off, so the clock below only starts once you are happy.
+            {content.lede}
           </p>
         </div>
 
@@ -171,7 +169,7 @@ export function ContactWhen({
                   data-axis
                   className="font-display text-[10px] font-semibold tabular-nums tracking-[0.14em] text-enzo-cream/45"
                 >
-                  {week === 0 ? "SEND" : `W${week}`}
+                  {week === 0 ? content.axisStart : fill(content.axisWeek, { week })}
                 </span>
               ))}
             </div>
@@ -236,15 +234,14 @@ export function ContactWhen({
           <div className="mt-7 flex flex-wrap items-center gap-x-7 gap-y-3 border-t border-enzo-cream/12 pt-5">
             <span className="flex items-center gap-2.5 text-[12.5px] text-enzo-cream/70">
               <span aria-hidden="true" className="block h-2.5 w-6 rounded-[1px] bg-enzo-cream/35" />
-              Survey, drawings and your sign-off
+              {content.keyLeader}
             </span>
             <span className="flex items-center gap-2.5 text-[12.5px] text-enzo-cream/70">
               <span aria-hidden="true" className="block h-2.5 w-6 rounded-[1px] bg-enzo-sand" />
-              Made in the workshop and fitted
+              {content.keyBuild}
             </span>
             <span className="text-[12.5px] text-enzo-cream/50">
-              Indicative, on our current book. Your quotation carries the real
-              dates.
+              {content.keyNote}
             </span>
           </div>
         </div>

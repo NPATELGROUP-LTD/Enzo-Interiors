@@ -45,57 +45,31 @@
 // Grounds run cream → near-white → forest → warm grey, and the footer's
 // dark ground closes it.
 //
-// Stays a Server Component. The only fetch is the published services, which
-// fill the docket's room picker: a fifth service appears in that list
-// without anybody editing this file.
+// Stays a Server Component: it fetches this page's copy, the company record
+// and the published services — the last of which fills the docket's room
+// picker, so a fifth service appears in that list without anybody editing this
+// file. The phone number and the address are read off the company record
+// rather than written here; they used to be placeholder constants in this file,
+// which is why three pages disagreed about the studio's number.
 import type { Metadata } from "next";
-import { ContactMasthead, type ContactRoute } from "@/components/contact/ContactMasthead";
+import { ContactMasthead } from "@/components/contact/ContactMasthead";
 import { ContactDocket, type RoomOption } from "@/components/contact/ContactDocket";
 import { ContactWhen, type LeadTime } from "@/components/contact/ContactWhen";
 import { ContactReady } from "@/components/contact/ContactReady";
-import { getServiceDetails } from "@/lib/content";
+import { getCompany, getPage, getServiceDetails } from "@/lib/content";
 import { getServiceMetrics } from "@/lib/service-metrics";
 
-export const metadata: Metadata = {
-  title: "Contact — Enzo Interiors",
-  description:
-    "Tell us about the room. A free home survey across Leicester and Leicestershire, with drawings and an honest figure before anything is cut.",
-};
-
-// PLACEHOLDERS, like the phone number everywhere else on this site — swap
-// for the real line before production.
-const PHONE_DISPLAY = "0116 XXX XXXX";
-const PHONE_HREF = "tel:0116XXXXXXX";
-const EMAIL = "hello@enzointeriors.co.uk";
-
-const ROUTES: ContactRoute[] = [
-  {
-    index: "01",
-    label: "The docket",
-    value: "Send the details",
-    datum: "A reply the same working day",
-    href: "#contact-docket",
-  },
-  {
-    index: "02",
-    label: "By phone",
-    value: PHONE_DISPLAY,
-    datum: "Tuesday – Saturday, and by appointment",
-    href: PHONE_HREF,
-    external: true,
-  },
-  {
-    index: "03",
-    label: "By email",
-    value: EMAIL,
-    datum: "Read by the person who does the surveys",
-    href: `mailto:${EMAIL}`,
-    external: true,
-  },
-];
+export async function generateMetadata(): Promise<Metadata> {
+  const { metadata } = await getPage("contact");
+  return metadata;
+}
 
 export default async function ContactPage() {
-  const services = await getServiceDetails();
+  const [services, content, company] = await Promise.all([
+    getServiceDetails(),
+    getPage("contact"),
+    getCompany(),
+  ]);
 
   // §C3's chart is read off the same `timeline` field the /services matrix
   // compares — never off a second set of figures authored beside it. A
@@ -121,29 +95,18 @@ export default async function ContactPage() {
       value: service.slug,
       label: service.title.replace(/^(bespoke|fitted|custom)\s+/i, ""),
     })),
-    { value: "other", label: "Something else" },
+    { value: "other", label: content.docket.otherRoomLabel },
   ];
 
   return (
     <div>
-      <ContactMasthead
-        title={["Tell us about", "the room."]}
-        lede="Three answers is enough to start. We survey before we quote — so the first thing you get from us is a visit and a drawing, not a price plucked off a page."
-        routes={ROUTES}
-        place="Leicester & Leicestershire"
-      />
+      <ContactMasthead content={content.masthead} company={company} />
 
-      <ContactDocket id="contact-docket" rooms={rooms} />
+      <ContactDocket rooms={rooms} content={content.docket} />
 
-      <ContactWhen id="contact-visit" leadTimes={leadTimes} />
+      <ContactWhen leadTimes={leadTimes} content={content.when} />
 
-      <ContactReady
-        id="contact-terms"
-        phoneDisplay={PHONE_DISPLAY}
-        phoneHref={PHONE_HREF}
-        emailDisplay={EMAIL}
-        emailHref={`mailto:${EMAIL}`}
-      />
+      <ContactReady content={content.ready} company={company} />
     </div>
   );
 }

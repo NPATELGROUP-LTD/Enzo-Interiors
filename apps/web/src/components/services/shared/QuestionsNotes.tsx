@@ -53,10 +53,13 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { FAQEntry } from "@/lib/content";
+import { fill, type FAQEntry, type SharedContent } from "@/lib/content";
 
 interface QuestionsNotesProps {
   faqs: FAQEntry[];
+  /** The frame's own words. Both callers render the same ones, so they live in
+   *  src/data/pages/shared.json rather than in each page's copy. */
+  content: SharedContent["questions"];
   /** Section index in the page's run, e.g. "04". */
   index?: string;
   lines: string[];
@@ -72,6 +75,7 @@ interface QuestionsNotesProps {
 
 export function QuestionsNotes({
   faqs,
+  content,
   index,
   lines,
   lede,
@@ -137,15 +141,15 @@ export function QuestionsNotes({
     >
       <div className="shell py-20 md:py-28">
         <h2 id={`${id ?? "service"}-questions-heading`} className="sr-only">
-          Questions
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
           index={index}
-          label="Notes"
+          label={content.label}
           tone={tone}
-          datum={`${faqs.length} answered`}
+          datum={fill(content.datum, { count: faqs.length })}
           lines={lines}
           lede={lede}
         />

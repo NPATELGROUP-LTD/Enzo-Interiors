@@ -50,7 +50,7 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { GBP, getServiceMetrics } from "@/lib/service-metrics";
-import type { ServiceDetail } from "@/lib/content";
+import { fill, type ServiceDetail, type ServicesPageContent } from "@/lib/content";
 
 /** Where the scale ends when everything published fits under it. */
 const AXIS_PREFERRED_MAX = 5000;
@@ -78,9 +78,10 @@ interface Plot {
 
 interface IndexPricingScaleProps {
   services: ServiceDetail[];
+  content: ServicesPageContent["pricing"];
 }
 
-export function IndexPricingScale({ services }: IndexPricingScaleProps) {
+export function IndexPricingScale({ services, content }: IndexPricingScaleProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const [hovered, setHovered] = useState<number | null>(null);
 
@@ -258,16 +259,16 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
     >
       <div className="shell py-20 md:py-[clamp(3rem,8vh,7rem)]">
         <h2 id="services-pricing-heading" className="sr-only">
-          Starting prices
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="02"
-          label="Scale"
-          datum={`${plots.length} plotted`}
-          lines={["Where each one", "starts."]}
-          lede="Entry specification, typical room, everything included. Plotted on one scale so you can see how the disciplines actually compare before you talk to anyone."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: plots.length })}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* ── md and up: horizontal scale ──
@@ -433,12 +434,19 @@ export function IndexPricingScale({ services }: IndexPricingScaleProps) {
           <li aria-hidden="true" className="border-t border-border/60" />
         </ul>
 
+        {/* The middle sentence only appears when something published has no
+            price on it, so the note never claims a service is quoted on
+            application when none is. */}
         <p className="mt-14 max-w-[70ch] text-[12.5px] leading-[1.7] text-muted-foreground md:mt-[clamp(2rem,5vh,4rem)]">
-          Starting prices are the entry specification for a typical room.
+          {content.footnote.lead}
           {unpriced > 0 &&
-            ` ${unpriced} service${unpriced === 1 ? " is" : "s are"} quoted on application.`}{" "}
-          Your own figure comes from the survey — we do not price a room we
-          have not measured.
+            ` ${fill(
+              unpriced === 1
+                ? content.footnote.unpricedOne
+                : content.footnote.unpricedOther,
+              { count: unpriced },
+            )}`}{" "}
+          {content.footnote.tail}
         </p>
       </div>
     </section>

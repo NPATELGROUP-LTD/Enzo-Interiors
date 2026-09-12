@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "title": "Book a consultation — Enzo Interiors",
+    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price."
+  },
+  "backToHomeLabel": "← Back",
+  "backgroundImageId": "pf-dark-kitchen",
+  "wordmark": {
+    "name": "Enzo",
+    "suffix": "INTERIORS"
+  },
+  "panel": {
+    "headingLines": [
+      "Book Your Free",
+      "Consultation"
+    ],
+    "lede": "Choose a date and time that suits you. We'll come to your home, discuss your ideas, and provide expert advice — completely free.",
+    "benefits": [
+      "Free home visit",
+      "No obligation",
+      "Expert design advice",
+      "Bring samples to your space"
+    ],
+    "testimonialId": "sarah-thompson",
+    "attribution": "— {name}, {role}"
+  },
+  "progress": {
+    "step": "Step {step} of {total}",
+    "confirmed": "Confirmed"
+  },
+  "steps": {
+    "service": {
+      "heading": "What are you interested in?",
+      "lede": "Select the service you'd like to discuss.",
+      "tierNote": "Pre-filled from your {tier} tier quote request."
+    },
+    "date": {
+      "heading": "Pick a date",
+      "lede": "Choose a day that works for you."
+    },
+    "time": {
+      "heading": "Choose a time",
+      "lede": "Select a time slot that suits you."
+    },
+    "details": {
+      "heading": "Your details",
+      "lede": "So we can get in touch to confirm.",
+      "placeholders": {
+        "name": "Full name",
+        "email": "Email address",
+        "phone": "Phone number",
+        "notes": "Any additional notes (optional)"
+      }
+    },
+    "confirmation": {
+      "heading": "Booking Confirmed!",
+      "body": "We've sent a confirmation to your email. We look forward to meeting you!",
+      "serviceLabel": "Service:",
+      "tierSuffix": " ({tier})"
+    }
+  },
+  "nav": {
+    "backLabel": "Back",
+    "nextLabel": "Next",
+    "confirmLabel": "Confirm Booking"
+  },
+  "toast": {
+    "message": "Booking confirmed{suffix}! We'll send you a confirmation email shortly.",
+    "tierSuffix": " ({tier} tier)"
+  },
+  "timeSlots": [
+    "9:00am",
+    "10:30am",
+    "12:00pm",
+    "1:30pm",
+    "3:00pm",
+    "4:30pm"
+  ],
+  "calendar": {
+    "months": [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December"
+    ],
+    "weekdays": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ]
+  }
+}

@@ -20,18 +20,16 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
+import type { AboutFigureContent, AboutPageContent } from "@/lib/content";
 
-export interface AboutFigure {
-  /** Counted to, when numeric. */
-  value: number | null;
-  /** Rendered instead of a count when `value` is null, e.g. "Free". */
-  text?: string;
-  suffix?: string;
-  label: string;
-  note: string;
-}
-
-export function AboutNumbers({ figures }: { figures: AboutFigure[] }) {
+export function AboutNumbers({
+  content,
+  projectCount,
+}: {
+  content: AboutPageContent["numbers"];
+  /** How many projects are published — what the first figure counts to. */
+  projectCount: number;
+}) {
   const sectionRef = useRef<HTMLElement>(null);
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -96,6 +94,16 @@ export function AboutNumbers({ figures }: { figures: AboutFigure[] }) {
     };
   });
 
+  // A figure either states its own value or names something to count. The
+  // room count is the published record count, so it is right on the day the
+  // client publishes the tenth one rather than on the day someone remembers
+  // to edit it.
+  const authored: AboutFigureContent[] = content.figures;
+  const figures = authored.map((figure) => ({
+    ...figure,
+    value: figure.source === "projectCount" ? projectCount : figure.value ?? null,
+  }));
+
   return (
     <section
       id="about-numbers"
@@ -105,16 +113,16 @@ export function AboutNumbers({ figures }: { figures: AboutFigure[] }) {
     >
       <div className="shell py-20 md:py-28">
         <h2 id="about-numbers-heading" className="sr-only">
-          The studio in figures
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="02"
-          label="Figures"
-          datum="all true"
-          lines={["A small shop,", "on purpose."]}
-          lede="The numbers worth knowing about a workshop this size are mostly the ones a bigger one could not print."
+          index={content.index}
+          label={content.label}
+          datum={content.datum}
+          lines={content.lines}
+          lede={content.lede}
         />
 
         {/* Cells carry their own rules and the row is pulled a pixel left

@@ -10,8 +10,8 @@
 // later is a drop-in change at the call site.
 //
 // Base prices are NOT invented here — they're parsed at call time from the
-// same `pricing[].from` strings already authored in
-// `src/lib/content/services.ts` (e.g. "£4,500"), so this module never
+// same `pricing[].from` strings already authored in the services table
+// (src/data/services.json, e.g. "£4,500"), so this module never
 // duplicates/hardcodes a second copy of those figures.
 
 import { parsePriceLabel } from "@/lib/service-metrics";
@@ -68,10 +68,9 @@ export function estimateQuote(input: {
   return { low, high };
 }
 
-export const ROOM_SIZE_LABELS: Record<RoomSize, string> = {
-  small: "Small",
-  medium: "Medium",
-  large: "Large",
-};
-
+/**
+ * The order the sizes are offered in. Their *labels* are copy and live in
+ * src/data/pages/shared.json — this module owns the pricing behaviour, not the
+ * words on the control.
+ */
 export const ROOM_SIZES: RoomSize[] = ["small", "medium", "large"];

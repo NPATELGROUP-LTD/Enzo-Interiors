@@ -6,7 +6,12 @@
 //   3  ProcessAssembly  the unit drawing itself down the page (warm grey)
 //
 // See ../variant.ts for how the index is chosen and why.
-import type { ProcessStep, ServiceDetail } from "@/lib/content";
+import type {
+  ProcessStep,
+  ProcessVariantContent,
+  ServiceDetail,
+  ServiceDetailContent,
+} from "@/lib/content";
 import { variantIndex } from "../variant";
 import { ProcessRail } from "./ProcessRail";
 import { ProcessTimeline } from "./ProcessTimeline";
@@ -25,14 +30,22 @@ export function ServiceProcess({
   steps,
   position,
   id,
+  content,
 }: {
   service: ServiceDetail;
   steps: ProcessStep[];
   position: number;
   id: string;
+  content: ServiceDetailContent["process"];
 }) {
   if (!steps.length) return null;
 
-  const Process = VARIANTS[variantIndex(position, VARIANTS.length, service.heroVariant)];
-  return <Process steps={steps} id={id} />;
+  // One index picks both the layout and the copy written for it.
+  const index = variantIndex(position, VARIANTS.length, service.heroVariant);
+  const Process = VARIANTS[index];
+  const variants: ProcessVariantContent[] = content.variants;
+
+  return (
+    <Process steps={steps} id={id} content={variants[index]!} common={content} />
+  );
 }

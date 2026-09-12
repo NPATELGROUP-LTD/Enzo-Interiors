@@ -46,38 +46,15 @@ import { SectionIntro } from "@/components/shared/SectionIntro";
 import { revealOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import type { ServiceDetail } from "@/lib/content";
+import { fill, type ServiceDetail, type ServiceDetailContent } from "@/lib/content";
 import { variantIndex } from "../variant";
 import { QuoteTriggerButton } from "../../shared/QuoteRequestModal";
 
-/**
- * On every quotation we write, whatever the room. These are the site's own
- * standing claims — made on the landing page, on /services and on every
- * service hero — collected onto the document that would carry them, not new
- * promises invented here.
- */
-const ALWAYS = [
-  {
-    item: "Home survey and setting out",
-    note: "Every wall measured, every service and awkward corner photographed. Free, and before any figure exists.",
-  },
-  {
-    item: "Design and 3D drawings",
-    note: "The room drawn as it is, revised as many times as you like. Nothing is cut until you have signed one off.",
-  },
-  {
-    item: "Made in our own workshop",
-    note: "Cut, edged and assembled in Leicester by the people who drew it.",
-  },
-  {
-    item: "Fitted by the same team",
-    note: "No subcontractors. Scribed to your walls, levelled, sealed and cleared up after.",
-  },
-  {
-    item: "Five-year workmanship guarantee",
-    note: "On every joint, hinge and runner we fit. Alongside your statutory rights, not instead of them.",
-  },
-] as const;
+// The "on every quote" block is the site's own standing claims — made on the
+// landing page, on /services and on every service hero — collected onto the
+// document that would carry them. They are authored in
+// src/data/pages/service-detail.json, so the promise this section prints and
+// the promise the rest of the site makes are one text.
 
 /** Ground per variant, so four pages do not open A2 on the same colour. */
 const GROUNDS = ["bg-background", "bg-card", "bg-background", "bg-muted"];
@@ -86,10 +63,12 @@ export function ServiceIncluded({
   service,
   position,
   id,
+  content,
 }: {
   service: ServiceDetail;
   position: number;
   id: string;
+  content: ServiceDetailContent["included"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
   const scope = service.features;
@@ -147,15 +126,18 @@ export function ServiceIncluded({
     >
       <div className="shell py-20 md:py-28">
         <h2 id="included-heading" className="sr-only">
-          What your quotation would cover
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="A2"
-          label="Scope"
-          datum={`${ALWAYS.length} fixed · ${scope.length} per room`}
-          lines={["There is no package.", "There is your room."]}
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, {
+            fixed: content.always.length,
+            scope: scope.length,
+          })}
+          lines={content.lines}
           lede={service.overview}
           ledeShort={service.overviewShort}
         />
@@ -167,10 +149,10 @@ export function ServiceIncluded({
           {/* Docket head */}
           <div className="flex flex-wrap items-baseline justify-between gap-x-8 gap-y-2 border-b border-primary/20 px-5 py-4 md:px-8 md:py-5">
             <span className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-              Quotation — {service.category}
+              {fill(content.docketLabel, { category: service.category })}
             </span>
             <span className="font-display text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Prepared after survey
+              {content.preparedLabel}
             </span>
           </div>
 
@@ -178,7 +160,7 @@ export function ServiceIncluded({
           <div className="px-5 pt-6 md:px-8 md:pt-8">
             <div className="flex items-baseline gap-4">
               <h3 className="font-display shrink-0 text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
-                On every quote we write
+                {content.alwaysLabel}
               </h3>
               <span aria-hidden="true" className="relative h-px flex-1 overflow-hidden">
                 <span
@@ -190,7 +172,7 @@ export function ServiceIncluded({
             </div>
 
             <ul className="mt-4">
-              {ALWAYS.map((entry) => (
+              {content.always.map((entry) => (
                 <li
                   key={entry.item}
                   data-quote-row
@@ -205,7 +187,7 @@ export function ServiceIncluded({
                     </span>
                   </span>
                   <span className="font-display shrink-0 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.18em] text-enzo-forest-light">
-                    Always
+                    {content.alwaysTag}
                   </span>
                 </li>
               ))}
@@ -217,7 +199,7 @@ export function ServiceIncluded({
             <div className="px-5 pt-8 md:px-8 md:pt-10">
               <div className="flex items-baseline gap-4">
                 <h3 className="font-display shrink-0 text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">
-                  Only if your room needs it
+                  {content.scopeLabel}
                 </h3>
                 <span aria-hidden="true" className="relative h-px flex-1 overflow-hidden">
                   <span
@@ -248,7 +230,7 @@ export function ServiceIncluded({
                       aria-hidden="true"
                       className="h-px w-4 shrink-0 translate-y-[-0.35em] bg-enzo-sand"
                     />
-                    <span className="sr-only">priced per room</span>
+                    <span className="sr-only">{content.scopeTag}</span>
                   </li>
                 ))}
               </ul>
@@ -266,7 +248,7 @@ export function ServiceIncluded({
             <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <span className="font-display block text-[10px] font-semibold uppercase tracking-[0.24em] text-enzo-forest-light">
-                  Total
+                  {content.total.label}
                 </span>
                 <p
                   className="mt-2 font-title font-semibold leading-[1.05] tracking-[-0.04em] text-primary"
@@ -276,20 +258,19 @@ export function ServiceIncluded({
                     aria-hidden="true"
                     className="mr-3 inline-block h-[0.08em] w-[2.2em] translate-y-[-0.28em] bg-primary/30"
                   />
-                  after we have measured
+                  {content.total.headline}
                 </p>
                 <p className="mt-4 max-w-[58ch] text-[14px] leading-[1.7] text-muted-foreground">
-                  Not a tactic. A {service.category.toLowerCase()} job priced
-                  off a photograph is priced off a guess, and the guess is
-                  always corrected upward once somebody finds the wall is not
-                  straight. We would rather find that out for free, first.
+                  {fill(content.total.body, {
+                    categoryLower: service.category.toLowerCase(),
+                  })}
                 </p>
               </div>
 
               <QuoteTriggerButton
                 className="shrink-0 rounded-full bg-primary px-8 py-3.5 text-[14px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               >
-                Ask for this quote
+                {content.total.ctaLabel}
               </QuoteTriggerButton>
             </div>
           </div>

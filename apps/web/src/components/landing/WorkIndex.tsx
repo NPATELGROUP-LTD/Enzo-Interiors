@@ -23,10 +23,11 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { SectionIntro } from "@/components/shared/SectionIntro";
 import { fromOnScroll, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE, REVEAL_START } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type HomeContent, type PortfolioItem } from "@/lib/content";
 
 interface WorkIndexProps {
   items: PortfolioItem[];
+  content: HomeContent["work"];
 }
 
 /** Grid placement for the five featured tiles — a 12 x 5 wall, fully packed. */
@@ -41,9 +42,10 @@ const PLACEMENT = [
 /** Parallax travel per tile, in percent. Varied so the wall breathes. */
 const DRIFT = [7, 12, 5, 14, 9];
 
-export function WorkIndex({ items }: WorkIndexProps) {
+export function WorkIndex({ items, content }: WorkIndexProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const featured = items.slice(0, 5);
+  const seeAll = fill(content.seeAllLabel, { count: items.length });
 
   useGSAP(
     sectionRef,
@@ -130,22 +132,22 @@ export function WorkIndex({ items }: WorkIndexProps) {
       aria-labelledby="work-heading" className="relative bg-enzo-white scroll-mt-24">
       <div className="shell py-20 md:py-28">
         <h2 id="work-heading" className="sr-only">
-          Recent work
+          {content.srHeading}
         </h2>
 
         <SectionIntro
           layout="split"
-          index="04"
-          label="Work"
-          datum={`${items.length} projects · Leicestershire`}
-          lines={["Recent work,", "and where it lives."]}
-          lede="Five of the last nine. Every one drawn, built and fitted by us."
+          index={content.index}
+          label={content.label}
+          datum={fill(content.datum, { count: items.length })}
+          lines={content.lines}
+          lede={content.lede}
           actions={
             <Link
-              href="/portfolio"
+              href={content.seeAllHref}
               className="touch-target group/all hidden items-center gap-2 whitespace-nowrap border-b border-primary/25 pb-1 text-[13px] font-medium text-primary transition-colors duration-300 hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 lg:inline-flex"
             >
-              See all {items.length} projects
+              {seeAll}
               <ArrowRight className="h-3.5 w-3.5 transition-transform duration-300 ease-out group-hover/all:translate-x-1" />
             </Link>
           }
@@ -160,7 +162,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
           {featured.map((item, index) => (
             <Link
               key={item.id}
-              href="/portfolio"
+              href={content.seeAllHref}
               data-work-tile
               className={`group relative overflow-hidden rounded-[18px] bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${PLACEMENT[index]}`}
             >
@@ -207,7 +209,7 @@ export function WorkIndex({ items }: WorkIndexProps) {
             return (
               <li key={item.id} className={stepRight ? "pl-11" : "pr-11"}>
                 <Link
-                  href="/portfolio"
+                  href={content.seeAllHref}
                   data-work-card
                   className="group relative block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
@@ -254,10 +256,10 @@ export function WorkIndex({ items }: WorkIndexProps) {
             target the width of the column is the one thing in this list
             that unmistakably says "there's more, tap here." */}
         <Link
-          href="/portfolio"
+          href={content.seeAllHref}
           className="mt-2 flex items-center justify-between gap-3 rounded-full border border-primary/20 py-3 pl-6 pr-2 text-[14px] font-semibold text-primary transition-colors duration-300 active:bg-primary/5 lg:hidden"
         >
-          See all {items.length} projects
+          {seeAll}
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
             <ArrowRight className="h-4 w-4" />
           </span>

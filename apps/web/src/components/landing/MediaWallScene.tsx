@@ -47,44 +47,9 @@ import {
   type Viewpoint,
 } from "@/lib/scene-common";
 
-export const VIEWPOINTS: Viewpoint[] = [
-  {
-    id: "room",
-    label: "The room",
-    note: "Back far enough to read the wall as part of a living room.",
-    azimuth: 0,
-    polar: 1.5,
-    radius: 6.2,
-    targetY: -0.1,
-  },
-  {
-    id: "angle",
-    label: "Three-quarter",
-    note: "Turned, to read how far the unit stands off the wall.",
-    azimuth: -0.52,
-    polar: 1.44,
-    radius: 5.4,
-    targetY: -0.05,
-  },
-  {
-    id: "base",
-    label: "Base cabinets",
-    note: "Down at the run — open the doors and the bays are genuinely empty.",
-    azimuth: -0.3,
-    polar: 1.34,
-    radius: 3.5,
-    targetY: -0.72,
-  },
-  {
-    id: "shelf",
-    label: "Display shelves",
-    note: "In close on the flank shelving, clear of the screen.",
-    azimuth: -0.42,
-    polar: 1.5,
-    radius: 2.5,
-    targetY: 0.42,
-  },
-];
+// The named camera positions this scene is driven to are authored beside the
+// section's other copy, in src/data/pages/home.json — a viewpoint is a label
+// and a note as much as it is four numbers. This file owns the geometry only.
 
 /** Rounded, chamfered flat panel — reads as solid material under raking light. */
 function usePanelGeometry(width: number, height: number, depth: number, radius: number) {

@@ -24,7 +24,7 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { EASE } from "@/lib/motion";
-import type { PortfolioItem } from "@/lib/content";
+import { fill, type PortfolioItem, type PortfolioPageContent } from "@/lib/content";
 
 interface CaseStudySheetProps {
   item: PortfolioItem | null;
@@ -33,6 +33,7 @@ interface CaseStudySheetProps {
   total: number;
   onClose: () => void;
   onStep: (delta: number) => void;
+  content: PortfolioPageContent["caseStudy"];
 }
 
 export function CaseStudySheet({
@@ -41,6 +42,7 @@ export function CaseStudySheet({
   total,
   onClose,
   onStep,
+  content,
 }: CaseStudySheetProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -125,12 +127,18 @@ export function CaseStudySheet({
 
   if (!item) return null;
 
-  const spec = [
-    { label: "Client", value: item.client },
-    { label: "Location", value: item.location },
-    { label: "On site", value: item.duration },
-    { label: "Completed", value: item.year },
-  ];
+  // Same keyed lookup as §03's fact list: the labels and their order are
+  // authored, the values are read off the record.
+  const values: Record<string, string> = {
+    client: item.client,
+    location: item.location,
+    duration: item.duration,
+    year: item.year,
+  };
+  const spec = content.spec.map((entry) => ({
+    ...entry,
+    value: values[entry.key] ?? "",
+  }));
 
   return (
     <dialog
@@ -165,7 +173,10 @@ export function CaseStudySheet({
             className="absolute inset-0 h-full w-full object-cover"
           />
           <span className="font-display absolute bottom-4 left-5 text-[10px] font-semibold uppercase tracking-[0.26em] text-enzo-cream/70">
-            {String(index + 1).padStart(2, "0")} / {String(total).padStart(2, "0")}
+            {fill(content.position, {
+              index: String(index + 1).padStart(2, "0"),
+              total: String(total).padStart(2, "0"),
+            })}
           </span>
         </div>
 
@@ -178,7 +189,7 @@ export function CaseStudySheet({
             <button
               type="button"
               onClick={close}
-              aria-label="Close case study"
+              aria-label={content.closeLabel}
               className="-mr-1 -mt-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-enzo-cream/25 text-enzo-cream/70 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-sand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand"
             >
               <X size={17} aria-hidden="true" />
@@ -207,7 +218,7 @@ export function CaseStudySheet({
           >
             {spec.map((entry) => (
               <div
-                key={entry.label}
+                key={entry.key}
                 className="border-b border-r border-enzo-cream/15 py-4 pr-4 last:border-r-0 sm:border-b-0"
               >
                 <dt className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-enzo-cream/65">
@@ -220,7 +231,7 @@ export function CaseStudySheet({
 
           <div data-sheet-row className="mt-8">
             <span className="font-display text-[9.5px] font-semibold uppercase tracking-[0.22em] text-enzo-cream/65">
-              Specified
+              {content.specifiedLabel}
             </span>
             <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2">
               {item.materials.map((material) => (
@@ -250,17 +261,17 @@ export function CaseStudySheet({
                 aria-hidden="true"
                 className="transition-transform duration-300 group-hover:-translate-x-1"
               />
-              Previous
+              {content.previousLabel}
             </button>
             <span className="font-display text-[10px] uppercase tracking-[0.22em] text-enzo-cream/65">
-              ← → to step
+              {content.stepHint}
             </span>
             <button
               type="button"
               onClick={() => onStep(1)}
               className="group flex items-center gap-3 text-[13.5px] text-enzo-cream/65 transition-colors duration-300 hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand"
             >
-              Next
+              {content.nextLabel}
               <ArrowRight
                 size={16}
                 aria-hidden="true"

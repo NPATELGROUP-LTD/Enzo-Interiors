@@ -32,17 +32,16 @@
 // instead of on every request.
 import type { Metadata } from "next";
 import { PortfolioRoot } from "@/components/portfolio/PortfolioRoot";
-import { getPortfolioItems } from "@/lib/content";
+import { getPage, getPortfolioItems } from "@/lib/content";
 
 export const revalidate = 3600;
 
-export const metadata: Metadata = {
-  title: "Portfolio — Enzo Interiors",
-  description:
-    "Every kitchen, bedroom, media wall and wardrobe we have finished across Leicestershire — with the client, the location, the time on site and the materials specified.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { metadata } = await getPage("portfolio");
+  return metadata;
+}
 
 export default async function PortfolioPage() {
-  const items = await getPortfolioItems();
-  return <PortfolioRoot items={items} />;
+  const [items, content] = await Promise.all([getPortfolioItems(), getPage("portfolio")]);
+  return <PortfolioRoot items={items} content={content} />;
 }

@@ -48,7 +48,14 @@ import { ServiceModel } from "@/components/services/service-detail/model/Service
 import { ServiceProcess } from "@/components/services/service-detail/process/ServiceProcess";
 import { ServiceInvestment } from "@/components/services/service-detail/investment/ServiceInvestment";
 import { variantIndex } from "@/components/services/service-detail/variant";
-import { getService, getServiceSlugs, getServiceDetails } from "@/lib/content";
+import {
+  fill,
+  getCompany,
+  getPage,
+  getService,
+  getServiceSlugs,
+  getServiceDetails,
+} from "@/lib/content";
 import { getServiceMetrics } from "@/lib/service-metrics";
 
 // SSG + ISR per docs/Enzo_Interiors_TRD_v3.1.md §9 (image-heavy detail page).
@@ -64,11 +71,15 @@ export async function generateMetadata({
   params: Promise<{ category: string }>;
 }): Promise<Metadata> {
   const { category } = await params;
-  const service = await getService(category);
+  const [service, content] = await Promise.all([
+    getService(category),
+    getPage("service-detail"),
+  ]);
   if (!service) return {};
 
+  // Both halves come off the service record; only the suffix is page copy.
   return {
-    title: `${service.title} — Enzo Interiors`,
+    title: fill(content.metadata.titleTemplate, { title: service.title }),
     description: service.heroDesc,
   };
 }
@@ -96,27 +107,58 @@ export default async function ServiceDetailPage({
     notFound();
   }
 
-  const all = await getServiceDetails();
+  const [all, content, shared, company] = await Promise.all([
+    getServiceDetails(),
+    getPage("service-detail"),
+    getPage("shared"),
+    getCompany(),
+  ]);
   const position = all.findIndex((entry) => entry.slug === service.slug);
   const metrics = getServiceMetrics(service);
   const variant = variantIndex(position, QUESTION_GROUNDS.length, service.heroVariant);
 
+  // The page's copy names the room in the reader's own words rather than
+  // repeating the service title: "{categoryLower}" and "{titleLower}" are
+  // filled from the one record this page is about.
+  const categoryLower = service.category.toLowerCase();
+  const titleLower = service.title.toLowerCase();
+
   return (
-    <QuoteModalRoot serviceTitle={service.title} category={service.slug}>
+    <QuoteModalRoot
+      serviceTitle={service.title}
+      category={service.slug}
+      content={shared.quoteModal}
+    >
       {/* No quoteCta prop: each hero renders its own quote button, because
           the button has to be styled for its own ground — the four heroes
           now sit on cream, near-black, forest and warm grey. */}
-      <ServiceHero id="sheet-hero" service={service} position={position} />
+      <ServiceHero
+        id="sheet-hero"
+        service={service}
+        position={position}
+        content={content.hero}
+      />
 
-      <ServiceIncluded id="sheet-included" service={service} position={position} />
+      <ServiceIncluded
+        id="sheet-included"
+        service={service}
+        position={position}
+        content={content.included}
+      />
 
-      <ServiceModel id="sheet-model" service={service} position={position} />
+      <ServiceModel
+        id="sheet-model"
+        service={service}
+        position={position}
+        content={content.model}
+      />
 
       <ServiceProcess
         id="sheet-process"
         service={service}
         steps={service.process}
         position={position}
+        content={content.process}
       />
 
       <ServiceInvestment
@@ -125,34 +167,41 @@ export default async function ServiceDetailPage({
         category={service.slug}
         pricing={service.pricing}
         position={position}
+        content={content.investment}
+        roomSizeContent={shared.roomSize}
       />
 
       <QuestionsNotes
         id="sheet-questions"
-        index="A6"
-        lines={["Questions about", service.category.toLowerCase() + "."]}
-        lede={`The things people ask before committing to ${service.title.toLowerCase()}. Anything else, just call — we would rather answer it now than after you have ordered.`}
+        index={content.questions.index}
+        lines={content.questions.lines.map((line) => fill(line, { categoryLower }))}
+        lede={fill(content.questions.lede, { titleLower })}
         faqs={service.faqs}
+        content={shared.questions}
         className={QUESTION_GROUNDS[variant]}
       />
 
       <BookSurveyCta
         id="sheet-cta"
-        lines={["Let's measure", "your room."]}
-        lede={`A free survey, in your home, with no obligation attached. We will tell you honestly what your ${service.title.toLowerCase()} project needs before anyone talks about money.`}
-        ctaLabel="Book a consultation"
-        ctaHref={`/booking?service=${service.slug}`}
+        lines={content.cta.lines}
+        lede={fill(content.cta.lede, { titleLower })}
+        ctaLabel={content.cta.ctaLabel}
+        ctaHref={fill(content.cta.ctaHref, { slug: service.slug })}
         image={service.image}
         imageAlt={service.title}
         // No finish count here any more — the material displays are gone
         // from these pages, so a "12 finishes" fact would be the last
         // surviving trace of a section that no longer exists.
         facts={[
-          `${metrics.timeline} lead time`,
-          metrics.fromPriceLabel ? `From ${metrics.fromPriceLabel}` : "Quoted per room",
-          "3D design included",
-          "5-year guarantee",
+          fill(content.cta.facts.leadTime, { timeline: metrics.timeline }),
+          metrics.fromPriceLabel
+            ? fill(content.cta.facts.fromPrice, { price: metrics.fromPriceLabel })
+            : content.cta.facts.fromPriceFallback,
+          content.cta.facts.design,
+          content.cta.facts.guarantee,
         ]}
+        content={shared.bookSurveyCta}
+        company={company}
       />
     </QuoteModalRoot>
   );

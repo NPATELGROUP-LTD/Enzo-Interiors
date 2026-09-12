@@ -8,7 +8,13 @@
 // All four share the room-size control and the `estimateQuote` helper, so
 // the pricing behaviour is identical across the site and only the
 // presentation differs. See ../variant.ts for how the index is chosen.
-import type { PricingTier, ServiceDetail } from "@/lib/content";
+import type {
+  InvestmentVariantContent,
+  PricingTier,
+  ServiceDetail,
+  ServiceDetailContent,
+  SharedContent,
+} from "@/lib/content";
 import { variantIndex } from "../variant";
 import { InvestmentSheets } from "./InvestmentSheets";
 import { InvestmentSlider } from "./InvestmentSlider";
@@ -28,16 +34,33 @@ export function ServiceInvestment({
   pricing,
   position,
   id,
+  content,
+  roomSizeContent,
 }: {
   service: ServiceDetail;
   category: string;
   pricing: PricingTier[];
   position: number;
   id: string;
+  content: ServiceDetailContent["investment"];
+  roomSizeContent: SharedContent["roomSize"];
 }) {
   if (!pricing.length) return null;
 
-  const Investment =
-    VARIANTS[variantIndex(position, VARIANTS.length, service.heroVariant)];
-  return <Investment category={category} pricing={pricing} id={id} />;
+  // One index picks both the layout and the copy written for it, so a page
+  // can never render the doors with the slider's words.
+  const index = variantIndex(position, VARIANTS.length, service.heroVariant);
+  const Investment = VARIANTS[index];
+  const variants: InvestmentVariantContent[] = content.variants;
+
+  return (
+    <Investment
+      category={category}
+      pricing={pricing}
+      id={id}
+      content={variants[index]!}
+      common={content}
+      roomSizeContent={roomSizeContent}
+    />
+  );
 }

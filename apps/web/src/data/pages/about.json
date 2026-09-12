@@ -1,0 +1,150 @@
+{
+  "metadata": {
+    "title": "About — Enzo Interiors",
+    "description": "A small Leicester workshop making fitted kitchens, bedrooms, media walls and wardrobes. We measure, draw, build and fit every job ourselves."
+  },
+  "statement": {
+    "eyebrow": "01 — Studio",
+    "leadLine": "We make",
+    "tailLine": "that fit.",
+    "fallbackWord": "rooms",
+    "body": "A small Leicester workshop. We measure your room ourselves, draw it ourselves, build it ourselves and fit it ourselves — which is the only way we know of being sure it fits.",
+    "scrollLabel": "Scroll",
+    "portraitId": "about-workshop",
+    "portraitAlt": "The Enzo Interiors workshop"
+  },
+  "numbers": {
+    "srHeading": "The studio in figures",
+    "index": "02",
+    "label": "Figures",
+    "datum": "all true",
+    "lines": ["A small shop,", "on purpose."],
+    "lede": "The numbers worth knowing about a workshop this size are mostly the ones a bigger one could not print.",
+    "figures": [
+      {
+        "source": "projectCount",
+        "suffix": "+",
+        "label": "Rooms finished",
+        "note": "Kitchens, bedrooms, media walls and wardrobes across Leicestershire."
+      },
+      {
+        "value": 0,
+        "label": "Subcontractors",
+        "note": "Measured, drawn, built and fitted by the same people."
+      },
+      {
+        "value": 5,
+        "suffix": " yr",
+        "label": "Guarantee",
+        "note": "In writing, on every installation, whichever discipline you pick."
+      },
+      {
+        "value": null,
+        "text": "Free",
+        "label": "Home survey",
+        "note": "60–90 minutes at your place, with nothing to sign at the end."
+      }
+    ]
+  },
+  "journey": {
+    "srHeading": "How we got here",
+    "index": "03",
+    "label": "Journey",
+    "datumWithTotal": "{months} months, {stops} stops",
+    "datumWithoutTotal": "{stops} stops",
+    "lines": ["The road so far,", "in four stops."],
+    "lede": "Four stops between the first bench and the fiftieth room, set down the page in the order they happened, with the months between them measured.",
+    "overallLabel": "{months} months overall",
+    "monthsOne": "1 month",
+    "monthsOther": "{count} months",
+    "milestones": [
+      {
+        "year": "June 2025",
+        "title": "One bench, one van, one saw.",
+        "desc": "Enzo Interiors started in Leicester with a workshop, a set of tools and a conviction that fitted furniture ought to be measured in the room it is going into rather than picked off a page.",
+        "imageId": "milestone-bench"
+      },
+      {
+        "year": "August 2025",
+        "title": "The first kitchen went in, in Oadby.",
+        "desc": "A bespoke fitted kitchen, drawn from a survey and built to the millimetre. It is still the job we point at when somebody asks what we mean by handmade.",
+        "imageId": "milestone-first-kitchen"
+      },
+      {
+        "year": "November 2025",
+        "title": "Our own fitters, not subcontractors.",
+        "desc": "We brought installation in-house rather than hiring it out. The person who measures your room is now the person who draws it, and our own team is the one who fits it — no handovers, nobody blaming the last trade.",
+        "imageId": "milestone-own-fitters"
+      },
+      {
+        "year": "March 2026",
+        "title": "Fifty rooms across Leicestershire.",
+        "desc": "Kitchens, bedrooms, media walls and wardrobes, from Oadby and Wigston out to Market Harborough and Loughborough. Every one of them surveyed before it was quoted.",
+        "imageId": "milestone-fifty-rooms"
+      }
+    ]
+  },
+  "values": {
+    "srHeading": "What we will not do",
+    "index": "04",
+    "label": "Standing",
+    "datum": "{count} promises",
+    "lines": ["Three things", "we will not do."],
+    "lede": "Anyone can claim craftsmanship. These are the ones you could catch us breaking, which is the only kind worth printing.",
+    "insteadLabel": "Instead",
+    "items": [
+      {
+        "title": "Guess",
+        "promise": "We will not price a room we have not measured.",
+        "instead": "We survey first, every time — free, whether or not you go ahead.",
+        "body": "A figure given over the phone is a guess dressed up as a quote, and the person it usually costs is you. Every wall gets measured and every corner photographed before a price is written down.",
+        "imageId": "pf-sage-kitchen"
+      },
+      {
+        "title": "Subcontract",
+        "promise": "We will not hand your job to somebody you have not met.",
+        "instead": "The person who measures your room draws it. Our own fitters install it.",
+        "body": "Nothing is farmed out, so there is nobody to blame and nobody to chase — just us, from the first visit to the last handle.",
+        "imageId": "svc-bedroom"
+      },
+      {
+        "title": "Cut",
+        "promise": "We will not cut a sheet before you have signed the drawing.",
+        "instead": "You sign the drawing first. Only then does anything get cut.",
+        "body": "You see the room in 3D — finishes, handles, internal layout — and approve it before a single board goes on the saw. Changing a drawing costs nothing. Changing a fitted carcass costs a great deal.",
+        "imageId": "svc-wardrobe"
+      }
+    ]
+  },
+  "team": {
+    "srHeading": "The people",
+    "index": "05",
+    "label": "The bench",
+    "datum": "{count} of us",
+    "lines": ["This is everyone.", "All of us."],
+    "lede": "Not a department each. The person who measures your room is on this row, and so is the person who will be standing in it with a screwdriver."
+  },
+  "colophon": {
+    "eyebrow": "06 — The note",
+    "srHeading": "Why we work this way",
+    "authorId": "oyz-khan",
+    "role": "Founder, and the one who measures",
+    "place": "The workshop, Leicester",
+    "writtenLabel": "Written {written}, at {place}.",
+    "paragraphs": [
+      "I started Enzo because I kept seeing the same thing go wrong. Somebody chooses a kitchen from a brochure, a salesperson quotes it before anyone has been to the house, and then the fitters arrive and discover the wall is not straight. Everybody loses a fortnight and somebody eats the cost.",
+      "So we do it the other way round. We come to you, we measure every wall and photograph every corner, and we draw the room you actually have rather than the one the brochure assumed. Then you see it in 3D and sign it off, and only then does anything get cut.",
+      "It is slower, and it means we turn work down when we are full. I would rather do that than rush a room you are going to stand in every morning for the next fifteen years."
+    ]
+  },
+  "close": {
+    "eyebrow": "07 — Meet us",
+    "lines": ["You have met us.", "Now let us meet", "your room."],
+    "body": "A free survey, in your own home, with nothing to sign at the end of it. We measure, we photograph, we tell you honestly what is worth doing — and then you decide.",
+    "ctaLabel": "Book a free survey",
+    "ctaHref": "/booking",
+    "browsePrefix": "Rather see the work first?",
+    "browseLabel": "The whole archive",
+    "browseHref": "/portfolio"
+  }
+}

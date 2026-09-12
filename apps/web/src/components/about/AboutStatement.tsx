@@ -32,6 +32,7 @@ import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { useGSAP } from "@/hooks/useGSAP";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { DUR, EASE } from "@/lib/motion";
+import type { AboutPageContent } from "@/lib/content";
 
 /** How long a word holds before the sentence moves on. */
 const HOLD_MS = 2800;
@@ -40,9 +41,10 @@ interface AboutStatementProps {
   /** Lower-case discipline nouns, e.g. "kitchens". */
   disciplines: string[];
   portrait: string;
+  content: AboutPageContent["statement"];
 }
 
-export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
+export function AboutStatement({ disciplines, portrait, content }: AboutStatementProps) {
   const sectionRef = useRef<HTMLElement>(null);
   const slotRef = useRef<HTMLSpanElement>(null);
   const measureRef = useRef<HTMLSpanElement>(null);
@@ -159,7 +161,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
     };
   });
 
-  const word = disciplines[index] ?? disciplines[0] ?? "rooms";
+  const word = disciplines[index] ?? disciplines[0] ?? content.fallbackWord;
 
   return (
     <section
@@ -179,7 +181,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
       >
         <ImageWithFallback
           src={portrait}
-          alt="The Enzo Interiors workshop"
+          alt={content.portraitAlt}
           data-statement-photo
           className="absolute inset-0 h-full w-full object-cover will-change-transform"
         />
@@ -196,7 +198,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
             className="font-display block text-[10.5px] font-semibold uppercase tracking-[0.3em] text-enzo-sand opacity-0"
             style={{ transform: "translateY(8px)" }}
           >
-            01 — Studio
+            {content.eyebrow}
           </span>
 
           <h1
@@ -210,7 +212,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
                 className="block"
                 style={{ transform: "translateY(100%)" }}
               >
-                We make
+                {content.leadLine}
               </span>
             </span>
 
@@ -242,7 +244,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
                 className="block"
                 style={{ transform: "translateY(100%)" }}
               >
-                that fit.
+                {content.tailLine}
               </span>
             </span>
           </h1>
@@ -262,9 +264,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
             className="mt-7 max-w-[44ch] text-[14.5px] leading-[1.75] text-enzo-cream/70 opacity-0 md:mt-9 md:text-[15px]"
             style={{ transform: "translateY(14px)" }}
           >
-            A small Leicester workshop. We measure your room ourselves, draw it
-            ourselves, build it ourselves and fit it ourselves — which is the
-            only way we know of being sure it fits.
+            {content.body}
           </p>
         </div>
       </div>
@@ -277,7 +277,7 @@ export function AboutStatement({ disciplines, portrait }: AboutStatementProps) {
         style={{ transform: "translateY(14px)" }}
       >
         <span className="font-display text-[9.5px] font-semibold uppercase tracking-[0.28em] text-enzo-cream/65">
-          Scroll
+          {content.scrollLabel}
         </span>
         <span className="block h-px w-10 bg-enzo-cream/25" />
       </span>

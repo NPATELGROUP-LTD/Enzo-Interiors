@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight, ArrowRight, Phone, Check } from "lucide-react";
@@ -10,39 +10,45 @@ import { revealOnScroll, scrollTimeline } from "@/hooks/useGSAP";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
 import { FooterMap } from "@/components/layout/FooterMap";
 import { TextRoll } from "@/components/shared/TextRoll";
-import { HOURS_ROWS } from "@/lib/studio-hours";
+import { fill, type Company, type HoursRow, type NavLink, type SiteContent } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
-// Exactly one more than socialLinks below — on any of these four pages the
-// current one gets filtered out (see filteredPageLinks in the component),
-// leaving 3, matching the 3 social links so both flanking columns read as
-// the same length rather than a visibly lopsided 5-vs-3.
-const pageLinks = [
-  { href: "/", label: "Home" },
-  { href: "/services", label: "Services" },
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/contact", label: "Contact" },
-];
+// Everything printed here is data: the pages come from the navigation, the
+// hours, address, phone and socials from the company record, and the headline
+// and labels from the site copy — see src/data. The page list is deliberately
+// one longer than the socials: on any of those pages the current one is
+// filtered out (see filteredPageLinks below), leaving 3, matching the 3 social
+// links so both flanking columns read as the same length rather than a visibly
+// lopsided 5-vs-3.
+//
+// The printed hours come from the same company record /contact reads to answer
+// "are they open right now?". They were two separate literals until the contact
+// page needed the times as numbers — one of them would have gone stale the
+// first time Friday's split afternoon moved.
 
-const socialLinks = [
-  { href: "https://instagram.com/enzo.interiors", Icon: InstagramIcon, label: "Instagram" },
-  { href: "https://facebook.com", Icon: FacebookIcon, label: "Facebook" },
-  { href: "/contact", Icon: Phone, label: "WhatsApp" },
-];
-
-// The printed hours come from lib/studio-hours, which /contact also reads to
-// answer "are they open right now?". They were two separate literals until
-// the contact page needed the times as numbers — one of them would have
-// gone stale the first time Friday's split afternoon moved.
+/** The glyph for each social row's id. */
+const SOCIAL_ICONS: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  instagram: InstagramIcon,
+  facebook: FacebookIcon,
+  whatsapp: Phone,
+};
 
 const LABEL = "text-[10px] font-semibold uppercase tracking-[0.3em] text-enzo-cream/70";
 
-function HoursList() {
+function HoursList({
+  rows,
+  label,
+  note,
+}: {
+  rows: readonly HoursRow[];
+  label: string;
+  note: string;
+}) {
   return (
     <div>
-      <p className={cn(LABEL, "mb-4")}>Opening Hours</p>
+      <p className={cn(LABEL, "mb-4")}>{label}</p>
       <div className="flex flex-col divide-y divide-enzo-cream/10">
-        {HOURS_ROWS.map((row) => (
+        {rows.map((row) => (
           <div
             key={row.day}
             className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg px-2 py-2.5 text-[13px] transition-colors duration-200 hover:bg-enzo-cream/5"
@@ -56,7 +62,7 @@ function HoursList() {
       </div>
       <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/70">
         <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
-        Consultation calls are available by appointment, outside these hours.
+        {note}
       </p>
     </div>
   );
@@ -67,16 +73,22 @@ function NewsletterForm({
   onChange,
   onSubmit,
   submittedEmail,
+  labels,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   submittedEmail: string | null;
+  labels: SiteContent["footer"]["newsletter"];
 }) {
+  // Split rather than interpolated, so the address keeps its own emphasis
+  // while the sentence around it stays one editable string.
+  const [thanksBefore, thanksAfter] = labels.thanks.split("{email}");
+
   return (
     <form onSubmit={onSubmit} className="w-full">
       <label htmlFor="footer-newsletter" className={cn(LABEL, "mb-3 block")}>
-        The Studio Letter
+        {labels.label}
       </label>
       <div className="flex items-center gap-2 border-b-2 border-enzo-cream/20 pb-2 transition-colors focus-within:border-enzo-sand">
         <input
@@ -84,7 +96,7 @@ function NewsletterForm({
           type="email"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Your email address"
+          placeholder={labels.placeholder}
           className="min-w-0 flex-1 bg-transparent py-2.5 text-[14px] text-enzo-cream placeholder:text-enzo-cream/65 focus:outline-none"
           required
         />
@@ -97,7 +109,7 @@ function NewsletterForm({
             already exits/enters from. */}
         <button
           type="submit"
-          aria-label="Subscribe"
+          aria-label={labels.submitLabel}
           className="group relative flex h-11 w-11 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-enzo-sand text-enzo-forest transition-all duration-300 hover:scale-110 hover:bg-enzo-sage"
         >
           <ArrowRight className="h-4 w-4 -rotate-45 transition-all duration-300 ease-out group-hover:translate-x-3 group-hover:-translate-y-3 group-hover:opacity-0" />
@@ -112,20 +124,41 @@ function NewsletterForm({
           <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-enzo-sand text-enzo-forest">
             <Check className="h-3 w-3" strokeWidth={3} />
           </span>
-          Thank you for subscribing with <span className="font-medium text-enzo-cream">{submittedEmail}</span>
+          {thanksBefore}
+          <span className="font-medium text-enzo-cream">{submittedEmail}</span>
+          {thanksAfter}
         </p>
       )}
     </form>
   );
 }
 
-export function Footer() {
+export function Footer({
+  content,
+  company,
+  nav,
+}: {
+  content: SiteContent["footer"];
+  company: Company;
+  nav: NavLink[];
+}) {
   const [newsletter, setNewsletter] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const pathname = usePathname();
-  const filteredPageLinks = pageLinks.filter((item) => item.href !== pathname);
   const footerRef = useRef<HTMLElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
+
+  // Labelled from the navigation rather than a second list of page names.
+  const pageLinks = content.pageLinks.map((href) => ({
+    href,
+    label: nav.find((item) => item.path === href)?.label ?? "",
+  }));
+  const filteredPageLinks = pageLinks.filter((item) => item.href !== pathname);
+  const socialLinks = company.socials.map((social) => ({
+    href: social.href,
+    label: social.label,
+    Icon: SOCIAL_ICONS[social.id] ?? Phone,
+  }));
 
   // Two effects layered on the same, self-referential trigger
   // (`trigger: footer` — the footer's own scroll position, never dependent
@@ -234,13 +267,13 @@ export function Footer() {
         <div className="md:hidden">
           <div className="reveal-headline">
             <h2 className="font-title text-[clamp(1.7rem,7vw,2.2rem)] font-bold leading-[1.1] tracking-[-0.02em] text-enzo-cream">
-              Live beautifully, designed with intent.
+              {content.headline.plain}
             </h2>
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-8">
             <div>
-              <p className={cn(LABEL, "mb-1")}>Pages</p>
+              <p className={cn(LABEL, "mb-1")}>{content.pagesLabel}</p>
               <ul className="flex flex-col divide-y divide-enzo-cream/10">
                 {filteredPageLinks.map((item) => (
                   <li key={item.href} className="reveal-pages">
@@ -256,7 +289,7 @@ export function Footer() {
             </div>
 
             <div>
-              <p className={cn(LABEL, "mb-1")}>Follow</p>
+              <p className={cn(LABEL, "mb-1")}>{content.followLabel}</p>
               <ul className="flex flex-col divide-y divide-enzo-cream/10">
                 {socialLinks.map(({ href, Icon, label }) => (
                   <li key={label} className="reveal-follow">
@@ -290,8 +323,8 @@ export function Footer() {
             now the visual order (Pages, headline, Follow), so there is no
             `order` to disagree with. ── */}
         <div className="hidden items-center gap-6 md:grid md:grid-cols-[1fr_2fr_1fr]">
-          <nav aria-label="Site pages" className="md:text-left">
-            <p className={cn(LABEL, "mb-5")}>Pages</p>
+          <nav aria-label={content.pagesNavLabel} className="md:text-left">
+            <p className={cn(LABEL, "mb-5")}>{content.pagesLabel}</p>
             <ul className="space-y-3.5">
               {filteredPageLinks.map((item) => (
                 <li key={item.href} className="reveal-pages">
@@ -315,27 +348,29 @@ export function Footer() {
                 than a character-level animation — a different kind of
                 interaction, not a smaller version of the same one. */}
             <h2 className="font-display text-[7vw] font-bold uppercase leading-[0.92] tracking-[-0.02em] text-enzo-cream transition-transform duration-500 ease-out group-hover:scale-[1.015] md:text-[3.6rem] lg:text-[4.2rem]">
-              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
-                Live
-              </span>{" "}
-              <span className="inline-block cursor-default font-title text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
-                beautifully,
-              </span>
-              <br />
-              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
-                designed
-              </span>{" "}
-              <span className="inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-sand">
-                with
-              </span>{" "}
-              <span className="inline-block cursor-default font-title text-enzo-sand transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110 hover:text-enzo-cream">
-                intent.
-              </span>
+              {content.headline.words.map((word, index) => {
+                const last = index === content.headline.words.length - 1;
+                return (
+                  <Fragment key={`${word.text}-${index}`}>
+                    <span
+                      className={cn(
+                        "inline-block cursor-default transition-all duration-300 ease-out hover:-translate-y-2 hover:scale-110",
+                        word.accent
+                          ? "font-title text-enzo-sand hover:text-enzo-cream"
+                          : "hover:text-enzo-sand",
+                      )}
+                    >
+                      {word.text}
+                    </span>
+                    {word.break ? <br /> : last ? null : " "}
+                  </Fragment>
+                );
+              })}
             </h2>
           </div>
 
-          <nav aria-label="Follow Enzo Interiors" className="md:text-right">
-            <p className={cn(LABEL, "mb-5")}>Follow</p>
+          <nav aria-label={content.followNavLabel} className="md:text-right">
+            <p className={cn(LABEL, "mb-5")}>{content.followLabel}</p>
             <ul className="space-y-3.5">
               {socialLinks.map(({ href, label }) => (
                 <li key={label} className="reveal-follow">
@@ -361,22 +396,22 @@ export function Footer() {
             own row, which also sidesteps that mismatch entirely. */}
         <div className="mt-14 grid grid-cols-1 gap-10 border-t border-enzo-cream/15 pt-10 md:mt-16 md:grid-cols-2 md:gap-16 md:pt-12">
           <div className="reveal-contact">
-            <p className={cn(LABEL, "mb-3")}>Begin A Conversation</p>
+            <p className={cn(LABEL, "mb-3")}>{content.contactLabel}</p>
             <a
-              href="mailto:hello@enzointeriors.co.uk"
+              href={company.emailHref}
               className="group touch-target inline-flex flex-wrap items-baseline gap-x-2 text-[1.2rem] font-bold leading-[1.1] tracking-tight text-enzo-cream"
             >
               <span className="bg-[linear-gradient(currentColor,currentColor)] bg-[length:0%_2px] bg-left-bottom bg-no-repeat pb-0.5 transition-[background-size] duration-500 ease-out group-hover:bg-[length:100%_2px]">
-                hello@enzointeriors.co.uk
+                {company.email}
               </span>
               <ArrowUpRight className="h-[0.55em] w-[0.55em] flex-shrink-0 text-enzo-sand transition-transform duration-300 group-hover:translate-x-1 group-hover:-translate-y-1" />
             </a>
             <a
-              href="tel:+447777333052"
+              href={company.phone.href}
               className="mt-3 flex min-h-11 items-center gap-2 text-[14px] text-enzo-cream/70 transition-colors hover:text-enzo-cream"
             >
               <Phone className="h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
-              07777 333052
+              {company.phone.display}
             </a>
             <div className="mt-8">
               <NewsletterForm
@@ -384,18 +419,23 @@ export function Footer() {
                 onChange={setNewsletter}
                 onSubmit={handleNewsletterSubmit}
                 submittedEmail={submittedEmail}
+                labels={content.newsletter}
               />
             </div>
           </div>
 
           <div className="reveal-hours">
-            <HoursList />
+            <HoursList
+              rows={company.hours.rows}
+              label={content.hoursLabel}
+              note={company.hours.note}
+            />
           </div>
         </div>
 
         <div className="reveal-map mt-10 md:mt-12">
-          <p className={cn(LABEL, "mb-3")}>Where We Work</p>
-          <FooterMap />
+          <p className={cn(LABEL, "mb-3")}>{content.mapLabel}</p>
+          <FooterMap map={company.map} />
         </div>
       </div>
 
@@ -408,10 +448,11 @@ export function Footer() {
       <div className="reveal-bottom relative z-10 shell flex flex-col-reverse items-center justify-between gap-5 border-t border-enzo-cream/15 py-8 sm:flex-row">
         <div className="text-center text-[13px] sm:text-left">
           <p className="font-semibold text-enzo-cream">
-            &copy; {new Date().getFullYear()} Enzo Interiors. All rights reserved.
+            {fill(content.copyright, { year: new Date().getFullYear() })}
           </p>
           <p className="mt-1 text-enzo-cream/70">
-            Made by <span className="font-semibold text-enzo-sand">NPATEL GROUP LTD</span>
+            {content.madeByPrefix}{" "}
+            <span className="font-semibold text-enzo-sand">{company.madeBy}</span>
           </p>
         </div>
         {/* The three notices, plus the consent-withdrawal control. The last
@@ -419,23 +460,17 @@ export function Footer() {
             consent to be as easy as giving it, which means reachable from
             every page rather than buried in a policy. */}
         <nav
-          aria-label="Legal"
+          aria-label={content.legalNavLabel}
           className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3 text-[13px] font-semibold uppercase tracking-wide text-enzo-cream"
         >
-          <Link href="/privacy" className="group relative touch-target">
-            Privacy Policy
-            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </Link>
-          <Link href="/terms" className="group relative touch-target">
-            Terms
-            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </Link>
-          <Link href="/cookies" className="group relative touch-target">
-            Cookies
-            <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
-          </Link>
+          {content.legalLinks.map((item) => (
+            <Link key={item.href} href={item.href} className="group relative touch-target">
+              {item.label}
+              <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
+            </Link>
+          ))}
           <CookieSettingsButton className="group relative touch-target uppercase tracking-wide focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand">
-            Cookie settings
+            {content.cookieSettingsLabel}
             <span className="absolute inset-x-0 -bottom-0.5 h-px scale-x-0 bg-enzo-sand transition-transform duration-300 ease-out group-hover:scale-x-100" />
           </CookieSettingsButton>
         </nav>

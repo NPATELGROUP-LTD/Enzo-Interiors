@@ -27,7 +27,7 @@ import gsap from "gsap";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { scrollTimeline, useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
-import type { ServiceDetail } from "@/lib/content";
+import type { ServiceDetail, ServiceDetailContent } from "@/lib/content";
 import { getHeroFacts } from "./heroFacts";
 import { heroCommonParts, heroRestMotion, HeroActions, HeroRule, HeroTitleLine } from "./heroParts";
 
@@ -38,12 +38,14 @@ const PANELS = 3;
 export function HeroColumns({
   service,
   id,
+  content,
 }: {
   service: ServiceDetail;
   id: string;
+  content: ServiceDetailContent["hero"];
 }) {
   const sectionRef = useRef<HTMLElement>(null);
-  const facts = getHeroFacts(service).slice(0, PANELS);
+  const facts = getHeroFacts(service, content.facts).slice(0, PANELS);
 
   useGSAP(sectionRef, (section, reduced) => {
     const parts = heroCommonParts(section);
@@ -128,7 +130,7 @@ export function HeroColumns({
       className="relative overflow-hidden bg-enzo-dark text-enzo-cream"
     >
       <div className="shell pb-16 pt-[7.5rem] md:pt-[9rem]">
-        <HeroRule category={service.category} tone="dark" />
+        <HeroRule index={content.index} category={service.category} tone="dark" />
 
         {/* Title hard right, support hard left, on one baseline. */}
         <div className="mt-8 grid gap-10 md:mt-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,auto)] lg:items-end lg:gap-16">
@@ -145,7 +147,7 @@ export function HeroColumns({
               className="mt-8 opacity-0"
               style={{ transform: "translateY(14px)" }}
             >
-              <HeroActions slug={service.slug} tone="dark" />
+              <HeroActions slug={service.slug} tone="dark" content={content.actions} />
             </div>
           </div>
 

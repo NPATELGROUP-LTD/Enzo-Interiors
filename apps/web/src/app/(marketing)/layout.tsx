@@ -2,12 +2,14 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CookieBanner } from "@/components/legal/CookieBanner";
 import { PageTransition } from "@/components/shared/PageTransition";
+import { getCompany, getNavigation, getPage } from "@/lib/content";
 // Ported from Boilerplate:src/app/components/layout/Layout.tsx. That file
 // used react-router's <Outlet/> + a useScrollToTop hook; the App Router
 // gives us route nesting and scroll restoration natively, so this layout
-// is just the Navbar/Footer shell. It stays a Server Component — Navbar
-// and Footer are the only pieces that need "use client" (scroll listeners /
-// local form state).
+// is just the Navbar/Footer shell. It stays a Server Component — it fetches
+// the site's chrome (navigation, company details, the copy every page
+// carries) and hands it to Navbar and Footer, which need "use client" for
+// their scroll listeners and local form state.
 //
 // There is no custom cursor, and there should not be one. It was tried: a dot
 // and a lagging ring that changed shape with whatever was under it. Two
@@ -23,11 +25,17 @@ import { PageTransition } from "@/components/shared/PageTransition";
 // rather than here — Lenis animates the real document scrollTop instead of
 // a transformed wrapper, so unlike GSAP's ScrollSmoother it doesn't need to
 // exempt <Navbar> from anything.
-export default function MarketingLayout({
+export default async function MarketingLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const [site, navigation, company] = await Promise.all([
+    getPage("site"),
+    getNavigation(),
+    getCompany(),
+  ]);
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* WCAG 2.4.1 (Bypass Blocks). The header is a five-item dock plus a
@@ -40,15 +48,15 @@ export default function MarketingLayout({
         href="#main"
         className="sr-only rounded-2xl bg-enzo-forest px-5 py-3 text-[14px] font-medium text-enzo-cream focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[120] focus:outline-none focus:ring-2 focus:ring-enzo-sand focus:ring-offset-2"
       >
-        Skip to content
+        {site.skipLink}
       </a>
-      <Navbar />
+      <Navbar nav={navigation} content={site.navbar} logos={company.logos} />
       <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
         {children}
       </main>
-      <Footer />
-      <CookieBanner />
-      <PageTransition />
+      <Footer content={site.footer} company={company} nav={navigation} />
+      <CookieBanner content={site.cookieBanner} />
+      <PageTransition nav={navigation} content={site.pageTransition} />
     </div>
   );
 }
