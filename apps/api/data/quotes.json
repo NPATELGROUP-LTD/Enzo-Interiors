@@ -22,10 +22,10 @@
     "subtotal": 4200,
     "vat_rate": 20,
     "total": 5040,
-    "status": "Sent",
+    "status": "Accepted",
     "invoice_id": null,
     "created_at": "2026-07-16T09:00:00.000Z",
-    "updated_at": "2026-07-16T09:00:00.000Z"
+    "updated_at": "2026-09-16T19:22:37.970Z"
   },
   {
     "id": "qte_okafor_mediawall",

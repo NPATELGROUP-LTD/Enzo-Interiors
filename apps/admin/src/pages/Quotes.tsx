@@ -1,4 +1,11 @@
-import { FileOutput, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
+import {
+  Export,
+  PaperPlaneRight,
+  PencilSimple,
+  Plus,
+  Trash,
+  X,
+} from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import {
@@ -384,7 +391,7 @@ export function QuotesPage() {
                           title="Send to client"
                           className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
                         >
-                          <Send size={16} aria-hidden="true" />
+                          <PaperPlaneRight size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                       {quote.status === 'Accepted' && !quote.invoice_id && isAdmin ? (
@@ -399,7 +406,7 @@ export function QuotesPage() {
                           title="Convert to invoice"
                           className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
                         >
-                          <FileOutput size={16} aria-hidden="true" />
+                          <Export size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                       {isAdmin ? (
@@ -409,7 +416,7 @@ export function QuotesPage() {
                           aria-label={`Delete ${quote.client_name}'s quote`}
                           className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
                         >
-                          <Trash2 size={16} aria-hidden="true" />
+                          <Trash size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                     </div>
@@ -494,7 +501,7 @@ export function QuotesPage() {
                                     aria-label={`Edit ${component.name}`}
                                     className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
                                   >
-                                    <Pencil size={16} aria-hidden="true" />
+                                    <PencilSimple size={16} aria-hidden="true" />
                                   </button>
                                   <button
                                     type="button"
@@ -502,7 +509,7 @@ export function QuotesPage() {
                                     aria-label={`Delete ${component.name}`}
                                     className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
                                   >
-                                    <Trash2 size={16} aria-hidden="true" />
+                                    <Trash size={16} aria-hidden="true" />
                                   </button>
                                 </>
                               ) : (
@@ -615,7 +622,7 @@ export function QuotesPage() {
               </div>
 
               {builder.lines.length === 0 ? (
-                <p className="rounded-card border border-dashed border-border px-3 py-6 text-center text-ink-muted">
+                <p className="rounded-card bg-ink/[0.035] px-3 py-6 text-center text-ink-muted">
                   No lines yet. Add components to build the quote.
                 </p>
               ) : (
@@ -625,7 +632,7 @@ export function QuotesPage() {
                     return (
                       <li
                         key={index}
-                        className="flex flex-wrap items-end gap-2 rounded-card border border-border p-2"
+                        className="flex flex-wrap items-end gap-2 rounded-card bg-ink/[0.035] p-2.5"
                       >
                         <div className="min-w-48 flex-1">
                           <label className="label-eyebrow" htmlFor={`line-component-${index}`}>

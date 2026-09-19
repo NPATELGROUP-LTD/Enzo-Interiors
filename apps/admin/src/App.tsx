@@ -37,7 +37,7 @@ export function App() {
   // flashes the login screen before bouncing back.
   if (loading) {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-canvas">
+      <div className="wallpaper flex min-h-dvh items-center justify-center">
         <LoadingState label="Signing you in…" />
       </div>
     );

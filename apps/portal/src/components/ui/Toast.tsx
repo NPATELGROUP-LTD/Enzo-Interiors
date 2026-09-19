@@ -1,4 +1,9 @@
-import { CheckCircle2, Info, X, XCircle } from 'lucide-react';
+import {
+  CheckCircle,
+  Info,
+  X,
+  XCircle,
+} from '@phosphor-icons/react';
 import {
   createContext,
   useCallback,
@@ -25,7 +30,7 @@ interface ToastState {
 const ToastContext = createContext<ToastState | null>(null);
 
 const TONE_STYLES: Record<ToastTone, { bg: string; fg: string; Icon: typeof Info }> = {
-  success: { bg: 'bg-success-bg', fg: 'text-success', Icon: CheckCircle2 },
+  success: { bg: 'bg-success-bg', fg: 'text-success', Icon: CheckCircle },
   error: { bg: 'bg-danger-bg', fg: 'text-danger', Icon: XCircle },
   info: { bg: 'bg-green-100', fg: 'text-green-900', Icon: Info },
 };
@@ -67,7 +72,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       <div
         aria-live="polite"
         aria-atomic="false"
-        className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+        className="pointer-events-none fixed right-3 top-10 z-[100] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
       >
         {toasts.map((toast) => {
           const { bg, fg, Icon } = TONE_STYLES[toast.tone];
@@ -75,7 +80,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <div
               key={toast.id}
               role={toast.tone === 'error' ? 'alert' : 'status'}
-              className={`pointer-events-auto flex items-start gap-3 rounded-card border border-border ${bg} p-3 shadow-overlay`}
+              className={`pointer-events-auto flex items-start gap-3 rounded-[12px] border border-border ${bg} p-3 shadow-window`}
             >
               <Icon size={18} className={`mt-0.5 shrink-0 ${fg}`} aria-hidden="true" />
               <p className="flex-1 text-ink">{toast.message}</p>

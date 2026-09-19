@@ -1,4 +1,8 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  PencilSimple,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 
 import {
@@ -375,7 +379,7 @@ export function ContentPage() {
                               aria-label={`Edit ${entry.client_name}'s testimonial`}
                               className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-green-900"
                             >
-                              <Pencil size={16} aria-hidden="true" />
+                              <PencilSimple size={16} aria-hidden="true" />
                             </button>
                             <button
                               type="button"
@@ -383,7 +387,7 @@ export function ContentPage() {
                               aria-label={`Delete ${entry.client_name}'s testimonial`}
                               className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger"
                             >
-                              <Trash2 size={16} aria-hidden="true" />
+                              <Trash size={16} aria-hidden="true" />
                             </button>
                           </>
                         ) : (

@@ -1,4 +1,9 @@
-import { BadgeCheck, Plus, Send, Trash2 } from 'lucide-react';
+import {
+  PaperPlaneRight,
+  Plus,
+  SealCheck,
+  Trash,
+} from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import {
@@ -220,8 +225,8 @@ export function InvoicesPage() {
             aria-pressed={filter === option}
             className={`min-h-11 rounded-control border px-3 text-sm font-semibold transition-colors duration-[160ms] ${
               filter === option
-                ? 'border-green-900 bg-green-100 text-green-900'
-                : 'border-border bg-surface text-ink-muted hover:text-ink'
+                ? 'border-transparent bg-green-900 text-on-primary'
+                : 'border-transparent bg-ink/[0.06] text-ink-muted hover:bg-ink/[0.1] hover:text-ink'
             }`}
           >
             {option === 'all' ? 'All' : option}
@@ -304,7 +309,7 @@ export function InvoicesPage() {
                         title="Mark as sent"
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
                       >
-                        <Send size={16} aria-hidden="true" />
+                        <PaperPlaneRight size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                     {isAdmin && invoice.status !== 'Paid' && invoice.status !== 'Draft' ? (
@@ -315,7 +320,7 @@ export function InvoicesPage() {
                         title="Mark as paid"
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-success"
                       >
-                        <BadgeCheck size={16} aria-hidden="true" />
+                        <SealCheck size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                     {isAdmin && invoice.status !== 'Paid' ? (
@@ -325,7 +330,7 @@ export function InvoicesPage() {
                         aria-label={`Delete ${invoice.number}`}
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
                       >
-                        <Trash2 size={16} aria-hidden="true" />
+                        <Trash size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>

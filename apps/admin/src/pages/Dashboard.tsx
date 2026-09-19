@@ -34,7 +34,7 @@ function BarChart({
   const max = Math.max(1, ...data.map((point) => point.value));
 
   return (
-    <div className="flex h-40 items-end gap-1.5" role="img" aria-label="Monthly totals">
+    <div className="flex h-full min-h-40 gap-1.5" role="img" aria-label="Monthly totals">
       {data.map((point) => {
         const height = (point.value / max) * 100;
         return (
@@ -42,11 +42,14 @@ function BarChart({
             <span className="tabular text-[10px] font-semibold text-ink-muted">
               {point.value > 0 ? (formatValue ? formatValue(point.value) : point.value) : ''}
             </span>
-            <div
-              className="w-full rounded-t-[3px] bg-green-900"
-              // A zero month still shows a hairline so the axis reads as continuous.
-              style={{ height: `${Math.max(height, point.value > 0 ? 4 : 1)}%` }}
-            />
+            {/* flex-1 gives the bar a definite track, so its % height resolves. */}
+            <div className="flex w-full flex-1 items-end">
+              <div
+                className="w-full rounded-t-[4px] bg-green-900"
+                // A zero month still shows a hairline so the axis reads as continuous.
+                style={{ height: `${Math.max(height, point.value > 0 ? 4 : 1)}%` }}
+              />
+            </div>
             <span className="text-[10px] text-ink-muted">{point.label}</span>
           </div>
         );
@@ -177,12 +180,12 @@ export function DashboardPage() {
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card className="xl:col-span-2">
+            <Card className="flex flex-col xl:col-span-2">
               <p className="label-eyebrow">Bookings by month</p>
               <p className="mt-1 text-ink-muted">
                 Consultations booked over the last 12 months.
               </p>
-              <div className="mt-4">
+              <div className="mt-4 flex-1">
                 <BarChart data={data.bookings_chart} />
               </div>
             </Card>
@@ -230,7 +233,7 @@ export function DashboardPage() {
                 Nothing is waiting on a client right now.
               </p>
             ) : (
-              <ul className="flex flex-col divide-y divide-border">
+              <ul className="rows">
                 {needingAttention.map((project) => (
                   <li
                     key={project.id}

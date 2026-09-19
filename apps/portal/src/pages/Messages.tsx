@@ -1,5 +1,9 @@
 import clsx from 'clsx';
-import { Paperclip, Send, X } from 'lucide-react';
+import {
+  Paperclip,
+  PaperPlaneRight,
+  X,
+} from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
 
 import { Button, Card, EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui';
@@ -174,8 +178,8 @@ export function MessagesPage() {
                   className={clsx(
                     'min-h-11 rounded-control border px-3 text-sm font-semibold transition-colors duration-[160ms]',
                     conversation.id === activeId
-                      ? 'border-green-900 bg-green-100 text-green-900'
-                      : 'border-border bg-surface text-ink-muted hover:text-ink',
+                      ? 'border-transparent bg-green-900 text-on-primary'
+                      : 'border-transparent bg-ink/[0.06] text-ink-muted hover:bg-ink/[0.1] hover:text-ink',
                   )}
                 >
                   {conversation.subject}
@@ -189,8 +193,14 @@ export function MessagesPage() {
             </div>
           ) : null}
 
-          <Card className="flex min-h-[28rem] flex-col p-0 lg:max-h-[calc(100dvh-16rem)]">
-            <div className="border-b border-border p-3">
+          <Card
+            className={clsx(
+              'flex min-h-[28rem] flex-col p-0',
+              // The conversation chips above only render for 2+ threads.
+              list.length > 1 ? 'lg:h-[calc(100dvh-22.5rem)]' : 'lg:h-[calc(100dvh-19rem)]',
+            )}
+          >
+            <div className="bg-ink/[0.025] p-3">
               <p className="font-semibold text-ink">{active?.subject ?? 'Conversation'}</p>
               <p className="text-xs text-ink-muted">
                 With the Enzo Interiors team · replies usually within a working day
@@ -228,8 +238,8 @@ export function MessagesPage() {
                             className={clsx(
                               'max-w-[85%] rounded-card border p-2.5 sm:max-w-[70%]',
                               fromMe
-                                ? 'border-green-900/25 bg-green-100'
-                                : 'border-border bg-surface-muted',
+                                ? 'border-transparent bg-green-100'
+                                : 'border-transparent bg-surface-muted',
                             )}
                           >
                             <p className="whitespace-pre-wrap leading-relaxed text-ink">
@@ -266,13 +276,13 @@ export function MessagesPage() {
               ) : null}
             </div>
 
-            <form onSubmit={send} className="border-t border-border p-3">
+            <form onSubmit={send} className="bg-ink/[0.025] p-3">
               {attachments.length > 0 ? (
                 <ul className="mb-2 flex flex-wrap gap-1.5">
                   {attachments.map((attachment, index) => (
                     <li
                       key={`${attachment.name}-${index}`}
-                      className="flex items-center gap-1.5 rounded-control border border-border bg-surface-muted px-2 py-1 text-xs text-ink"
+                      className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
                     >
                       <Paperclip size={12} aria-hidden="true" />
                       <span className="max-w-40 truncate">{attachment.name}</span>
@@ -334,7 +344,7 @@ export function MessagesPage() {
                   variant="primary"
                   loading={sending}
                   disabled={!draft.trim() && attachments.length === 0}
-                  icon={<Send size={16} aria-hidden="true" />}
+                  icon={<PaperPlaneRight size={16} aria-hidden="true" />}
                 >
                   Send
                 </Button>

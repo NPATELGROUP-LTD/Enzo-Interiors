@@ -1,4 +1,9 @@
-import { Pencil, Plus, Search, Trash2 } from 'lucide-react';
+import {
+  MagnifyingGlass,
+  PencilSimple,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -267,7 +272,7 @@ export function ClientsPage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative min-w-56 flex-1">
-          <Search
+          <MagnifyingGlass
             size={16}
             aria-hidden="true"
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
@@ -373,7 +378,7 @@ export function ClientsPage() {
                       aria-label={`Edit ${client.name}`}
                       className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
                     >
-                      <Pencil size={16} aria-hidden="true" />
+                      <PencilSimple size={16} aria-hidden="true" />
                     </button>
                     {isAdmin ? (
                       <button
@@ -382,7 +387,7 @@ export function ClientsPage() {
                         aria-label={`Delete ${client.name}`}
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
                       >
-                        <Trash2 size={16} aria-hidden="true" />
+                        <Trash size={16} aria-hidden="true" />
                       </button>
                     ) : null}
                   </div>

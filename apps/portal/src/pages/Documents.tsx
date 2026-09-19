@@ -1,4 +1,7 @@
-import { Download, Search } from 'lucide-react';
+import {
+  DownloadSimple,
+  MagnifyingGlass,
+} from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -46,7 +49,7 @@ export function DocumentsPage() {
 
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative min-w-56 flex-1">
-          <Search
+          <MagnifyingGlass
             size={16}
             aria-hidden="true"
             className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
@@ -135,7 +138,7 @@ export function DocumentsPage() {
                       <Button
                         variant="secondary"
                         className="min-h-9 px-2 text-xs"
-                        icon={<Download size={14} aria-hidden="true" />}
+                        icon={<DownloadSimple size={14} aria-hidden="true" />}
                         onClick={() =>
                           toast.info(
                             'File storage is not part of this prototype, so there is nothing to download yet.',

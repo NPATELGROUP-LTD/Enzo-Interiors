@@ -1,7 +1,12 @@
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+  PencilSimple,
+  Plus,
+  Trash,
+} from '@phosphor-icons/react';
 import { useEffect, useState, type FormEvent } from 'react';
 
 import {
+  AppearancePicker,
   Button,
   Card,
   ConfirmDialog,
@@ -232,7 +237,9 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" description="Business profile, team, templates and the audit log." />
 
+      <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
       <Tabs
+        vertical
         tabs={[
           { id: 'business', label: 'Business profile' },
           { id: 'team', label: 'Team', count: staff.data?.length },
@@ -244,14 +251,15 @@ export function SettingsPage() {
         onChange={setTab}
       />
 
+      <div className="min-w-0">
       {tab === 'business' ? (
         settings.loading ? (
           <Card className="p-0">
             <TableSkeleton rows={4} columns={2} />
           </Card>
         ) : (
-          <Card className="max-w-2xl">
-            <form onSubmit={saveBusiness} className="flex flex-col gap-4" noValidate>
+          <Card className="p-5">
+            <form onSubmit={saveBusiness} className="grid gap-x-6 gap-y-4 lg:grid-cols-2" noValidate>
               <Input
                 label="Business name"
                 value={business.business_name}
@@ -294,13 +302,13 @@ export function SettingsPage() {
                 hint="Recorded for reference. No email is sent in this prototype."
               />
               {isAdmin ? (
-                <div>
+                <div className="lg:col-span-2">
                   <Button type="submit" variant="primary" loading={businessSaving}>
                     Save profile
                   </Button>
                 </div>
               ) : (
-                <p className="text-ink-muted">Only an Admin can change the business profile.</p>
+                <p className="text-ink-muted lg:col-span-2">Only an Admin can change the business profile.</p>
               )}
             </form>
           </Card>
@@ -360,7 +368,7 @@ export function SettingsPage() {
                               aria-label={`Edit ${member.name}`}
                               className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-green-900"
                             >
-                              <Pencil size={16} aria-hidden="true" />
+                              <PencilSimple size={16} aria-hidden="true" />
                             </button>
                             {member.id !== user?.id ? (
                               <button
@@ -369,7 +377,7 @@ export function SettingsPage() {
                                 aria-label={`Remove ${member.name}`}
                                 className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger"
                               >
-                                <Trash2 size={16} aria-hidden="true" />
+                                <Trash size={16} aria-hidden="true" />
                               </button>
                             ) : null}
                           </>
@@ -409,7 +417,7 @@ export function SettingsPage() {
               />
             </Card>
           ) : (
-            <div className="flex flex-col gap-3">
+            <div className="grid gap-3 xl:grid-cols-2">
               {(savedReplies.data ?? []).map((reply) => (
                 <Card key={reply.id}>
                   <div className="flex items-start justify-between gap-3">
@@ -426,7 +434,7 @@ export function SettingsPage() {
                         aria-label={`Edit ${reply.title}`}
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-green-900"
                       >
-                        <Pencil size={16} aria-hidden="true" />
+                        <PencilSimple size={16} aria-hidden="true" />
                       </button>
                       <button
                         type="button"
@@ -444,7 +452,7 @@ export function SettingsPage() {
                         aria-label={`Delete ${reply.title}`}
                         className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger"
                       >
-                        <Trash2 size={16} aria-hidden="true" />
+                        <Trash size={16} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -464,14 +472,7 @@ export function SettingsPage() {
             <p className="label-eyebrow">Appearance</p>
             <p className="mt-1 text-ink-muted">Applies to this browser only.</p>
             <div className="mt-3">
-              <Select
-                label="Theme"
-                value={theme}
-                onChange={(event) => setTheme(event.target.value as 'light' | 'dark')}
-              >
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </Select>
+              <AppearancePicker value={theme} onChange={setTheme} />
             </div>
           </Card>
 
@@ -503,7 +504,7 @@ export function SettingsPage() {
 
           <Card className="lg:col-span-2">
             <p className="label-eyebrow">Change password</p>
-            <form onSubmit={changePassword} className="mt-3 flex max-w-md flex-col gap-4" noValidate>
+            <form onSubmit={changePassword} className="mt-3 grid gap-4 md:grid-cols-3" noValidate>
               <Input
                 label="Current password"
                 type="password"
@@ -529,11 +530,11 @@ export function SettingsPage() {
                 required
               />
               {passwordError ? (
-                <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
+                <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-danger md:col-span-3">
                   {passwordError}
                 </p>
               ) : null}
-              <div>
+              <div className="md:col-span-3">
                 <Button type="submit" variant="primary" loading={passwordSaving}>
                   Change password
                 </Button>
@@ -713,6 +714,8 @@ export function SettingsPage() {
         }}
         onCancel={() => setDeletingStaff(null)}
       />
+      </div>
+      </div>
     </>
   );
 }
