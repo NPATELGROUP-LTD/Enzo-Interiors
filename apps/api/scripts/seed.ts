@@ -1,8 +1,8 @@
 /**
  * Enzo Interiors — prototype seed.
  *
- * Rewrites every JSON table in apps/api/data/ from scratch, so the prototype
- * can be reset to a known-good state at any time:
+ * Rewrites every table in PostgreSQL from scratch, so the environment can be
+ * reset to a known-good state at any time:
  *
  *     npm run seed
  *
@@ -22,11 +22,14 @@
  *   date, so a reviewer running this months from now still sees upcoming
  *   appointments and a live-looking pipeline rather than an all-past dataset.
  *
- * - PASSWORDS ARE PLAINTEXT. This is a mock auth store per the prototype brief
- *   and is NOT production-safe; see the note on StaffUser.password_hash.
+ * - Passwords are written as bcrypt hashes. The readable values in this file
+ *   are the demo credentials printed at the end of a run; they are hashed on
+ *   the way into the database, never stored as typed.
  */
 
-import { DATA_DIR, DatabaseService } from '../src/data/database.service';
+import { hashPassword } from '../src/modules/auth/auth.service';
+import { DatabaseService } from '../src/data/database.service';
+import { PrismaService } from '../src/data/prisma.service';
 import { grossTotal, money, sum } from '../src/common/util/money';
 import {
   ActivityLog,
@@ -1207,7 +1210,26 @@ function verifyReferentialIntegrity(): void {
 async function main(): Promise<void> {
   verifyReferentialIntegrity();
 
-  const db = new DatabaseService();
+  // This wipes every table and replaces it with demo records whose passwords
+  // are printed at the end. Running it against production would delete the
+  // real data and install publicly known credentials, so it refuses unless
+  // someone has very deliberately said otherwise.
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'yes') {
+    console.error(
+      [
+        'Refusing to seed demo data with NODE_ENV=production.',
+        'This deletes all existing records. If you are certain, set ALLOW_DESTRUCTIVE_SEED=yes.',
+      ].join(' '),
+    );
+    process.exit(1);
+  }
+
+  const db = new DatabaseService(new PrismaService());
+
+  // The readable values above are the demo credentials printed at the end;
+  // what actually lands in the database is a bcrypt hash of each.
+  for (const row of staffUsers) row.password_hash = await hashPassword(row.password_hash);
+  for (const row of clients) row.password_hash = await hashPassword(row.password_hash);
 
   await Promise.all([
     db.staffUsers.replaceAll(staffUsers),
@@ -1253,7 +1275,7 @@ async function main(): Promise<void> {
     ['activity_logs', activityLogs.length],
   ];
 
-  console.log(`\nSeeded ${DATA_DIR}\n`);
+  console.log(`\nSeeded ${db.target}\n`);
   for (const [table, count] of counts) {
     console.log(`  ${table.padEnd(26)} ${String(count).padStart(3)}`);
   }

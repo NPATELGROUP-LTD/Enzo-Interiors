@@ -8,6 +8,7 @@ import { connectSocket, disconnectSocket } from './lib/socket';
 import { BookingsPage } from './pages/Bookings';
 import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
+import { CmsPage } from './pages/Cms';
 import { ContentPage } from './pages/Content';
 import { DashboardPage } from './pages/Dashboard';
 import { InvoicesPage } from './pages/Invoices';
@@ -67,6 +68,7 @@ export function App() {
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/content" element={<ContentPage />} />
+        <Route path="/website" element={<CmsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

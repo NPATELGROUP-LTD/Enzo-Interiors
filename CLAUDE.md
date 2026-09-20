@@ -4,18 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## Current Development Phase ⭐
+## Current Development Phase
 
-**Primary Focus:** Public-facing Next.js frontend website (`apps/web`)
-- Quote Calculator with sub-200ms response time
-- Booking Wizard (5-step flow)
-- Marketing pages (Home, Services, Portfolio, About, Contact)
+**v1 scope: the public website and the Admin CMS that runs it.**
 
-**Architectural Note:** The repository was originally designed as a full-stack monorepo. Currently, development is focused on the public website. Other apps and packages are kept in the repo for architectural reference:
-- `apps/admin/`, `apps/portal/`, `apps/api/` — Kept untouched, not actively developed
-- `packages/` folder — Removed (was only used by admin/portal)
+- `apps/web` — Next.js marketing site. Reads all of its content from the API.
+- `apps/admin` — Staff CRM, plus the **Website** screen: the CMS the client uses
+  to edit every word and image on the public site.
+- `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. Serves the CMS, the
+  published content bundle, and the existing CRM modules.
+- `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up.
 
-For future multi-app development, refer to the full architecture docs below.
+`packages/` was removed. Each app keeps a local copy of the types it consumes,
+which is deliberate — see the header of `apps/api/src/common/types/domain.ts`.
+
+Each app installs independently with `npm ci` in its own directory and builds
+its own Docker image. There is no workspace-wide install.
 
 ---
 
@@ -23,7 +27,7 @@ For future multi-app development, refer to the full architecture docs below.
 
 **Repository:** Enzo Interiors Platform — multi-app, single-tenant SPA with CRM for a bespoke interior design & fitted furniture company (Leicester, UK).
 
-**Status:** Monorepo structure created; apps at boilerplate stage. No package managers set up yet. Documentation complete.
+**Status:** v1 (public site + admin CMS) implemented on PostgreSQL. `docker compose up` brings up the whole stack; see `.env.example` and `docker-compose.yml`.
 
 **Key docs:** Read `docs/architecture.md` and `docs/Implementation_Plan_Enzo_Interiors.md` before making architectural changes or adding features.
 
@@ -59,9 +63,25 @@ enzo-interiors/
 
 ## Data Model
 
-**Database:** PostgreSQL 16 via Prisma ORM.  
-**Storage:** S3-compatible (MinIO or AWS S3); `apps/api` is sole accessor.  
-**Key tables:** `staff_users`, `clients`, `projects`, `components`, `quotes`, `quote_line_items`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`.
+**Database:** PostgreSQL 16 via Prisma ORM. Schema: `apps/api/prisma/schema.prisma`.
+Services never touch Prisma directly — they go through `DatabaseService`, which
+hands out a `PrismaRepository` per table.
+
+**Storage:** S3-compatible (MinIO or AWS S3); `apps/api` is sole accessor. TWO
+buckets: a **public** one for marketing images (stable URLs, embedded in cached
+pages) and a **private** one for client documents (signed per request). The
+"never return an unsigned URL" rule applies to the private bucket; see the
+header of `apps/api/src/modules/media/media.module.ts` for why.  
+**Key tables:** `staff_users`, `clients`, `projects`, `components`, `quotes`, `quote_line_items`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`, plus the CMS tables `cms_entries` and `media_assets`.
+
+**The CMS:** every editable thing on the public site is one row in `cms_entries`
+(`collection` + `slug`, with a `draft` and a `published` JSONB body). One table
+rather than eight, because all of them need the same four things — draft,
+published, ordering, audit — and nothing JOINs on their innards. The per-
+collection editing hints live in `apps/api/src/modules/cms/schemas.ts` and are
+served to the admin, which generates its forms from them plus the shape of the
+content itself. That is why adding a paragraph to a page needs no code change
+in either app.
 
 **Critical rule:** `quote_line_items.unit_price` is a point-in-time snapshot — price changes never retroactively alter historical quotes.
 

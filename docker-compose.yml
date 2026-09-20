@@ -1,0 +1,138 @@
+# Enzo Interiors — v1 production stack: public site + admin CMS.
+#
+# Brings up PostgreSQL, MinIO, the API, the admin portal and the public site.
+# Intended for Coolify on the Proxmox host (docs/Implementation_Plan), and
+# usable as-is locally with `docker compose up`.
+#
+# Nothing here publishes a port to the host except the two web front ends and
+# the MinIO console: Postgres and the API are reachable only on the internal
+# network, and public access arrives through the Cloudflare Tunnel.
+#
+# First run, once the stack is up:
+#   docker compose exec api npx prisma migrate deploy
+#   docker compose exec api npm run seed        # demo CRM data + the admin login
+#   docker compose exec api npm run cms:import  # the site's real copy into the CMS
+
+name: enzo-interiors
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-enzo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-enzo}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      # The API waits on this, so a slow first boot does not look like a crash.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enzo} -d ${POSTGRES_DB:-enzo}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+    volumes:
+      - minio-data:/data
+    ports:
+      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the two buckets and gives only the marketing one public read.
+  #
+  # Two buckets, two rules, on purpose: site photography is fetched by
+  # anonymous visitors and embedded in statically cached pages, so it needs a
+  # stable public URL; client documents are private and are signed per request
+  # with a short TTL. See MediaService for the full reasoning.
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set enzo http://minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}' &&
+      mc mb --ignore-existing enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      mc mb --ignore-existing enzo/${S3_PRIVATE_BUCKET:-enzo-private} &&
+      mc anonymous set download enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      echo 'Buckets ready.'
+      "
+    restart: 'no'
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -base64 48}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174}
+      # Publishing in the CMS pokes this so an edit is live in seconds.
+      WEB_REVALIDATE_URL: http://web:3000/api/revalidate
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?generate with openssl rand -base64 32}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      # The browser-reachable address of the public bucket, which is not the
+      # in-network one above: a visitor cannot resolve "minio".
+      S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?public URL of the media bucket}
+    expose:
+      - '4000'
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://api:4000
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: production
+      # Server-side calls stay on the internal network.
+      NEXT_PUBLIC_API_BASE_URL: http://api:4000
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+
+  admin:
+    build:
+      context: ./apps/admin
+      args:
+        # Vite inlines these at build time, so the admin image is specific to
+        # the environment it was built for.
+        VITE_API_BASE_URL: ${API_PUBLIC_URL:?public URL of the API}
+        VITE_WEB_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - '${ADMIN_PORT:-5174}:80'
+
+volumes:
+  postgres-data:
+  minio-data:

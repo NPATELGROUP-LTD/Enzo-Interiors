@@ -86,7 +86,7 @@ export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 /* Tables                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Every record carries a string PK. JsonRepository is generic over this. */
+/** Every record carries a string PK. PrismaRepository is generic over this. */
 export interface BaseRecord {
   id: string;
 }
@@ -351,4 +351,67 @@ export interface ActivityLog extends BaseRecord {
   target_id: string;
   details: Record<string, unknown> | null;
   created_at: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* CMS                                                                        */
+/* -------------------------------------------------------------------------- */
+
+/** The collections a CmsEntry can belong to. Also the admin CMS menu order. */
+export const CMS_COLLECTIONS = [
+  'pages',
+  'services',
+  'portfolio',
+  'testimonials',
+  'team',
+  'faqs',
+  'navigation',
+  'company',
+] as const;
+export type CmsCollection = (typeof CMS_COLLECTIONS)[number];
+
+/**
+ * One editable thing on the public site.
+ *
+ * `draft` is what the admin edits; `published` is what apps/web renders. They
+ * diverge the moment someone saves, and converge again on publish — which is
+ * the whole point, and how the admin knows to show an "unpublished changes"
+ * badge. A null `published` means this entry has never been live, so the
+ * public bundle leaves it out entirely rather than showing a half-written row.
+ *
+ * The shape of `draft` is not typed here because it differs per collection.
+ * It is described by the field descriptors in modules/cms/schemas.ts, which
+ * validate writes and are served to the admin to render its forms.
+ */
+export interface CmsEntry extends BaseRecord {
+  collection: CmsCollection;
+  slug: string;
+  sort_order: number;
+  draft: Record<string, unknown>;
+  published: Record<string, unknown> | null;
+  published_at: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+/**
+ * An image or file the CMS can point at.
+ *
+ * `storage_key` is an S3 object key and NEVER a URL — read URLs are signed at
+ * request time by the storage service and are never stored or cached. `src`
+ * is the escape hatch for the assets that shipped inside apps/web/public and
+ * were never uploaded; exactly one of the two is set.
+ */
+export interface MediaAsset extends BaseRecord {
+  storage_key: string | null;
+  src: string | null;
+  alt: string;
+  title: string | null;
+  source: string;
+  width: number | null;
+  height: number | null;
+  byte_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  updated_at: string;
 }

@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import * as path from 'node:path';
 
 import {
   ActivityLog,
@@ -7,11 +6,13 @@ import {
   Booking,
   BusinessSettings,
   Client,
+  CmsEntry,
   ComponentItem,
   ContactSubmission,
   Conversation,
   DocumentRecord,
   Invoice,
+  MediaAsset,
   Message,
   NotificationPreference,
   PortfolioItem,
@@ -22,90 +23,137 @@ import {
   StaffUser,
   Testimonial,
 } from '../common/types/domain';
-import { JsonRepository } from './json-repository';
+import { PrismaRepository } from './prisma-repository';
+import { PrismaService } from './prisma.service';
 
 /**
- * Where the JSON tables live. Resolved from this file rather than from
- * process.cwd() so that `npm run dev` (cwd = apps/api) and `npm start` from
- * dist/ (cwd could be anywhere) both find the same directory.
- *
- * __dirname is <api>/src/data under tsx and <api>/dist/data after a build, so
- * two levels up is the app root in both cases.
- */
-export const DATA_DIR = path.resolve(__dirname, '..', '..', 'data');
-
-/**
- * The prototype stand-in for PrismaService.
+ * The one place the rest of the API gets at persistence.
  *
  * Every table in Backend Schema v2.0 section 3 gets a repository, named after
- * the documented table. Services depend on this and only this for persistence.
- * Swapping to Prisma means replacing the bodies here with `prisma.client` etc.
- * and deleting JsonRepository; no service signature changes.
+ * the documented table, plus the two CMS tables added for v1. Services depend
+ * on this and only this.
+ *
+ * This file used to hand out JsonRepository instances backed by files on disk.
+ * Swapping to PostgreSQL changed the right-hand side of these assignments and
+ * nothing else: PrismaRepository keeps JsonRepository's method surface, so no
+ * service signature moved. The per-table `dates` and `decimals` lists below are
+ * the only new information — they tell the repository which columns to convert
+ * between Postgres types and the ISO strings and plain numbers the domain types
+ * declare. A column added to schema.prisma as a timestamptz or a decimal must
+ * be added to its list here, or it will reach callers as a Date or a Decimal.
  */
 @Injectable()
 export class DatabaseService {
-  private readonly dataDir: string;
+  readonly staffUsers: PrismaRepository<StaffUser>;
+  readonly clients: PrismaRepository<Client>;
+  readonly projects: PrismaRepository<Project>;
+  readonly components: PrismaRepository<ComponentItem>;
+  readonly quotes: PrismaRepository<Quote>;
+  readonly quoteLineItems: PrismaRepository<QuoteLineItem>;
+  readonly invoices: PrismaRepository<Invoice>;
+  readonly bookings: PrismaRepository<Booking>;
+  readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
+  readonly conversations: PrismaRepository<Conversation>;
+  readonly messages: PrismaRepository<Message>;
+  readonly savedReplyTemplates: PrismaRepository<SavedReplyTemplate>;
+  readonly notificationPreferences: PrismaRepository<NotificationPreference>;
+  readonly documents: PrismaRepository<DocumentRecord>;
+  readonly testimonials: PrismaRepository<Testimonial>;
+  readonly portfolioItems: PrismaRepository<PortfolioItem>;
+  readonly contactSubmissions: PrismaRepository<ContactSubmission>;
+  readonly businessSettings: PrismaRepository<BusinessSettings>;
+  readonly activityLogs: PrismaRepository<ActivityLog>;
+  readonly cmsEntries: PrismaRepository<CmsEntry>;
+  readonly mediaAssets: PrismaRepository<MediaAsset>;
 
-  readonly staffUsers: JsonRepository<StaffUser>;
-  readonly clients: JsonRepository<Client>;
-  readonly projects: JsonRepository<Project>;
-  readonly components: JsonRepository<ComponentItem>;
-  readonly quotes: JsonRepository<Quote>;
-  readonly quoteLineItems: JsonRepository<QuoteLineItem>;
-  readonly invoices: JsonRepository<Invoice>;
-  readonly bookings: JsonRepository<Booking>;
-  readonly availabilitySettings: JsonRepository<AvailabilitySetting>;
-  readonly conversations: JsonRepository<Conversation>;
-  readonly messages: JsonRepository<Message>;
-  readonly savedReplyTemplates: JsonRepository<SavedReplyTemplate>;
-  readonly notificationPreferences: JsonRepository<NotificationPreference>;
-  readonly documents: JsonRepository<DocumentRecord>;
-  readonly testimonials: JsonRepository<Testimonial>;
-  readonly portfolioItems: JsonRepository<PortfolioItem>;
-  readonly contactSubmissions: JsonRepository<ContactSubmission>;
-  readonly businessSettings: JsonRepository<BusinessSettings>;
-  readonly activityLogs: JsonRepository<ActivityLog>;
+  constructor(private readonly prisma: PrismaService) {
+    const stamps = ['created_at', 'updated_at'] as const;
 
-  /**
-   * Deliberately parameterless. An optional `dataDir` constructor argument
-   * reads to Nest's injector as an unresolvable `String` dependency, default
-   * value or not, so the directory is taken from the module constant instead.
-   * If a future test needs to point at a scratch directory, add an injection
-   * token rather than a bare parameter.
-   */
-  constructor() {
-    const dataDir = DATA_DIR;
-    this.dataDir = dataDir;
-    this.staffUsers = new JsonRepository(dataDir, 'staff_users');
-    this.clients = new JsonRepository(dataDir, 'clients');
-    this.projects = new JsonRepository(dataDir, 'projects');
-    this.components = new JsonRepository(dataDir, 'components');
-    this.quotes = new JsonRepository(dataDir, 'quotes');
-    this.quoteLineItems = new JsonRepository(dataDir, 'quote_line_items');
-    this.invoices = new JsonRepository(dataDir, 'invoices');
-    this.bookings = new JsonRepository(dataDir, 'bookings');
-    this.availabilitySettings = new JsonRepository(dataDir, 'availability_settings');
-    this.conversations = new JsonRepository(dataDir, 'conversations');
-    this.messages = new JsonRepository(dataDir, 'messages');
-    this.savedReplyTemplates = new JsonRepository(dataDir, 'saved_reply_templates');
-    this.notificationPreferences = new JsonRepository(dataDir, 'notification_preferences');
-    this.documents = new JsonRepository(dataDir, 'documents');
-    this.testimonials = new JsonRepository(dataDir, 'testimonials');
-    this.portfolioItems = new JsonRepository(dataDir, 'portfolio_items');
-    this.contactSubmissions = new JsonRepository(dataDir, 'contact_submissions');
-    this.businessSettings = new JsonRepository(dataDir, 'business_settings');
-    this.activityLogs = new JsonRepository(dataDir, 'activity_logs');
+    this.staffUsers = new PrismaRepository(prisma.staffUser, 'staff_users', {
+      dates: stamps,
+    });
+    this.clients = new PrismaRepository(prisma.client, 'clients', {
+      dates: [...stamps, 'joined_date'],
+      decimals: ['total_spent'],
+    });
+    this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
+    this.components = new PrismaRepository(prisma.componentItem, 'components', {
+      dates: stamps,
+      decimals: ['unit_price'],
+    });
+    this.quotes = new PrismaRepository(prisma.quote, 'quotes', {
+      dates: stamps,
+      decimals: ['design_fee', 'subtotal', 'vat_rate', 'total'],
+    });
+    this.quoteLineItems = new PrismaRepository(prisma.quoteLineItem, 'quote_line_items', {
+      decimals: ['unit_price', 'line_total'],
+    });
+    this.invoices = new PrismaRepository(prisma.invoice, 'invoices', {
+      dates: ['created_at', 'due_date', 'paid_at'],
+      decimals: ['amount', 'vat_rate'],
+    });
+    this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
+      dates: ['created_at', 'date_time'],
+    });
+    this.availabilitySettings = new PrismaRepository(
+      prisma.availabilitySetting,
+      'availability_settings',
+    );
+    this.conversations = new PrismaRepository(prisma.conversation, 'conversations', {
+      dates: ['created_at'],
+    });
+    this.messages = new PrismaRepository(prisma.message, 'messages', {
+      dates: ['created_at', 'read_at'],
+    });
+    this.savedReplyTemplates = new PrismaRepository(
+      prisma.savedReplyTemplate,
+      'saved_reply_templates',
+    );
+    this.notificationPreferences = new PrismaRepository(
+      prisma.notificationPreference,
+      'notification_preferences',
+    );
+    this.documents = new PrismaRepository(prisma.documentRecord, 'documents', {
+      dates: ['upload_date'],
+    });
+    this.testimonials = new PrismaRepository(prisma.testimonial, 'testimonials', {
+      dates: ['created_at'],
+    });
+    this.portfolioItems = new PrismaRepository(prisma.portfolioItem, 'portfolio_items');
+    this.contactSubmissions = new PrismaRepository(
+      prisma.contactSubmission,
+      'contact_submissions',
+      { dates: ['created_at'] },
+    );
+    this.businessSettings = new PrismaRepository(prisma.businessSettings, 'business_settings', {
+      decimals: ['vat_rate'],
+    });
+    this.activityLogs = new PrismaRepository(prisma.activityLog, 'activity_logs', {
+      dates: ['created_at'],
+    });
+    this.cmsEntries = new PrismaRepository(prisma.cmsEntry, 'cms_entries', {
+      dates: ['published_at', 'updated_at'],
+    });
+    this.mediaAssets = new PrismaRepository(prisma.mediaAsset, 'media_assets', {
+      dates: stamps,
+    });
   }
 
-  /** Where this instance reads and writes. Surfaced for the startup log. */
-  get directory(): string {
-    return this.dataDir;
+  /** Surfaced for the startup log. Credentials are never included. */
+  get target(): string {
+    const url = process.env.DATABASE_URL ?? '';
+    try {
+      const parsed = new URL(url);
+      return `postgres://${parsed.host}${parsed.pathname}`;
+    } catch {
+      return 'postgres (DATABASE_URL not parseable)';
+    }
   }
 
   /**
    * The single business_settings row (Backend Schema 3.17 is a singleton).
    * Falls back to the documented defaults when the table has not been seeded,
-   * so a fresh checkout does not 500 before `npm run seed`.
+   * so a fresh database does not 500 before the seed has run.
    */
   async settings(): Promise<BusinessSettings> {
     const [existing] = await this.businessSettings.findAll();

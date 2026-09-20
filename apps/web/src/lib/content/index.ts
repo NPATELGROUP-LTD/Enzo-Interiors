@@ -1,17 +1,30 @@
 // The content layer.
 //
-// Every string, list and image on this site comes from the JSON tables in
-// src/data, and every one of them is stored exactly once: a service points at a
-// media row, a portfolio project points at a service, a testimonial points at
-// the project it was written about, the header's service menu points at the
-// services table. The functions below do those joins and hand callers flat,
-// rendered-ready records.
+// Every string, list and image on this site comes from the CMS in apps/admin,
+// served as one published bundle by `GET /content/site`. Each record is still
+// stored exactly once: a service points at a media row, a portfolio project
+// points at a service, a testimonial points at the project it was written
+// about, the header's service menu points at the services table. The functions
+// below do those joins and hand callers flat, rendered-ready records.
 //
-// They are async on purpose. They stand in for `GET /content/*` (see
-// docs/architecture.md, "Public Content"), so when apps/api exists the bodies
-// become `fetch()` calls and nothing above this line changes. `getServiceSlugs`
-// is the one exception — Next walks the build graph for generateStaticParams
-// before any request context exists.
+// This file used to import the JSON tables in src/data directly. Those files
+// are still here and still matter, in two ways:
+//
+//   1. They are the FALLBACK. If the API cannot be reached, the site renders
+//      the content it shipped with rather than an error page. A marketing site
+//      that goes blank because a backend is restarting is worse than one
+//      showing copy that is a few edits out of date.
+//   2. They are the TYPES. The page shapes below are still derived from the
+//      committed JSON with `typeof`, so a component reading `content.hero.title`
+//      is still checked at compile time even though the value now arrives at
+//      runtime. The CMS validates that what it stores keeps that shape.
+//
+// Freshness: the bundle is fetched with `revalidate`, so pages are statically
+// cached and re-read on a timer. Publishing in the admin calls the revalidate
+// route in app/api/revalidate, which drops the cache immediately — so an edit
+// is live in seconds without making every visitor wait on this API.
+import { cache } from "react";
+
 import companyRow from "@/data/company.json";
 import mediaRows from "@/data/media.json";
 import serviceRows from "@/data/services.json";
@@ -51,7 +64,7 @@ export type * from "./types";
 
 /**
  * Fills `{token}` placeholders. Copy that has to carry a number or a name is
- * authored as a template in the JSON rather than assembled from fragments in a
+ * authored as a template in the CMS rather than assembled from fragments in a
  * component, so the whole sentence stays readable — and translatable — where it
  * is edited.
  */
@@ -65,13 +78,136 @@ export function fill(
   });
 }
 
-// ── Media ───────────────────────────────────────────────────────────────────
-const MEDIA = new Map<string, MediaItem>(
+/* -------------------------------------------------------------------------- */
+/* The bundle                                                                 */
+/* -------------------------------------------------------------------------- */
+
+/** The raw tables, exactly as they are stored. Shapes come from the JSON. */
+interface Bundle {
+  company: typeof companyRow;
+  media: typeof mediaRows;
+  services: typeof serviceRows;
+  portfolio: typeof portfolioRows;
+  testimonials: typeof testimonialRows;
+  team: typeof teamRows;
+  faqs: typeof faqRows;
+  navigation: typeof navigationRows;
+  pages: {
+    site: typeof site;
+    shared: typeof shared;
+    home: typeof home;
+    services: typeof servicesPage;
+    "service-detail": typeof serviceDetailPage;
+    portfolio: typeof portfolioPage;
+    about: typeof aboutPage;
+    contact: typeof contactPage;
+    legal: typeof legalPage;
+    booking: typeof bookingPage;
+  };
+}
+
+/** What the site ships with, and what it falls back to. */
+const FALLBACK: Bundle = {
+  company: companyRow,
+  media: mediaRows,
+  services: serviceRows,
+  portfolio: portfolioRows,
+  testimonials: testimonialRows,
+  team: teamRows,
+  faqs: faqRows,
+  navigation: navigationRows,
+  pages: {
+    site,
+    shared,
+    home,
+    services: servicesPage,
+    "service-detail": serviceDetailPage,
+    portfolio: portfolioPage,
+    about: aboutPage,
+    contact: contactPage,
+    legal: legalPage,
+    booking: bookingPage,
+  },
+};
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+
+/** Seconds between unprompted re-reads. Publishing does not wait for this. */
+const REVALIDATE_SECONDS = Number(process.env.CONTENT_REVALIDATE_SECONDS ?? 3600);
+
+/**
+ * A published bundle, merged over the fallback.
+ *
+ * Merged rather than replaced so that a collection the CMS has no published
+ * rows for — a fresh database, a half-finished import — shows the shipped
+ * content instead of an empty page. The site is never blank because of us.
+ */
+function merge(raw: Partial<Bundle> | null): Bundle {
+  if (!raw) return FALLBACK;
+  const nonEmpty = <T,>(value: T[] | undefined, fallback: T[]): T[] =>
+    Array.isArray(value) && value.length > 0 ? value : fallback;
+
+  return {
+    company: raw.company ?? FALLBACK.company,
+    media: nonEmpty(raw.media, FALLBACK.media),
+    services: nonEmpty(raw.services, FALLBACK.services),
+    portfolio: nonEmpty(raw.portfolio, FALLBACK.portfolio),
+    testimonials: nonEmpty(raw.testimonials, FALLBACK.testimonials),
+    team: nonEmpty(raw.team, FALLBACK.team),
+    faqs: nonEmpty(raw.faqs, FALLBACK.faqs),
+    navigation: nonEmpty(raw.navigation, FALLBACK.navigation),
+    pages: { ...FALLBACK.pages, ...(raw.pages ?? {}) },
+  };
+}
+
+/**
+ * Reads the bundle and resolves it into the shapes components consume.
+ *
+ * `cache` dedupes this for the lifetime of one render, so a page calling
+ * getPage, getCompany and getServices does the joins once, not three times.
+ */
+const load = cache(async (): Promise<Resolved> => {
+  let raw: Partial<Bundle> | null = null;
+  try {
+    const response = await fetch(`${API_BASE}/content/site`, {
+      next: { revalidate: REVALIDATE_SECONDS, tags: ["content"] },
+    });
+    if (response.ok) {
+      raw = (await response.json()) as Partial<Bundle>;
+    } else {
+      console.warn(`[content] ${API_BASE}/content/site returned ${response.status}; using shipped content.`);
+    }
+  } catch (error) {
+    console.warn(
+      `[content] Could not reach ${API_BASE}; using shipped content.`,
+      error instanceof Error ? error.message : error,
+    );
+  }
+  return resolve(merge(raw));
+});
+
+/* -------------------------------------------------------------------------- */
+/* Media                                                                      */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The media lookup, kept synchronous.
+ *
+ * Media ids are embedded throughout the page copy — `content.hero.cta.card
+ * .imageId` and so on — and are resolved inline while a component builds its
+ * props, where there is nothing to await. So the map is module-level, starts
+ * as the shipped media table, and is replaced the first time a bundle
+ * resolves. Every caller reaches `media()` from inside a component that has
+ * already awaited one of the getters below, so by then it holds CMS values;
+ * before then it holds the shipped ones, which are correct for every image the
+ * site was built with. Either way it never returns nothing for a known id.
+ */
+let MEDIA = new Map<string, MediaItem>(
   (mediaRows as MediaItem[]).map((row) => [row.id, row]),
 );
 
 /** The row for an id. Unknown ids resolve to an empty image rather than throwing:
- *  a mistyped id in the data should cost one picture, not the whole page. */
+ *  a mistyped id in the content should cost one picture, not the whole page. */
 export function media(id: string | undefined | null): MediaItem {
   if (!id) return { id: "", src: "", alt: "", source: "" };
   return MEDIA.get(id) ?? { id, src: "", alt: "", source: "" };
@@ -81,138 +217,22 @@ export function mediaSrc(id: string | undefined | null): string {
   return media(id).src;
 }
 
-// ── Services ────────────────────────────────────────────────────────────────
-function faqsFor(serviceId: string | null): FAQEntry[] {
-  return faqRows
-    .filter((row) => row.serviceId === serviceId)
-    .map(({ q, a }) => ({ q, a }));
+/* -------------------------------------------------------------------------- */
+/* Joins                                                                      */
+/* -------------------------------------------------------------------------- */
+
+interface Resolved {
+  bundle: Bundle;
+  services: ServiceDetail[];
+  servicesById: Map<string, ServiceDetail>;
+  portfolio: PortfolioItem[];
+  testimonials: Testimonial[];
+  team: TeamMember[];
+  company: Company;
+  navigation: NavLink[];
+  generalFaqs: FAQEntry[];
 }
 
-function toDetail(row: (typeof serviceRows)[number]): ServiceDetail {
-  const image = media(row.imageId);
-  return {
-    id: row.id,
-    slug: row.id,
-    title: row.title,
-    shortName: row.shortName,
-    singular: row.singular,
-    category: row.category,
-    icon: row.icon,
-    navSummary: row.navSummary,
-    description: row.description,
-    image: image.src,
-    imageAlt: image.alt,
-    features: row.features,
-    heroDesc: row.heroDesc,
-    overview: row.overview,
-    overviewShort: row.overviewShort,
-    process: row.process,
-    pricing: row.pricing,
-    gallery: row.galleryIds.map(mediaSrc),
-    faqs: faqsFor(row.id),
-    timeline: row.timeline,
-    materials: row.materials,
-  };
-}
-
-/** Narrows a detail record to the list shape the summary surfaces consume. */
-function toService(detail: ServiceDetail): Service {
-  const { id, slug, title, shortName, singular, category, icon, navSummary, description, image, imageAlt, features } = detail;
-  return { id, slug, title, shortName, singular, category, icon, navSummary, description, image, imageAlt, features };
-}
-
-const SERVICE_DETAILS: ServiceDetail[] = serviceRows.map(toDetail);
-const SERVICES_BY_ID = new Map(SERVICE_DETAILS.map((s) => [s.id, s]));
-
-export async function getServices(): Promise<Service[]> {
-  return SERVICE_DETAILS.map(toService);
-}
-
-export async function getServiceDetails(): Promise<ServiceDetail[]> {
-  return SERVICE_DETAILS;
-}
-
-export async function getService(slug: string): Promise<ServiceDetail | null> {
-  return SERVICES_BY_ID.get(slug) ?? null;
-}
-
-/** Synchronous: generateStaticParams runs before any request context exists. */
-export function getServiceSlugs(): string[] {
-  return serviceRows.map((row) => row.id);
-}
-
-/** The cross-service questions — the rows with no service of their own. */
-export async function getGeneralFaqs(): Promise<FAQEntry[]> {
-  return faqsFor(null);
-}
-
-// ── Portfolio ───────────────────────────────────────────────────────────────
-const PORTFOLIO: PortfolioItem[] = portfolioRows
-  .filter((row) => row.isPublished)
-  .map((row) => {
-    const service = SERVICES_BY_ID.get(row.serviceId);
-    const images = row.imageIds.map(mediaSrc);
-    return {
-      id: row.id,
-      serviceId: row.serviceId,
-      title: row.title,
-      // The discipline name lives on the service, so a project cannot disagree
-      // with the service it was built under.
-      category: service?.shortName ?? "",
-      image: images[0] ?? "",
-      images,
-      location: row.location,
-      client: row.client,
-      duration: row.duration,
-      year: row.year,
-      desc: row.description,
-      materials: row.materials,
-    };
-  });
-
-const PROJECTS_BY_ID = new Map(PORTFOLIO.map((item) => [item.id, item]));
-
-export async function getPortfolioItems(): Promise<PortfolioItem[]> {
-  return PORTFOLIO;
-}
-
-// ── Testimonials ────────────────────────────────────────────────────────────
-const TESTIMONIALS: Testimonial[] = testimonialRows
-  .filter((row) => row.isPublished)
-  .map((row) => ({
-    id: row.id,
-    projectId: row.projectId,
-    name: row.clientName,
-    // Where they live is a fact about the project, not about the review.
-    role: PROJECTS_BY_ID.get(row.projectId)?.location ?? "",
-    text: row.text,
-    pullQuote: (row as { pullQuote?: string }).pullQuote,
-    image: mediaSrc(row.imageId),
-    rating: row.rating,
-  }));
-
-export async function getTestimonials(): Promise<Testimonial[]> {
-  return TESTIMONIALS;
-}
-
-export async function getTestimonial(id: string): Promise<Testimonial | null> {
-  return TESTIMONIALS.find((row) => row.id === id) ?? null;
-}
-
-// ── Team ────────────────────────────────────────────────────────────────────
-const TEAM: TeamMember[] = teamRows.map((row) => ({
-  id: row.id,
-  name: row.name,
-  role: row.role,
-  note: row.note,
-  image: mediaSrc(row.imageId),
-}));
-
-export async function getTeam(): Promise<TeamMember[]> {
-  return TEAM;
-}
-
-// ── Company ─────────────────────────────────────────────────────────────────
 const DAY_ORDER = [
   "sunday",
   "monday",
@@ -229,84 +249,216 @@ function toMinutes(clock: string): number {
   return (hour ?? 0) * 60 + (minute ?? 0);
 }
 
-const HOURS: StudioHours = {
-  weekly: Object.fromEntries(
-    DAY_ORDER.map((day, index) => [
-      index,
-      (companyRow.hours.weekly[day] ?? []).map<HoursWindow>((window) => ({
-        open: toMinutes(window.open),
-        close: toMinutes(window.close),
-      })),
-    ]),
-  ),
-  rows: companyRow.hours.rows,
-  note: companyRow.hours.note,
-  status: companyRow.hours.status,
-};
+/** Narrows a detail record to the list shape the summary surfaces consume. */
+function toService(detail: ServiceDetail): Service {
+  const { id, slug, title, shortName, singular, category, icon, navSummary, description, image, imageAlt, features } = detail;
+  return { id, slug, title, shortName, singular, category, icon, navSummary, description, image, imageAlt, features };
+}
 
-const COMPANY: Company = {
-  name: companyRow.name,
-  description: companyRow.description,
-  city: companyRow.city,
-  county: companyRow.county,
-  region: companyRow.region,
-  phone: companyRow.phone,
-  email: companyRow.email,
-  emailHref: `mailto:${companyRow.email}`,
-  logos: {
-    onLight: media(companyRow.logos.onLight),
-    onDark: media(companyRow.logos.onDark),
-  },
-  socials: companyRow.socials,
-  map: companyRow.map,
-  hours: HOURS,
-  madeBy: companyRow.madeBy,
-};
+function resolve(bundle: Bundle): Resolved {
+  // The media map has to be in place before any join reads an image off it.
+  MEDIA = new Map<string, MediaItem>(
+    (bundle.media as MediaItem[]).map((row) => [row.id, row]),
+  );
+
+  const faqsFor = (serviceId: string | null): FAQEntry[] =>
+    bundle.faqs
+      .filter((row) => row.serviceId === serviceId)
+      .map(({ q, a }) => ({ q, a }));
+
+  const services: ServiceDetail[] = bundle.services.map((row) => {
+    const image = media(row.imageId);
+    return {
+      id: row.id,
+      slug: row.id,
+      title: row.title,
+      shortName: row.shortName,
+      singular: row.singular,
+      category: row.category,
+      icon: row.icon,
+      navSummary: row.navSummary,
+      description: row.description,
+      image: image.src,
+      imageAlt: image.alt,
+      features: row.features,
+      heroDesc: row.heroDesc,
+      overview: row.overview,
+      overviewShort: row.overviewShort,
+      process: row.process,
+      pricing: row.pricing,
+      gallery: row.galleryIds.map(mediaSrc),
+      faqs: faqsFor(row.id),
+      timeline: row.timeline,
+      materials: row.materials,
+    };
+  });
+  const servicesById = new Map(services.map((service) => [service.id, service]));
+
+  const portfolio: PortfolioItem[] = bundle.portfolio
+    .filter((row) => row.isPublished)
+    .map((row) => {
+      const service = servicesById.get(row.serviceId);
+      const images = row.imageIds.map(mediaSrc);
+      return {
+        id: row.id,
+        serviceId: row.serviceId,
+        title: row.title,
+        // The discipline name lives on the service, so a project cannot
+        // disagree with the service it was built under.
+        category: service?.shortName ?? "",
+        image: images[0] ?? "",
+        images,
+        location: row.location,
+        client: row.client,
+        duration: row.duration,
+        year: row.year,
+        desc: row.description,
+        materials: row.materials,
+      };
+    });
+  const projectsById = new Map(portfolio.map((item) => [item.id, item]));
+
+  const testimonials: Testimonial[] = bundle.testimonials
+    .filter((row) => row.isPublished)
+    .map((row) => ({
+      id: row.id,
+      projectId: row.projectId,
+      name: row.clientName,
+      // Where they live is a fact about the project, not about the review.
+      role: projectsById.get(row.projectId)?.location ?? "",
+      text: row.text,
+      pullQuote: (row as { pullQuote?: string }).pullQuote,
+      image: mediaSrc(row.imageId),
+      rating: row.rating,
+    }));
+
+  const team: TeamMember[] = bundle.team.map((row) => ({
+    id: row.id,
+    name: row.name,
+    role: row.role,
+    note: row.note,
+    image: mediaSrc(row.imageId),
+  }));
+
+  const hours: StudioHours = {
+    weekly: Object.fromEntries(
+      DAY_ORDER.map((day, index) => [
+        index,
+        (bundle.company.hours.weekly[day] ?? []).map<HoursWindow>((window) => ({
+          open: toMinutes(window.open),
+          close: toMinutes(window.close),
+        })),
+      ]),
+    ),
+    rows: bundle.company.hours.rows,
+    note: bundle.company.hours.note,
+    status: bundle.company.hours.status,
+  };
+
+  const company: Company = {
+    name: bundle.company.name,
+    description: bundle.company.description,
+    city: bundle.company.city,
+    county: bundle.company.county,
+    region: bundle.company.region,
+    phone: bundle.company.phone,
+    email: bundle.company.email,
+    emailHref: `mailto:${bundle.company.email}`,
+    logos: {
+      onLight: media(bundle.company.logos.onLight),
+      onDark: media(bundle.company.logos.onDark),
+    },
+    socials: bundle.company.socials,
+    map: bundle.company.map,
+    hours,
+    madeBy: bundle.company.madeBy,
+  };
+
+  // The header's Services panel lists the published services rather than a
+  // second hand-written copy of their names: publish a fifth service and it
+  // appears.
+  const navigation: NavLink[] = bundle.navigation.map((row) => {
+    const { childPages, ...rest } = row as typeof row & { childPages?: string };
+    return {
+      ...rest,
+      pages:
+        childPages === "services"
+          ? services.map((service) => ({
+              label: service.title,
+              href: `/services/${service.slug}`,
+              description: service.navSummary,
+            }))
+          : undefined,
+    };
+  });
+
+  return {
+    bundle,
+    services,
+    servicesById,
+    portfolio,
+    testimonials,
+    team,
+    company,
+    navigation,
+    generalFaqs: faqsFor(null),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Getters                                                                    */
+/* -------------------------------------------------------------------------- */
+
+export async function getServices(): Promise<Service[]> {
+  return (await load()).services.map(toService);
+}
+
+export async function getServiceDetails(): Promise<ServiceDetail[]> {
+  return (await load()).services;
+}
+
+export async function getService(slug: string): Promise<ServiceDetail | null> {
+  return (await load()).servicesById.get(slug) ?? null;
+}
+
+/** The slugs /services/[category] is built for. */
+export async function getServiceSlugs(): Promise<string[]> {
+  return (await load()).services.map((service) => service.slug);
+}
+
+/** The cross-service questions — the rows with no service of their own. */
+export async function getGeneralFaqs(): Promise<FAQEntry[]> {
+  return (await load()).generalFaqs;
+}
+
+export async function getPortfolioItems(): Promise<PortfolioItem[]> {
+  return (await load()).portfolio;
+}
+
+export async function getTestimonials(): Promise<Testimonial[]> {
+  return (await load()).testimonials;
+}
+
+export async function getTestimonial(id: string): Promise<Testimonial | null> {
+  return (await load()).testimonials.find((row) => row.id === id) ?? null;
+}
+
+export async function getTeam(): Promise<TeamMember[]> {
+  return (await load()).team;
+}
 
 export async function getCompany(): Promise<Company> {
-  return COMPANY;
+  return (await load()).company;
 }
-
-// ── Navigation ──────────────────────────────────────────────────────────────
-// The header's Services panel lists the published services rather than a second
-// hand-written copy of their names: publish a fifth service and it appears.
-const NAVIGATION: NavLink[] = navigationRows.map((row) => {
-  const { childPages, ...rest } = row as typeof row & { childPages?: string };
-  return {
-    ...rest,
-    pages:
-      childPages === "services"
-        ? SERVICE_DETAILS.map((service) => ({
-            label: service.title,
-            href: `/services/${service.slug}`,
-            description: service.navSummary,
-          }))
-        : undefined,
-  };
-});
 
 export async function getNavigation(): Promise<NavLink[]> {
-  return NAVIGATION;
+  return (await load()).navigation;
 }
 
-// ── Page copy ───────────────────────────────────────────────────────────────
-const PAGES = {
-  site,
-  shared,
-  home,
-  services: servicesPage,
-  "service-detail": serviceDetailPage,
-  portfolio: portfolioPage,
-  about: aboutPage,
-  contact: contactPage,
-  legal: legalPage,
-  booking: bookingPage,
-} as const;
+export type PageKey = keyof Bundle["pages"];
 
-export type PageKey = keyof typeof PAGES;
-
-export async function getPage<K extends PageKey>(key: K): Promise<(typeof PAGES)[K]> {
-  return PAGES[key];
+export async function getPage<K extends PageKey>(key: K): Promise<Bundle["pages"][K]> {
+  return (await load()).bundle.pages[key];
 }
 
 export type SiteContent = typeof site;
@@ -325,8 +477,9 @@ export type BookingPageContent = typeof bookingPage;
  * rather than authored a second time beside it.
  */
 export async function getHeroRooms(): Promise<HeroRoomContent[]> {
-  return home.hero.rooms.map((room) => ({
+  const { bundle, servicesById } = await load();
+  return bundle.pages.home.hero.rooms.map((room) => ({
     ...room,
-    label: SERVICES_BY_ID.get(room.serviceId)?.singular ?? "",
+    label: servicesById.get(room.serviceId)?.singular ?? "",
   }));
 }

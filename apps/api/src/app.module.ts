@@ -8,12 +8,14 @@ import { CoreModule } from './core/core.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingsModule } from './modules/bookings/bookings.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { CmsModule } from './modules/cms/cms.module';
 import { ComponentsModule } from './modules/components/components.module';
 import { ContentModule } from './modules/content/content.module';
 import { ConversationsModule } from './modules/conversations/conversations.controller';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { InvoicesModule } from './modules/invoices/invoices.controller';
+import { MediaModule } from './modules/media/media.module';
 import { ProjectsModule } from './modules/projects/projects.controller';
 import { QuotesModule } from './modules/quotes/quotes.controller';
 import { SettingsModule } from './modules/settings/settings.module';
@@ -45,6 +47,8 @@ import { SettingsModule } from './modules/settings/settings.module';
     ConversationsModule,
     DocumentsModule,
     ContentModule,
+    MediaModule,
+    CmsModule,
     SettingsModule,
     DashboardModule,
   ],

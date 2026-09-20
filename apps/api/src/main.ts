@@ -2,7 +2,7 @@ import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 
 import { AppModule } from './app.module';
-import { DATA_DIR } from './data/database.service';
+import { DatabaseService } from './data/database.service';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule);
@@ -43,7 +43,7 @@ async function bootstrap(): Promise<void> {
   await app.listen(port);
 
   logger.log(`Enzo Interiors API listening on http://localhost:${port}`);
-  logger.log(`JSON datastore: ${DATA_DIR}`);
+  logger.log(`Database: ${app.get(DatabaseService).target}`);
   logger.log(`CORS origins: ${origins.join(', ')}`);
 }
 

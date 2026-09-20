@@ -61,8 +61,8 @@ import { getServiceMetrics } from "@/lib/service-metrics";
 // SSG + ISR per docs/Enzo_Interiors_TRD_v3.1.md §9 (image-heavy detail page).
 export const revalidate = 3600;
 
-export function generateStaticParams() {
-  return getServiceSlugs().map((category) => ({ category }));
+export async function generateStaticParams() {
+  return (await getServiceSlugs()).map((category) => ({ category }));
 }
 
 export async function generateMetadata({
