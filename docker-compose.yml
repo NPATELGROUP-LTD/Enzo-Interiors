@@ -4,16 +4,38 @@
 # Intended for Coolify on the Proxmox host (docs/Implementation_Plan), and
 # usable as-is locally with `docker compose up`.
 #
-# Nothing here publishes a port to the host except the two web front ends and
-# the MinIO console: Postgres and the API are reachable only on the internal
-# network, and public access arrives through the Cloudflare Tunnel.
+# Two commands, in this order:
 #
-# First run, once the stack is up:
-#   docker compose exec api npx prisma migrate deploy
-#   docker compose exec api npm run seed        # demo CRM data + the admin login
-#   docker compose exec api npm run cms:import  # the site's real copy into the CMS
+#   docker compose up -d                 # the stack; migrations run on api boot
+#   docker compose run --rm seed         # demo CRM data + the site's copy
+#
+# The second is a one-shot in the `setup` profile, so `up` never re-runs it.
+# It exists as a service rather than a host command because the runtime image
+# drops tsx with the dev dependencies, and the content import reads
+# apps/web/src/data, which is not in the API's build context — the `build`
+# stage has the first and a read-only mount supplies the second.
+#
+# Startup order is enforced with conditions, not with `depends_on` alone:
+# the API waits for a database that answers AND for the buckets to exist, and
+# the two front ends wait for an API that has proved it can reach Postgres.
+# Without that, a fresh `up` can serve a 502 or refuse the first upload with
+# NoSuchBucket, and neither looks like a race when you hit it.
+#
+# Nothing here publishes a port to the host except the two web front ends,
+# the API and the MinIO console: Postgres is reachable only for inspection,
+# and public access arrives through the Cloudflare Tunnel.
 
 name: enzo-interiors
+
+# Every Node service checks itself the same way, and node:alpine has no curl.
+x-node-health: &node-health
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  # Generous: a cold Next.js or Nest boot on a laptop is slower than on the
+  # host it will deploy to, and a start_period that is too short turns a slow
+  # boot into a restart loop.
+  start_period: 45s
 
 services:
   postgres:
@@ -25,6 +47,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-enzo}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # Published for inspection only. Offset from a Postgres already running on
+    # the host (see POSTGRES_PORT in .env) so the two do not collide.
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
     healthcheck:
       # The API waits on this, so a slow first boot does not look like a crash.
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enzo} -d ${POSTGRES_DB:-enzo}']
@@ -33,7 +59,7 @@ services:
       retries: 20
 
   minio:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
@@ -42,6 +68,9 @@ services:
     volumes:
       - minio-data:/data
     ports:
+      # The API port, not only the console: MEDIA_BASE_URL is fetched by the
+      # visitor's browser, which cannot resolve "minio".
+      - '${MINIO_PORT:-9000}:9000'
       - '${MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
@@ -55,13 +84,18 @@ services:
   # anonymous visitors and embedded in statically cached pages, so it needs a
   # stable public URL; client documents are private and are signed per request
   # with a short TTL. See MediaService for the full reasoning.
+  #
+  # The API waits for this to exit 0, so the buckets exist before anything can
+  # be asked to write to them. `set -e` so a failed `mc mb` fails the service
+  # instead of letting the `echo` report success.
   minio-init:
-    image: minio/mc:latest
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
+      set -e &&
       mc alias set enzo http://minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}' &&
       mc mb --ignore-existing enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
       mc mb --ignore-existing enzo/${S3_PRIVATE_BUCKET:-enzo-private} &&
@@ -77,8 +111,10 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      # Healthy is not enough: an empty MinIO is healthy, and the first upload
+      # would fail with NoSuchBucket.
+      minio-init:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -97,8 +133,51 @@ services:
       # The browser-reachable address of the public bucket, which is not the
       # in-network one above: a visitor cannot resolve "minio".
       S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?public URL of the media bucket}
-    expose:
-      - '4000'
+    # Published, not merely exposed: the admin portal is a browser SPA, so it
+    # calls the API from the visitor's machine and cannot resolve "api".
+    # In the deployed stack this is what the Cloudflare Tunnel points at.
+    ports:
+      - '${API_PORT:-4000}:4000'
+    healthcheck:
+      # /health runs a query, so this goes red when Postgres does — which is
+      # the case worth catching, the API process survives it.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
+
+  # One-shot: schema, demo CRM data, and the site's copy imported into the CMS.
+  # In the `setup` profile, so `docker compose up` does not run it.
+  #
+  #   docker compose run --rm seed
+  #
+  # Re-running is safe; both scripts are written to be idempotent. Uses the
+  # API's `build` stage because the runtime image has no tsx, and mounts the
+  # content read-only because the importer only ever reads it.
+  seed:
+    profiles: ['setup']
+    build:
+      context: ./apps/api
+      target: build
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+    volumes:
+      # import-content.ts resolves apps/web/src/data relative to its own file,
+      # which lands at /web/src/data from /app/scripts. Matching that here is
+      # what lets the script run unmodified in the container.
+      - ./apps/web/src/data:/web/src/data:ro
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && npx tsx scripts/seed.ts && npx tsx scripts/import-content.ts
+    restart: 'no'
 
   web:
     build:
@@ -108,7 +187,8 @@ services:
         NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       # Server-side calls stay on the internal network.
@@ -118,6 +198,15 @@ services:
       CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
     ports:
       - '${WEB_PORT:-3000}:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
 
   admin:
     build:
@@ -129,9 +218,18 @@ services:
         VITE_WEB_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     ports:
       - '${ADMIN_PORT:-5174}:80'
+    healthcheck:
+      # Static files behind nginx: serving index.html is the whole contract.
+      # wget is busybox's, already in the alpine image.
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 volumes:
   postgres-data:

@@ -12,6 +12,27 @@ import {
   type UploadTicket,
 } from '@/types/cms';
 
+/** The public site. Also where its own images are served from. */
+export const WEB_URL = (import.meta.env.VITE_WEB_URL ?? 'http://localhost:3000').replace(
+  /\/+$/,
+  '',
+);
+
+/**
+ * The URL that actually renders a library image inside this portal.
+ *
+ * An uploaded asset resolves to an absolute object-storage URL and needs
+ * nothing. An asset that shipped with the site resolves to a root-relative
+ * path — `/logo/enzo-forest.png` — and root-relative means relative to
+ * apps/web, which is a different origin from the admin portal. Left as-is
+ * every one of those 404s here, so the picker showed a grid of broken tiles
+ * for the entire existing library and you had to choose a photograph by its
+ * alt text.
+ */
+export function mediaSrc(resolved: string): string {
+  return resolved.startsWith('/') ? `${WEB_URL}${resolved}` : resolved;
+}
+
 /**
  * Uploads a file and returns the library row for it.
  *
@@ -74,7 +95,7 @@ function Thumb({
       <span className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-sunken">
         {isImage && asset.src_resolved ? (
           <img
-            src={asset.src_resolved}
+            src={mediaSrc(asset.src_resolved)}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover"
@@ -281,7 +302,11 @@ export function MediaField({
               className="relative flex h-16 w-20 items-center justify-center overflow-hidden rounded-[8px] border border-border bg-surface-sunken"
             >
               {asset?.src_resolved ? (
-                <img src={asset.src_resolved} alt={asset.alt} className="h-full w-full object-cover" />
+                <img
+                  src={mediaSrc(asset.src_resolved)}
+                  alt={asset.alt}
+                  className="h-full w-full object-cover"
+                />
               ) : (
                 // A referenced id with no row behind it. Showing the id beats
                 // showing an empty box, because the id is what to search for.

@@ -69,6 +69,45 @@ export function humanize(key: string): string {
     .replace(/\burl\b/gi, 'URL');
 }
 
+/** The pane id for the scalar fields, which have no key of their own. */
+export const DETAILS_SECTION = '__details';
+
+/**
+ * Splits an entry into the panes the editor navigates between.
+ *
+ * A page body is a handful of named sections — `hero`, `process`,
+ * `investment` — plus a few loose scalars like `title`. Rendering all of it
+ * at once means scrolling ten kilobytes of nested form to change one
+ * paragraph, so each section becomes its own pane.
+ *
+ * The scalars do NOT each get a pane. Fifteen one-line entries in the rail
+ * would be a worse map than no rail at all, so they collapse into a single
+ * "Details" pane at the top. An entry that is mostly scalars — a testimonial,
+ * a FAQ — therefore ends up with one pane, and the caller renders it flat.
+ *
+ * Sections come back alphabetical, which is a choice rather than laziness.
+ * The order the page was written in does not survive the round trip: content
+ * is stored in a `jsonb` column, and Postgres orders a jsonb object's keys by
+ * key length and then alphabetically, so `home` arrives as hero, work,
+ * invite, voices, process, workshop, heroStatic, servicesBoard. There is no
+ * document order left to preserve, and length-then-alpha is arbitrary to a
+ * human looking for a section by name. Alphabetical at least puts "Hero" next
+ * to "Hero static" and "Services board" under S.
+ */
+export function splitSections(body: Record<string, unknown>): {
+  scalars: string[];
+  sections: string[];
+} {
+  const scalars: string[] = [];
+  const sections: string[] = [];
+  for (const [key, value] of Object.entries(body)) {
+    // null counts as scalar: it renders as an empty text box, not a group.
+    if (value !== null && typeof value === 'object') sections.push(key);
+    else scalars.push(key);
+  }
+  return { scalars, sections: sections.sort((a, b) => humanize(a).localeCompare(humanize(b))) };
+}
+
 /**
  * A blank copy of an existing list item, for the Add button.
  *

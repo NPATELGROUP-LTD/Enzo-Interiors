@@ -13,7 +13,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { blankLike, humanize, removeAt, setIn } from './paths.ts';
+import { blankLike, humanize, removeAt, setIn, splitSections } from './paths.ts';
 
 test('setIn writes deep into nested objects and lists', () => {
   const body = { hero: { title: 'Old', rooms: [{ label: 'A' }, { label: 'B' }] } };
@@ -68,6 +68,42 @@ test('blankLike keeps the shape and empties the values', () => {
     blankLike({ tier: 'Core', from: 4500, features: ['a', 'b'], nested: { desc: 'x' } }),
     { tier: '', from: 0, features: [], nested: { desc: '' } },
   );
+});
+
+test('splitSections separates page sections from loose scalars', () => {
+  // A page: a couple of scalars, then the named sections.
+  assert.deepEqual(
+    splitSections({
+      id: 'home',
+      title: 'Home',
+      hero: { heading: 'x' },
+      process: [{ step: 'a' }],
+    }),
+    { scalars: ['id', 'title'], sections: ['hero', 'process'] },
+  );
+});
+
+test('splitSections orders sections by their label, not by storage order', () => {
+  // jsonb hands these back by key length then alphabetically, which is the
+  // order written here. The rail is navigated by reading the labels, so it
+  // sorts by those instead — "Hero" then "Hero static", not "Hero", "Work".
+  const { sections } = splitSections({
+    hero: {},
+    work: {},
+    process: {},
+    heroStatic: {},
+    servicesBoard: {},
+  });
+  assert.deepEqual(sections, ['hero', 'heroStatic', 'process', 'servicesBoard', 'work']);
+});
+
+test('splitSections treats null as a scalar, not an empty section', () => {
+  // null renders as an empty text box. Filing it under sections would put an
+  // un-openable pane in the rail for a field that is simply blank.
+  assert.deepEqual(splitSections({ serviceId: null, q: 'Why?' }), {
+    scalars: ['serviceId', 'q'],
+    sections: [],
+  });
 });
 
 test('humanize turns content keys into labels an editor can read', () => {

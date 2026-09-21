@@ -298,24 +298,37 @@ export function JsonField({
 }
 
 /**
- * The whole editor for one content entry.
+ * The fields of one object, as a form.
  *
  * Generated from the content's own shape rather than from a declared schema —
  * see the API's modules/cms/schemas.ts for why. The practical effect is that
  * every field of every page is editable here from day one, and stays editable
  * when a section gains a line of copy, without anyone touching this file.
+ *
+ * `prefix` is where `body` sits inside the entry being edited. The editor
+ * shows one section of a page at a time, so this is usually called with the
+ * section's own object and `[sectionKey]` rather than with the whole entry —
+ * every `onChange` path still has to address the entry root.
  */
 export function JsonEditor({
   body,
   context,
+  prefix = [],
 }: {
   body: Record<string, unknown>;
   context: EditorContext;
+  prefix?: Path;
 }) {
   return (
     <div className="flex flex-col gap-4">
       {Object.entries(body).map(([key, value]) => (
-        <JsonField key={key} keyName={key} value={value} path={[key]} context={context} />
+        <JsonField
+          key={key}
+          keyName={key}
+          value={value}
+          path={[...prefix, key]}
+          context={context}
+        />
       ))}
     </div>
   );

@@ -4,6 +4,7 @@ import { AccessService } from '../common/access/access.service';
 import { DatabaseService } from '../data/database.service';
 import { PrismaService } from '../data/prisma.service';
 import { ActivityLogService } from './activity-log.service';
+import { HealthController } from './health.controller';
 
 /**
  * The services every feature module needs: the database connection,
@@ -15,6 +16,7 @@ import { ActivityLogService } from './activity-log.service';
  */
 @Global()
 @Module({
+  controllers: [HealthController],
   providers: [PrismaService, DatabaseService, AccessService, ActivityLogService],
   exports: [PrismaService, DatabaseService, AccessService, ActivityLogService],
 })

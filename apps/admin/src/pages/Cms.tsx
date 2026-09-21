@@ -17,7 +17,9 @@ import {
   Th,
   type StatusTone,
 } from '@/components/ui';
-import { JsonEditor, humanize, removeAt, setIn, type Path } from '@/components/cms/JsonEditor';
+import { JsonEditor, JsonField, humanize, removeAt, setIn, type Path } from '@/components/cms/JsonEditor';
+import { WEB_URL } from '@/components/cms/MediaPicker';
+import { DETAILS_SECTION, splitSections } from '@/components/cms/paths';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -70,6 +72,9 @@ function EntryEditor({
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
+  /** Which pane of the rail is on screen. */
+  const [section, setSection] = useState(DETAILS_SECTION);
 
   // Adopt the server's draft once per entry. Keyed on the row id rather than a
   // bare `if (!body)` so switching entries does not keep the previous one's
@@ -77,6 +82,7 @@ function EntryEditor({
   if (entry.data && loadedFor !== entry.data.id) {
     setLoadedFor(entry.data.id);
     setBody(entry.data.draft);
+    setSection(DETAILS_SECTION);
   }
 
   const dirtyLocally = useMemo(
@@ -152,6 +158,19 @@ function EntryEditor({
 
   const unpublished = dirtyLocally || entry.data.isDirty;
 
+  const { scalars, sections } = splitSections(body);
+  // One section is not worth a rail: a testimonial or a FAQ is a short form,
+  // and splitting it in two would add a click to reach half of it.
+  const railed = sections.length > 1;
+
+  // A page whose keys are all sections has no Details pane, so the rail opens
+  // on the first section instead of on an empty one.
+  const fallback = scalars.length > 0 ? DETAILS_SECTION : (sections[0] ?? DETAILS_SECTION);
+  const selectable =
+    section === DETAILS_SECTION ? scalars.length > 0 : sections.includes(section);
+  const active = railed && selectable ? section : fallback;
+  const activeValue = active === DETAILS_SECTION ? null : body[active];
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader
@@ -159,7 +178,14 @@ function EntryEditor({
         description={`${schema.singular.charAt(0).toUpperCase()}${schema.singular.slice(1)} · ${slug}`}
         actions={
           <>
-            <Button variant="ghost" onClick={onBack} icon={<ArrowLeft size={16} />}>
+            <Button
+              variant="ghost"
+              // Leaving throws away unsaved edits, so it asks first. The
+              // previous behaviour lost a page of retyped copy to a misclick
+              // on a button labelled "All pages".
+              onClick={() => (dirtyLocally ? setConfirmLeave(true) : onBack())}
+              icon={<ArrowLeft size={16} />}
+            >
               All {schema.label.toLowerCase()}
             </Button>
             {entry.data.published !== null ? (
@@ -197,9 +223,55 @@ function EntryEditor({
         ) : null}
       </div>
 
-      <div className="rounded-card bg-surface p-4 shadow-soft">
-        <JsonEditor body={body} context={context} />
-      </div>
+      {railed ? (
+        <div className="flex flex-col gap-4 lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-5">
+          {/* The page's own sections, as the map of the page. Same rail as the
+              collection list uses, so the two levels read the same way. */}
+          <Tabs
+            vertical
+            active={active}
+            onChange={setSection}
+            tabs={[
+              ...(scalars.length > 0
+                ? [{ id: DETAILS_SECTION, label: 'Details', count: scalars.length }]
+                : []),
+              ...sections.map((key) => ({
+                id: key,
+                label: humanize(key),
+                count: Array.isArray(body[key])
+                  ? (body[key] as unknown[]).length
+                  : Object.keys(body[key] as object).length,
+              })),
+            ]}
+          />
+
+          <div className="min-w-0 rounded-card bg-surface p-4 shadow-soft">
+            {active === DETAILS_SECTION ? (
+              <JsonEditor
+                body={Object.fromEntries(scalars.map((key) => [key, body[key]]))}
+                context={context}
+              />
+            ) : Array.isArray(activeValue) ? (
+              // A top-level list keeps its own group chrome — the add, reorder
+              // and remove controls live on it.
+              <JsonField keyName={active} value={activeValue} path={[active]} context={context} />
+            ) : (
+              // An object section is rendered flat: the pane is already
+              // labelled by the rail, so a collapsible header saying the same
+              // word again is a click between the editor and the words.
+              <JsonEditor
+                body={activeValue as Record<string, unknown>}
+                context={context}
+                prefix={[active]}
+              />
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-card bg-surface p-4 shadow-soft">
+          <JsonEditor body={body} context={context} />
+        </div>
+      )}
 
       <ConfirmDialog
         open={confirmRevert}
@@ -208,6 +280,18 @@ function EntryEditor({
         confirmLabel="Undo changes"
         onConfirm={revert}
         onCancel={() => setConfirmRevert(false)}
+      />
+
+      <ConfirmDialog
+        open={confirmLeave}
+        title="Leave without saving?"
+        message="You have changes that have not been saved. Leaving now throws them away."
+        confirmLabel="Discard changes"
+        onConfirm={() => {
+          setConfirmLeave(false);
+          onBack();
+        }}
+        onCancel={() => setConfirmLeave(false)}
       />
     </div>
   );
@@ -228,6 +312,7 @@ export function CmsPage() {
 
   const [collection, setCollection] = useState('pages');
   const [openSlug, setOpenSlug] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
   const [newSlug, setNewSlug] = useState('');
   const [deleting, setDeleting] = useState<CmsEntrySummary | null>(null);
@@ -254,6 +339,19 @@ export function CmsPage() {
       Object.values(overview.data?.counts ?? {}).reduce((total, count) => total + count.dirty, 0),
     [overview.data],
   );
+
+  const rows = useMemo(() => {
+    const all = entries.data ?? [];
+    const needle = search.trim().toLowerCase();
+    if (!needle) return all;
+    // Slug included: it is the web address, and it is what someone pastes in
+    // when they have the URL of the page they need to fix and not its title.
+    return all.filter((row) =>
+      [row.title, row.slug, ...Object.values(row.columns)].some((field) =>
+        String(field ?? '').toLowerCase().includes(needle),
+      ),
+    );
+  }, [entries.data, search]);
 
   const publishAll = async () => {
     setPublishingAll(true);
@@ -345,7 +443,7 @@ export function CmsPage() {
           <>
             <Button
               variant="ghost"
-              onClick={() => window.open(import.meta.env.VITE_WEB_URL ?? 'http://localhost:3000', '_blank', 'noopener')}
+              onClick={() => window.open(WEB_URL, '_blank', 'noopener')}
               icon={<ArrowSquareOut size={16} />}
             >
               View site
@@ -372,6 +470,7 @@ export function CmsPage() {
           onChange={(next) => {
             setCollection(next);
             setOpenSlug(null);
+            setSearch('');
           }}
           tabs={overview.data.schemas.map((row) => ({
             id: row.collection,
@@ -392,12 +491,30 @@ export function CmsPage() {
             </div>
           ) : null}
 
+          {/* Only once the list is long enough to be worth searching. Below
+              that the box is a control that costs more attention than the
+              scan it replaces. */}
+          {(entries.data ?? []).length > 6 ? (
+            <Input
+              label={`Search ${schema?.label.toLowerCase() ?? 'entries'}`}
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name or web address"
+            />
+          ) : null}
+
           {entries.loading ? (
             <TableSkeleton rows={6} columns={4} />
           ) : entries.error ? (
             <ErrorState message={entries.error} onRetry={entries.refetch} />
           ) : (entries.data ?? []).length === 0 ? (
             <EmptyState title="Nothing here yet" message="Add the first one to get started." />
+          ) : rows.length === 0 ? (
+            <EmptyState
+              title="Nothing matches that"
+              message={`No ${schema?.label.toLowerCase() ?? 'entry'} has “${search.trim()}” in its name or web address.`}
+            />
           ) : (
             <TableWrap>
               <thead>
@@ -410,7 +527,7 @@ export function CmsPage() {
                 </tr>
               </thead>
               <tbody>
-                {(entries.data ?? []).map((row) => (
+                {rows.map((row) => (
                   <tr key={row.id}>
                     <Td>
                       <button

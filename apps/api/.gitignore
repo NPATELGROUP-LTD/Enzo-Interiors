@@ -5,3 +5,7 @@ dist/
 
 # Transient files from JsonRepository's atomic write (write temp, then rename).
 data/*.tmp
+
+# Local environment of every flavour (.env.preprod and friends).
+.env.*
+!.env.example
