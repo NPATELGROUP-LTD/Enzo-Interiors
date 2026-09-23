@@ -352,6 +352,8 @@ export class ContentService {
       service_interest: dto.service_interest ?? null,
       message: dto.message.trim(),
       status: 'New',
+      kind: 'contact',
+      details: null,
       created_at: new Date().toISOString(),
     });
   }

@@ -13,7 +13,15 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { blankLike, humanize, removeAt, setIn, splitSections } from './paths.ts';
+import {
+  blankLike,
+  humanize,
+  orderKeys,
+  removeAt,
+  setIn,
+  splitSections,
+  summarize,
+} from './paths.ts';
 
 test('setIn writes deep into nested objects and lists', () => {
   const body = { hero: { title: 'Old', rooms: [{ label: 'A' }, { label: 'B' }] } };
@@ -83,18 +91,46 @@ test('splitSections separates page sections from loose scalars', () => {
   );
 });
 
-test('splitSections orders sections by their label, not by storage order', () => {
+test('splitSections follows the page order it is given, unknown sections last', () => {
   // jsonb hands these back by key length then alphabetically, which is the
-  // order written here. The rail is navigated by reading the labels, so it
-  // sorts by those instead — "Hero" then "Hero static", not "Hero", "Work".
-  const { sections } = splitSections({
-    hero: {},
-    work: {},
-    process: {},
-    heroStatic: {},
-    servicesBoard: {},
-  });
-  assert.deepEqual(sections, ['hero', 'heroStatic', 'process', 'servicesBoard', 'work']);
+  // order written here. The editor steps through a page the way a visitor
+  // scrolls it, so the guide's order wins, and a section it does not know
+  // about still appears rather than vanishing.
+  const { sections } = splitSections(
+    { hero: {}, work: {}, zeta: {}, process: {}, heroStatic: {}, alpha: {} },
+    ['hero', 'heroStatic', 'process', 'work'],
+  );
+  assert.deepEqual(sections, ['hero', 'heroStatic', 'process', 'work', 'alpha', 'zeta']);
+});
+
+test('orderKeys puts the question before the answer and words before structure', () => {
+  // Storage order for a FAQ is a, q, id, serviceId: the answer on top.
+  const faq = { a: 'Yes.', q: 'Do you?', id: 'x', serviceId: null };
+  assert.deepEqual(orderKeys(faq), ['q', 'a', 'id', 'serviceId']);
+
+  const section = {
+    items: [{ x: 1 }],
+    lede: 'Intro',
+    photo: 'img',
+    lines: ['A'],
+    heading: 'H',
+    show: true,
+  };
+  assert.deepEqual(orderKeys(section, ['photo']), [
+    'heading',
+    'lines',
+    'lede',
+    'photo',
+    'show',
+    'items',
+  ]);
+});
+
+test('summarize names a list item by its most telling words', () => {
+  assert.equal(summarize({ desc: 'We measure', step: 'Consultation' }), 'Consultation');
+  assert.equal(summarize({ lead: 'Stop', accent: 'Dreaming' }), 'Stop');
+  assert.equal(summarize({ open: '10:00', close: '17:00' }), '10:00');
+  assert.equal(summarize({ n: 1 }), '');
 });
 
 test('splitSections treats null as a scalar, not an empty section', () => {

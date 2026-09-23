@@ -2,12 +2,21 @@
 #
 # Brings up PostgreSQL, MinIO, the API, the admin portal and the public site.
 # Intended for Coolify on the Proxmox host (docs/Implementation_Plan), and
-# usable as-is locally with `docker compose up`.
+# usable as-is locally. PostgreSQL and MinIO only ever run here — host dev
+# servers start just those two and connect to them:
 #
-# Two commands, in this order:
+#   docker compose up -d --wait postgres minio minio-init
 #
-#   docker compose up -d                 # the stack; migrations run on api boot
-#   docker compose run --rm seed         # demo CRM data + the site's copy
+# The full stack is two commands, in this order:
+#
+#   docker compose up -d --build --wait  # the stack; migrations run on api boot
+#   docker compose run --rm seed         # the site's copy, imported into the CMS
+#
+# and `docker compose down --volumes` deletes the database and every upload,
+# for starting again from nothing.
+#
+# The first admin account is created by the API itself on first boot, from
+# ADMIN_EMAIL / ADMIN_PASSWORD in .env. There is no demo data in this stack.
 #
 # The second is a one-shot in the `setup` profile, so `up` never re-runs it.
 # It exists as a service rather than a host command because the runtime image
@@ -21,9 +30,8 @@
 # Without that, a fresh `up` can serve a 502 or refuse the first upload with
 # NoSuchBucket, and neither looks like a race when you hit it.
 #
-# Nothing here publishes a port to the host except the two web front ends,
-# the API and the MinIO console: Postgres is reachable only for inspection,
-# and public access arrives through the Cloudflare Tunnel.
+# Public access arrives through the Cloudflare Tunnel; the published ports are
+# for the host (dev servers, psql, the MinIO console).
 
 name: enzo-interiors
 
@@ -47,10 +55,11 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-enzo}
     volumes:
       - postgres-data:/var/lib/postgresql/data
-    # Published for inspection only. Offset from a Postgres already running on
-    # the host (see POSTGRES_PORT in .env) so the two do not collide.
+    # Published for the dev servers on the host and for inspection, on
+    # loopback only: nothing off this machine has any business with it. The
+    # tunnel points at web, admin, api and minio.
     ports:
-      - '${POSTGRES_PORT:-5432}:5432'
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
     healthcheck:
       # The API waits on this, so a slow first boot does not look like a crash.
       test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enzo} -d ${POSTGRES_DB:-enzo}']
@@ -71,7 +80,7 @@ services:
       # The API port, not only the console: MEDIA_BASE_URL is fetched by the
       # visitor's browser, which cannot resolve "minio".
       - '${MINIO_PORT:-9000}:9000'
-      - '${MINIO_CONSOLE_PORT:-9001}:9001'
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
       test: ['CMD', 'mc', 'ready', 'local']
       interval: 5s
@@ -121,7 +130,25 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
       JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -base64 48}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
-      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174}
+      # The first administrator. Used only while staff_users is empty, so it
+      # never overwrites an account; change the password in the admin after.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      # The admin, and the public site's enquiry forms.
+      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${WEB_PUBLIC_URL:-http://localhost:3000}
+      # Where password-reset links point.
+      ADMIN_URL: ${ADMIN_URL:-http://localhost:5174}
+      # Proxy hops in front of the API (Coolify + Cloudflare Tunnel = 2), so
+      # rate limits see the visitor's IP. 0 when nothing is in front.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Outgoing email. Unset SMTP_HOST = nothing is sent (logged instead).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Enzo Interiors <no-reply@localhost>}
       # Publishing in the CMS pokes this so an edit is live in seconds.
       WEB_REVALIDATE_URL: http://web:3000/api/revalidate
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?generate with openssl rand -base64 32}
@@ -150,12 +177,13 @@ services:
         ]
       <<: *node-health
 
-  # One-shot: schema, demo CRM data, and the site's copy imported into the CMS.
+  # One-shot: schema, then the site's copy imported into the CMS and published.
   # In the `setup` profile, so `docker compose up` does not run it.
   #
   #   docker compose run --rm seed
   #
-  # Re-running is safe; both scripts are written to be idempotent. Uses the
+  # Safe on a live database: the import only adds entries that are missing and
+  # never overwrites an edit. Uses the
   # API's `build` stage because the runtime image has no tsx, and mounts the
   # content read-only because the importer only ever reads it.
   seed:
@@ -166,17 +194,26 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      # The import uploads apps/api/seed-media into the public bucket.
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
     volumes:
       # import-content.ts resolves apps/web/src/data relative to its own file,
       # which lands at /web/src/data from /app/scripts. Matching that here is
       # what lets the script run unmodified in the container.
       - ./apps/web/src/data:/web/src/data:ro
+      - ./apps/api/seed-media:/app/seed-media:ro
     command:
       - sh
       - -c
-      - npx prisma migrate deploy && npx tsx scripts/seed.ts && npx tsx scripts/import-content.ts
+      - npx prisma migrate deploy && npx tsx scripts/import-content.ts
     restart: 'no'
 
   web:
@@ -184,7 +221,11 @@ services:
       context: ./apps/web
       args:
         NEXT_PUBLIC_API_BASE_URL: http://api:4000
+        # The enquiry forms post from the visitor's browser, which cannot
+        # resolve "api".
+        NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL:?public URL of the API}
         NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+        SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     restart: unless-stopped
     depends_on:
       api:
@@ -193,7 +234,12 @@ services:
       NODE_ENV: production
       # Server-side calls stay on the internal network.
       NEXT_PUBLIC_API_BASE_URL: http://api:4000
+      NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL}
       NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+      # Canonical origin for metadata, the sitemap and OG images.
+      SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      # Search Console's HTML-tag token, if you verify that way.
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET}
       CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
     ports:
@@ -220,6 +266,10 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    environment:
+      # Substituted into the Content-Security-Policy by nginx at start.
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL}
     ports:
       - '${ADMIN_PORT:-5174}:80'
     healthcheck:
@@ -230,6 +280,16 @@ services:
       timeout: 5s
       retries: 6
       start_period: 10s
+
+  # Dev only: catches every email the API sends. UI on :8025.
+  # Enabled by COMPOSE_PROFILES=dev in a local .env, with SMTP_HOST=mailpit.
+  mailpit:
+    profiles: ['dev']
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
 
 volumes:
   postgres-data:

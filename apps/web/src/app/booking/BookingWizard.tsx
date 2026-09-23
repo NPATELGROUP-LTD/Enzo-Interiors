@@ -37,7 +37,9 @@ import {
   Tv,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Honeypot } from "@/components/shared/Honeypot";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
+import { sendEnquiry } from "@/lib/enquiry";
 import {
   fill,
   type BookingPageContent,
@@ -103,6 +105,8 @@ export function BookingWizard({
     phone: "",
     notes: "",
   });
+  const [sending, setSending] = useState(false);
+  const [trap, setTrap] = useState("");
 
   const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
   const firstDay = new Date(currentYear, currentMonth, 1).getDay();
@@ -136,11 +140,37 @@ export function BookingWizard({
   };
 
   const handleConfirm = () => {
-    const suffix = initialTier
-      ? fill(content.toast.tierSuffix, { tier: initialTier })
-      : "";
-    toast.success(fill(content.toast.message, { suffix }));
-    setStep(5);
+    if (sending || selectedDate === null) return;
+    setSending(true);
+    // The day as the visitor picked it, and as ISO so it sorts in the inbox.
+    const day = new Date(currentYear, currentMonth, selectedDate);
+    const iso = `${currentYear}-${String(currentMonth + 1).padStart(2, "0")}-${String(selectedDate).padStart(2, "0")}`;
+    sendEnquiry(
+      {
+        kind: "booking",
+        name: contactForm.name,
+        email: contactForm.email,
+        phone: contactForm.phone,
+        message: contactForm.notes,
+        details: {
+          service: services.find((option) => option.id === selectedService)?.label ?? selectedService,
+          tier: initialTier,
+          date: `${content.calendar.months[day.getMonth()]} ${day.getDate()}, ${day.getFullYear()} (${iso})`,
+          time: selectedTime,
+        },
+        website: trap,
+      },
+      content.toast.error,
+    )
+      .then(() => {
+        const suffix = initialTier
+          ? fill(content.toast.tierSuffix, { tier: initialTier })
+          : "";
+        toast.success(fill(content.toast.message, { suffix }));
+        setStep(5);
+      })
+      .catch((error: Error) => toast.error(error.message))
+      .finally(() => setSending(false));
   };
 
   return (
@@ -460,6 +490,7 @@ export function BookingWizard({
                     rows={3}
                     className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all resize-none"
                   />
+                  <Honeypot value={trap} onChange={setTrap} />
                 </div>
               </StepWrapper>
             )}
@@ -526,7 +557,8 @@ export function BookingWizard({
                 if (step === TOTAL_STEPS) handleConfirm();
                 else setStep((s) => s + 1);
               }}
-              disabled={!canProceed()}
+              disabled={!canProceed() || sending}
+              aria-busy={sending}
               className="px-8 py-2.5 rounded-full bg-primary text-primary-foreground text-[14px] hover:bg-enzo-forest-light transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {step === TOTAL_STEPS ? content.nav.confirmLabel : content.nav.nextLabel}

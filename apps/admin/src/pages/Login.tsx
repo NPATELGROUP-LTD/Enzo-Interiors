@@ -1,25 +1,14 @@
 import { useState, type FormEvent } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 
+import { AuthScreen, FormError } from '@/components/layout/AuthScreen';
 import { Button, Input } from '@/components/ui';
 import { ApiError } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 
-/**
- * Demo accounts, surfaced on the login screen so a reviewer can sign in
- * instantly. These are seeded by `npm run seed` in apps/api.
- *
- * This panel is a PROTOTYPE AFFORDANCE and must be deleted before any real
- * deployment — printing working credentials on a login page is exactly the
- * thing you never ship.
- */
-const DEMO_ACCOUNTS = [
-  { role: 'Admin', email: 'admin@enzointeriors.co.uk', password: 'admin123', note: 'Full access' },
-  { role: 'Designer', email: 'designer@enzointeriors.co.uk', password: 'designer123', note: 'Assigned work only' },
-  { role: 'Installer', email: 'installer@enzointeriors.co.uk', password: 'installer123', note: 'Assigned work only' },
-];
-
 export function LoginPage() {
   const { login } = useAuth();
+  const justReset = (useLocation().state as { reset?: boolean } | null)?.reset === true;
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,101 +30,50 @@ export function LoginPage() {
       setError(
         caught instanceof ApiError
           ? caught.message
-          : 'Could not sign in. Check that the Enzo API is running.',
+          : 'Could not sign in. Check your connection and try again.',
       );
     } finally {
       setPending(false);
     }
   };
 
-  const useAccount = (account: (typeof DEMO_ACCOUNTS)[number]) => {
-    setEmail(account.email);
-    setPassword(account.password);
-    setError(null);
-  };
-
   return (
-    <div className="grid min-h-dvh bg-surface lg:grid-cols-[minmax(28rem,36rem)_1fr]">
-      <main className="flex flex-col px-6 py-8 sm:px-12">
-        <div className="flex items-center gap-2.5">
-          <span aria-hidden="true" className="flex h-9 w-9 items-center justify-center rounded-control bg-green-900 text-sm font-bold text-on-primary">
-            E
-          </span>
-          <div>
-            <p className="text-base font-bold tracking-tight text-ink">Enzo Interiors</p>
-            <p className="text-xs text-ink-muted">Staff &amp; Admin CRM</p>
-          </div>
+    <AuthScreen title="Sign in" lede="Welcome back. Sign in with your Enzo account.">
+      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+        <Input
+          label="Email address"
+          type="email"
+          autoComplete="username"
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          placeholder="you@enzointeriors.co.uk"
+          required
+        />
+        <div className="flex flex-col gap-1.5">
+          <Input
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+          />
+          <Link to="/forgot-password" state={{ email }} className="text-link self-end text-sm">
+            Forgot password?
+          </Link>
         </div>
 
-        <div className="mx-auto my-auto w-full max-w-sm py-10">
-          <h1 className="text-[28px] font-bold leading-tight tracking-tight text-ink">Sign in</h1>
-          <p className="mt-1.5 text-ink-muted">Use your Enzo staff account.</p>
+        {justReset && !error ? (
+          <p role="status" className="rounded-control bg-success-bg px-3 py-2 text-sm text-success">
+            Password changed. Sign in with your new password.
+          </p>
+        ) : null}
+        <FormError message={error} />
 
-          <form onSubmit={submit} className="mt-7 flex flex-col gap-4" noValidate>
-            <Input
-              label="Email address"
-              type="email"
-              autoComplete="username"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@enzointeriors.co.uk"
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              required
-            />
-
-            {error ? (
-              <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-danger">
-                {error}
-              </p>
-            ) : null}
-
-            <Button type="submit" variant="primary" loading={pending} className="mt-1 w-full">
-              Sign in
-            </Button>
-          </form>
-
-          <div className="mt-8 rounded-card bg-ink/[0.035] p-3">
-            <p className="px-1 text-xs font-semibold text-ink-muted">
-              Demo accounts (prototype only). Pick one to fill the form.
-            </p>
-            <ul className="mt-2 flex flex-col gap-1">
-              {DEMO_ACCOUNTS.map((account) => (
-                <li key={account.email}>
-                  <button
-                    type="button"
-                    onClick={() => useAccount(account)}
-                    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-control px-2 py-1.5 text-left transition-colors duration-[160ms] hover:bg-surface hover:shadow-soft"
-                  >
-                    <span className="min-w-0">
-                      <span className="block text-sm font-semibold text-ink">{account.role}</span>
-                      <span className="block truncate text-xs text-ink-muted">{account.email}</span>
-                    </span>
-                    <span className="shrink-0 text-xs text-ink-muted">{account.note}</span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-
-        <p className="text-xs text-ink-muted">Clients sign in at the Client Portal on port 5175, not here.</p>
-      </main>
-
-      {/* Photo half, as on a Microsoft organisation sign-in. Decorative, so empty alt. */}
-      <aside className="relative hidden overflow-hidden bg-green-900 lg:sticky lg:top-0 lg:block lg:h-dvh">
-        <img src="/login.jpeg" alt="" className="absolute inset-0 h-full w-full object-cover" />
-        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/5 to-transparent" />
-        <p className="absolute inset-x-0 bottom-0 max-w-xl p-10 text-2xl font-semibold leading-snug tracking-tight text-white">
-          Bespoke fitted furniture and interiors, designed and installed in Leicester.
-        </p>
-      </aside>
-    </div>
+        <Button type="submit" variant="primary" loading={pending} className="mt-1 w-full">
+          Sign in
+        </Button>
+      </form>
+    </AuthScreen>
   );
 }

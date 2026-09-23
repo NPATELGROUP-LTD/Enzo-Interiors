@@ -23,13 +23,19 @@ datasource db {
 /* -------------------------------------------------------------------------- */
 
 model StaffUser {
-  id            String   @id
-  name          String
-  email         String   @unique
-  password_hash String
-  role          String
-  created_at    DateTime @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  id               String    @id
+  name             String
+  email            String    @unique
+  password_hash    String
+  role             String
+  // Bumped on every password change or reset. A JWT carrying a different
+  // `tv` is rejected, which is what signs every other session out.
+  token_version    Int       @default(0)
+  // sha256 of the emailed reset token; the token itself is never stored.
+  reset_token_hash String?   @unique
+  reset_expires_at DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
 
   @@map("staff_users")
 }
@@ -257,6 +263,10 @@ model ContactSubmission {
   service_interest String?
   message          String
   status           String
+  // "contact" | "quote" | "booking": which form on the site sent it.
+  kind             String   @default("contact")
+  // The form's extra fields (tier, room, preferred date...), flat strings.
+  details          Json?
   created_at       DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([status])
@@ -329,13 +339,13 @@ model CmsEntry {
   @@map("cms_entries")
 }
 
-// Uploaded files. The row holds the S3 object KEY; read URLs are signed at
-// request time and never cached. `src` carries the legacy static path for the
-// assets that shipped in apps/web/public and were never uploaded.
+// Every site image. The row holds the object KEY in the public bucket; the URL
+// is built from S3_PUBLIC_BASE_URL at read time. `source` is where the file
+// came from: "upload", "site", or "unsplash"/"randomuser" for placeholders
+// still waiting to be replaced (docs/prelaunch.md).
 model MediaAsset {
   id          String   @id
-  storage_key String?
-  src         String?
+  storage_key String
   alt         String
   title       String?
   source      String
@@ -347,4 +357,19 @@ model MediaAsset {
   updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("media_assets")
+}
+
+// General site settings. A single row, id "site".
+model SiteSettings {
+  id                  String    @id
+  // "live" | "coming_soon"
+  status              String    @default("coming_soon")
+  // Once set and passed, the site is live whatever `status` says.
+  launch_at           DateTime? @db.Timestamptz(6)
+  // Who receives enquiry notifications. Empty falls back to ADMIN_EMAIL.
+  notification_emails String[]  @default([])
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_by          String?
+
+  @@map("site_settings")
 }

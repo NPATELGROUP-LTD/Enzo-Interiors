@@ -1,3 +1,5 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
@@ -25,7 +27,10 @@ export async function POST(request: Request): Promise<NextResponse> {
   const provided = request.headers.get("x-revalidate-secret");
   // Length check first so the comparison below cannot be used to learn the
   // secret's length from timing alone.
-  if (!provided || provided.length !== expected.length || provided !== expected) {
+  // Constant-time, so the secret cannot be guessed one character at a time.
+  const a = Buffer.from(provided ?? "");
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ revalidated: false }, { status: 401 });
   }
 

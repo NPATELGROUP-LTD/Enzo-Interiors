@@ -53,6 +53,8 @@ export interface CmsEntrySummary {
   sort_order: number;
   title: string;
   columns: Record<string, string>;
+  /** The first picture on the entry, as a media id, for the list's thumbnail. */
+  image: string | null;
   published_at: string | null;
   updated_at: string;
   updated_by: string | null;
@@ -77,8 +79,7 @@ export interface CmsEntry {
 
 export interface MediaAsset {
   id: string;
-  storage_key: string | null;
-  src: string | null;
+  storage_key: string;
   alt: string;
   title: string | null;
   source: string;
@@ -88,7 +89,7 @@ export interface MediaAsset {
   mime_type: string | null;
   created_at: string;
   updated_at: string;
-  /** The URL that actually renders, whether uploaded or shipped with the site. */
+  /** Public URL of the object in storage. */
   src_resolved: string;
 }
 

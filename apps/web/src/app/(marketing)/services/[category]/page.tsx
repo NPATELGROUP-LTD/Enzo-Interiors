@@ -38,6 +38,9 @@
 // service starts the cycle again with no authoring; `heroVariant` on the
 // record pins a page to one design set when someone wants to choose.
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { breadcrumbLd, faqLd, serviceLd } from "@/lib/structured-data";
 import { notFound } from "next/navigation";
 import { QuoteModalRoot } from "@/components/services/shared/QuoteRequestModal";
 import { QuestionsNotes } from "@/components/services/shared/QuestionsNotes";
@@ -78,10 +81,12 @@ export async function generateMetadata({
   if (!service) return {};
 
   // Both halves come off the service record; only the suffix is page copy.
-  return {
+  return pageMetadata({
     title: fill(content.metadata.titleTemplate, { title: service.title }),
     description: service.heroDesc,
-  };
+    path: `/services/${service.slug}`,
+    ogKey: service.slug,
+  });
 }
 
 /**
@@ -129,6 +134,17 @@ export default async function ServiceDetailPage({
       category={service.slug}
       content={shared.quoteModal}
     >
+      <JsonLd
+        data={[
+          serviceLd(service),
+          breadcrumbLd([
+            ["Home", "/"],
+            ["Services", "/services"],
+            [service.title, `/services/${service.slug}`],
+          ]),
+          ...(service.faqs.length ? [faqLd(service.faqs)!] : []),
+        ]}
+      />
       {/* No quoteCta prop: each hero renders its own quote button, because
           the button has to be styled for its own ground — the four heroes
           now sit on cream, near-black, forest and warm grey. */}

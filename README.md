@@ -13,6 +13,12 @@ The platform is split into four independently deployable applications rather tha
 - **Admin Portal (CRM)** — internal staff tool for managing clients, bookings, projects, quotes, invoicing, pricing, and content.
 - **Backend API** — sole owner of business logic, database access, auth, and file storage.
 
+> **v1 ships three of the four:** the public site, the API, and the admin
+> (CMS, site settings and account screens). The CRM screens and modules and the client
+> portal are still in the repository with their database tables intact, but
+> are not routed or mounted — see `apps/api/src/app.module.ts` and
+> `apps/admin/src/App.tsx` to bring them back.
+
 Payments and multi-tenancy are **permanently out of scope**: invoices are tracked and marked "Paid" manually by Admin, and the system will never serve any business other than Enzo Interiors.
 
 ## Repository Structure
@@ -35,98 +41,83 @@ same UI/UX brief, not by importing from one another.
 
 ## Running the platform locally
 
-There are two ways to run this, and they are designed to coexist — the ports
-do not collide, so you can leave the docker stack up while you work in watch
-mode against it.
+PostgreSQL and MinIO **only ever run in Docker**, from `docker-compose.yml`.
+There is no host database to install. Everything else can run either way.
 
-### Dev — apps on the host, against your own PostgreSQL
-
-Each app is standalone: install and run it from its own directory. Copy each
-`.env.example` to the filename in brackets and fill it in first.
-
-| # | App | Directory | Port | Env file | Start |
-|---|---|---|---|---|---|
-| 1 | Backend API | `apps/api` | 4000 | `.env` | `npm install && npm run db:setup && npm run dev` |
-| 2 | Admin CRM | `apps/admin` | 5174 | `.env.local` | `npm install && npm run dev` |
-| 3 | Client Portal | `apps/portal` | 5175 | `.env.local` | `npm install && npm run dev` |
-| – | Marketing site | `apps/web` | 3000 | `.env.local` | `npm install && npm run dev` |
-
-**Start the API first** — every other app is a thin client and shows a
-connection error without it. The marketing site is the exception: it falls back
-to the content committed in `apps/web/src/data` and still renders.
-
-You need a PostgreSQL 16+ reachable at the `DATABASE_URL` in `apps/api/.env`,
-with the database already created:
-
-```bash
-createdb -h 127.0.0.1 -U postgres enzo_dev
-```
-
-`npm run db:setup` then does the rest — applies the migrations, seeds the demo
-CRM records, and imports the site's copy into the CMS. It is also how you reset
-to a known-good state later; it is safe to re-run, and unlike the old JSON
-store you do **not** need to stop the API first.
-
-**Image uploads in dev** need object storage, and dev borrows the compose
-stack's MinIO rather than running a second one:
-
-```bash
-docker compose up -d minio minio-init
-```
-
-That is the whole dependency — the rest of the stack can stay down. Dev and
-pre-prod keep separate databases, so sharing the bucket costs nothing but a
-few stray objects. Without it the CMS still works against every image the site
-ships with in `apps/web/public`; only new uploads refuse, with a message
-saying so.
-
-### Pre-prod — the whole stack in Docker
+### 1. The whole stack in Docker
 
 ```bash
 cp .env.example .env            # fill in the secrets it asks for
-docker compose up -d --build
-docker compose run --rm seed    # demo CRM data + the site's copy
+docker compose up -d --build --wait
+docker compose run --rm seed    # the site's copy, imported into the CMS
 ```
 
-That brings up PostgreSQL, MinIO, the API, the admin portal and the public
-site together, built the way they are deployed. Set the `*_PORT` values in
-`.env` away from the dev ports above if you want both running at once.
+That brings up PostgreSQL, MinIO, the API, the admin (CMS) and the public site,
+built exactly the way they are deployed. `--wait` returns once every service
+is healthy. The API applies database migrations itself on every start.
 
-`up` is finished when `docker compose ps` shows every service healthy. The
-order is enforced with conditions rather than plain `depends_on`: the API
-waits for a database that answers *and* for the buckets to exist, and the two
-front ends wait for an API that has proved it can reach Postgres. Without
-that, a fresh stack can serve a 502 or refuse the first upload with
-`NoSuchBucket`, and neither looks like a race when you hit it.
+The first admin account is created by the API on its first boot into an empty
+database, from `ADMIN_EMAIL` / `ADMIN_PASSWORD` in `.env`. It never overwrites
+an existing account. Sign in, then use the account menu's **Change password**.
 
-`seed` is a one-shot service in the `setup` profile, so `up` never re-runs it;
-re-run it yourself to reset to known-good data. It exists as a service rather
-than a host command because the runtime image drops `tsx` with the dev
-dependencies and the CMS import reads `apps/web/src/data`, which is not in the
-API's build context — it runs the API's `build` stage with that directory
-mounted read-only.
+`seed` is a one-shot service in the `setup` profile, so `up` never re-runs it.
+It is safe to re-run on a live site: the import only adds entries that are
+missing and never overwrites an edit.
 
-Note that `VITE_*` and `NEXT_PUBLIC_*` are inlined at build time, so the admin
-and web images are specific to the URLs they were built against. Changing
+`VITE_*` and `NEXT_PUBLIC_*` are inlined at build time, so the admin and web
+images are specific to the URLs they were built against. Changing
 `API_PUBLIC_URL`, `WEB_PUBLIC_URL` or `MEDIA_BASE_URL` needs
 `docker compose build`, not just a restart.
 
-### Demo accounts
+**Starting again from nothing** (deletes the database and every upload):
 
-Both login screens list these and fill the form on click.
+```bash
+docker compose down --volumes
+```
 
-| App | Email | Password |
-|---|---|---|
-| Admin CRM | `admin@enzointeriors.co.uk` | `admin123` |
-| Admin CRM | `designer@enzointeriors.co.uk` | `designer123` |
-| Admin CRM | `installer@enzointeriors.co.uk` | `installer123` |
-| Client Portal | `sarah.jones@example.com` and 4 others | `client123` |
+### 2. Dev: apps on the host, database and storage in Docker
 
-The two login flows are separate and non-interchangeable. See each app's README for the full list and a tour of what each account shows.
+```bash
+docker compose up -d --wait postgres minio minio-init
+```
 
-> These are demo credentials installed by `npm run seed`, which wipes every
-> table before it writes. It refuses to run with `NODE_ENV=production`.
-> Passwords are stored as bcrypt hashes, including these.
+Then each app from its own directory. Copy its `.env.example` to the file in
+brackets first, pointing `DATABASE_URL` and the `S3_*` values at the
+containers above.
+
+| App | Directory | Port | Env file | Start |
+|---|---|---|---|---|
+| Backend API | `apps/api` | 4000 | `.env` | `npm ci && npm run db:setup && npm run dev` |
+| Admin (CMS) | `apps/admin` | 5174 | `.env.local` | `npm ci && npm run dev` |
+| Public site | `apps/web` | 3000 | `.env.local` | `npm ci && npm run dev` |
+
+Start the API first. The admin is a thin client and shows a connection error
+without it. The public site falls back to the content committed in
+`apps/web/src/data` and still renders.
+
+`npm run db:setup` applies the migrations and imports the site's copy into the
+CMS. It is safe to re-run.
+
+The docker stack's app containers can run at the same time as these dev
+servers if their `*_PORT` values in `.env` are moved off 3000, 4000 and 5174.
+Both then share the one database and bucket.
+
+`npm run seed` in `apps/api` installs demo CRM records for the CRM screens that
+return after v1. It **wipes every table first**, including the CMS, and
+refuses to run with `NODE_ENV=production`.
+
+### Deploying
+
+The same compose file is the production recipe (Coolify on the Proxmox host).
+Point the Cloudflare Tunnel's hostnames at `web:3000`, `admin:80`, `api:4000`
+and `minio:9000`. Set `MEDIA_BASE_URL` to the public media hostname plus the
+bucket name, e.g. `https://media.enzointeriors.co.uk/enzo-public`. Upload URLs
+are signed for that host, because the editor's browser sends the file straight
+to it.
+
+The startup order is enforced with health conditions, not bare `depends_on`.
+The API waits for a database that answers *and* for the buckets to exist. The
+two front ends wait for an API that has proved it can reach Postgres.
 
 ## Tech Stack
 
@@ -149,7 +140,15 @@ The two login flows are separate and non-interchangeable. See each app's README 
 
 **Marketing site (`apps/web`)**: Homepage, Services, Service Detail (per category with Quote Calculator), Portfolio (filterable gallery), About, Contact, 5-step Booking wizard, 404.
 
-**Admin Portal (`apps/admin`)**: Dashboard, Clients (CRM), Bookings & Availability, Quotes & Pricing (builder + Component Pricing Library), Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices (manual mark-paid), Messages, Enquiries (contact-form submissions),
+**Admin Portal (`apps/admin`)** — the Enzo Interiors admin, laid out as a
+Mac-style app window. In v1 it runs the website: the CMS, Settings (site
+live / coming soon with a launch time, where enquiries are emailed, preview),
+search (Ctrl/⌘ K) and password reset by email. **CMS** in the menu bar drops down every page and
+every kind of shared content; clicking it opens an overview of all of them.
+Pages are edited section by section in the order a visitor sees them; the
+content several pages share (**Services, Recent work, Testimonials, Team,
+FAQs, Menu, Company**) each has its own place. Edits save as a draft; Publish puts them live and
+refreshes the site within seconds. The full CRM, when it returns: Dashboard, Clients (CRM), Bookings & Availability, Quotes & Pricing (builder + Component Pricing Library), Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices (manual mark-paid), Messages, Enquiries (contact-form submissions),
 Website (the CMS: every page, service, project, testimonial and image on the
 public site, edited as a draft and published explicitly), Settings.
 
@@ -174,7 +173,7 @@ Release flow: `feature/*` → PR → `develop` (staging deploy via Coolify) → 
 
 | Environment | Branch | Notes |
 |---|---|---|
-| Local | — | pnpm/yarn or Docker Compose against local Postgres + MinIO |
+| Local | — | Docker Compose; PostgreSQL and MinIO always in containers |
 | Staging | `develop` | Proxmox VM/LXC via Coolify, `staging-*.enzointeriors.co.uk` |
 | Production | `main` | Separate Coolify apps, production DB and `enzo-interiors-prod` S3 bucket |
 

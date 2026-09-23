@@ -1,7 +1,8 @@
 {
   "metadata": {
     "title": "Book a consultation — Enzo Interiors",
-    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price."
+    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price.",
+    "ogImageId": ""
   },
   "backToHomeLabel": "← Back",
   "backgroundImageId": "pf-dark-kitchen",
@@ -65,7 +66,8 @@
     "confirmLabel": "Confirm Booking"
   },
   "toast": {
-    "message": "Booking confirmed{suffix}! We'll send you a confirmation email shortly.",
+    "message": "Booking request received{suffix}. We'll confirm your visit by phone or email within one working day.",
+    "error": "Sorry, that did not send. Please try again, or call or email us instead.",
     "tierSuffix": " ({tier} tier)"
   },
   "timeSlots": [

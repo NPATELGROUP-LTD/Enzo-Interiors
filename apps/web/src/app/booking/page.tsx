@@ -17,6 +17,7 @@
 // Set of three names. Publishing a fifth service, or renaming a tier, would
 // have silently broken the handoff.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { BookingWizard } from "./BookingWizard";
 import {
   getPage,
@@ -29,8 +30,8 @@ import {
 // inherited the root layout's bare "Enzo Interiors", so a tab parked
 // mid-booking was indistinguishable from the homepage.
 export async function generateMetadata(): Promise<Metadata> {
-  const { metadata } = await getPage("booking");
-  return metadata;
+  const metadata = (await getPage("booking")).metadata;
+  return pageMetadata({ ...metadata, path: "/booking", ogKey: "booking" });
 }
 
 export default async function BookingPage({

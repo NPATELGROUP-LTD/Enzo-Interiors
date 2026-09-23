@@ -162,6 +162,8 @@ export interface Company {
   };
   hours: StudioHours;
   madeBy: string;
+  /** For search and maps. Blank until the studio confirms it. */
+  address: { street: string; postcode: string };
 }
 
 export interface NavSection {

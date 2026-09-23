@@ -12,26 +12,11 @@ import {
   type UploadTicket,
 } from '@/types/cms';
 
-/** The public site. Also where its own images are served from. */
+/** The public site. */
 export const WEB_URL = (import.meta.env.VITE_WEB_URL ?? 'http://localhost:3000').replace(
-  /\/+$/,
+  //+$/,
   '',
 );
-
-/**
- * The URL that actually renders a library image inside this portal.
- *
- * An uploaded asset resolves to an absolute object-storage URL and needs
- * nothing. An asset that shipped with the site resolves to a root-relative
- * path — `/logo/enzo-forest.png` — and root-relative means relative to
- * apps/web, which is a different origin from the admin portal. Left as-is
- * every one of those 404s here, so the picker showed a grid of broken tiles
- * for the entire existing library and you had to choose a photograph by its
- * alt text.
- */
-export function mediaSrc(resolved: string): string {
-  return resolved.startsWith('/') ? `${WEB_URL}${resolved}` : resolved;
-}
 
 /**
  * Uploads a file and returns the library row for it.
@@ -52,7 +37,8 @@ async function upload(file: File, alt: string): Promise<MediaAsset> {
 
   const put = await fetch(ticket.url, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
+    // Both are signed into the URL; storage rejects the PUT if either differs.
+    headers: { 'Content-Type': file.type, 'Cache-Control': 'public, max-age=31536000, immutable' },
     body: file,
   });
   if (!put.ok) {
@@ -62,8 +48,6 @@ async function upload(file: File, alt: string): Promise<MediaAsset> {
   return api.post<MediaAsset>('/cms/media', {
     storage_key: ticket.storage_key,
     alt,
-    mime_type: file.type,
-    byte_size: file.size,
   });
 }
 
@@ -87,15 +71,15 @@ function Thumb({
       onClick={onClick}
       aria-pressed={selected}
       className={[
-        'group relative flex flex-col overflow-hidden rounded-[10px] border text-left transition',
+        'group relative flex flex-col overflow-hidden rounded-[10px] text-left transition',
         'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35',
-        selected ? 'border-green-900 ring-[3px] ring-focus-ring/30' : 'border-border hover:border-green-900/50',
+        selected ? 'bg-green-100 ring-[3px] ring-green-900' : 'bg-surface-muted/60 hover:bg-surface-muted',
       ].join(' ')}
     >
-      <span className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-sunken">
+      <span className="flex aspect-[4/3] items-center justify-center overflow-hidden bg-surface-muted">
         {isImage && asset.src_resolved ? (
           <img
-            src={mediaSrc(asset.src_resolved)}
+            src={asset.src_resolved}
             alt=""
             loading="lazy"
             className="h-full w-full object-cover"
@@ -127,6 +111,8 @@ interface PickerProps {
   multiple: boolean;
   onChange: (next: string[]) => void;
   title: string;
+  /** Called after an upload adds a picture to the library. */
+  onUploaded?: () => void;
 }
 
 /**
@@ -137,7 +123,7 @@ interface PickerProps {
  * fix a piece of alt text — is something you want to do at the moment you are
  * choosing a picture, not on a different page.
  */
-export function MediaPicker({ open, onClose, value, multiple, onChange, title }: PickerProps) {
+export function MediaPicker({ open, onClose, value, multiple, onChange, title, onUploaded }: PickerProps) {
   const toast = useToast();
   const assets = useQuery<MediaAsset[]>(open ? '/cms/media' : null);
   const [search, setSearch] = useState('');
@@ -192,6 +178,7 @@ export function MediaPicker({ open, onClose, value, multiple, onChange, title }:
     try {
       const created = await upload(file, alt.trim());
       await assets.refetch();
+      onUploaded?.();
       onChange(multiple ? [...value, created.id] : [created.id]);
       toast.success('Image uploaded.');
       if (!multiple) onClose();
@@ -257,7 +244,7 @@ export function MediaPicker({ open, onClose, value, multiple, onChange, title }:
         )}
 
         {multiple ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+          <div className="flex items-center justify-between gap-3 pt-1">
             <p className="text-xs text-ink-muted">
               {value.length === 0
                 ? 'Nothing selected. The first image you pick is the cover.'
@@ -279,6 +266,7 @@ export function MediaField({
   multiple,
   onChange,
   assets,
+  onAssetsChanged,
 }: {
   label: string;
   hint?: string;
@@ -286,6 +274,7 @@ export function MediaField({
   multiple: boolean;
   onChange: (next: string[]) => void;
   assets: MediaAsset[];
+  onAssetsChanged?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const byId = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
@@ -299,11 +288,11 @@ export function MediaField({
           return (
             <span
               key={`${id}-${position}`}
-              className="relative flex h-16 w-20 items-center justify-center overflow-hidden rounded-[8px] border border-border bg-surface-sunken"
+              className="relative flex h-20 w-28 items-center justify-center overflow-hidden rounded-[10px] bg-surface-muted"
             >
               {asset?.src_resolved ? (
                 <img
-                  src={mediaSrc(asset.src_resolved)}
+                  src={asset.src_resolved}
                   alt={asset.alt}
                   className="h-full w-full object-cover"
                 />
@@ -336,6 +325,7 @@ export function MediaField({
         multiple={multiple}
         onChange={onChange}
         title={multiple ? `${label} — pick images in order` : `${label} — pick an image`}
+        onUploaded={onAssetsChanged}
       />
     </div>
   );

@@ -1,7 +1,8 @@
 {
   "metadata": {
     "title": "Contact — Enzo Interiors",
-    "description": "Tell us about the room. A free home survey across Leicester and Leicestershire, with drawings and an honest figure before anything is cut."
+    "description": "Tell us about the room. A free home survey across Leicester and Leicestershire, with drawings and an honest figure before anything is cut.",
+    "ogImageId": ""
   },
   "masthead": {
     "index": "C1",
@@ -75,6 +76,7 @@
     "otherRoomLabel": "Something else",
     "submitLabel": "Send enquiry",
     "toast": "Enquiry received — we will be in touch.",
+    "errorToast": "Sorry, that did not send. Please try again, or call or email us instead.",
     "received": {
       "label": "Received",
       "heading": "That is with us.",

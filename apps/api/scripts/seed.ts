@@ -85,7 +85,10 @@ const VAT = 20;
 /* staff_users                                                                */
 /* -------------------------------------------------------------------------- */
 
-const staffUsers: StaffUser[] = [
+// The fixtures only spell out what differs per row; these columns never do.
+const staffDefaults = { token_version: 0, reset_token_hash: null, reset_expires_at: null };
+
+const staffUsers: StaffUser[] = ([
   {
     id: 'stf_admin',
     name: 'Oyz Khan',
@@ -122,7 +125,7 @@ const staffUsers: StaffUser[] = [
     created_at: at('2026-04-06'),
     updated_at: at('2026-04-06'),
   },
-];
+] as Array<Omit<StaffUser, keyof typeof staffDefaults>>).map((row) => ({ ...staffDefaults, ...row }));
 
 /* -------------------------------------------------------------------------- */
 /* clients                                                                    */
@@ -999,13 +1002,13 @@ const portfolioItems: PortfolioItem[] = [
 /* contact_submissions                                                        */
 /* -------------------------------------------------------------------------- */
 
-const contactSubmissions: ContactSubmission[] = [
+const contactSubmissions: ContactSubmission[] = ([
   { id: 'sub_natalie_reed', name: 'Natalie Reed', email: 'natalie.reed@example.com', phone: '07700 900411', service_interest: 'Kitchen', message: 'We are extending at the back and will need a kitchen for around March. Do you take bookings that far ahead?', status: 'New', created_at: fromNow(-1, '19:42') },
   { id: 'sub_owen_clarke', name: 'Owen Clarke', email: 'owen.clarke@example.com', phone: '07700 900866', service_interest: 'MediaWall', message: 'Looking for a media wall in a fairly narrow lounge — is 2.6m wide enough to be worth doing?', status: 'New', created_at: fromNow(-3, '12:08') },
   { id: 'sub_priti_shah', name: 'Priti Shah', email: 'priti.shah@example.com', phone: '07700 900209', service_interest: 'Wardrobe', message: 'Interested in fitted wardrobes for two bedrooms. Would like a rough idea of cost before booking.', status: 'Contacted', created_at: at('2026-08-14', '10:22') },
   { id: 'sub_eleanor_shaw', name: 'Eleanor Shaw', email: 'eleanor.shaw@example.com', phone: '07700 900281', service_interest: 'Bedroom', message: 'Grade II listed cottage, need freestanding bedroom furniture. Recommended by Marie Langley.', status: 'Converted', created_at: at('2026-07-08', '16:55') },
   { id: 'sub_spam', name: 'Growth Partners', email: 'no-reply@example.net', phone: null, service_interest: null, message: 'We can get your website to the top of Google in 14 days, guaranteed.', status: 'Archived', created_at: at('2026-08-01', '03:17') },
-];
+] as Array<Omit<ContactSubmission, 'kind' | 'details'>>).map((row) => ({ ...row, kind: 'contact' as const, details: null }));
 
 /* -------------------------------------------------------------------------- */
 /* business_settings — singleton                                              */

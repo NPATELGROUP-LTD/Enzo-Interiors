@@ -31,6 +31,8 @@ export interface JwtPayload {
   role: StaffRole | 'Client';
   name: string;
   email: string;
+  /** staff_users.token_version at signing. A mismatch means signed out. */
+  tv?: number;
 }
 
 /** Every role value that can appear on a principal. */

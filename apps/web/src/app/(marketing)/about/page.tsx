@@ -30,6 +30,7 @@
 // promises reference images by id, resolved to sources below — on the server,
 // so the media table never reaches the browser.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { AboutStatement } from "@/components/about/AboutStatement";
 import { AboutNumbers } from "@/components/about/AboutNumbers";
 import { AboutJourney, type Milestone } from "@/components/about/AboutJourney";
@@ -47,8 +48,8 @@ import {
 } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { metadata } = await getPage("about");
-  return metadata;
+  const metadata = (await getPage("about")).metadata;
+  return pageMetadata({ ...metadata, path: "/about", ogKey: "about" });
 }
 
 export default async function AboutPage() {

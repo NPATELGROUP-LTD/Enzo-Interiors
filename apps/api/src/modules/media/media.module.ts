@@ -15,9 +15,14 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
-import { DeleteObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteObjectCommand,
+  HeadObjectCommand,
+  PutObjectCommand,
+  S3Client,
+} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
-import { IsIn, IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { MediaAsset } from '../../common/types/domain';
@@ -54,6 +59,12 @@ const EXTENSIONS: Record<string, string> = {
 /** 25 MB. Large enough for a print-resolution photo, small enough to bound abuse. */
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
 
+/** Signed into every upload URL, so the browser must send exactly this. */
+export const UPLOAD_CACHE_CONTROL = 'public, max-age=31536000, immutable';
+
+/** Exactly the keys createUploadUrl issues; anything else was not ours. */
+const ISSUED_KEY = /^media\/\d{4}\/[a-z0-9-]+-[0-9a-f]{8}\.(jpe?g|png|webp|avif|pdf)$/;
+
 export class CreateUploadUrlDto {
   @IsString()
   @MaxLength(200)
@@ -89,19 +100,15 @@ export class RegisterAssetDto {
 
   @IsOptional()
   @IsInt()
+  @Min(1)
+  @Max(20000)
   width?: number;
 
   @IsOptional()
   @IsInt()
+  @Min(1)
+  @Max(20000)
   height?: number;
-
-  @IsOptional()
-  @IsInt()
-  byte_size?: number;
-
-  @IsOptional()
-  @IsString()
-  mime_type?: string;
 }
 
 export class UpdateAssetDto {
@@ -157,6 +164,8 @@ export interface ResolvedMedia {
 export class MediaService {
   private readonly logger = new Logger(MediaService.name);
   private readonly client: S3Client | null;
+  /** Signs upload URLs. Differs from `client` only in the host it signs for. */
+  private readonly signer: S3Client | null = null;
   private readonly bucket: string;
   private readonly publicBase: string;
 
@@ -182,35 +191,56 @@ export class MediaService {
       return;
     }
 
-    this.client = new S3Client({
-      endpoint,
+    const options = {
       region: process.env.S3_REGION ?? 'us-east-1',
       credentials: { accessKeyId, secretAccessKey },
-      // MinIO serves buckets as a path segment, not a subdomain.
+      // MinIO serves buckets as a path segment, not a subdomain. AWS S3 still
+      // accepts path-style requests too, so this is right for both.
       forcePathStyle: true,
-    });
+    };
+    this.client = new S3Client({ ...options, endpoint });
+
+    // The upload URL is used by the editor's BROWSER, and a presigned URL's
+    // signature covers its host. Inside docker the API reaches storage as
+    // http://minio:9000, which no browser can resolve, so upload URLs are
+    // signed for the public address instead: S3_PUBLIC_ENDPOINT when set,
+    // else the origin of the public bucket URL (path-style, so the bucket is
+    // its last path segment). Signing is local maths, so this client never
+    // makes a request of its own.
+    const publicEndpoint =
+      process.env.S3_PUBLIC_ENDPOINT ??
+      (this.publicBase.endsWith(`/${this.bucket}`)
+        ? this.publicBase.slice(0, -(this.bucket.length + 1))
+        : endpoint);
+    this.signer = new S3Client({ ...options, endpoint: publicEndpoint });
   }
 
   /** Turns a stored row into something with a usable `src`. */
   private resolve(asset: MediaAsset): ResolvedMedia {
-    const src = asset.storage_key
-      ? `${this.publicBase}/${asset.storage_key}`
-      : (asset.src ?? '');
     return {
       id: asset.id,
-      src,
+      src: `${this.publicBase}/${asset.storage_key}`,
       alt: asset.alt,
       ...(asset.title ? { title: asset.title } : {}),
       source: asset.source,
     };
   }
 
-  /** The media table as apps/web consumes it. */
+  /**
+   * The media apps/web consumes: only images some PUBLISHED content points at,
+   * so an upload that has not gone live yet is not listed to the world.
+   */
   async publicList(): Promise<ResolvedMedia[]> {
-    const rows = await this.db.mediaAssets.findAll();
-    return rows
-      .sort((a, b) => a.id.localeCompare(b.id))
-      .map((row) => this.resolve(row));
+    const referenced = new Set<string>();
+    const collect = (value: unknown): void => {
+      if (typeof value === 'string') referenced.add(value);
+      else if (Array.isArray(value)) value.forEach(collect);
+      else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+    };
+    for (const entry of await this.db.cmsEntries.findAll()) collect(entry.published);
+
+    const rows = await this.db.mediaAssets.findAll((row) => referenced.has(row.id));
+    return rows.sort((a, b) => a.id.localeCompare(b.id)).map((row) => this.resolve(row));
   }
 
   /** The library view: the full row plus its resolved src, newest first. */
@@ -231,7 +261,7 @@ export class MediaService {
     principal: AuthPrincipal,
     dto: CreateUploadUrlDto,
   ): Promise<{ url: string; storage_key: string; expires_in: number }> {
-    if (!this.client) {
+    if (!this.client || !this.signer) {
       throw new BadRequestException(
         'File storage is not configured on this server, so uploads are unavailable. Set S3_ENDPOINT and its credentials.',
       );
@@ -254,12 +284,14 @@ export class MediaService {
 
     const expiresIn = 300;
     const url = await getSignedUrl(
-      this.client,
+      this.signer,
       new PutObjectCommand({
         Bucket: this.bucket,
         Key: key,
         ContentType: dto.content_type,
         ContentLength: dto.byte_size,
+        // Keys are unique per upload, so the object never changes under its URL.
+        CacheControl: UPLOAD_CACHE_CONTROL,
       }),
       { expiresIn },
     );
@@ -268,21 +300,42 @@ export class MediaService {
     return { url, storage_key: key, expires_in: expiresIn };
   }
 
-  /** Called after the browser's PUT succeeds, to make the file a library row. */
+  /**
+   * Called after the browser's PUT succeeds, to make the file a library row.
+   *
+   * Type and size come from the object itself, not the request: the browser
+   * could claim anything, the bucket only holds what was actually signed for.
+   */
   async register(principal: AuthPrincipal, dto: RegisterAssetDto): Promise<MediaAsset> {
-    if (!dto.storage_key.startsWith('media/')) {
+    if (!ISSUED_KEY.test(dto.storage_key)) {
       throw new BadRequestException('That storage key was not issued by this server.');
     }
+    if (!this.client) throw new BadRequestException('File storage is not configured on this server.');
+    if (await this.db.mediaAssets.findOne((row) => row.storage_key === dto.storage_key)) {
+      throw new BadRequestException('That file is already in the library.');
+    }
+
+    let head;
+    try {
+      head = await this.client.send(
+        new HeadObjectCommand({ Bucket: this.bucket, Key: dto.storage_key }),
+      );
+    } catch {
+      throw new BadRequestException('The upload did not arrive. Try again.');
+    }
+    if (!UPLOAD_TYPES.includes(head.ContentType as (typeof UPLOAD_TYPES)[number])) {
+      throw new BadRequestException('Upload a JPG, PNG, WebP, AVIF or PDF.');
+    }
+
     const created = await this.db.mediaAssets.create({
       storage_key: dto.storage_key,
-      src: null,
       alt: dto.alt.trim(),
       title: dto.title?.trim() ?? null,
-      source: dto.source?.trim() ?? 'Enzo Interiors',
+      source: dto.source?.trim() ?? 'upload',
       width: dto.width ?? null,
       height: dto.height ?? null,
-      byte_size: dto.byte_size ?? null,
-      mime_type: dto.mime_type ?? null,
+      byte_size: head.ContentLength ?? null,
+      mime_type: head.ContentType ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
@@ -342,7 +395,7 @@ export class MediaService {
       );
     }
 
-    if (existing.storage_key && this.client) {
+    if (this.client) {
       try {
         await this.client.send(
           new DeleteObjectCommand({ Bucket: this.bucket, Key: existing.storage_key }),

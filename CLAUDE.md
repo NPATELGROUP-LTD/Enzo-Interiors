@@ -9,10 +9,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **v1 scope: the public website and the Admin CMS that runs it.**
 
 - `apps/web` — Next.js marketing site. Reads all of its content from the API.
-- `apps/admin` — Staff CRM, plus the **Website** screen: the CMS the client uses
-  to edit every word and image on the public site.
-- `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. Serves the CMS, the
-  published content bundle, and the existing CRM modules.
+- `apps/admin` — the Enzo Interiors admin. In v1: the CMS (Pages, then
+  Services, Recent work, Testimonials, Team, FAQs, Menu, Company), Settings
+  (`/settings`: live / coming soon + launch time, notification emails,
+  preview), search (Ctrl/⌘ K) and forgot/reset password. The CRM screens are still in
+  `src/pages` but unrouted (see `src/App.tsx`).
+- `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
+  (incl. forgot/reset password), media, the CMS (incl. the public
+  `GET /content/site` bundle, which carries the site's live/coming-soon
+  status), site settings and the public `POST /enquiries` (the site's three
+  forms, stored and emailed). The
+  CRM modules and their tables are kept but not mounted (`src/app.module.ts`).
+  The first admin is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 - `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up.
 
 `packages/` was removed. Each app keeps a local copy of the types it consumes,
@@ -44,9 +52,6 @@ enzo-interiors/
 │   ├── admin/          # React/Vite SPA — Admin/Staff CRM Portal (PWA)
 │   ├── portal/         # React/Vite SPA — Client self-service Portal (PWA)
 │   └── api/            # NestJS — sole source of business logic, DB/Auth/Storage access
-├── packages/
-│   ├── shared/         # TS types, Zod schemas, Prisma types, API client
-│   └── ui/             # Design system components (used by admin + portal only)
 └── docs/               # Architecture, PRD/TRD, implementation plan, schema docs
 ```
 
@@ -83,84 +88,62 @@ served to the admin, which generates its forms from them plus the shape of the
 content itself. That is why adding a paragraph to a page needs no code change
 in either app.
 
+**Images:** every site image lives in the public bucket, the shipped ones
+included. `media_assets.storage_key` is required; the URL is
+`S3_PUBLIC_BASE_URL/key`. The files the site ships with (photos, logos, the
+432 hero frames, the placeholders) live in `apps/api/seed-media/` and are
+uploaded under `site/` by `npm run cms:import` (skips objects already there).
+`apps/web/public` holds no content images — only the app's own icons.
+
+**Content import:** `cms:import` never overwrites an edited entry, but it
+*adds* keys that `apps/web/src/data` has and a page/company entry lacks. So a
+new section in the shipped JSON reaches existing databases on the next import.
+
+**Site status:** `site_settings` (one row, `id='site'`): `live` / `coming_soon`,
+optional `launch_at`, and `notification_emails`. `isLive()` in
+`apps/web/src/lib/content` is the one rule (live, or launch time passed); it
+gates the layout, robots, sitemap and llms.txt. Editors preview a gated site
+through a 10-minute token → Next draft mode.
+
+**Email:** `MailService` (core) over SMTP; unset `SMTP_HOST` = logged, not sent.
+Locally, `COMPOSE_PROFILES=dev` runs Mailpit (UI on :8025).
+
+**Sessions:** JWTs carry `tv` = `staff_users.token_version`; `JwtAuthGuard`
+re-reads the staff row per request, so a password change or reset signs out
+every other session immediately.
+
 **Critical rule:** `quote_line_items.unit_price` is a point-in-time snapshot — price changes never retroactively alter historical quotes.
 
 For the full schema, see `docs/Enzo_Interiors_Backend_Schema_v2.0.md`.
 
 ---
 
-## Tech Stack & Commands
+## Commands
 
-**Note:** The project is at boilerplate stage. The following assumes pnpm monorepo setup is complete. Once package.json files are added to each app/package, these commands will work:
+Each app installs and runs from its own directory with npm. PostgreSQL and
+MinIO only ever run in Docker (`docker-compose.yml`); there is no host database.
 
-### Install & Setup
 ```bash
-# Install all workspace dependencies
-pnpm install
+# Everything, built as deployed (reads the root .env)
+docker compose up -d --build --wait
+docker compose run --rm seed              # import the site's copy into the CMS
+docker compose down --volumes             # wipe DB + uploads, start from nothing
 
-# Reinstall clean (including lock file)
-pnpm install --force
+# Dev: DB + storage in Docker, apps on the host
+docker compose up -d --wait postgres minio minio-init
+cd apps/api   && npm ci && npm run db:setup && npm run dev   # :4000
+cd apps/admin && npm ci && npm run dev                       # :5174
+cd apps/web   && npm ci && npm run dev                       # :3000
 ```
 
-### Development
-```bash
-# Run all apps in dev mode (watch, hot-reload)
-pnpm dev
+| App | Check |
+|---|---|
+| `apps/api` | `npm run typecheck`, `npm run build` |
+| `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
+| `apps/web` | `npm run typecheck`, `npm run lint`, `npm run build` |
 
-# Run a specific app
-pnpm --filter=web dev
-pnpm --filter=admin dev
-pnpm --filter=portal dev
-pnpm --filter=api dev
-
-# Generate Prisma client after schema changes
-pnpm --filter=api prisma generate
-pnpm --filter=api prisma migrate dev --name <migration_name>
-```
-
-### Building
-```bash
-# Build all apps
-pnpm build
-
-# Build a specific app
-pnpm --filter=web build
-pnpm --filter=api build
-```
-
-### Type Checking & Linting
-```bash
-# TypeScript check across all workspaces
-pnpm typecheck
-
-# ESLint check
-pnpm lint
-
-# Fix ESLint issues
-pnpm lint:fix
-```
-
-### Testing (once test suites are set up)
-```bash
-# Run all tests
-pnpm test
-
-# Run tests for a specific app
-pnpm --filter=api test
-pnpm --filter=api test:e2e
-
-# Run tests in watch mode
-pnpm test:watch
-```
-
-### Deployment
-```bash
-# Start production build
-pnpm --filter=web start
-pnpm --filter=admin start
-pnpm --filter=portal start
-pnpm --filter=api start
-```
+Schema changes: edit `apps/api/prisma/schema.prisma`, then
+`npx prisma migrate dev --name <name>` in `apps/api`.
 
 ---
 
@@ -181,8 +164,8 @@ These are final product decisions, not temporary shortcuts:
 - **RBAC via Guards:** Authentication and role-scoping (Client / Designer-Installer / Admin) enforced centrally via NestJS Guards, not scattered checks.
 - **Separate Login Flows:** `/auth/admin/login` for staff, `/auth/portal/login` for clients — different JWT issuers, different roles.
 - **S3 as Sole Storage:** Frontends never hold storage credentials. API builds signed URLs at runtime.
-- **PWA for Admin/Portal Only:** Public site is never indexed and has no PWA requirements. Admin + Portal both ship installable Web App Manifest + Workbox service worker.
-- **Design System Split:** Public site uses its own component directory. Admin + Portal share `packages/ui` (more overlap in dashboards, sidebars, etc.).
+- **PWA for Admin/Portal Only:** The public site is indexed once Live (robots, sitemap, JSON-LD, `/llms.txt`, generated OG cards) and has no PWA requirements. Admin + Portal both ship installable Web App Manifest + Workbox service worker.
+- **Design System Split:** Public site uses its own component directory. Admin and Portal follow the same UI/UX brief, each with its own copy of the components.
 
 ---
 
@@ -211,12 +194,6 @@ React/Vite client portal. Modules: Dashboard, My Projects (with approval workflo
 
 ### apps/api/
 NestJS backend. All CRUD, auth (JWT + RBAC Guards), WebSocket gateway (messages), S3 signed URL generation. No frontend talks to DB or S3 directly.
-
-### packages/shared/
-TS types, Zod schemas, Prisma types (generated from `apps/api`), API client library.
-
-### packages/ui/
-Design system components (buttons, forms, cards, tables, dialogs, etc.). Used by admin + portal only. Public site has its own components. Token set per `docs/Enzo_Interiors_UI_UX_Brief_v6.md`: Inter font only, green-900 (#173C30) primary, 8px control corners, 12px card corners, WCAG-AA contrast.
 
 ---
 
@@ -251,12 +228,10 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 2. **Implement across app layers:**
    - Update `docs/Enzo_Interiors_Backend_Schema_v2.0.md` if schema changes.
    - Implement API endpoint in `apps/api`, add RBAC Guard.
-   - Implement UI in relevant app(s) (web, admin, portal, or shared in packages/ui).
-   - Add types to `packages/shared`.
+   - Implement UI in the relevant app(s); each keeps its own local types.
 
 3. **Test locally:**
-   - Type-check: `pnpm typecheck`
-   - Lint: `pnpm lint`
+   - Run the app's checks (see Commands).
    - Run unit/e2e tests if available.
    - Manual test the feature in browser/app.
 
@@ -283,7 +258,7 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 - ✅ Store all monetary values as `decimal`, never `float`.
 - ✅ Build S3 signed URLs at runtime in the API; never return unsigned URLs or pre-signed URLs to cache.
 - ✅ Reference S3 objects by key only in the database; never store full URLs or credentials.
-- ✅ Use Prisma types from `packages/shared` for frontend code.
+- ✅ Keep each frontend's API types in its own `src/types`, mirroring what the API serves.
 - ✅ Update documentation (especially `docs/architecture.md` or the schema) when making structural changes.
 - ✅ Test RBAC with multiple roles (verify Designer/Installer cannot see other team members' assigned projects).
 
@@ -333,20 +308,10 @@ See `docs/Implementation_Plan_Enzo_Interiors.md` for full deployment & QA checkl
 
 ## Setup Checklist (First-Time Development)
 
-Before starting feature work, ensure:
-
-- [ ] Clone repo: `git clone ...`
-- [ ] Install pnpm (or use `npm install -g pnpm`).
-- [ ] Install workspace dependencies: `pnpm install`
-- [ ] Set up `.env.local` in each app with:
-  - API base URL
-  - S3 credentials (if local MinIO) / bucket names
-  - JWT secret (if working on auth)
-  - Any external service keys
-- [ ] Start PostgreSQL (local Docker or your setup).
-- [ ] Seed database if needed: `pnpm --filter=api prisma db seed`
-- [ ] Start dev server: `pnpm dev`
-- [ ] Verify each app loads without errors.
+- [ ] `cp .env.example .env` at the root and fill in the secrets.
+- [ ] Copy each app's `.env.example` (`apps/api/.env`, `apps/admin/.env.local`, `apps/web/.env.local`).
+- [ ] `docker compose up -d --wait postgres minio minio-init`
+- [ ] `npm ci && npm run db:setup` in `apps/api`, then start the three apps.
 
 ---
 
@@ -360,4 +325,4 @@ Before starting feature work, ensure:
 
 ---
 
-**Last updated:** August 2026 | **Project Status:** Boilerplate, docs complete, apps ready for implementation.
+**Last updated:** September 2026 | **Project Status:** v1 (public site + admin CMS) implemented; CRM and portal kept in code, not mounted.

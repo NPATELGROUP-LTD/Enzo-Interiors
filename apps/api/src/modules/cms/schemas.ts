@@ -87,10 +87,21 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     fixed: true,
     titleField: 'title',
     listColumns: [],
-    mediaKeys: ['imageId', 'ogImageId', 'backgroundId', 'posterId'],
+    mediaKeys: [
+      'imageId',
+      'ogImageId',
+      'backgroundId',
+      'backgroundImageId',
+      'posterId',
+      'portraitId',
+      'logoId',
+    ],
     mediaListKeys: ['imageIds', 'galleryIds'],
     longTextKeys: COMMON_LONG_TEXT,
-    references: {},
+    // Page copy points into the shared collections in a few places: the
+    // hero's rooms at services, the booking panel at a testimonial, the About
+    // colophon at a team member. A dropdown there beats typing an id.
+    references: { serviceId: 'services', testimonialId: 'testimonials', authorId: 'team' },
     readonlyKeys: ['id'],
   },
   {
@@ -112,10 +123,10 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
   },
   {
     collection: 'portfolio',
-    label: 'Portfolio',
+    label: 'Recent work',
     singular: 'project',
     description:
-      'Completed projects shown in the gallery. The discipline shown on each card is read from the linked service, so it can never disagree with it.',
+      'Completed projects, shown on the Portfolio page and in Recent work on the home page. The discipline shown on each card is read from the linked service, so it can never disagree with it.',
     fixed: false,
     titleField: 'title',
     listColumns: ['location', 'year', 'isPublished'],
@@ -173,7 +184,7 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
   },
   {
     collection: 'navigation',
-    label: 'Navigation',
+    label: 'Menu',
     singular: 'menu item',
     description:
       'The header menu and the jump links inside each panel. The Services panel fills itself from the services above, so it is not listed here.',

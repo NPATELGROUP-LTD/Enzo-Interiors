@@ -9,25 +9,28 @@ const nextConfig: NextConfig = {
   // Allow LAN devices (e.g. homelab test VMs/phones) to load dev-mode
   // Next.js chunks. Dev-only — has no effect on production builds.
   allowedDevOrigins: ['10.20.0.195'],
-  // apps/web never talks to the DB or S3 directly — all data comes from
-  // apps/api. Images uploaded through the CMS are served from the public
-  // object-storage bucket, whose host differs per environment, so it is read
-  // from the same variable the API signs uploads against rather than hard-coded
-  // (see docs/Enzo_Interiors_Storage_Schema_v1.md).
-  images: {
-    remotePatterns: process.env.NEXT_PUBLIC_MEDIA_BASE_URL
-      ? [
+  // Every image is served straight from the public media bucket (plain <img>,
+  // no next/image), so there is no image config to keep in step with it.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()' },
+          // No script-src: Next's inline hydration scripts would need a nonce,
+          // which would make every page dynamic. These are the directives that
+          // cost nothing: no framing (clickjacking), no <base> hijack, no
+          // plugins, and forms may only post to this origin.
           {
-            protocol: new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL).protocol.replace(
-              ':',
-              '',
-            ) as 'http' | 'https',
-            hostname: new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL).hostname,
-            port: new URL(process.env.NEXT_PUBLIC_MEDIA_BASE_URL).port || undefined,
-            pathname: '/**',
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'",
           },
-        ]
-      : [],
+        ],
+      },
+    ];
   },
 };
 

@@ -10,8 +10,8 @@
  *
  * Prototype-phase deviations from the schema doc, all deliberate:
  *   - `uuid` columns are plain `string` ids. The seed uses readable stable ids
- *     ("cli_sarah_jones") rather than random UUIDs so the JSON files in
- *     apps/api/data/ can be read and cross-referenced by a human.
+ *     ("cli_sarah_jones") rather than random UUIDs so demo records can be
+ *     read and cross-referenced by a human.
  *   - `decimal(n,2)` columns are `number`, always rounded to 2dp on write via
  *     common/util/money.ts. See that file for why this is tolerable here and
  *     why it is NOT how the Postgres schema should be defined.
@@ -82,6 +82,12 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const SUBMISSION_STATUSES = ['New', 'Contacted', 'Converted', 'Archived'] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 
+export const ENQUIRY_KINDS = ['contact', 'quote', 'booking'] as const;
+export type EnquiryKind = (typeof ENQUIRY_KINDS)[number];
+
+export const SITE_STATUSES = ['live', 'coming_soon'] as const;
+export type SiteStatus = (typeof SITE_STATUSES)[number];
+
 /* -------------------------------------------------------------------------- */
 /* Tables                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -95,14 +101,14 @@ export interface BaseRecord {
 export interface StaffUser extends BaseRecord {
   name: string;
   email: string;
-  /**
-   * MOCK ONLY. This holds a PLAINTEXT password, not a hash, per the prototype
-   * brief. The column keeps its documented name so the Postgres migration does
-   * not need a rename, but the value must be replaced with a real bcrypt or
-   * argon2 hash before this leaves the prototype. NOT PRODUCTION-SAFE.
-   */
+  /** bcrypt hash (AuthService). */
   password_hash: string;
   role: StaffRole;
+  /** Bumped on password change/reset; JWTs carrying an older one are refused. */
+  token_version: number;
+  /** sha256 of the emailed reset token. The token itself is never stored. */
+  reset_token_hash: string | null;
+  reset_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -319,6 +325,9 @@ export interface ContactSubmission extends BaseRecord {
   service_interest: string | null;
   message: string;
   status: SubmissionStatus;
+  kind: EnquiryKind;
+  /** The form's extra fields (tier, room, preferred date...). */
+  details: Record<string, string> | null;
   created_at: string;
 }
 
@@ -397,14 +406,13 @@ export interface CmsEntry extends BaseRecord {
 /**
  * An image or file the CMS can point at.
  *
- * `storage_key` is an S3 object key and NEVER a URL — read URLs are signed at
- * request time by the storage service and are never stored or cached. `src`
- * is the escape hatch for the assets that shipped inside apps/web/public and
- * were never uploaded; exactly one of the two is set.
+ * `storage_key` is an object key in the PUBLIC bucket and never a URL; the
+ * URL is built from S3_PUBLIC_BASE_URL when the row is served. `source` says
+ * where the file came from: "upload", "site", or "unsplash"/"randomuser" for a
+ * placeholder still to be replaced.
  */
 export interface MediaAsset extends BaseRecord {
-  storage_key: string | null;
-  src: string | null;
+  storage_key: string;
   alt: string;
   title: string | null;
   source: string;
@@ -414,4 +422,14 @@ export interface MediaAsset extends BaseRecord {
   mime_type: string | null;
   created_at: string;
   updated_at: string;
+}
+
+/** General site settings. A single row, id "site". */
+export interface SiteSettings extends BaseRecord {
+  status: SiteStatus;
+  /** Once set and passed, the site is live whatever `status` says. */
+  launch_at: string | null;
+  notification_emails: string[];
+  updated_at: string;
+  updated_by: string | null;
 }

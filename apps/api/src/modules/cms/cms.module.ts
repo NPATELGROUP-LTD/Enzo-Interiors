@@ -11,16 +11,19 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
-import { IsArray, IsInt, IsObject, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { IsInt, IsObject, IsOptional, IsString, Matches } from 'class-validator';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { CMS_COLLECTIONS, CmsCollection, CmsEntry } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { RevalidateService } from '../../core/revalidate.service';
 import { DatabaseService } from '../../data/database.service';
 import { MediaModule, MediaService } from '../media/media.module';
-import { CMS_SCHEMAS, schemaFor } from './schemas';
+import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
+import { CMS_SCHEMAS, CollectionSchema, schemaFor } from './schemas';
 
 /* -------------------------------------------------------------------------- */
 /* DTOs                                                                       */
@@ -54,63 +57,77 @@ export class CreateEntryDto {
   sort_order?: number;
 }
 
-export class ReorderDto {
-  @IsArray()
-  @IsString({ each: true })
-  @MaxLength(200, { each: true })
-  /** Slugs in their new order. */
-  slugs!: string[];
-}
-
-/* -------------------------------------------------------------------------- */
-/* Revalidation                                                               */
-/* -------------------------------------------------------------------------- */
+/** Link-valued keys: anything named *href / *url, plus the nav's paths. */
+const LINK_KEY = /(href|url)$/i;
+const LINK_LIST_KEYS = new Set(['pageLinks', 'path']);
+/** Where a link on the public site may point. No javascript:, no data:, no //host. */
+const SAFE_LINK = /^(https:\/\/|mailto:|tel:|\/(?!\/)|#)/i;
+const MAP_EMBED = 'https://www.google.com/maps/embed';
 
 /**
- * Tells apps/web that the published content changed.
- *
- * The public site renders statically and re-reads content on a timer, which is
- * what keeps it fast and keeps it up if this API is down. Publishing therefore
- * has to poke it, or an edit would sit invisible until the timer expired.
- *
- * A revalidation failure must never fail the publish: the content IS published,
- * and reporting an error for work that succeeded would push the editor into
- * publishing again. The site self-heals on its next scheduled revalidation, so
- * the failure is logged and swallowed.
+ * Every link in a body must be safe to render as an href or iframe src.
+ * Walks the whole tree, so a link nested in a list of cards is checked too.
  */
-@Injectable()
-export class RevalidateService {
-  private readonly logger = new Logger(RevalidateService.name);
-
-  async ping(reason: string): Promise<void> {
-    const url = process.env.WEB_REVALIDATE_URL;
-    const secret = process.env.REVALIDATE_SECRET;
-    if (!url || !secret) {
-      this.logger.warn(
-        `Published (${reason}) but WEB_REVALIDATE_URL / REVALIDATE_SECRET are unset, so the public site will not update until its next scheduled revalidation.`,
-      );
-      return;
+function assertSafeLinks(value: unknown, key = ''): void {
+  if (Array.isArray(value)) {
+    for (const item of value) assertSafeLinks(item, key);
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [k, v] of Object.entries(value)) assertSafeLinks(v, k);
+    return;
+  }
+  if (typeof value !== 'string' || value === '') return;
+  if (key === 'embedUrl') {
+    if (!value.startsWith(MAP_EMBED)) {
+      throw new BadRequestException(`The map must be a Google Maps embed link (${MAP_EMBED}...).`);
     }
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-revalidate-secret': secret },
-        body: JSON.stringify({ reason }),
-        signal: AbortSignal.timeout(10_000),
-      });
-      if (!response.ok) {
-        this.logger.warn(`Revalidation returned ${response.status} for ${reason}`);
-        return;
-      }
-      this.logger.log(`Revalidated the public site (${reason})`);
-    } catch (error) {
-      this.logger.warn(
-        `Could not reach the public site to revalidate (${reason}): ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
+    return;
+  }
+  if ((LINK_KEY.test(key) || LINK_LIST_KEYS.has(key)) && !SAFE_LINK.test(value)) {
+    throw new BadRequestException(
+      `"${value.slice(0, 80)}" is not a link the site can use. Start it with https://, /, mailto: or tel:.`,
+    );
+  }
+}
+
+/** A search hit, for the admin's command palette. */
+export interface CmsSearchHit {
+  collection: CmsCollection;
+  slug: string;
+  title: string;
+  /** The top-level key the match sits under, e.g. a page section. */
+  section: string | null;
+  snippet: string;
+}
+
+/** The text either side of a match, flattened to one line. */
+function snippetAround(text: string, index: number, length: number): string {
+  const start = Math.max(0, index - 40);
+  const end = Math.min(text.length, index + length + 60);
+  return (start > 0 ? '…' : '') + text.slice(start, end).replace(/\s+/g, ' ').trim() + (end < text.length ? '…' : '');
+}
+
+/** The first string under `value` containing `needle`, or null. */
+function findText(value: unknown, needle: string): { text: string; index: number } | null {
+  if (typeof value === 'string') {
+    const index = value.toLowerCase().indexOf(needle);
+    return index === -1 ? null : { text: value, index };
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const hit = findText(item, needle);
+      if (hit) return hit;
+    }
+    return null;
+  }
+  if (value && typeof value === 'object') {
+    for (const item of Object.values(value)) {
+      const hit = findText(item, needle);
+      if (hit) return hit;
     }
   }
+  return null;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -126,6 +143,8 @@ export interface CmsEntrySummary {
   title: string;
   /** Extra columns named by the collection's schema, already stringified. */
   columns: Record<string, string>;
+  /** The first picture on the entry, as a media id, for the list's thumbnail. */
+  image: string | null;
   published_at: string | null;
   updated_at: string;
   updated_by: string | null;
@@ -153,6 +172,16 @@ function columnText(body: Record<string, unknown>, key: string): string {
   return String(value);
 }
 
+/** The first media id in the keys the schema marks as pictures. */
+function firstImage(body: Record<string, unknown>, schema: CollectionSchema): string | null {
+  for (const key of [...schema.mediaKeys, ...schema.mediaListKeys]) {
+    const value = body[key];
+    const id = Array.isArray(value) ? value[0] : value;
+    if (typeof id === 'string' && id) return id;
+  }
+  return null;
+}
+
 @Injectable()
 export class CmsService {
   constructor(
@@ -160,6 +189,7 @@ export class CmsService {
     private readonly activity: ActivityLogService,
     private readonly revalidate: RevalidateService,
     private readonly media: MediaService,
+    private readonly siteSettings: SiteSettingsService,
   ) {}
 
   private assertCollection(collection: string): CmsCollection {
@@ -195,6 +225,7 @@ export class CmsService {
         columns: Object.fromEntries(
           schema.listColumns.map((column) => [column, columnText(entry.draft, column)]),
         ),
+        image: firstImage(entry.draft, schema),
         published_at: entry.published_at,
         updated_at: entry.updated_at,
         updated_by: entry.updated_by,
@@ -245,6 +276,7 @@ export class CmsService {
     );
     if (clash) throw new BadRequestException(`A ${schema.singular} called "${dto.slug}" already exists.`);
 
+    assertSafeLinks(dto.draft);
     const existing = await this.db.cmsEntries.findAll((row) => row.collection === key);
     const created = await this.db.cmsEntries.create({
       collection: key,
@@ -280,6 +312,7 @@ export class CmsService {
     // Readonly keys are enforced here rather than trusted from the client: the
     // id doubles as a route slug and as the join key other collections point
     // at, so a renamed id would silently orphan every reference to it.
+    assertSafeLinks(dto.draft);
     const draft = { ...dto.draft };
     for (const key of schema.readonlyKeys) {
       if (key in entry.draft) draft[key] = entry.draft[key];
@@ -421,25 +454,48 @@ export class CmsService {
     return holders;
   }
 
-  async reorder(principal: AuthPrincipal, collection: string, dto: ReorderDto): Promise<void> {
-    const key = this.assertCollection(collection);
-    const rows = await this.db.cmsEntries.findAll((row) => row.collection === key);
-    const bySlug = new Map(rows.map((row) => [row.slug, row]));
-
-    for (const [index, slug] of dto.slugs.entries()) {
-      const row = bySlug.get(slug);
-      if (!row) throw new BadRequestException(`No ${collection} entry called "${slug}"`);
-      if (row.sort_order !== index) {
-        await this.db.cmsEntries.update(row.id, { sort_order: index });
-      }
+  /**
+   * Drafts and media matching `q`, for the admin's search palette.
+   *
+   * ponytail: an in-memory scan of every draft. Fine for the ~50 entries a
+   * site this size has; move to Postgres full-text search past a few thousand.
+   */
+  async search(q: string): Promise<{ entries: CmsSearchHit[]; media: Array<{ id: string; alt: string }> }> {
+    const needle = q.trim().toLowerCase();
+    if (needle.length < 2 || needle.length > 100) {
+      throw new BadRequestException('Search for 2 to 100 characters.');
     }
-    await this.activity.record({
-      principal,
-      action: 'cms_reorder',
-      targetTable: 'cms_entries',
-      targetId: key,
-      details: { collection: key, count: dto.slugs.length },
-    });
+
+    const entries: CmsSearchHit[] = [];
+    for (const row of await this.db.cmsEntries.findAll()) {
+      const schema = schemaFor(row.collection);
+      if (!schema) continue;
+      const title = columnText(row.draft, schema.titleField) || row.slug;
+      if (title.toLowerCase().includes(needle)) {
+        entries.push({ collection: row.collection, slug: row.slug, title, section: null, snippet: title });
+        continue;
+      }
+      for (const [section, value] of Object.entries(row.draft)) {
+        const hit = findText(value, needle);
+        if (!hit) continue;
+        entries.push({
+          collection: row.collection,
+          slug: row.slug,
+          title,
+          section: row.collection === 'pages' ? section : null,
+          snippet: snippetAround(hit.text, hit.index, needle.length),
+        });
+        break;
+      }
+      if (entries.length >= 30) break;
+    }
+
+    const media = (await this.db.mediaAssets.findAll())
+      .filter((row) => [row.id, row.alt, row.title ?? ''].some((v) => v.toLowerCase().includes(needle)))
+      .slice(0, 10)
+      .map((row) => ({ id: row.id, alt: row.alt }));
+
+    return { entries, media };
   }
 
   /* ---- The public bundle ---- */
@@ -478,6 +534,7 @@ export class CmsService {
       faqs: of('faqs'),
       navigation: of('navigation'),
       pages,
+      site: await this.siteSettings.publicStatus(),
       generatedAt: new Date().toISOString(),
     };
   }
@@ -502,6 +559,11 @@ export class CmsController {
   @Get('overview')
   overview() {
     return this.cms.overview();
+  }
+
+  @Get('search')
+  search(@Query('q') q = '') {
+    return this.cms.search(q);
   }
 
   @Get('collections/:collection')
@@ -559,16 +621,6 @@ export class CmsController {
     return this.cms.publishAll(principal);
   }
 
-  @Put('collections/:collection/order')
-  @Roles('Admin')
-  reorder(
-    @CurrentUser() principal: AuthPrincipal,
-    @Param('collection') collection: string,
-    @Body() dto: ReorderDto,
-  ) {
-    return this.cms.reorder(principal, collection, dto);
-  }
-
   @Delete('collections/:collection/:slug')
   @Roles('Admin')
   async remove(
@@ -594,9 +646,9 @@ export class PublicSiteController {
 }
 
 @Module({
-  imports: [MediaModule],
+  imports: [MediaModule, SiteSettingsModule],
   controllers: [CmsController, PublicSiteController],
-  providers: [CmsService, RevalidateService],
+  providers: [CmsService],
   exports: [CmsService],
 })
 export class CmsModule {}

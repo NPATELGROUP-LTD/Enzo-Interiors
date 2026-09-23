@@ -2,7 +2,9 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { CookieBanner } from "@/components/legal/CookieBanner";
 import { PageTransition } from "@/components/shared/PageTransition";
+import { JsonLd } from "@/components/seo/JsonLd";
 import { getCompany, getNavigation, getPage } from "@/lib/content";
+import { businessLd, websiteLd } from "@/lib/structured-data";
 // Ported from Boilerplate:src/app/components/layout/Layout.tsx. That file
 // used react-router's <Outlet/> + a useScrollToTop hook; the App Router
 // gives us route nesting and scroll restoration natively, so this layout
@@ -38,6 +40,7 @@ export default async function MarketingLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <JsonLd data={[businessLd(company, company.logos.onLight.src), websiteLd()]} />
       {/* WCAG 2.4.1 (Bypass Blocks). The header is a five-item dock plus a
           hover panel, and on the homepage the first thing after it is a
           scroll-scrubbed sequence — a keyboard user should not have to travel

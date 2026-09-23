@@ -30,6 +30,9 @@
 // way. They used to be a second hand-written copy in this file, which is a
 // duplicate waiting to drift the first time one of the answers is corrected.
 import type { Metadata } from "next";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { pageMetadata } from "@/lib/seo";
+import { faqLd } from "@/lib/structured-data";
 import { IndexHero } from "@/components/services/services-index/IndexHero";
 import { IndexPricingScale } from "@/components/services/services-index/IndexPricingScale";
 import { IndexConstants } from "@/components/services/services-index/IndexConstants";
@@ -38,8 +41,8 @@ import { IndexClosing } from "@/components/services/services-index/IndexClosing"
 import { getCompany, getGeneralFaqs, getPage, getServiceDetails } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { metadata } = await getPage("services");
-  return metadata;
+  const metadata = (await getPage("services")).metadata;
+  return pageMetadata({ ...metadata, path: "/services", ogKey: "services" });
 }
 
 export default async function ServicesPage() {
@@ -53,6 +56,7 @@ export default async function ServicesPage() {
 
   return (
     <div>
+      {faqs.length ? <JsonLd data={faqLd(faqs)!} /> : null}
       <IndexHero services={services} content={content.hero} roomPlan={shared.roomPlan} />
       <IndexPricingScale services={services} content={content.pricing} />
       <IndexConstants content={content.constants} />

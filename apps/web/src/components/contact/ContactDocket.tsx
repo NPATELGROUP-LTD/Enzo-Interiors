@@ -43,7 +43,9 @@ import { Check } from "lucide-react";
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { toast } from "sonner";
+import { Honeypot } from "@/components/shared/Honeypot";
 import { useGSAP } from "@/hooks/useGSAP";
+import { sendEnquiry } from "@/lib/enquiry";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { fill, type ContactPageContent } from "@/lib/content";
@@ -122,6 +124,8 @@ export function ContactDocket({
   const [values, setValues] = useState<FieldState>(EMPTY);
   const [errors, setErrors] = useState<Partial<Record<FieldName, string>>>({});
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [trap, setTrap] = useState("");
   /**
    * Raised by a failed submit, consumed by the effect below. A ref rather
    * than state: it is a one-shot instruction to the DOM, not something the
@@ -193,13 +197,30 @@ export function ContactDocket({
       return;
     }
 
-    // ── The mock ──
-    // Replace with a POST to the API's enquiry endpoint. Everything around
-    // it is already the behaviour a real submit wants.
-    setSent(true);
-    setValues(EMPTY);
-    setErrors({});
-    toast.success(content.toast);
+    if (sending) return;
+    setSending(true);
+    const room = rooms.find((option) => option.value === values.room)?.label ?? values.room;
+    sendEnquiry(
+      {
+        kind: "contact",
+        name: values.name,
+        email: values.email,
+        phone: values.phone,
+        message: values.message,
+        details: { service: room, area: values.place },
+        website: trap,
+      },
+      content.errorToast,
+    )
+      .then(() => {
+        setSent(true);
+        setValues(EMPTY);
+        setErrors({});
+        toast.success(content.toast);
+      })
+      // The form keeps what they typed, so trying again costs nothing.
+      .catch((error: Error) => toast.error(error.message))
+      .finally(() => setSending(false));
   };
 
   useGSAP(sectionRef, (section, reduced) => {
@@ -572,9 +593,12 @@ export function ContactDocket({
                     belongs, while a phone gets it directly under the last
                     field with the caveat beneath it. */}
                 <div className="mt-9 flex flex-col gap-4 border-t border-border/70 pt-7 sm:flex-row-reverse sm:items-center sm:justify-between">
+                  <Honeypot value={trap} onChange={setTrap} />
                   <button
                     type="submit"
-                    className="w-full shrink-0 rounded-full bg-primary px-10 py-4 text-[14.5px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 sm:w-auto"
+                    disabled={sending}
+                    aria-busy={sending}
+                    className="w-full shrink-0 rounded-full bg-primary px-10 py-4 text-[14.5px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60 sm:w-auto"
                   >
                     {content.submitLabel}
                   </button>

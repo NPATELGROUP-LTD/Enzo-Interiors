@@ -40,9 +40,7 @@ export class RolesGuard implements CanActivate {
     }
 
     if (!required.includes(principal.role)) {
-      throw new ForbiddenException(
-        `This action requires one of: ${required.join(', ')}. Your role is ${principal.role}.`,
-      );
+      throw new ForbiddenException('Your account does not have access to this.');
     }
     return true;
   }

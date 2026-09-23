@@ -1,0 +1,4 @@
+node_modules
+dist
+# Uploaded to the bucket by the seed service, never part of the image.
+seed-media

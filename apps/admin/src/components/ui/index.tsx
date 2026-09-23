@@ -200,7 +200,7 @@ export function StatusTag({ tone = 'neutral', children }: { tone?: StatusTone; c
 /* Form controls                                                              */
 /* -------------------------------------------------------------------------- */
 
-const FIELD_BASE =
+export const FIELD_BASE =
   'w-full min-h-11 rounded-[7px] border border-border bg-surface px-3 text-ink shadow-card placeholder:text-ink-muted/70 pointer-fine:min-h-9 ' +
   'transition-[border-color,box-shadow] duration-[160ms] focus:border-green-900 focus:ring-[3px] focus:ring-focus-ring/35 focus-visible:outline-none disabled:opacity-60';
 

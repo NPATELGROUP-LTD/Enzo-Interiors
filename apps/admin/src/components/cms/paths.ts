@@ -42,7 +42,11 @@ export function removeAt(root: unknown, path: Path): unknown {
   );
 
   if (typeof last === 'number' && Array.isArray(parent)) {
-    return setIn(root, parentPath, parent.filter((_, index) => index !== last));
+    return setIn(
+      root,
+      parentPath,
+      parent.filter((_, index) => index !== last),
+    );
   }
   if (typeof last === 'string' && parent && typeof parent === 'object') {
     const { [last]: _dropped, ...rest } = parent as Record<string, unknown>;
@@ -73,31 +77,23 @@ export function humanize(key: string): string {
 export const DETAILS_SECTION = '__details';
 
 /**
- * Splits an entry into the panes the editor navigates between.
+ * Splits a page into the panes the editor steps through.
  *
  * A page body is a handful of named sections — `hero`, `process`,
- * `investment` — plus a few loose scalars like `title`. Rendering all of it
- * at once means scrolling ten kilobytes of nested form to change one
- * paragraph, so each section becomes its own pane.
+ * `investment` — plus a few loose scalars. Each section gets a pane; the
+ * scalars share one "Page details" pane, because fifteen one-line entries in
+ * the outline would be a worse map than none.
  *
- * The scalars do NOT each get a pane. Fifteen one-line entries in the rail
- * would be a worse map than no rail at all, so they collapse into a single
- * "Details" pane at the top. An entry that is mostly scalars — a testimonial,
- * a FAQ — therefore ends up with one pane, and the caller renders it flat.
- *
- * Sections come back alphabetical, which is a choice rather than laziness.
- * The order the page was written in does not survive the round trip: content
- * is stored in a `jsonb` column, and Postgres orders a jsonb object's keys by
- * key length and then alphabetically, so `home` arrives as hero, work,
- * invite, voices, process, workshop, heroStatic, servicesBoard. There is no
- * document order left to preserve, and length-then-alpha is arbitrary to a
- * human looking for a section by name. Alphabetical at least puts "Hero" next
- * to "Hero static" and "Services board" under S.
+ * `order` is the order the sections appear on the live page (see guide.ts).
+ * It has to be supplied because the content cannot say it: jsonb stores an
+ * object's keys by length and then alphabetically, so `home` arrives as hero,
+ * work, invite, voices... Sections the guide does not know go last,
+ * alphabetically, so a new one still shows up.
  */
-export function splitSections(body: Record<string, unknown>): {
-  scalars: string[];
-  sections: string[];
-} {
+export function splitSections(
+  body: Record<string, unknown>,
+  order: string[] = [],
+): { scalars: string[]; sections: string[] } {
   const scalars: string[] = [];
   const sections: string[] = [];
   for (const [key, value] of Object.entries(body)) {
@@ -105,7 +101,89 @@ export function splitSections(body: Record<string, unknown>): {
     if (value !== null && typeof value === 'object') sections.push(key);
     else scalars.push(key);
   }
-  return { scalars, sections: sections.sort((a, b) => humanize(a).localeCompare(humanize(b))) };
+  const place = (key: string) => {
+    const at = order.indexOf(key);
+    return at === -1 ? order.length : at;
+  };
+  return {
+    scalars,
+    sections: sections.sort((a, b) => place(a) - place(b) || a.localeCompare(b)),
+  };
+}
+
+/**
+ * Keys that read top-down the way the site shows them: the heading before the
+ * paragraph under it. Everything else follows, grouped by kind.
+ */
+const READING_ORDER = [
+  'title',
+  'name',
+  'clientName',
+  'q',
+  'a',
+  'eyebrow',
+  'label',
+  'heading',
+  'headingLead',
+  'headingAccent',
+  'headingLines',
+  'lines',
+  'lead',
+  'accent',
+  'tail',
+  'sub',
+  'lede',
+  'ledeShort',
+  'body',
+  'text',
+  'description',
+  'paragraphs',
+  'datum',
+  'note',
+];
+
+/**
+ * The order an object's fields are shown in.
+ *
+ * Needed for the same jsonb reason as splitSections: stored order is by key
+ * length, which puts `a` (the answer) above `q` (the question) and the
+ * paragraph above its heading. Known reading-order keys come first; the rest
+ * go pictures, short text, switches, simple lists, then lists of items and
+ * nested groups, so a form scans from what a visitor sees down to structure.
+ */
+export function orderKeys(body: Record<string, unknown>, mediaKeys: string[] = []): string[] {
+  const kind = (key: string): number => {
+    const value = body[key];
+    if (mediaKeys.includes(key)) return -1;
+    if (typeof value === 'boolean') return 2;
+    if (Array.isArray(value)) {
+      return value.some((item) => item !== null && typeof item === 'object') ? 4 : 3;
+    }
+    if (value !== null && typeof value === 'object') return 5;
+    return 0;
+  };
+  const reading = (key: string) => {
+    const at = READING_ORDER.indexOf(key);
+    return at === -1 ? READING_ORDER.length : at;
+  };
+  return Object.keys(body).sort(
+    (a, b) => reading(a) - reading(b) || kind(a) - kind(b) || a.localeCompare(b),
+  );
+}
+
+/** A human line for one item in a list, for its collapsed row. */
+export function summarize(item: unknown): string {
+  if (typeof item === 'string') return item;
+  if (!item || typeof item !== 'object') return '';
+  const record = item as Record<string, unknown>;
+  for (const key of READING_ORDER.concat(['step', 'tier', 'value', 'open'])) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) return value;
+    if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim())
+      return value.join(' ');
+  }
+  const first = Object.values(record).find((value) => typeof value === 'string' && value.trim());
+  return typeof first === 'string' ? first : '';
 }
 
 /**

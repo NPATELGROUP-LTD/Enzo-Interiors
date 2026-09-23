@@ -83,9 +83,22 @@ export function fill(
 /* -------------------------------------------------------------------------- */
 
 /** The raw tables, exactly as they are stored. Shapes come from the JSON. */
+/** Whether the site is open yet. Set in the admin's Settings. */
+export interface SiteStatus {
+  status: "live" | "coming_soon";
+  /** ISO time. Once passed, the site is live whatever `status` says. */
+  launchAt: string | null;
+}
+
+/** The one rule for "is the public site open", shared by layout, robots and sitemap. */
+export function isLive(site: SiteStatus, now = Date.now()): boolean {
+  return site.status === "live" || (!!site.launchAt && Date.parse(site.launchAt) <= now);
+}
+
 interface Bundle {
+  site: SiteStatus;
   company: typeof companyRow;
-  media: typeof mediaRows;
+  media: MediaItem[];
   services: typeof serviceRows;
   portfolio: typeof portfolioRows;
   testimonials: typeof testimonialRows;
@@ -106,10 +119,24 @@ interface Bundle {
   };
 }
 
+/**
+ * Public URL of the media bucket. Every image, the shipped ones included,
+ * lives there; src/data/media.json only records each one's key.
+ */
+export const MEDIA_BASE = (process.env.NEXT_PUBLIC_MEDIA_BASE_URL ?? "").replace(/\/+$/, "");
+
+const shippedMedia: MediaItem[] = mediaRows.map(({ key, ...row }) => ({
+  ...row,
+  src: `${MEDIA_BASE}/${key}`,
+}));
+
 /** What the site ships with, and what it falls back to. */
 const FALLBACK: Bundle = {
+  // Live when the API cannot be reached: the shipped copy is public-ready, and
+  // a site that goes dark because a backend restarted is the worse failure.
+  site: { status: "live", launchAt: null },
   company: companyRow,
-  media: mediaRows,
+  media: shippedMedia,
   services: serviceRows,
   portfolio: portfolioRows,
   testimonials: testimonialRows,
@@ -148,6 +175,7 @@ function merge(raw: Partial<Bundle> | null): Bundle {
     Array.isArray(value) && value.length > 0 ? value : fallback;
 
   return {
+    site: raw.site ?? FALLBACK.site,
     company: raw.company ?? FALLBACK.company,
     media: nonEmpty(raw.media, FALLBACK.media),
     services: nonEmpty(raw.services, FALLBACK.services),
@@ -156,7 +184,14 @@ function merge(raw: Partial<Bundle> | null): Bundle {
     team: nonEmpty(raw.team, FALLBACK.team),
     faqs: nonEmpty(raw.faqs, FALLBACK.faqs),
     navigation: nonEmpty(raw.navigation, FALLBACK.navigation),
-    pages: { ...FALLBACK.pages, ...(raw.pages ?? {}) },
+    // Section by section, so a section added to src/data renders from the
+    // shipped copy until the CMS has one (the import adds it on its next run).
+    pages: Object.fromEntries(
+      Object.entries(FALLBACK.pages).map(([key, shipped]) => [
+        key,
+        { ...shipped, ...(raw.pages?.[key as keyof Bundle["pages"]] ?? {}) },
+      ]),
+    ) as Bundle["pages"],
   };
 }
 
@@ -202,9 +237,7 @@ const load = cache(async (): Promise<Resolved> => {
  * before then it holds the shipped ones, which are correct for every image the
  * site was built with. Either way it never returns nothing for a known id.
  */
-let MEDIA = new Map<string, MediaItem>(
-  (mediaRows as MediaItem[]).map((row) => [row.id, row]),
-);
+let MEDIA = new Map<string, MediaItem>(shippedMedia.map((row) => [row.id, row]));
 
 /** The row for an id. Unknown ids resolve to an empty image rather than throwing:
  *  a mistyped id in the content should cost one picture, not the whole page. */
@@ -258,7 +291,7 @@ function toService(detail: ServiceDetail): Service {
 function resolve(bundle: Bundle): Resolved {
   // The media map has to be in place before any join reads an image off it.
   MEDIA = new Map<string, MediaItem>(
-    (bundle.media as MediaItem[]).map((row) => [row.id, row]),
+    bundle.media.map((row) => [row.id, row]),
   );
 
   const faqsFor = (serviceId: string | null): FAQEntry[] =>
@@ -372,6 +405,8 @@ function resolve(bundle: Bundle): Resolved {
     map: bundle.company.map,
     hours,
     madeBy: bundle.company.madeBy,
+    // Older CMS rows predate the address; the import adds it on its next run.
+    address: bundle.company.address ?? { street: "", postcode: "" },
   };
 
   // The header's Services panel lists the published services rather than a
@@ -449,6 +484,10 @@ export async function getTeam(): Promise<TeamMember[]> {
 
 export async function getCompany(): Promise<Company> {
   return (await load()).company;
+}
+
+export async function getSiteStatus(): Promise<SiteStatus> {
+  return (await load()).bundle.site;
 }
 
 export async function getNavigation(): Promise<NavLink[]> {

@@ -21,12 +21,6 @@
     "paths": {
       "@/*": [
         "./src/*"
-      ],
-      "@enzo-interiors/shared": [
-        "../../packages/shared/src/index.ts"
-      ],
-      "@enzo-interiors/shared/*": [
-        "../../packages/shared/src/*"
       ]
     },
     "skipLibCheck": true,

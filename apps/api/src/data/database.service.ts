@@ -20,6 +20,7 @@ import {
   Quote,
   QuoteLineItem,
   SavedReplyTemplate,
+  SiteSettings,
   StaffUser,
   Testimonial,
 } from '../common/types/domain';
@@ -65,12 +66,13 @@ export class DatabaseService {
   readonly activityLogs: PrismaRepository<ActivityLog>;
   readonly cmsEntries: PrismaRepository<CmsEntry>;
   readonly mediaAssets: PrismaRepository<MediaAsset>;
+  readonly siteSettings: PrismaRepository<SiteSettings>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
 
     this.staffUsers = new PrismaRepository(prisma.staffUser, 'staff_users', {
-      dates: stamps,
+      dates: [...stamps, 'reset_expires_at'],
     });
     this.clients = new PrismaRepository(prisma.client, 'clients', {
       dates: [...stamps, 'joined_date'],
@@ -136,6 +138,9 @@ export class DatabaseService {
     });
     this.mediaAssets = new PrismaRepository(prisma.mediaAsset, 'media_assets', {
       dates: stamps,
+    });
+    this.siteSettings = new PrismaRepository(prisma.siteSettings, 'site_settings', {
+      dates: ['launch_at', 'updated_at'],
     });
   }
 

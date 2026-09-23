@@ -18,12 +18,13 @@
 // content is a correct, honest skeleton written from what the rest of this site
 // does; it is not legal advice.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { LegalSheet } from "@/components/legal/LegalSheet";
 import { getPage } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { privacy } = await getPage("legal");
-  return privacy.metadata;
+  const metadata = (await getPage("legal")).privacy.metadata;
+  return pageMetadata({ ...metadata, path: "/privacy", ogKey: "privacy" });
 }
 
 export default async function PrivacyPage() {

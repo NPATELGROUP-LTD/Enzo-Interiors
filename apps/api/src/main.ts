@@ -1,12 +1,30 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
 import { DatabaseService } from './data/database.service';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const logger = new Logger('Bootstrap');
+
+  // `docker stop` sends SIGTERM; without this Prisma's pool is never closed
+  // and in-flight requests are cut rather than drained.
+  app.enableShutdownHooks();
+  // Nothing on the wire needs to announce the framework.
+  app.getHttpAdapter().getInstance().disable('x-powered-by');
+  // JSON only, so helmet's defaults (nosniff, frame-deny, a locked-down CSP,
+  // HSTS) cost nothing and cover anything that ever renders a response.
+  app.use(helmet());
+  // Behind Coolify's proxy and a Cloudflare Tunnel every request arrives from
+  // the proxy. TRUST_PROXY is the number of hops to believe, so rate limits
+  // and lockouts key on the visitor's IP instead of the proxy's. 0 = direct.
+  app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 0));
+  // The largest page body is ~20 KB. 256 KB leaves room to grow and still
+  // refuses a payload meant to exhaust memory.
+  app.useBodyParser('json', { limit: '256kb' });
 
   /**
    * Global validation. `whitelist` strips properties with no DTO decorator and
@@ -24,10 +42,10 @@ async function bootstrap(): Promise<void> {
     }),
   );
 
-  // apps/admin and apps/portal are separate origins, so CORS is required
-  // rather than incidental. Origins come from env so a deployment can lock
-  // this down without a code change.
-  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:5175')
+  // The admin and the public site (its enquiry forms) are separate origins,
+  // so CORS is required rather than incidental. Origins come from env so a
+  // deployment can lock this down without a code change.
+  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:3000')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);

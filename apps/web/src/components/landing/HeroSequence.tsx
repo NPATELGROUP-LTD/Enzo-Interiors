@@ -32,15 +32,16 @@ import { HeroRotatingImage } from "./HeroRotatingImage";
 import { RotatingBadge } from "./RotatingBadge";
 import {
   fill,
+  MEDIA_BASE,
   type HeroRoomContent,
   type HeroTransitionContent,
   type HomeContent,
   type MediaItem,
 } from "@/lib/content";
 
-/** public/frames/hero/{framesDir}/frame_0001.webp onward. */
+/** {media bucket}/site/hero/{framesDir}/frame_0001.webp onward. */
 function roomFrameUrl(room: { framesDir: string }, frameIndex1: number): string {
-  return "/frames/hero/" + room.framesDir + "/frame_" + String(frameIndex1).padStart(4, "0") + ".webp";
+  return `${MEDIA_BASE}/site/hero/${room.framesDir}/frame_${String(frameIndex1).padStart(4, "0")}.webp`;
 }
 
 // Scroll distance mapped to each frame — lower is faster (less scrolling

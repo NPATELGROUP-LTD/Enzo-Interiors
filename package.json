@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
-  "description": "Enzo Interiors Platform — public-facing Next.js marketing website (current focus)",
+  "description": "Enzo Interiors Platform — root lint tooling only; each app in apps/ installs and builds on its own.",
   "packageManager": "pnpm@9.15.0",
   "engines": {
     "node": ">=20.0.0"

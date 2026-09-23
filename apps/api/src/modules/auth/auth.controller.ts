@@ -1,43 +1,56 @@
-import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Ip, Post, Put } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
-import { CurrentUser, Public } from '../../common/decorators';
+import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { AuthService, LoginResult } from './auth.service';
-import { LoginDto } from './dto';
+import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
+
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
-  /**
-   * Staff login. Separate issuer from the portal flow, per the architecture
-   * doc — a token minted here is a Staff token and cannot be swapped for a
-   * client session.
-   */
+  /** Staff login. The client portal's /auth/portal/login returns with the portal. */
   @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
   @Post('admin/login')
   @HttpCode(200)
-  loginAdmin(@Body() dto: LoginDto): Promise<LoginResult> {
-    return this.auth.loginStaff(dto.email, dto.password);
+  loginAdmin(@Body() dto: LoginDto, @Ip() ip: string): Promise<LoginResult> {
+    return this.auth.loginStaff(dto.email, dto.password, ip);
   }
 
-  /** Client login. */
+  /** Always 204, account or not. */
   @Public()
-  @Post('portal/login')
-  @HttpCode(200)
-  loginPortal(@Body() dto: LoginDto): Promise<LoginResult> {
-    return this.auth.loginClient(dto.email, dto.password);
+  @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/forgot-password')
+  @HttpCode(204)
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<void> {
+    await this.auth.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/reset-password')
+  @HttpCode(204)
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    await this.auth.resetPassword(dto.token, dto.new_password);
   }
 
   /**
-   * Who the bearer token says I am.
-   *
-   * Both frontends call this on boot to rehydrate a session from a stored
-   * token, rather than trusting a user object cached in localStorage — the
-   * server is the authority on the caller's role.
+   * Who the bearer token says I am. Fresh from the database: the guard
+   * re-reads the account on every request.
    */
   @Get('me')
   me(@CurrentUser() principal: AuthPrincipal): AuthPrincipal {
     return principal;
+  }
+
+  /** Returns a new token: the old one, like every other session, is now void. */
+  @Put('password')
+  @Roles('Admin', 'Designer', 'Installer')
+  changePassword(@CurrentUser() principal: AuthPrincipal, @Body() dto: ChangePasswordDto) {
+    return this.auth.changePassword(principal, dto.current_password, dto.new_password);
   }
 }
