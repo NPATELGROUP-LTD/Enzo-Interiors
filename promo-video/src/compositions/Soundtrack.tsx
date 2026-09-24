@@ -6,14 +6,14 @@ import { Html5Audio, interpolate, staticFile, useVideoConfig } from "remotion";
  * the master ships without one. Point `soundtrack` at a file you hold the
  * rights to (under public/) to bake it in instead.
  */
-export function Soundtrack({ src }: { src: string }) {
+export function Soundtrack({ src, fadeIn = 12, fadeOut = 36 }: { src: string; fadeIn?: number; fadeOut?: number }) {
   const { durationInFrames } = useVideoConfig();
   if (!src.trim()) return null;
   return (
     <Html5Audio
       src={staticFile(src.trim())}
       volume={(f) =>
-        interpolate(f, [0, 12, durationInFrames - 36, durationInFrames - 1], [0, 1, 1, 0], {
+        interpolate(f, [0, fadeIn, durationInFrames - fadeOut, durationInFrames - 1], [fadeIn ? 0 : 1, 1, 1, 0], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         })

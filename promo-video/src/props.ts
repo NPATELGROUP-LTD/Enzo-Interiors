@@ -11,8 +11,15 @@ export const launchSchema = z.object({
   handle: z.string().describe("Instagram handle in the closing line."),
   soundtrack: z
     .string()
-    .describe('Optional music: a file under public/, e.g. "audio/launch.mp3". Leave empty for a silent master (add music in Instagram).'),
+    .describe('Music: a file under public/, e.g. "audio/launch-reel.m4a". Leave empty for a silent master (add music in Instagram).'),
 });
+
+/** The kinetic cut adds its call to action: "DM us '<keyword>'". */
+export const kineticSchema = launchSchema.extend({
+  dmKeyword: z.string().describe('The word people DM for a survey: "DM us \u201cSURVEY\u201d".'),
+});
+
+export type KineticProps = z.infer<typeof kineticSchema>;
 
 export type LaunchProps = z.infer<typeof launchSchema>;
 
@@ -21,6 +28,13 @@ export const defaultLaunchProps: LaunchProps = {
   domain: company.domain,
   handle: company.handle,
   soundtrack: "",
+};
+
+export const defaultKineticProps: KineticProps = {
+  ...defaultLaunchProps,
+  dmKeyword: "SURVEY",
+  // The soundtrack from NPATEL Group's reel; the cut is timed to its beat.
+  soundtrack: "audio/launch-reel.m4a",
 };
 
 /** "launching soon" → "launching soon." — never a doubled full stop. */

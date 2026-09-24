@@ -4,7 +4,8 @@ import { Launch, LAUNCH } from "./compositions/Launch";
 import { FeedPoster, ReelCover } from "./compositions/Stills";
 import { STORY, StoryTeaser } from "./compositions/StoryTeaser";
 import { FPS } from "./brand/tokens";
-import { defaultLaunchProps, type LaunchProps, launchSchema } from "./props";
+import { KINETIC_DURATION, KineticCover, KineticReel } from "./kinetic/KineticReel";
+import { defaultKineticProps, defaultLaunchProps, type LaunchProps, launchSchema, kineticSchema } from "./props";
 
 const LaunchReel = (props: LaunchProps) => <Launch format="reel" {...props} />;
 const LaunchFeed = (props: LaunchProps) => <Launch format="feed" {...props} />;
@@ -13,6 +14,31 @@ const LaunchFeed = (props: LaunchProps) => <Launch format="feed" {...props} />;
 export function RemotionRoot() {
   return (
     <>
+      {/* The fast cut, in the style of NPATEL Group's reel, with its soundtrack. */}
+      <Folder name="Kinetic">
+        <Composition
+          id="KineticReel"
+          component={KineticReel}
+          schema={kineticSchema}
+          defaultProps={defaultKineticProps}
+          durationInFrames={KINETIC_DURATION}
+          fps={FPS}
+          width={1080}
+          height={1920}
+        />
+        <Composition
+          id="KineticFeed"
+          component={KineticReel}
+          schema={kineticSchema}
+          defaultProps={defaultKineticProps}
+          durationInFrames={KINETIC_DURATION}
+          fps={FPS}
+          width={1080}
+          height={1350}
+        />
+        <Still id="KineticCover" component={KineticCover} schema={kineticSchema} defaultProps={defaultKineticProps} width={1080} height={1920} />
+      </Folder>
+      {/* The first, slower editorial cut. */}
       <Folder name="Video">
         <Composition
           id="LaunchReel"
