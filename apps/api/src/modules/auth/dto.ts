@@ -38,3 +38,10 @@ export class ResetPasswordDto extends NewPasswordDto {
   @MaxLength(100)
   token!: string;
 }
+
+export class ProfileDto {
+  @IsString()
+  @MinLength(2, { message: 'Enter your name.' })
+  @MaxLength(120)
+  name!: string;
+}

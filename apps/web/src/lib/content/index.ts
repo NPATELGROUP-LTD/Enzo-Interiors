@@ -88,6 +88,8 @@ export interface SiteStatus {
   status: "live" | "coming_soon";
   /** ISO time. Once passed, the site is live whatever `status` says. */
   launchAt: string | null;
+  /** Media ids set in the admin's Settings; missing or null = the shipped ones. */
+  brand?: { logoLight: string | null; logoDark: string | null; favicon: string | null };
 }
 
 /** The one rule for "is the public site open", shared by layout, robots and sitemap. */
@@ -397,9 +399,10 @@ function resolve(bundle: Bundle): Resolved {
     phone: bundle.company.phone,
     email: bundle.company.email,
     emailHref: `mailto:${bundle.company.email}`,
+    // Settings' brand images win; company.logos is what an older API sends.
     logos: {
-      onLight: media(bundle.company.logos.onLight),
-      onDark: media(bundle.company.logos.onDark),
+      onLight: media(bundle.site.brand?.logoLight ?? bundle.company.logos.onLight),
+      onDark: media(bundle.site.brand?.logoDark ?? bundle.company.logos.onDark),
     },
     socials: bundle.company.socials,
     map: bundle.company.map,

@@ -4,7 +4,7 @@ import { Throttle } from '@nestjs/throttler';
 import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { AuthService, LoginResult } from './auth.service';
-import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ResetPasswordDto } from './dto';
+import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ProfileDto, ResetPasswordDto } from './dto';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
@@ -49,8 +49,14 @@ export class AuthController {
 
   /** Returns a new token: the old one, like every other session, is now void. */
   @Put('password')
-  @Roles('Admin', 'Designer', 'Installer')
+  @Roles('Admin', 'Editor', 'Designer', 'Installer')
   changePassword(@CurrentUser() principal: AuthPrincipal, @Body() dto: ChangePasswordDto) {
     return this.auth.changePassword(principal, dto.current_password, dto.new_password);
+  }
+
+  @Put('profile')
+  @Roles('Admin', 'Editor', 'Designer', 'Installer')
+  updateProfile(@CurrentUser() principal: AuthPrincipal, @Body() dto: ProfileDto) {
+    return this.auth.updateProfile(principal, dto.name);
   }
 }

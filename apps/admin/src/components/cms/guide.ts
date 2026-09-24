@@ -23,8 +23,8 @@ export interface PageGuide {
 
 const SEO: [string, string, string] = [
   'metadata',
-  'Search results',
-  'The title and description Google shows for this page, and the text on the browser tab.',
+  'Metadata',
+  'The page title (on the browser tab and in Google), the description under it in search results, and the image shown when the page is shared.',
 ];
 
 /** Pages in the order the site's menu reaches them, site-wide parts last. */
@@ -42,6 +42,7 @@ export const PAGES: Record<string, PageGuide> = {
       ['work', 'Recent work', 'Heading above the project photos. The projects come from Recent work.'],
       ['voices', 'Reviews', 'Heading above the review carousel. The reviews come from Testimonials.'],
       ['invite', 'Book a visit', 'The closing invitation at the bottom, with the phone number and email.'],
+      SEO,
     ],
   },
   services: {
@@ -119,13 +120,11 @@ export const PAGES: Record<string, PageGuide> = {
     summary: 'The five-step booking form.',
     sections: [
       ['panel', 'Side panel', 'The heading, benefits and review beside the form.'],
-      ['steps', 'Steps', 'The heading and text for each of the five steps.'],
-      ['timeSlots', 'Time slots', 'The appointment times people can choose from.'],
+      ['steps', 'Steps', 'The heading and text for each step. Which details are asked, and the days and times offered, are in Settings › Booking.'],
       ['nav', 'Buttons', 'Back, next and confirm.'],
       ['progress', 'Progress bar', 'The step counter above the form.'],
       ['toast', 'Confirmation message', 'The message shown once a booking is made.'],
-      ['wordmark', 'Logo text', 'The name shown in the corner of the booking page.'],
-      ['calendar', 'Calendar', 'Month and weekday names used by the date picker.'],
+      ['calendar', 'Calendar', 'Month and weekday names, and the messages while free days load.'],
       SEO,
     ],
   },
@@ -151,7 +150,7 @@ export const PAGES: Record<string, PageGuide> = {
       ['notFound', 'Page not found', 'What shows when an address does not exist.'],
       ['pageTransition', 'Page transition', 'The text shown while moving between pages.'],
       ['comingSoon', 'Coming-soon page', 'What every visitor sees before the site is live. The opening time is set in Settings.'],
-      ['metadata', 'Default search results', 'Used for any page that does not set its own.'],
+      ['metadata', 'Default metadata', 'Used for any page that does not set its own.'],
     ],
   },
   shared: {
@@ -201,7 +200,9 @@ const FIELD_LABELS: Record<string, string> = {
   navSummary: 'Menu summary',
   heroDesc: 'Banner text',
   overviewShort: 'Short overview',
-  metadata: 'Search results',
+  metadata: 'Metadata',
+  titleTemplate: 'Title',
+  descriptionTemplate: 'Description',
   clientName: 'Client name',
   authorId: 'Written by',
   onLight: 'Logo for light backgrounds',
@@ -212,6 +213,36 @@ const FIELD_LABELS: Record<string, string> = {
   pricing: 'Price tiers',
   desc: 'Description',
   ogImageId: 'Share image (1200 × 630)',
+  cta: 'Call to action',
+  hold: 'Room caption',
+  loader: 'Loading screen',
+  transitions: 'Between rooms',
+  scrollHint: 'Scroll prompt',
+  card: 'Photo card',
+  lead: 'Before',
+  accent: 'Highlighted',
+  tail: 'After',
+};
+
+/**
+ * Keys the editor no longer shows. Their data stays (nothing is deleted), but
+ * something else now controls what they did: the booking page's times come
+ * from Settings › Booking, and the logos from Settings › Logo & icon.
+ */
+export const RETIRED: Partial<Record<string, string[]>> = {
+  pages: ['timeSlots', 'wordmark'],
+  company: ['logos'],
+};
+
+/** Where each kind of shared content shows up on the site, for the overview. */
+export const USED_ON: Record<string, string> = {
+  services: 'Home, Services, each service page and the menu',
+  portfolio: 'Home and Portfolio',
+  testimonials: 'Home',
+  team: 'About',
+  faqs: 'Services and each service page',
+  navigation: 'The header on every page',
+  company: 'Header, footer and Contact',
 };
 
 export function fieldLabel(key: string, humanize: (key: string) => string): string {

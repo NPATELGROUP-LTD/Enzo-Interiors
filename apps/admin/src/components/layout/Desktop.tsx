@@ -1,34 +1,29 @@
 import clsx from 'clsx';
 import {
   CaretLeft,
-  Gear,
-  Key,
   MagnifyingGlass,
   Moon,
   SignOut,
   Sun,
+  UserCircle,
   WifiSlash,
 } from '@phosphor-icons/react';
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
-import { EnzoMark } from './AuthScreen';
 import { MODIFIER } from './SearchPalette';
 
-import { Button, Input, Modal } from '@/components/ui';
-import { useToast } from '@/components/ui/Toast';
-import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { initials } from '@/lib/format';
-import type { LoginResponse } from '@/types/api';
 import { useTheme } from '@/lib/theme';
 
 /**
  * macOS-style app shell: a glass menu bar on top and one window below it,
  * inset with rounded corners the way a Mac app window sits on the desktop.
- * The Enzo mark opens the app menu (Settings, search, account); the app's
- * other menus (AdminLayout's CMS menu) follow it. The window's title bar
- * carries the traffic lights, a back button, the title and its own actions.
+ * The menu bar starts with the app's name (plain text, not a menu) and the
+ * app's menus (AdminLayout's CMS, Bookings, Settings); on the right are
+ * search, the bell and your own account menu. The window's title bar carries
+ * the traffic lights, a back button, the title and its own actions.
  *
  * apps/portal has an older copy of this file, with its pages listed inline in
  * the menu bar. It is not part of v1 and was left as it was.
@@ -90,66 +85,6 @@ export function Badge({ count, inverted = false }: { count: number; inverted?: b
   );
 }
 
-/** Your own password. The API checks the current one and hashes the new one. */
-function ChangePassword({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const toast = useToast();
-  const { adopt } = useAuth();
-  const [current, setCurrent] = useState('');
-  const [next, setNext] = useState('');
-  const [again, setAgain] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-
-  const close = () => {
-    setCurrent('');
-    setNext('');
-    setAgain('');
-    setError(null);
-    onClose();
-  };
-
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (next.length < 12) return setError('Use at least 12 characters for the new password.');
-    if (next !== again) return setError('The two new passwords do not match.');
-    setPending(true);
-    try {
-      // The change signs out every other session; this one carries on with
-      // the fresh token the API hands back.
-      adopt(await api.put<LoginResponse>('/auth/password', { current_password: current, new_password: next }));
-      toast.success('Password changed. You have been signed out everywhere else.');
-      close();
-    } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'That did not work. Try again.');
-    } finally {
-      setPending(false);
-    }
-  };
-
-  return (
-    <Modal open={open} onClose={close} title="Change password" width="sm">
-      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
-        <Input label="Current password" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} />
-        <Input label="New password" type="password" autoComplete="new-password" hint="At least 12 characters." value={next} onChange={(event) => setNext(event.target.value)} />
-        <Input label="New password again" type="password" autoComplete="new-password" value={again} onChange={(event) => setAgain(event.target.value)} />
-        {error ? (
-          <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-sm text-danger">
-            {error}
-          </p>
-        ) : null}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={close}>
-            Cancel
-          </Button>
-          <Button type="submit" variant="primary" loading={pending}>
-            Change password
-          </Button>
-        </div>
-      </form>
-    </Modal>
-  );
-}
-
 export function Desktop({
   appName,
   menus,
@@ -159,6 +94,7 @@ export function Desktop({
   windowActions,
   onSearch,
   settingsTo,
+  status,
 }: {
   appName: string;
   /** The app's menus, after its name in the menu bar. */
@@ -173,13 +109,14 @@ export function Desktop({
   windowActions?: ReactNode;
   /** Opens the search palette; shows the menu-bar magnifier when set. */
   onSearch?: () => void;
-  /** Where Settings… goes. Omitted for accounts that cannot change settings. */
+  /** Where Ctrl/⌘ , goes. Omitted for accounts that cannot change settings. */
   settingsTo?: string;
+  /** Menu-bar extras left of the account menu (the notification bell). */
+  status?: ReactNode;
 }) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
   const online = useOnline();
-  const [changingPassword, setChangingPassword] = useState(false);
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLElement>(null);
@@ -189,7 +126,7 @@ export function Desktop({
     // A section link (#hero) scrolls itself; anything else starts at the top.
     if (!window.location.hash) scrollRef.current?.scrollTo({ top: 0 });
     hidePopover('user-menu');
-    hidePopover('app-menu');
+    hidePopover('notifications-menu');
   }, [pathname]);
 
   // Ctrl/⌘ , opens Settings, as it does in every Mac app.
@@ -212,16 +149,10 @@ export function Desktop({
     <div className="wallpaper flex h-dvh flex-col overflow-hidden text-ink">
       {/* ---------------------------------------------------------- Menu bar */}
       <header className="glass relative z-40 flex h-10 shrink-0 items-center gap-0.5 border-b border-glass-border px-2 text-[13px] font-semibold pointer-coarse:h-12">
-        {/* The app menu, where a Mac app keeps its name: settings, account, sign out. */}
-        <button
-          type="button"
-          popoverTarget="app-menu"
-          aria-label={`${appName} menu`}
-          className="flex h-7 shrink-0 items-center gap-2 rounded-[6px] px-2 hover:bg-ink/10 pointer-coarse:h-10"
-        >
-          <EnzoMark className="h-[18px] w-[36px] text-green-900 dark:text-ink" />
-          <span className="hidden whitespace-nowrap font-bold sm:inline">{appName}</span>
-        </button>
+        {/* The app's name, where a Mac keeps it. Just a name: nothing to click. */}
+        <span className="hidden shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold sm:inline">
+          {appName}
+        </span>
         {menus}
 
         <span className="ml-auto flex shrink-0 items-center gap-1">
@@ -254,6 +185,7 @@ export function Desktop({
           <span className="hidden px-1.5 sm:inline">
             <Clock />
           </span>
+          {status}
           <button
             type="button"
             popoverTarget="user-menu"
@@ -268,65 +200,6 @@ export function Desktop({
         </span>
       </header>
 
-      {/* App menu. */}
-      <div
-        id="app-menu"
-        popover="auto"
-        className="glass fixed inset-auto left-2 top-11 m-0 w-64 rounded-[12px] border border-glass-border p-1.5 text-sm text-ink shadow-window pointer-coarse:top-[3.25rem]"
-      >
-        <div className="flex items-center gap-2.5 px-2 py-2">
-          <span className="flex h-9 w-12 shrink-0 items-center justify-center rounded-[9px] bg-green-900 text-on-primary">
-            <EnzoMark className="h-4 w-8" />
-          </span>
-          <span className="min-w-0">
-            <span className="block truncate font-semibold">{appName}</span>
-            <span className="block truncate text-xs text-ink-muted">Signed in as {user?.name}</span>
-          </span>
-        </div>
-        <div className="my-1 h-px bg-border" />
-        {settingsTo ? (
-          <Link
-            to={settingsTo}
-            onClick={() => hidePopover('app-menu')}
-            className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}
-          >
-            <Gear size={15} aria-hidden="true" />
-            <span className="flex-1">Settings…</span>
-            <kbd className="font-sans text-xs opacity-70">{MODIFIER} ,</kbd>
-          </Link>
-        ) : null}
-        {onSearch ? (
-          <button
-            type="button"
-            onClick={() => {
-              hidePopover('app-menu');
-              onSearch();
-            }}
-            className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}
-          >
-            <MagnifyingGlass size={15} aria-hidden="true" />
-            <span className="flex-1">Search…</span>
-            <kbd className="font-sans text-xs opacity-70">{MODIFIER} K</kbd>
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => {
-            hidePopover('app-menu');
-            setChangingPassword(true);
-          }}
-          className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}
-        >
-          <Key size={15} aria-hidden="true" />
-          Change password
-        </button>
-        <div className="my-1 h-px bg-border" />
-        <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger hover:text-white')}>
-          <SignOut size={15} aria-hidden="true" />
-          Sign out
-        </button>
-      </div>
-
       {/* Account menu. */}
       <div
         id="user-menu"
@@ -338,30 +211,37 @@ export function Desktop({
             {user ? initials(user.name) : '—'}
           </span>
           <span className="min-w-0">
-            <span className="block truncate font-semibold">{user?.name}</span>
-            <span className="block truncate text-xs text-ink-muted">{user?.kind === 'Staff' ? user.role : user?.email}</span>
+            <span className="flex items-baseline gap-1.5">
+              <span className="truncate font-semibold">{user?.name}</span>
+              <span className="shrink-0 text-xs text-ink-muted">{user?.role === 'Admin' ? 'Admin' : 'Editor'}</span>
+            </span>
+            <span className="block truncate text-xs text-ink-muted">{user?.email}</span>
           </span>
         </div>
         <div className="my-1 h-px bg-border" />
+        <Link
+          to="/account"
+          onClick={() => hidePopover('user-menu')}
+          className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}
+        >
+          <UserCircle size={15} aria-hidden="true" />
+          Account settings…
+        </Link>
         <button type="button" onClick={toggle} className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}>
           {theme === 'dark' ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
           {themeLabel}
         </button>
-        <button
-          type="button"
-          onClick={() => {
-            hidePopover('user-menu');
-            setChangingPassword(true);
-          }}
-          className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}
-        >
-          <Key size={15} aria-hidden="true" />
-          Change password
-        </button>
+        <div className="my-1 h-px bg-border" />
         <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger hover:text-white')}>
           <SignOut size={15} aria-hidden="true" />
           Sign out
         </button>
+        <p className="px-2 pb-1 pt-2 text-[11.5px] text-ink-muted">
+          Made by{' '}
+          <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-semibold hover:text-ink hover:underline">
+            NPATEL GROUP LTD
+          </a>
+        </p>
       </div>
 
       {/* ------------------------------------------------------------ Window */}
@@ -397,7 +277,6 @@ export function Desktop({
       </section>
       </div>
 
-      <ChangePassword open={changingPassword} onClose={() => setChangingPassword(false)} />
     </div>
   );
 }

@@ -6,21 +6,34 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Development Phase
 
-**v1 scope: the public website and the Admin CMS that runs it.**
+**v1 scope: the public website, the Admin CMS that runs it, and consultation booking.**
 
 - `apps/web` — Next.js marketing site. Reads all of its content from the API.
-- `apps/admin` — the Enzo Interiors admin. In v1: the CMS (Pages, then
-  Services, Recent work, Testimonials, Team, FAQs, Menu, Company), Settings
-  (`/settings`: live / coming soon + launch time, notification emails,
-  preview), search (Ctrl/⌘ K) and forgot/reset password. The CRM screens are still in
-  `src/pages` but unrouted (see `src/App.tsx`).
+  `/booking` asks the API for free days/times and books through it.
+- `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
+  Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
+  **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
+  booking) and **Settings** (`/settings/:section`, Admin only: website status,
+  logo & favicon, notification emails, booking schedule, users). Your own
+  name/password/appearance are under the profile menu at `/account`. Plus the
+  notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
+  accept an invitation). The CRM screens are still in `src/pages` but unrouted
+  (see `src/App.tsx`; the CRM's `Bookings.tsx` is not the new `Appointments.tsx`).
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
-  (incl. forgot/reset password), media, the CMS (incl. the public
-  `GET /content/site` bundle, which carries the site's live/coming-soon
-  status), site settings and the public `POST /enquiries` (the site's three
-  forms, stored and emailed). The
-  CRM modules and their tables are kept but not mounted (`src/app.module.ts`).
-  The first admin is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+  (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
+  media, the CMS (incl. the public `GET /content/site` bundle, which carries
+  the site's live/coming-soon status and brand images, and editor review
+  requests), site settings, the public `POST /enquiries`, **booking**
+  (`/booking/*` public + settings, `/appointments` for staff) and
+  `/notifications`. The CRM modules and their tables (incl. the CRM's
+  `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
+  is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
+
+**Roles (v1):** `Admin` does everything. `Editor` (and the CRM's `Designer`,
+treated the same) edits the CMS and sends changes for review; cannot publish,
+add or delete entries, or see Bookings/Settings. Reviews live on the entry
+(`cms_entries.review_*`) and clear on publish or send-back; both ends are told
+through `notifications` (the bell) and admins by email too.
 - `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up.
 
 `packages/` was removed. Each app keeps a local copy of the types it consumes,
@@ -106,7 +119,24 @@ gates the layout, robots, sitemap and llms.txt. Editors preview a gated site
 through a 10-minute token → Next draft mode.
 
 **Email:** `MailService` (core) over SMTP; unset `SMTP_HOST` = logged, not sent.
-Locally, `COMPOSE_PROFILES=dev` runs Mailpit (UI on :8025).
+Locally, `COMPOSE_PROFILES=dev,db` runs Mailpit (UI on :8025) and the bundled
+PostgreSQL. Production leaves both out: its database is a separate Docker
+service reached through `DATABASE_URL` (`docs/prelaunch.md` → Database).
+
+**Booking:** one `booking_settings` row (id `booking`, JSONB `config`:
+weekly first/last start + breaks, slot length, gap, max per day, horizon,
+notice, which contact fields, which services). Free times are computed in
+`apps/api/src/modules/booking/slots.ts` in **Europe/London** (tested by
+`npm test` in apps/api). `appointments.slot` is unique while a booking holds
+its time and null once cancelled, so the database refuses double bookings.
+Staff bookings skip the notice period and horizon. Customers are emailed on
+book / move / cancel; admins get the email (notification_emails) and the bell.
+
+**Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id` (media
+ids) replace `company.logos` on the site; the Company editor hides `logos`
+(`RETIRED` in `apps/admin/src/components/cms/guide.ts`, which also hides the
+booking page's old `timeSlots` / `wordmark`). The default favicon is
+`apps/web/public/icon.png`.
 
 **Sessions:** JWTs carry `tv` = `staff_users.token_version`; `JwtAuthGuard`
 re-reads the staff row per request, so a password change or reset signs out
@@ -138,7 +168,7 @@ cd apps/web   && npm ci && npm run dev                       # :3000
 
 | App | Check |
 |---|---|
-| `apps/api` | `npm run typecheck`, `npm run build` |
+| `apps/api` | `npm run typecheck`, `npm test`, `npm run build` |
 | `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
 | `apps/web` | `npm run typecheck`, `npm run lint`, `npm run build` |
 

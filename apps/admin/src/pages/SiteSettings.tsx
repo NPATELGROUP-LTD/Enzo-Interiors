@@ -1,20 +1,47 @@
 import clsx from 'clsx';
-import { ArrowSquareOut, EnvelopeSimple, Plus, X } from '@phosphor-icons/react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  ArrowSquareOut,
+  CalendarBlank,
+  EnvelopeSimple,
+  Globe,
+  PaintBrush,
+  Plus,
+  UsersThree,
+  X,
+  type Icon as PhosphorIcon,
+} from '@phosphor-icons/react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 
-import { WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, ErrorState, FIELD_BASE, Input, LoadingState, PageHeader } from '@/components/ui';
+import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
+import { Button, ErrorState, FIELD_BASE, Input, LoadingState } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
+import type { MediaAsset } from '@/types/cms';
+
+import { BookingSchedule } from './settings/BookingSchedule';
+import { UsersSection } from './settings/Users';
 
 interface SiteSettings {
   status: 'live' | 'coming_soon';
   launch_at: string | null;
   notification_emails: string[];
+  logo_light_id: string | null;
+  logo_dark_id: string | null;
+  favicon_id: string | null;
   updated_at: string;
   updated_by: string | null;
 }
+
+/** The settings panes, in the sidebar's order. */
+export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = [
+  { id: 'website', label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
+  { id: 'brand', label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
+  { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
+  { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
+  { id: 'users', label: 'Users', detail: 'Invite people, Admin or Editor', Icon: UsersThree },
+];
 
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
@@ -27,20 +54,94 @@ function toLocalInput(iso: string | null): string {
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const LONG = new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short' });
 
-const SECTION = 'max-w-2xl border-t border-border pt-7';
 const HEADING = 'text-lg font-semibold tracking-tight text-ink';
 const HELP = 'mt-1 text-sm leading-relaxed text-ink-muted';
+const SIDEBAR_ROW =
+  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
+
+function PaneHeader({ title, help, action }: { title: string; help: ReactNode; action?: ReactNode }) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 className={HEADING}>{title}</h2>
+        <p className={clsx(HELP, 'max-w-[60ch]')}>{help}</p>
+      </div>
+      {action}
+    </header>
+  );
+}
 
 /**
- * General settings: whether the public site is open, and where its enquiries
- * are emailed. Admin only (the API enforces the same).
+ * The website, logo, email and booking settings, and who can sign in. Admin
+ * only (the API enforces the same). Laid out like System Settings: the panes
+ * down the left, the open one on the right.
  */
 export function SiteSettingsPage() {
+  const { section = '' } = useParams();
+  const navigate = useNavigate();
+  if (!SETTINGS_SECTIONS.some((row) => row.id === section)) return <Navigate to="/settings/website" replace />;
+
+  let pane: ReactNode;
+  if (section === 'booking') pane = <BookingSchedule />;
+  else if (section === 'users') pane = <UsersSection />;
+  else pane = <GeneralPane section={section as 'website' | 'brand' | 'emails'} />;
+
+  return (
+    <div className="flex h-full min-h-0">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
+        <nav aria-label="Settings" className="flex flex-col gap-px px-2.5 py-5">
+          {SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
+            <NavLink
+              key={id}
+              to={`/settings/${id}`}
+              className={({ isActive }) =>
+                clsx(SIDEBAR_ROW, isActive ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')
+              }
+            >
+              <Icon size={16} aria-hidden="true" className="shrink-0" />
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      </aside>
+
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
+        <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+          {/* No sidebar below lg: a native dropdown takes one line. */}
+          <label className="mb-7 block lg:hidden">
+            <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">Settings</span>
+            <select
+              value={section}
+              onChange={(event) => navigate(`/settings/${event.target.value}`)}
+              className={clsx(FIELD_BASE, 'w-full')}
+            >
+              {SETTINGS_SECTIONS.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {pane}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Website, Logo & icon and Emails: three views of the one site_settings row. */
+function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
   const toast = useToast();
   const settings = useQuery<SiteSettings>('/settings');
+  const assets = useQuery<MediaAsset[]>(section === 'brand' ? '/cms/media' : null);
   const [status, setStatus] = useState<SiteSettings['status']>('coming_soon');
   const [launch, setLaunch] = useState('');
   const [emails, setEmails] = useState<string[]>([]);
+  const [brand, setBrand] = useState<Pick<SiteSettings, 'logo_light_id' | 'logo_dark_id' | 'favicon_id'>>({
+    logo_light_id: null,
+    logo_dark_id: null,
+    favicon_id: null,
+  });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -51,6 +152,11 @@ export function SiteSettingsPage() {
     setStatus(settings.data.status);
     setLaunch(toLocalInput(settings.data.launch_at));
     setEmails(settings.data.notification_emails.length ? settings.data.notification_emails : ['']);
+    setBrand({
+      logo_light_id: settings.data.logo_light_id,
+      logo_dark_id: settings.data.logo_dark_id,
+      favicon_id: settings.data.favicon_id,
+    });
   }, [settings.data]);
 
   const saved = settings.data;
@@ -60,7 +166,10 @@ export function SiteSettingsPage() {
     !!saved &&
     (status !== saved.status ||
       launchIso !== (saved.launch_at ? new Date(saved.launch_at).toISOString() : null) ||
-      cleanEmails.join(',') !== saved.notification_emails.join(','));
+      cleanEmails.join(',') !== saved.notification_emails.join(',') ||
+      brand.logo_light_id !== saved.logo_light_id ||
+      brand.logo_dark_id !== saved.logo_dark_id ||
+      brand.favicon_id !== saved.favicon_id);
 
   if (settings.error) return <ErrorState message={settings.error} onRetry={settings.refetch} />;
   if (!saved) return <LoadingState label="Loading settings…" />;
@@ -73,8 +182,7 @@ export function SiteSettingsPage() {
         ? `Visitors see the coming-soon page with a countdown. The site opens by itself on ${LONG.format(new Date(launchIso))}.`
         : 'Visitors see the coming-soon page until you switch the site to Live or set an opening time.';
 
-  const save = async (event?: FormEvent) => {
-    event?.preventDefault();
+  const save = async () => {
     const bad = cleanEmails.find((email) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
     if (bad) {
       setEmailError(`"${bad}" is not an email address.`);
@@ -87,6 +195,7 @@ export function SiteSettingsPage() {
         status,
         launch_at: launchIso,
         notification_emails: cleanEmails,
+        ...brand,
       });
       settings.setData(next);
       toast.success('Settings saved. The website updates in a few seconds.');
@@ -127,155 +236,192 @@ export function SiteSettingsPage() {
     }
   };
 
+  const saveButton = (
+    <Button variant="primary" loading={saving} disabled={!dirty} onClick={() => void save()}>
+      Save changes
+    </Button>
+  );
+
+  const pick = (key: keyof typeof brand) => (ids: string[]) => setBrand({ ...brand, [key]: ids[ids.length - 1] ?? null });
+
   return (
-    <form onSubmit={save} className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <PageHeader
-        title="Settings"
-        description="General settings for the Enzo Interiors website."
-        actions={
-          <Button type="submit" variant="primary" loading={saving} disabled={!dirty}>
-            Save changes
-          </Button>
-        }
-      />
+    <div className="max-w-3xl">
+      {section === 'website' ? (
+        <>
+          <PaneHeader title="Website" help="Whether visitors see the full website or the coming-soon page." action={saveButton} />
 
-      <section aria-labelledby="settings-site" className={SECTION}>
-        <h2 id="settings-site" className={HEADING}>
-          Website
-        </h2>
-        <p className={HELP}>Whether visitors see the full website or the coming-soon page.</p>
-
-        <div role="radiogroup" aria-label="Website status" className="mt-5 inline-flex rounded-control bg-ink/[0.06] p-1">
-          {(
-            [
-              ['live', 'Live'],
-              ['coming_soon', 'Coming soon'],
-            ] as const
-          ).map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              role="radio"
-              aria-checked={status === value}
-              onClick={() => setStatus(value)}
-              className={clsx(
-                'min-h-9 rounded-[7px] px-4 text-sm font-medium transition-colors duration-150 pointer-coarse:min-h-11',
-                status === value ? 'bg-surface text-ink shadow-soft' : 'text-ink-muted hover:text-ink',
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {status === 'coming_soon' ? (
-          <div className="mt-5 flex flex-wrap items-end gap-3">
-            <div className="w-full max-w-xs">
-              <Input
-                label="Opening time"
-                type="datetime-local"
-                value={launch}
-                onChange={(event) => setLaunch(event.target.value)}
-                hint={`Your local time (${ZONE}). Leave empty for "opening soon" with no date.`}
-              />
-            </div>
-            {launch ? (
-              <Button type="button" variant="ghost" onClick={() => setLaunch('')}>
-                Clear
-              </Button>
-            ) : null}
+          <div role="radiogroup" aria-label="Website status" className="mt-6 inline-flex rounded-control bg-ink/[0.06] p-1">
+            {(
+              [
+                ['live', 'Live'],
+                ['coming_soon', 'Coming soon'],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={status === value}
+                onClick={() => setStatus(value)}
+                className={clsx(
+                  'min-h-9 rounded-[7px] px-4 text-sm font-medium transition-colors duration-150 pointer-coarse:min-h-11',
+                  status === value ? 'bg-surface text-ink shadow-soft' : 'text-ink-muted hover:text-ink',
+                )}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-        ) : null}
 
-        <p className="mt-4 flex items-start gap-2 text-sm text-ink">
-          <span
-            aria-hidden="true"
-            className={clsx(
-              'mt-1.5 h-2 w-2 shrink-0 rounded-full',
-              status === 'live' || launchPassed ? 'bg-success' : 'bg-warning',
-            )}
-          />
-          <span>
+          {status === 'coming_soon' ? (
+            <div className="mt-5 flex flex-wrap items-end gap-3">
+              <div className="w-full max-w-xs">
+                <Input
+                  label="Opening time"
+                  type="datetime-local"
+                  value={launch}
+                  onChange={(event) => setLaunch(event.target.value)}
+                  hint={`Your local time (${ZONE}). Leave empty for "opening soon" with no date.`}
+                />
+              </div>
+              {launch ? (
+                <Button type="button" variant="ghost" onClick={() => setLaunch('')}>
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <p className="mt-5 text-sm text-ink">
             {state}
             {dirty ? <span className="text-ink-muted"> (after you save)</span> : null}
-          </span>
-        </p>
-
-        <div className="mt-4">
-          <Button type="button" icon={<ArrowSquareOut size={16} />} loading={previewing} onClick={preview}>
-            Preview the website
-          </Button>
-          <p className={HELP}>Opens the full site in a new tab for this browser only, even while it is not public.</p>
-        </div>
-      </section>
-
-      <section aria-labelledby="settings-mail" className={clsx(SECTION, 'mt-10')}>
-        <h2 id="settings-mail" className={HEADING}>
-          Notifications
-        </h2>
-        <p className={HELP}>
-          Every enquiry, quote request and booking from the website is emailed here. Replying to one
-          of those emails replies to the customer. If this is empty they go to the administrator the
-          server was set up with.
-        </p>
-
-        <ul className="mt-5 flex flex-col gap-2">
-          {emails.map((email, index) => (
-            <li key={index} className="flex items-center gap-2">
-              <input
-                aria-label={`Notification address ${index + 1}`}
-                type="email"
-                autoComplete="off"
-                placeholder="hello@enzointeriors.co.uk"
-                value={email}
-                onChange={(event) =>
-                  setEmails(emails.map((value, i) => (i === index ? event.target.value : value)))
-                }
-                className={clsx(FIELD_BASE, 'w-full max-w-sm')}
-              />
-              {emails.length > 1 ? (
-                <button
-                  type="button"
-                  aria-label={`Remove ${email || 'this address'}`}
-                  onClick={() => setEmails(emails.filter((_, i) => i !== index))}
-                  className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
-                >
-                  <X size={16} aria-hidden="true" />
-                </button>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {emailError ? (
-          <p role="alert" className="mt-2 text-sm text-danger">
-            {emailError}
           </p>
-        ) : null}
 
-        <div className="mt-3 flex flex-wrap gap-2">
-          {emails.length < 10 ? (
-            <Button type="button" variant="ghost" icon={<Plus size={16} />} onClick={() => setEmails([...emails, ''])}>
-              Add an address
+          <div className="mt-8 border-t border-border pt-7">
+            <Button type="button" icon={<ArrowSquareOut size={16} />} loading={previewing} onClick={preview}>
+              Preview the website
             </Button>
+            <p className={HELP}>Opens the full site in a new tab for this browser only, even while it is not public.</p>
+          </div>
+        </>
+      ) : null}
+
+      {section === 'brand' ? (
+        <>
+          <PaneHeader
+            title="Logo & icon"
+            help="The logos in the header, footer, booking page and coming-soon page, and the small icon on the browser tab."
+            action={saveButton}
+          />
+          {assets.error ? <ErrorState message={assets.error} onRetry={assets.refetch} /> : null}
+          <div className="mt-7 flex flex-col gap-8">
+            <MediaField
+              label="Logo on light backgrounds"
+              hint="The header and anywhere on cream or white. A dark logo with a transparent background (PNG or SVG)."
+              value={brand.logo_light_id ? [brand.logo_light_id] : []}
+              logo="light"
+              multiple={false}
+              onChange={pick('logo_light_id')}
+              assets={assets.data ?? []}
+              onAssetsChanged={() => void assets.refetch()}
+            />
+            <MediaField
+              label="Logo on dark backgrounds"
+              hint="The footer, the booking page and the coming-soon page. A white or light logo."
+              value={brand.logo_dark_id ? [brand.logo_dark_id] : []}
+              logo="dark"
+              multiple={false}
+              onChange={pick('logo_dark_id')}
+              assets={assets.data ?? []}
+              onAssetsChanged={() => void assets.refetch()}
+            />
+            <div className="flex flex-col gap-2">
+              <MediaField
+                label="Browser-tab icon (favicon)"
+                hint="A square image, at least 512 × 512 pixels. Also used when someone saves the site to their phone's home screen."
+                value={brand.favicon_id ? [brand.favicon_id] : []}
+                logo="light"
+                multiple={false}
+                onChange={pick('favicon_id')}
+                assets={assets.data ?? []}
+                onAssetsChanged={() => void assets.refetch()}
+              />
+              {brand.favicon_id ? null : (
+                <p className="flex items-center gap-2 text-[13px] text-ink-muted">
+                  <img src={`${WEB_URL}/icon.png`} alt="" className="h-6 w-6 rounded-[5px]" />
+                  Using the website's built-in icon.
+                </p>
+              )}
+            </div>
+          </div>
+        </>
+      ) : null}
+
+      {section === 'emails' ? (
+        <>
+          <PaneHeader
+            title="Emails"
+            help="Every enquiry, quote request and booking from the website is emailed here. Replying to one of those emails replies to the customer. If this is empty they go to the administrator the server was set up with."
+            action={saveButton}
+          />
+          <ul className="mt-6 flex flex-col gap-2">
+            {emails.map((email, index) => (
+              <li key={index} className="flex items-center gap-2">
+                <input
+                  aria-label={`Notification address ${index + 1}`}
+                  type="email"
+                  autoComplete="off"
+                  placeholder="hello@enzointeriors.co.uk"
+                  value={email}
+                  onChange={(event) => setEmails(emails.map((value, i) => (i === index ? event.target.value : value)))}
+                  className={clsx(FIELD_BASE, 'w-full max-w-sm')}
+                />
+                {emails.length > 1 ? (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${email || 'this address'}`}
+                    onClick={() => setEmails(emails.filter((_, i) => i !== index))}
+                    className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
+                  >
+                    <X size={16} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+          {emailError ? (
+            <p role="alert" className="mt-2 text-sm text-danger">
+              {emailError}
+            </p>
           ) : null}
-          <Button
-            type="button"
-            icon={<EnvelopeSimple size={16} />}
-            loading={testing}
-            disabled={dirty}
-            onClick={sendTest}
-            title={dirty ? 'Save first, so the test goes to these addresses.' : undefined}
-          >
-            Send a test email
-          </Button>
-        </div>
-      </section>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {emails.length < 10 ? (
+              <Button type="button" variant="ghost" icon={<Plus size={16} />} onClick={() => setEmails([...emails, ''])}>
+                Add an address
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              icon={<EnvelopeSimple size={16} />}
+              loading={testing}
+              disabled={dirty}
+              onClick={sendTest}
+              title={dirty ? 'Save first, so the test goes to these addresses.' : undefined}
+            >
+              Send a test email
+            </Button>
+          </div>
+          <p className={clsx(HELP, 'mt-6')}>
+            New bookings and review requests also appear under the bell in the menu bar, for every Admin.
+          </p>
+        </>
+      ) : null}
 
       {saved.updated_by ? (
-        <p className="mt-10 max-w-2xl text-xs text-ink-muted">
+        <p className="mt-10 text-xs text-ink-muted">
           Last changed by {saved.updated_by}, {LONG.format(new Date(saved.updated_at))}.
         </p>
       ) : null}
-    </form>
+    </div>
   );
 }

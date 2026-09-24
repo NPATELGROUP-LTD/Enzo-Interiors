@@ -36,11 +36,12 @@ import { useTheme } from '@/lib/theme';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
 import { Badge, Desktop } from './Desktop';
+import { Notifications } from './Notifications';
 import { SearchPalette } from './SearchPalette';
 
 /**
  * The Enzo Interiors admin. In this version it manages the public website:
- * its content (the CMS menu below) and its settings.
+ * its content (the CMS menu below), consultation bookings, and its settings.
  *
  * Each section is one kind of content. Pages hold the words of each page; the
  * rest are the things several pages share — a service appears on the home
@@ -215,6 +216,23 @@ function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
   );
 }
 
+/** A plain menu-bar item that goes straight to a screen, like CMS without its menu. */
+function MenuBarLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        clsx(
+          'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+          isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+        )
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
+
 function Separator() {
   return <div role="separator" className="mx-2 my-1 h-px bg-ink/10" />;
 }
@@ -268,7 +286,9 @@ function MenuItem({
 /** The window's title and back button, from where you are. */
 function useWindowTitle(): { title: string; back: { to: string; label: string } | null } {
   const { pathname } = useLocation();
-  if (pathname === '/settings') return { title: 'Settings', back: { to: '/cms', label: 'CMS' } };
+  if (pathname.startsWith('/settings')) return { title: 'Settings', back: null };
+  if (pathname === '/bookings') return { title: 'Bookings', back: null };
+  if (pathname === '/account') return { title: 'Account', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
   const isEntry = pathname !== section.to && section.collection !== 'pages';
@@ -340,8 +360,15 @@ export function AdminLayout() {
     <Desktop
       appName="Enzo Interiors"
       onSearch={openSearch}
-      settingsTo={isAdmin ? '/settings' : undefined}
-      menus={<CmsMenu counts={counts} />}
+      settingsTo={isAdmin ? '/settings' : '/account'}
+      menus={
+        <>
+          <CmsMenu counts={counts} />
+          {isAdmin ? <MenuBarLink to="/bookings">Bookings</MenuBarLink> : null}
+          {isAdmin ? <MenuBarLink to="/settings">Settings</MenuBarLink> : null}
+        </>
+      }
+      status={<Notifications onChange={refresh} />}
       title={title}
       back={back}
       context={context}

@@ -46,12 +46,19 @@ x-node-health: &node-health
   start_period: 45s
 
 services:
+  # The database. In the `db` profile so production can run PostgreSQL on its
+  # own, outside this stack, and point DATABASE_URL at it instead: an app
+  # redeploy then never touches the container or the volume holding the data.
+  # Locally it stays here (COMPOSE_PROFILES=dev,db). docs/prelaunch.md has the
+  # production setup.
   postgres:
+    profiles: ['db']
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-enzo}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Not `:?` — Compose checks every service, and production runs without this one.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: ${POSTGRES_DB:-enzo}
     volumes:
       - postgres-data:/var/lib/postgresql/data
@@ -118,8 +125,11 @@ services:
       context: ./apps/api
     restart: unless-stopped
     depends_on:
+      # Not required: with an external DATABASE_URL there is no postgres here,
+      # and `prisma migrate deploy` simply retries on restart until it answers.
       postgres:
         condition: service_healthy
+        required: false
       # Healthy is not enough: an empty MinIO is healthy, and the first upload
       # would fail with NoSuchBucket.
       minio-init:
@@ -127,7 +137,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 4000
-      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public}
       JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -base64 48}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       # The first administrator. Used only while staff_users is empty, so it
@@ -194,10 +204,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+        required: false
       minio-init:
         condition: service_completed_successfully
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public}
       # The import uploads apps/api/seed-media into the public bucket.
       S3_ENDPOINT: http://minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}

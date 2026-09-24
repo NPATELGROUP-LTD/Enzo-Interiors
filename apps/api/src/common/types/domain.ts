@@ -29,8 +29,15 @@
 /* Enums                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export const STAFF_ROLES = ['Admin', 'Designer', 'Installer'] as const;
+/**
+ * v1's admin has two roles: Admin, and Editor (writes content, cannot publish).
+ * Designer and Installer are the CRM's; a Designer is treated as an Editor.
+ */
+export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
+
+/** The roles the v1 admin invites and assigns. */
+export const ADMIN_ROLES = ['Admin', 'Editor'] as const;
 
 export const CLIENT_STATUSES = ['Active', 'Inactive'] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -401,6 +408,10 @@ export interface CmsEntry extends BaseRecord {
   published_at: string | null;
   updated_at: string;
   updated_by: string | null;
+  /** Set while an editor's changes wait for an admin: who asked, when, their note. */
+  review_by: string | null;
+  review_at: string | null;
+  review_note: string | null;
 }
 
 /**
@@ -430,6 +441,58 @@ export interface SiteSettings extends BaseRecord {
   /** Once set and passed, the site is live whatever `status` says. */
   launch_at: string | null;
   notification_emails: string[];
+  /** Media ids. Null logo = the shipped one; null favicon = the site's /icon.png. */
+  logo_light_id: string | null;
+  logo_dark_id: string | null;
+  favicon_id: string | null;
   updated_at: string;
   updated_by: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Consultation bookings                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** The booking settings row. `config` is validated by BookingConfigDto. */
+export interface BookingSettingsRow extends BaseRecord {
+  config: Record<string, unknown>;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export const APPOINTMENT_STATUSES = ['Confirmed', 'Cancelled'] as const;
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export interface Appointment extends BaseRecord {
+  reference: string;
+  service: string;
+  service_label: string;
+  starts_at: string;
+  ends_at: string;
+  /** starts_at while the booking holds the slot; null once cancelled. Unique. */
+  slot: string | null;
+  status: AppointmentStatus;
+  name: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  postcode: string | null;
+  notes: string | null;
+  details: Record<string, string> | null;
+  source: 'website' | 'admin';
+  created_by: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One line in a staff member's notification bell. */
+export interface Notification extends BaseRecord {
+  recipient_id: string;
+  kind: 'booking' | 'review' | 'review_reply';
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
+  created_at: string;
 }

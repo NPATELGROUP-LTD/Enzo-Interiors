@@ -4,6 +4,7 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UsersController, UsersService } from './users';
 
 /** The signing key, or a loud failure at boot. */
 function mustHaveSecret(config: ConfigService): string {
@@ -40,7 +41,7 @@ function mustHaveSecret(config: ConfigService): string {
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService],
+  controllers: [AuthController, UsersController],
+  providers: [AuthService, UsersService],
 })
 export class AuthModule {}

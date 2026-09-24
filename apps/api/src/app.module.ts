@@ -7,9 +7,11 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CoreModule } from './core/core.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { BookingModule } from './modules/booking/booking.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { MediaModule } from './modules/media/media.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
 
 /**
@@ -20,7 +22,9 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * controller is authenticated and role-checked by default, and opening one up
  * requires an explicit, greppable @Public().
  *
- * v1 SCOPE: the public site and the CMS that runs it, nothing else. The CRM
+ * v1 SCOPE: the public site, the CMS that runs it, consultation booking
+ * (BookingModule: the site's booking form and the admin's Bookings screen) and
+ * the admin's users and notifications. Nothing else. The CRM
  * modules (clients, projects, quotes, invoices, bookings, conversations,
  * documents, components, content, settings, dashboard) are still in
  * src/modules and their tables are still in the schema, so existing data is
@@ -46,6 +50,8 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     SiteSettingsModule,
     CmsModule,
     EnquiriesModule,
+    NotificationsModule,
+    BookingModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.

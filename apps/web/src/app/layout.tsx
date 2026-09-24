@@ -6,7 +6,7 @@ import "@/styles/theme.css";
 import { ComingSoon } from "@/components/coming-soon/ComingSoon";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
-import { getPage, getSiteStatus, isLive } from "@/lib/content";
+import { getPage, getSiteStatus, isLive, mediaSrc } from "@/lib/content";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
@@ -56,6 +56,10 @@ export async function generateMetadata(): Promise<Metadata> {
     title: metadata.title,
     description: metadata.description,
     applicationName: SITE_NAME,
+    // The favicon chosen in the admin's Settings, else the one in public/.
+    icons: site.brand?.favicon
+      ? { icon: mediaSrc(site.brand.favicon), apple: mediaSrc(site.brand.favicon) }
+      : { icon: "/icon.png", apple: "/apple-icon.png" },
     openGraph: { type: "website", locale: "en_GB", siteName: SITE_NAME, images: ["/og/home"] },
     twitter: { card: "summary_large_image" },
     // Before launch every address is the coming-soon page; none of it

@@ -36,7 +36,7 @@ export function hashPassword(plain: string): Promise<string> {
  * Kept so that a database seeded before the migration fails closed rather than
  * silently comparing a password against a plaintext column.
  */
-function looksHashed(value: string): boolean {
+export function looksHashed(value: string): boolean {
   return /^\$2[aby]\$\d{2}\$/.test(value);
 }
 
@@ -59,7 +59,7 @@ export async function verify(plain: string, stored: string | undefined): Promise
 }
 
 /** The reset token is emailed; only this digest of it is stored. */
-function digest(token: string): string {
+export function digest(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
@@ -252,11 +252,24 @@ export class AuthService implements OnApplicationBootstrap {
       reset_expires_at: null,
       updated_at: new Date().toISOString(),
     });
-    await this.mail.send({
-      to: staff.email,
-      ...templates.passwordChanged(staff.name, `${this.adminUrl}/forgot-password`),
-    });
+    // Accepting an invitation sets the first password; nothing was "changed".
+    if (looksHashed(staff.password_hash)) {
+      await this.mail.send({
+        to: staff.email,
+        ...templates.passwordChanged(staff.name, `${this.adminUrl}/forgot-password`),
+      });
+    }
     return updated ?? staff;
+  }
+
+  /** PUT /auth/profile — your own name. The email is the sign-in, so an admin changes that. */
+  async updateProfile(principal: AuthPrincipal, name: string): Promise<AuthPrincipal> {
+    const updated = await this.db.staffUsers.update(principal.id, {
+      name: name.trim(),
+      updated_at: new Date().toISOString(),
+    });
+    if (!updated) throw new UnauthorizedException('Your account no longer exists.');
+    return { ...principal, name: updated.name };
   }
 
   private async issue(staff: StaffUser): Promise<LoginResult> {

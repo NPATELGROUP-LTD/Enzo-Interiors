@@ -99,6 +99,60 @@ function button(href: string, label: string): string {
 
 type Rendered = Pick<Mail, 'subject' | 'html' | 'text'>;
 
+function detailRows(rows: Array<[string, string]>): string {
+  return rows
+    .map(
+      ([key, value]) =>
+        `<tr><td style="padding:6px 16px 6px 0;color:#6B6B6B;vertical-align:top;white-space:nowrap">${escapeHtml(key)}</td><td style="padding:6px 0">${escapeHtml(value)}</td></tr>`,
+    )
+    .join('');
+}
+
+function table(rows: Array<[string, string]>): string {
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:0 0 20px">${detailRows(rows)}</table>`;
+}
+
+function heading(eyebrow: string, title: string): string {
+  return `<p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${SAGE}">${escapeHtml(eyebrow)}</p>
+<h1 style="margin:0 0 20px;font:600 22px/1.3 Georgia,serif;color:${FOREST}">${escapeHtml(title)}</h1>`;
+}
+
+const para = (text: string) => `<p style="margin:0 0 16px">${escapeHtml(text)}</p>`;
+const plain = (rows: Array<[string, string]>) => rows.map(([k, v]) => `${k}: ${v}`).join('\n');
+
+/** A consultation as the emails describe it. `when` is already in studio time. */
+export interface BookingMail {
+  reference: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  service: string;
+  when: string;
+  address: string | null;
+  postcode: string | null;
+  notes: string | null;
+  details: Record<string, string> | null;
+}
+
+function bookingRows(b: BookingMail, full: boolean): Array<[string, string]> {
+  const rows: Array<[string, string]> = [
+    ['When', b.when],
+    ['Consultation', b.service],
+    ['Reference', b.reference],
+  ];
+  if (!full) return rows;
+  const optional: Array<[string, string | null]> = [
+    ['Name', b.name],
+    ['Email', b.email],
+    ['Phone', b.phone],
+    ['Address', b.address],
+    ['Postcode', b.postcode],
+    ...Object.entries(b.details ?? {}),
+    ['Notes', b.notes],
+  ];
+  return [...rows, ...(optional.filter(([, v]) => v) as Array<[string, string]>)];
+}
+
 export const templates = {
   passwordReset(name: string, link: string): Rendered {
     const subject = 'Reset your Enzo Interiors password';
@@ -148,12 +202,7 @@ ${button(forgotUrl, 'Reset my password')}`,
       ...(input.phone ? ([['Phone', input.phone]] as Array<[string, string]>) : []),
       ...Object.entries(input.details ?? {}),
     ];
-    const table = rows
-      .map(
-        ([key, value]) =>
-          `<tr><td style="padding:6px 16px 6px 0;color:#6B6B6B;vertical-align:top;white-space:nowrap">${escapeHtml(key)}</td><td style="padding:6px 0">${escapeHtml(value)}</td></tr>`,
-      )
-      .join('');
+    const table = detailRows(rows);
     return {
       subject,
       html: layout(
@@ -165,6 +214,126 @@ ${button(forgotUrl, 'Reset my password')}`,
 <p style="margin:20px 0 0;color:#6B6B6B;font-size:14px">Reply to this email to answer ${escapeHtml(input.name)} directly.</p>`,
       ),
       text: `${label}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${input.message}\n\nReply to this email to answer directly.`,
+    };
+  },
+
+  /** To the customer. */
+  bookingConfirmed(b: BookingMail, contact: string): Rendered {
+    const subject = `Your consultation is booked: ${b.when}`;
+    const rows = bookingRows(b, false);
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Consultation booked', `See you soon, ${b.name.split(' ')[0]}`)}
+${para('Thank you for booking a free home consultation with Enzo Interiors. Here are the details:')}
+${table(rows)}
+${para(`Need to change or cancel? Reply to this email or ${contact}, and quote your reference.`)}`,
+      ),
+      text: `Thank you for booking a free home consultation with Enzo Interiors.
+
+${plain(rows)}
+
+Need to change or cancel? Reply to this email or ${contact}, and quote your reference.`,
+    };
+  },
+
+  /** To the studio. */
+  bookingReceived(b: BookingMail, link: string): Rendered {
+    const subject = `New consultation: ${b.name}, ${b.when}`;
+    const rows = bookingRows(b, true);
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('New consultation', b.name)}
+${table(rows)}
+${button(link, 'Open in Enzo Interiors')}
+<p style="margin:0;color:#6B6B6B;font-size:14px">Reply to this email to answer ${escapeHtml(b.name)} directly.</p>`,
+      ),
+      text: `New consultation
+
+${plain(rows)}
+
+${link}`,
+    };
+  },
+
+  /** To the customer, after staff move it. */
+  bookingMoved(b: BookingMail, contact: string): Rendered {
+    const subject = `Your consultation has moved to ${b.when}`;
+    const rows = bookingRows(b, false);
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Consultation moved', b.when)}
+${para(`Hi ${b.name.split(' ')[0]}, your consultation with Enzo Interiors is now at the time below.`)}
+${table(rows)}
+${para(`If that does not suit, reply to this email or ${contact}.`)}`,
+      ),
+      text: `Your consultation with Enzo Interiors has moved.
+
+${plain(rows)}
+
+If that does not suit, reply to this email or ${contact}.`,
+    };
+  },
+
+  /** To the customer, after staff cancel it. */
+  bookingCancelled(b: BookingMail, contact: string): Rendered {
+    const subject = `Your consultation on ${b.when} is cancelled`;
+    const rows = bookingRows(b, false);
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Consultation cancelled', b.when)}
+${para(`Hi ${b.name.split(' ')[0]}, your consultation with Enzo Interiors has been cancelled.`)}
+${table(rows)}
+${para(`To book another time, reply to this email or ${contact}.`)}`,
+      ),
+      text: `Your consultation with Enzo Interiors has been cancelled.
+
+${plain(rows)}
+
+To book another time, reply to this email or ${contact}.`,
+    };
+  },
+
+  invite(name: string, inviter: string, role: string, link: string): Rendered {
+    const subject = `${inviter} invited you to Enzo Interiors`;
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+${para(`${inviter} has invited you to the Enzo Interiors admin as ${role === 'Admin' ? 'an Admin' : 'an Editor'}. Choose a password to get started. The link works once and expires in 7 days.`)}
+${button(link, 'Choose your password')}`,
+      ),
+      text: `Hi ${name},
+
+${inviter} has invited you to the Enzo Interiors admin. Choose a password here (expires in 7 days):
+${link}`,
+    };
+  },
+
+  reviewRequested(editor: string, page: string, note: string | null, link: string): Rendered {
+    const subject = `${editor} sent ${page} for review`;
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Ready for review', page)}
+${para(`${editor} has changes ready to publish.`)}
+${note ? `<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap;margin:0 0 16px">${escapeHtml(note)}</div>` : ''}
+${button(link, 'Review the changes')}`,
+      ),
+      text: `${editor} sent ${page} for review.${note ? `
+
+${note}` : ''}
+
+${link}`,
     };
   },
 

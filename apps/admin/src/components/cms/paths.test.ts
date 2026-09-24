@@ -15,7 +15,11 @@ import { test } from 'node:test';
 
 import {
   blankLike,
+  buttonPairs,
+  compactColumns,
+  describe,
   humanize,
+  isSentenceList,
   orderKeys,
   removeAt,
   setIn,
@@ -131,6 +135,47 @@ test('summarize names a list item by its most telling words', () => {
   assert.equal(summarize({ lead: 'Stop', accent: 'Dreaming' }), 'Stop');
   assert.equal(summarize({ open: '10:00', close: '17:00' }), '10:00');
   assert.equal(summarize({ n: 1 }), '');
+  // The heading, not the "01 → 02" eyebrow above it.
+  assert.equal(
+    summarize({ id: 'a-to-b', eyebrow: '01 → 02', heading: 'From the Anchor' }),
+    'From the Anchor',
+  );
+  // A hero room is named by its caption, never by its id.
+  assert.equal(
+    summarize({ id: 'mediawall', framesDir: 'mediawall', hold: { heading: 'Every cable' } }),
+    'Every cable',
+  );
+  assert.equal(describe({ heading: 'Every cable', body: 'Screen and storage' }, 'Every cable'), 'Screen and storage');
+});
+
+test('buttonPairs finds text-and-link pairs and nothing else', () => {
+  assert.deepEqual(buttonPairs(['sub', 'ctaLabel', 'ctaHref', 'label', 'href', 'noteLabel']), [
+    ['ctaLabel', 'ctaHref'],
+    ['label', 'href'],
+  ]);
+});
+
+test('isSentenceList only matches lead/accent/tail lines', () => {
+  assert.equal(isSentenceList([{ lead: 'Stop', accent: 'Dreaming', tail: '.' }]), true);
+  assert.equal(isSentenceList([{ text: 'Stop', accent: true }]), false);
+  assert.equal(isSentenceList([]), false);
+});
+
+test('compactColumns keeps short flat lists as a table and refuses the rest', () => {
+  const all = () => true;
+  assert.deepEqual(
+    compactColumns([{ label: 'Years', value: '12' }, { label: 'Rooms', value: 340 }], all, all),
+    ['label', 'value'],
+  );
+  // Hidden keys do not count as columns.
+  assert.deepEqual(
+    compactColumns([{ id: 'x', day: 'Mon', time: '9-5' }], (key) => key !== 'id', all),
+    ['day', 'time'],
+  );
+  // Long words, pictures and nested things each need room of their own.
+  assert.equal(compactColumns([{ title: 'x', body: 'y'.repeat(80) }], all, all), null);
+  assert.equal(compactColumns([{ title: 'x', imageId: 'p' }], all, (key) => key !== 'imageId'), null);
+  assert.equal(compactColumns([{ title: 'x', hold: {} }], all, all), null);
 });
 
 test('splitSections treats null as a scalar, not an empty section', () => {

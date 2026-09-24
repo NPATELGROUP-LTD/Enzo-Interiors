@@ -3,10 +3,17 @@ import {
   ArrowRight,
   ArrowSquareOut,
   CaretRight,
+  ChatCircleText,
+  CheckCircle,
   EyeSlash,
+  FileText,
   Image as ImageIcon,
   MagnifyingGlass,
+  PaperPlaneTilt,
   Plus,
+  Stack,
+  WarningCircle,
+  type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -20,9 +27,9 @@ import {
   type EditorContext,
   type Path,
 } from '@/components/cms/JsonEditor';
-import { DETAILS_GUIDE, PAGES } from '@/components/cms/guide';
+import { DETAILS_GUIDE, PAGES, RETIRED, USED_ON, fieldLabel, isTechnical } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
-import { DETAILS_SECTION, splitSections } from '@/components/cms/paths';
+import { DETAILS_SECTION, orderKeys, splitSections } from '@/components/cms/paths';
 import { SECTIONS, useCmsShell } from '@/components/layout/AdminLayout';
 import {
   Button,
@@ -34,13 +41,14 @@ import {
   Modal,
   PageHeader,
   Select,
+  Textarea,
   Toggle,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dateTime } from '@/lib/format';
+import { relative } from '@/lib/format';
 import type { CmsCollection, CmsEntry, CmsEntrySummary, MediaAsset } from '@/types/cms';
 
 /* -------------------------------------------------------------------------- */
@@ -50,9 +58,9 @@ import type { CmsCollection, CmsEntry, CmsEntrySummary, MediaAsset } from '@/typ
 /** Live / changed since publishing / never published, as a dot and a word. */
 function Status({ isNew, isDirty }: { isNew: boolean; isDirty: boolean }) {
   const [dot, text] = isNew
-    ? ['bg-ink-muted/60', 'Not published yet']
+    ? ['bg-ink-muted/60', 'Not on the website yet']
     : isDirty
-      ? ['bg-warning', 'Unpublished changes']
+      ? ['bg-warning', 'Changes not live yet']
       : ['bg-success', 'Live'];
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-ink-muted">
@@ -102,6 +110,7 @@ function useSchema(collection: CmsCollection) {
   const schema = shell.overview?.schemas.find((row) => row.collection === collection) ?? null;
   return { ...shell, schema };
 }
+
 
 /* -------------------------------------------------------------------------- */
 /* List                                                                       */
@@ -196,10 +205,64 @@ function EntryCard({
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(16.5rem,1fr))] gap-4';
 const PANE = 'px-5 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-6 sm:px-8 lg:pt-8';
 const GROUP_HEADING = 'mb-3 text-[13px] font-semibold uppercase leading-none tracking-[0.08em] text-ink-muted';
+const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
+
+/** One row of the overview's lists: icon, name, a line saying what it is, and where it goes. */
+function OverviewRow({
+  to,
+  Icon,
+  name,
+  meta,
+  line,
+  status,
+  tone = 'green',
+}: {
+  to: string;
+  Icon: PhosphorIcon;
+  name: string;
+  meta?: ReactNode;
+  line: ReactNode;
+  status?: ReactNode;
+  tone?: 'green' | 'warning';
+}) {
+  return (
+    <Link
+      to={to}
+      className={clsx('group flex h-full items-start gap-3 rounded-[10px] px-3 py-3 transition-colors hover:bg-ink/[0.025]', FOCUS)}
+    >
+      <span
+        className={clsx(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px]',
+          tone === 'warning' ? 'bg-warning-bg text-warning' : 'bg-green-100 text-green-900',
+        )}
+      >
+        <Icon size={18} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-baseline gap-2">
+          <span className="font-semibold text-ink">{name}</span>
+          {meta ? <span className="tabular truncate text-xs text-ink-muted">{meta}</span> : null}
+        </span>
+        <span className="mt-0.5 block text-[13px] leading-snug text-ink-muted">{line}</span>
+        {status ? <span className="mt-1.5 block">{status}</span> : null}
+      </span>
+      <CaretRight
+        size={14}
+        aria-hidden="true"
+        className="mt-1 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5"
+      />
+    </Link>
+  );
+}
+
+/** Where each collection is edited, for the review list's links. */
+const EDIT_PATH = Object.fromEntries(SECTIONS.map((row) => [row.collection, row.to])) as Record<CmsCollection, string>;
 
 /**
- * What "CMS" in the menu bar opens: every page and every kind of shared
- * content on one screen, each with whether it has changes waiting to go live.
+ * What "CMS" in the menu bar opens: every page of the website in the order a
+ * visitor meets them, and next to them the things several pages share, each
+ * saying where it shows up. Anything an editor has sent for review sits on
+ * top until an admin deals with it.
  */
 export function CmsHome() {
   const { overview, error, refresh } = useCmsShell();
@@ -212,98 +275,92 @@ export function CmsHome() {
   if (error) return <ErrorState message={error} onRetry={refresh} />;
   if (!overview) return <LoadingState label="Opening the CMS…" />;
 
-  const waiting = Object.values(overview.counts).reduce((total, count) => total + count.dirty, 0);
+  const shared = SECTIONS.filter((section) => section.collection !== 'pages');
+  const reviews = overview.reviews ?? [];
 
   return (
     <div className={PANE}>
-      <PageHeader
-        title="Website content"
-        description="Everything on the public website. Pages are edited section by section, in the order a visitor scrolls. Shared content appears on several pages, so it is edited once, in its own place."
-      />
-      <p className="-mt-2 mb-8 flex items-center gap-2 text-sm text-ink-muted">
-        <span
-          aria-hidden="true"
-          className={clsx('h-2 w-2 rounded-full', waiting ? 'bg-warning' : 'bg-success')}
-        />
-        {waiting === 0
-          ? 'Everything is live. The website shows exactly what is saved here.'
-          : `${waiting} ${waiting === 1 ? 'change is' : 'changes are'} saved but not on the website yet.`}
-      </p>
+      <div className="grid items-start gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex min-w-0 flex-col gap-10">
+          {reviews.length ? (
+            <section aria-labelledby="cms-reviews">
+              <h2 id="cms-reviews" className={GROUP_HEADING}>
+                Waiting for review
+              </h2>
+              <ul className="rounded-card bg-surface p-1.5 shadow-soft">
+                {reviews.map((item) => (
+                  <li key={`${item.collection}/${item.slug}`}>
+                    <OverviewRow
+                      to={item.collection === 'company' ? EDIT_PATH.company : `${EDIT_PATH[item.collection]}/${item.slug}`}
+                      Icon={ChatCircleText}
+                      tone="warning"
+                      name={item.collection === 'pages' ? (PAGES[item.slug]?.name ?? item.title) : item.title}
+                      meta={`${item.by}, ${relative(item.at)}`}
+                      line={item.note ? `“${item.note}”` : 'No note. Open it to see what changed.'}
+                    />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
-      <section aria-labelledby="cms-pages">
-        <h2 id="cms-pages" className={GROUP_HEADING}>
-          Pages
-        </h2>
-        {pages.error ? (
-          <ErrorState message={pages.error} onRetry={pages.refetch} />
-        ) : !pages.data ? (
-          <LoadingState label="Loading pages…" />
-        ) : (
-          <div className={GRID}>
-            {rows.map((row) => {
-              const guide = PAGES[row.slug];
-              return (
-                <EntryCard
-                  key={row.id}
-                  to={`/pages/${row.slug}`}
-                  title={guide?.name ?? row.title}
-                  meta={guide ? (guide.path ?? 'On every page') : row.slug}
-                  summary={guide?.summary}
-                  pictures={false}
-                  hidden={false}
-                  row={row}
-                />
-              );
-            })}
-          </div>
-        )}
-      </section>
+          <section aria-labelledby="cms-pages">
+            <h2 id="cms-pages" className={GROUP_HEADING}>
+              Pages
+            </h2>
+            {pages.error ? (
+              <ErrorState message={pages.error} onRetry={pages.refetch} />
+            ) : !pages.data ? (
+              <LoadingState label="Loading pages…" />
+            ) : (
+              <ol className="grid rounded-card bg-surface p-1.5 shadow-soft lg:grid-cols-2">
+                {rows.map((row) => {
+                  const guide = PAGES[row.slug];
+                  return (
+                    <li key={row.id}>
+                      <OverviewRow
+                        to={`/pages/${row.slug}`}
+                        Icon={guide?.path === null ? Stack : FileText}
+                        name={guide?.name ?? row.title}
+                        meta={guide ? (guide.path ?? 'Every page') : row.slug}
+                        line={guide?.summary ?? ''}
+                        status={row.isNew || row.isDirty ? <Status isNew={row.isNew} isDirty={row.isDirty} /> : null}
+                      />
+                    </li>
+                  );
+                })}
+              </ol>
+            )}
+          </section>
+        </div>
 
-      <section aria-labelledby="cms-shared" className="mt-11">
-        <h2 id="cms-shared" className={GROUP_HEADING}>
-          Shared content
-        </h2>
-        <div className={GRID}>
-          {SECTIONS.filter((section) => section.collection !== 'pages').map(
-            ({ to, label, collection, Icon }) => {
+        <section aria-labelledby="cms-shared">
+          <h2 id="cms-shared" className={GROUP_HEADING}>
+            Shared content
+          </h2>
+          <ul className="rounded-card bg-surface p-1.5 shadow-soft">
+            {shared.map(({ to, label, collection, Icon }) => {
               const schema = overview.schemas.find((row) => row.collection === collection);
               const count = overview.counts[collection];
               return (
-                <Link
-                  key={to}
-                  to={to}
-                  className="group flex flex-col gap-2 rounded-card bg-surface p-4 shadow-soft transition-[box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:shadow-overlay focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
-                >
-                  <span className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[9px] bg-green-100 text-green-900">
-                      <Icon size={18} aria-hidden="true" />
-                    </span>
-                    <span className="flex-1 font-semibold text-ink">{label}</span>
-                    <CaretRight
-                      size={15}
-                      aria-hidden="true"
-                      className="shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5"
-                    />
-                  </span>
-                  {schema ? (
-                    <span className="line-clamp-3 text-sm leading-relaxed text-ink-muted">
-                      {schema.description}
-                    </span>
-                  ) : null}
-                  <span className="mt-auto flex items-center gap-3 pt-2 text-xs font-medium text-ink-muted">
-                    {schema && !schema.fixed && count ? (
-                      <span className="tabular">
-                        {count.total} {count.total === 1 ? schema.singular : `${schema.singular}s`}
-                      </span>
-                    ) : null}
-                    <Status isNew={false} isDirty={(count?.dirty ?? 0) > 0} />
-                  </span>
-                </Link>
+                <li key={to}>
+                  <OverviewRow
+                    to={to}
+                    Icon={Icon}
+                    name={label}
+                    meta={schema && !schema.fixed && count ? count.total : undefined}
+                    line={USED_ON[collection]}
+                    status={(count?.dirty ?? 0) > 0 ? <Status isNew={false} isDirty /> : null}
+                  />
+                </li>
               );
-            },
-          )}
-        </div>
-      </section>
+            })}
+          </ul>
+          <p className="mt-3 px-1 text-[13px] text-ink-muted">
+            Each is edited once, here, and changes everywhere it appears.
+          </p>
+        </section>
+      </div>
     </div>
   );
 }
@@ -487,6 +544,7 @@ export function CollectionPage({
   );
 }
 
+
 /* -------------------------------------------------------------------------- */
 /* Editor                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -509,15 +567,30 @@ function ChangedDot({ on }: { on: boolean }) {
   );
 }
 
-/** A page's sections, in the order a visitor scrolls through them. */
+interface OutlineItem {
+  id: string;
+  name: string;
+  help: string;
+  changed: boolean;
+}
+
+/**
+ * A page's sections, in the order a visitor scrolls through them. The open
+ * one also lists its parts (the rooms, the call to action...), which scroll
+ * the form to that part.
+ */
 function Outline({
   items,
   active,
+  parts,
   onSelect,
+  onPart,
 }: {
-  items: Array<{ id: string; name: string; changed: boolean }>;
+  items: OutlineItem[];
   active: string;
+  parts: Array<{ key: string; name: string }>;
   onSelect: (id: string) => void;
+  onPart: (key: string) => void;
 }) {
   return (
     <nav aria-label="Sections of this page">
@@ -544,6 +617,21 @@ function Outline({
                 <span className="min-w-0 flex-1 truncate">{item.name}</span>
                 {item.changed ? <ChangedDot on={selected} /> : null}
               </button>
+              {selected && parts.length > 1 ? (
+                <ul aria-label={`Parts of ${item.name}`} className="mb-1.5 mt-1 flex flex-col">
+                  {parts.map((part) => (
+                    <li key={part.key}>
+                      <button
+                        type="button"
+                        onClick={() => onPart(part.key)}
+                        className="flex min-h-7 w-full items-center rounded-[6px] pl-9 pr-2.5 text-left text-[12.5px] text-ink-muted transition-colors hover:bg-ink/[0.06] hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-10"
+                      >
+                        <span className="truncate">{part.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           );
         })}
@@ -588,6 +676,45 @@ function Siblings({
   );
 }
 
+/** What the toolbar says about saving: quiet when it worked, loud when not. */
+function SaveIndicator({
+  state,
+  pending,
+  onRetry,
+}: {
+  state: 'saved' | 'saving' | 'failed';
+  pending: boolean;
+  onRetry: () => void;
+}) {
+  if (state === 'failed') {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-danger">
+        <WarningCircle size={15} aria-hidden="true" />
+        Not saved
+        <button type="button" onClick={onRetry} className="text-link text-[13px]">
+          Try again
+        </button>
+      </span>
+    );
+  }
+  return (
+    <span aria-live="polite" className="inline-flex items-center gap-1.5 text-[13px] text-ink-muted">
+      {pending ? null : <CheckCircle size={15} aria-hidden="true" className="text-success" />}
+      {pending ? 'Saving…' : 'Saved'}
+    </span>
+  );
+}
+
+type SaveState = 'saved' | 'saving' | 'failed';
+
+/**
+ * One entry's editor.
+ *
+ * Edits save themselves a moment after typing stops, so the only decision an
+ * editor makes is Publish: what is typed is kept, and Publish is what puts it
+ * on the website. "Save draft" and the leave-without-saving dialog are gone
+ * with that; leaving mid-save waits for the save instead of asking.
+ */
 export function EntryPage({
   collection,
   slug,
@@ -619,14 +746,21 @@ export function EntryPage({
   );
 
   const [body, setBody] = useState<Record<string, unknown> | null>(null);
+  /** The draft as the server last accepted it; autosave compares against it. */
+  const [saved, setSaved] = useState<Record<string, unknown> | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>('saved');
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const [section, setSection] = useState(DETAILS_SECTION);
   const [showTechnical, setShowTechnical] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [confirmRevert, setConfirmRevert] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /** The note dialog: an editor sending for review, or an admin sending back. */
+  const [noteFor, setNoteFor] = useState<'review' | 'send-back' | null>(null);
+  const [note, setNote] = useState('');
+  const [sendingNote, setSendingNote] = useState(false);
   const leaving = useRef(false);
+  const inflight = useRef<Promise<boolean> | null>(null);
   const paneRef = useRef<HTMLDivElement>(null);
 
   // Adopt the server's draft once per entry, keyed on the row id so moving to
@@ -634,27 +768,98 @@ export function EntryPage({
   if (entry.data && loadedFor !== entry.data.id) {
     setLoadedFor(entry.data.id);
     setBody(entry.data.draft);
-    // A search result links straight to a section as /pages/home#process.
+    setSaved(entry.data.draft);
+    // A search result or the overview links straight to a section as /pages/home#process.
     const hash = decodeURIComponent(location.hash.slice(1));
     setSection(hash && hash in entry.data.draft ? hash : DETAILS_SECTION);
   }
 
-  const dirty = useMemo(
-    () => (entry.data && body ? !same(body, entry.data.draft) : false),
-    [body, entry.data],
-  );
+  const unsaved = useMemo(() => (body && saved ? !same(body, saved) : false), [body, saved]);
+  const pending = unsaved || saveState === 'saving';
 
-  // Nothing typed should be lost to a menu click, the back link or a closed tab.
+  const { setData: setEntry, refetch: refetchEntry } = entry;
+  const save = useCallback(async (): Promise<boolean> => {
+    // One request at a time, so an older draft can never land after a newer one.
+    while (inflight.current) await inflight.current;
+    if (!body || same(body, saved)) return true;
+    setSaveState('saving');
+    const run = api
+      .put<CmsEntry>(`/cms/collections/${collection}/${slug}`, { draft: body })
+      .then((updated) => {
+        setSaved(body);
+        setSaveState('saved');
+        setEntry((current) =>
+          current
+            ? {
+                ...current,
+                ...updated,
+                isDirty: updated.published === null || !same(updated.draft, updated.published),
+              }
+            : current,
+        );
+        refresh();
+        return true;
+      })
+      .catch((caught: unknown) => {
+        setSaveState('failed');
+        toast.error(
+          caught instanceof ApiError ? caught.message : 'That did not save. Your changes are still on screen.',
+        );
+        return false;
+      });
+    inflight.current = run;
+    try {
+      return await run;
+    } finally {
+      inflight.current = null;
+    }
+  }, [body, saved, collection, slug, setEntry, refresh, toast]);
+
+  // Save a moment after typing stops. A failed save waits for the next edit
+  // or "Try again", rather than retrying in a loop.
+  useEffect(() => {
+    if (!unsaved || saveState === 'failed') return undefined;
+    const timer = window.setTimeout(() => void save(), 1000);
+    return () => window.clearTimeout(timer);
+  }, [unsaved, saveState, save]);
+
+  // Leaving by the menu, the sidebar or the back link waits for the save.
   const blocker = useBlocker(
     ({ currentLocation, nextLocation }) =>
-      dirty && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
+      pending && !leaving.current && currentLocation.pathname !== nextLocation.pathname,
   );
   useEffect(() => {
-    if (!dirty) return undefined;
+    if (blocker.state !== 'blocked') return undefined;
+    let cancelled = false;
+    void save().then((ok) => {
+      if (cancelled) return;
+      if (ok) blocker.proceed();
+      else blocker.reset();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [blocker, save]);
+
+  // A closed tab cannot wait, so it asks.
+  useEffect(() => {
+    if (!pending) return undefined;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [pending]);
+
+  // Ctrl/Cmd+S saves now, because that is where every editor's hand goes.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        void save();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [save]);
 
   const options = useMemo(() => {
     const pick = (rows: CmsEntrySummary[] | null) =>
@@ -690,57 +895,50 @@ export function EntryPage({
     [schema, assets.data, options, showTechnical, refetchAssets],
   );
 
-  const save = useCallback(async (): Promise<boolean> => {
-    if (!body) return false;
-    setSaving(true);
-    try {
-      await api.put(`/cms/collections/${collection}/${slug}`, { draft: body });
-      await entry.refetch();
-      refresh();
-      toast.success(
-        isAdmin
-          ? 'Saved as a draft. Publish to put it on the website.'
-          : 'Saved. An administrator will publish it.',
-      );
-      return true;
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'That did not save.');
-      return false;
-    } finally {
-      setSaving(false);
-    }
-  }, [body, collection, slug, entry, refresh, toast, isAdmin]);
-
-  // Ctrl/Cmd+S saves, because that is where every editor's hand already goes.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
-        event.preventDefault();
-        if (dirty && !saving) void save();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [dirty, saving, save]);
-
   if (shellError) return <ErrorState message={shellError} onRetry={refresh} />;
   if (entry.error) return <ErrorState message={entry.error} onRetry={entry.refetch} />;
   if (!schema || !context || !entry.data || !body) return <LoadingState label="Opening…" />;
 
   const published = entry.data.published;
-  const unpublished = dirty || entry.data.isDirty;
+  const notLive = published === null || entry.data.isDirty || unsaved;
+  const review = entry.data.review;
   const guide = collection === 'pages' ? PAGES[slug] : undefined;
   const title = guide?.name ?? (String(body[schema.titleField] ?? '') || slug);
   const path = sitePath(collection, slug);
+  // Keys something else now controls (guide.ts RETIRED): kept, not shown.
+  const retired = new Set(RETIRED[collection] ?? []);
+  const shown = retired.size ? Object.fromEntries(Object.entries(body).filter(([key]) => !retired.has(key))) : body;
+
+  // Send for review (editors) and send back (admins) both carry a note.
+  const sendNote = async () => {
+    if (noteFor === 'review' && !(await save())) return;
+    setSendingNote(true);
+    try {
+      await api.post(`/cms/collections/${collection}/${slug}/${noteFor}`, { note: note.trim() || undefined });
+      await refetchEntry();
+      refresh();
+      toast.success(
+        noteFor === 'review'
+          ? 'Sent. The Admins have been told, and you will hear back under the bell.'
+          : 'Sent back. They have been told, with your note.',
+      );
+      setNoteFor(null);
+      setNote('');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'That did not send.');
+    } finally {
+      setSendingNote(false);
+    }
+  };
 
   const publish = async () => {
-    // Publishing what is on screen is what the button promises, so unsaved
-    // edits are saved first rather than silently left behind.
-    if (dirty && !(await save())) return;
+    // Publishing what is on screen is what the button promises, so a save
+    // still waiting to happen goes first.
+    if (!(await save())) return;
     setPublishing(true);
     try {
       await api.post(`/cms/collections/${collection}/${slug}/publish`);
-      await entry.refetch();
+      await refetchEntry();
       refresh();
       toast.success('Published. The website is updating now.');
     } catch (caught) {
@@ -750,17 +948,12 @@ export function EntryPage({
     }
   };
 
-  const revert = async () => {
+  // Back to what the website shows is just one more edit: it saves like any
+  // other, and then the draft equals what is live again.
+  const revert = () => {
     setConfirmRevert(false);
-    try {
-      const restored = await api.post<CmsEntry>(`/cms/collections/${collection}/${slug}/revert`);
-      setBody(restored.draft);
-      await entry.refetch();
-      refresh();
-      toast.success('Back to exactly what the website is showing.');
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'That did not work.');
-    }
+    if (published) setBody(published);
+    toast.success('Back to exactly what the website is showing.');
   };
 
   const remove = async () => {
@@ -776,21 +969,31 @@ export function EntryPage({
     }
   };
 
+  const technicalToggle = (
+    <Toggle
+      label="Show technical fields"
+      description="Ids, screen-reader labels and 3D camera settings. Rarely needed."
+      checked={showTechnical}
+      onChange={setShowTechnical}
+    />
+  );
+
   /* ---- Pages step through their sections; everything else is one form ---- */
-  let sidebar: ReactNode = null;
+  let navigation: ReactNode = null;
+  let crumb = schema.fixed ? schema.label : `${schema.label} › ${title}`;
   let content: ReactNode;
   if (collection === 'pages') {
     const { scalars, sections } = splitSections(
-      body,
+      shown,
       guide?.sections.map(([key]) => key),
     );
     const visibleScalars = scalars.filter((key) => showTechnical || !['id', 'index'].includes(key));
     const named = new Map(guide?.sections.map(([key, name, help]) => [key, { name, help }]));
-    const items = [
+    const items: OutlineItem[] = [
       ...(visibleScalars.length > 0 ? [{ id: DETAILS_SECTION, ...DETAILS_GUIDE }] : []),
       ...sections.map((key) => ({
         id: key,
-        name: named.get(key)?.name ?? humanize(key),
+        name: named.get(key)?.name ?? fieldLabel(key, humanize),
         help: named.get(key)?.help ?? '',
       })),
     ].map((item) => ({
@@ -811,8 +1014,32 @@ export function EntryPage({
       setSection(id);
       paneRef.current?.scrollTo({ top: 0 });
     };
+    // The lists and groups inside the open section, for the outline.
+    const value = current ? body[current.id] : null;
+    const parts =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? orderKeys(value as Record<string, unknown>, [...schema.mediaKeys, ...schema.mediaListKeys])
+            .filter((key) => {
+              const part = (value as Record<string, unknown>)[key];
+              return part !== null && typeof part === 'object' && (showTechnical || !isTechnical(key));
+            })
+            .map((key) => ({ key, name: fieldLabel(key, humanize) }))
+        : [];
 
-    if (current) sidebar = <Outline items={items} active={current.id} onSelect={select} />;
+    if (current) {
+      crumb = `${title} › ${current.name}`;
+      navigation = (
+        <Outline
+          items={items}
+          active={current.id}
+          parts={parts}
+          onSelect={select}
+          onPart={(key) =>
+            document.getElementById(`part-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }
+        />
+      );
+    }
     content = current ? (
       <section aria-labelledby="section-title">
         {/* No sidebar on small screens: a native dropdown takes one line. */}
@@ -827,15 +1054,12 @@ export function EntryPage({
           </Select>
         </div>
 
-        <header className="mb-8">
-          <p className="label-eyebrow">
-            Section {at + 1} of {items.length}
-          </p>
-          <h2 id="section-title" className="mt-1.5 text-2xl font-bold tracking-tight text-ink">
+        <header className="mb-9">
+          <h2 id="section-title" className="text-[26px] font-bold leading-tight tracking-tight text-ink">
             {current.name}
           </h2>
           {current.help ? (
-            <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">{current.help}</p>
+            <p className="mt-2 max-w-[62ch] text-[14px] leading-relaxed text-ink-muted">{current.help}</p>
           ) : null}
         </header>
 
@@ -852,10 +1076,11 @@ export function EntryPage({
             body={body[current.id] as Record<string, unknown>}
             path={[current.id]}
             context={context}
+            anchors
           />
         )}
 
-        <footer className="mt-12 flex flex-wrap justify-between gap-3">
+        <footer className="mt-14 flex flex-wrap justify-between gap-3">
           {at > 0 ? (
             <Button
               variant="ghost"
@@ -880,132 +1105,159 @@ export function EntryPage({
     );
   } else {
     if ((siblings.data?.length ?? 0) > 1)
-      sidebar = <Siblings label={schema.label} rows={siblings.data!} basePath={basePath} />;
-    content = <Fields body={body} context={context} />;
+      navigation = <Siblings label={schema.label} rows={siblings.data!} basePath={basePath} />;
+    content = (
+      <>
+        <header className="mb-9">
+          <h2 className="text-[26px] font-bold leading-tight tracking-tight text-ink">{title}</h2>
+          <p className="mt-2 max-w-[62ch] text-[14px] leading-relaxed text-ink-muted">{schema.description}</p>
+        </header>
+        <Fields body={shown} context={context} anchors />
+        {retired.has('logos') ? (
+          <p className="mt-10 text-sm text-ink-muted">
+            The logos and the browser-tab icon are in{' '}
+            {isAdmin ? (
+              <Link to="/settings/brand" className="text-link">
+                Settings › Logo &amp; icon
+              </Link>
+            ) : (
+              'Settings › Logo & icon'
+            )}
+            .
+          </p>
+        ) : null}
+        {isAdmin && !schema.fixed ? (
+          <div className="mt-16">
+            <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
+              Delete this {schema.singular}
+            </Button>
+          </div>
+        ) : null}
+      </>
+    );
   }
 
-  // What a Mac app keeps in its inspector: facts about the thing, not the thing.
-  const inspector = (
-    <div className="flex flex-col gap-8">
-      <div>
-        <p className="label-eyebrow mb-2">Status</p>
-        <Status isNew={published === null} isDirty={unpublished} />
-        <dl className="mt-3 flex flex-col gap-2 text-[13px]">
-          <div>
-            <dt className="text-ink-muted">Published</dt>
-            <dd className="text-ink">
-              {entry.data.published_at ? dateTime(entry.data.published_at) : 'Never'}
-            </dd>
-          </div>
-          {entry.data.updated_by ? (
-            <div>
-              <dt className="text-ink-muted">Last edited</dt>
-              <dd className="text-ink">
-                {entry.data.updated_by}, {dateTime(entry.data.updated_at)}
-              </dd>
-            </div>
-          ) : null}
-        </dl>
-        {path ? (
-          <a
-            href={`${WEB_URL}${path}`}
-            target="_blank"
-            rel="noopener"
-            className="mt-4 inline-flex min-h-9 items-center gap-1.5 rounded-control text-sm font-semibold text-green-900 hover:underline pointer-coarse:min-h-11"
-          >
-            <ArrowSquareOut size={15} aria-hidden="true" />
-            View on the website
-          </a>
-        ) : null}
-      </div>
-
-      {guide ? (
-        <div>
-          <p className="label-eyebrow mb-2">About this page</p>
-          <p className="text-[13px] leading-relaxed text-ink-muted">{guide.summary}</p>
-        </div>
-      ) : null}
-
-      <Toggle
-        label="Show technical fields"
-        description="Screen-reader labels, ids and 3D camera settings. Rarely needed."
-        checked={showTechnical}
-        onChange={setShowTechnical}
-      />
-
-      {isAdmin && !schema.fixed ? (
-        <div>
-          <Button variant="destructive" onClick={() => setConfirmDelete(true)}>
-            Delete this {schema.singular}
-          </Button>
-        </div>
-      ) : null}
-    </div>
-  );
-
   return (
-    // Three panes, each scrolling on its own: sidebar, the document, inspector.
+    // Two panes, each scrolling on its own: the source list, and the document.
     <div className="flex h-full min-h-0">
-      {sidebar ? (
-        <aside className="hidden w-64 shrink-0 overflow-y-auto border-r border-border bg-surface-muted/45 px-2.5 py-5 lg:block">
-          {sidebar}
-        </aside>
-      ) : null}
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
+        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-5 pt-5">{navigation}</div>
+        <div className="px-4 pb-4 pt-2">{technicalToggle}</div>
+      </aside>
 
       <div className="flex min-w-0 flex-1 flex-col bg-surface">
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-5 py-3 sm:px-8">
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-bold tracking-tight text-ink md:text-xl">{title}</h1>
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-ink-muted">
-              <Status isNew={published === null} isDirty={unpublished} />
-              {dirty ? <span className="font-semibold text-ink">· Not saved</span> : null}
-            </p>
-          </div>
+        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-5 py-2.5 sm:px-8">
+          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{crumb}</p>
+          <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
           <div className="flex flex-wrap items-center gap-2">
-            {published !== null && unpublished ? (
+            {path ? (
+              <a
+                href={`${WEB_URL}${path}`}
+                target="_blank"
+                rel="noopener"
+                title="Open this page on the website"
+                aria-label="Open this page on the website"
+                className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink pointer-coarse:h-11 pointer-coarse:w-11"
+              >
+                <ArrowSquareOut size={17} aria-hidden="true" />
+              </a>
+            ) : null}
+            {published !== null && notLive ? (
               <Button variant="ghost" onClick={() => setConfirmRevert(true)}>
-                Undo changes
+                Discard changes
               </Button>
             ) : null}
-            <Button
-              variant="secondary"
-              onClick={() => void save()}
-              loading={saving}
-              disabled={!dirty}
-            >
-              Save draft
-            </Button>
             {isAdmin ? (
-              <Button
-                variant="primary"
-                onClick={publish}
-                loading={publishing}
-                disabled={!unpublished}
-              >
+              <Button variant="primary" onClick={publish} loading={publishing} disabled={!notLive}>
                 Publish
               </Button>
-            ) : null}
+            ) : review ? (
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setNote(review.note ?? '');
+                  setNoteFor('review');
+                }}
+              >
+                Update note
+              </Button>
+            ) : (
+              <Button
+                variant="primary"
+                icon={<PaperPlaneTilt size={15} />}
+                disabled={!notLive}
+                title={notLive ? undefined : 'Nothing has changed since it was published.'}
+                onClick={() => setNoteFor('review')}
+              >
+                Send for review
+              </Button>
+            )}
           </div>
         </div>
 
         <div ref={paneRef} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[52rem] px-5 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-7 sm:px-8 lg:pt-9">
+          <div className="mx-auto w-full max-w-[46rem] px-5 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-8 sm:px-8 lg:pt-10">
+            {review ? (
+              <div role="status" className="mb-9 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
+                <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
+                <p className="min-w-0 flex-1">
+                  {isAdmin ? (
+                    <>
+                      <span className="font-semibold">{review.by}</span> sent this for review {relative(review.at).toLowerCase()}.
+                      Publish it, or send it back with a note.
+                    </>
+                  ) : (
+                    <>Sent for review {relative(review.at).toLowerCase()}. An Admin will publish it or send it back.</>
+                  )}
+                  {review.note ? <span className="mt-1 block italic text-ink-muted">“{review.note}”</span> : null}
+                </p>
+                {isAdmin ? (
+                  <Button variant="secondary" onClick={() => setNoteFor('send-back')}>
+                    Send back…
+                  </Button>
+                ) : null}
+              </div>
+            ) : null}
             {content}
-            {/* No inspector column below xl: its contents follow the form. */}
-            <div className="mt-14 xl:hidden">{inspector}</div>
+            {/* No sidebar below lg: the switch follows the form instead. */}
+            <div className="mt-14 lg:hidden">{technicalToggle}</div>
           </div>
         </div>
       </div>
 
-      <aside className="hidden w-72 shrink-0 overflow-y-auto border-l border-border bg-surface-muted/45 px-5 py-6 xl:block">
-        {inspector}
-      </aside>
-
+      <Modal
+        open={noteFor !== null}
+        onClose={() => setNoteFor(null)}
+        title={noteFor === 'send-back' ? 'Send back' : 'Send for review'}
+        description={
+          noteFor === 'send-back'
+            ? `Nothing is published. ${review?.by ?? 'They'} will see your note.`
+            : 'Your changes are saved. An Admin will publish them or send them back.'
+        }
+        width="sm"
+      >
+        <div className="flex flex-col gap-4">
+          <Textarea
+            label={noteFor === 'send-back' ? 'What needs changing?' : 'Note for the Admin (optional)'}
+            value={note}
+            maxLength={2000}
+            onChange={(event) => setNote(event.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setNoteFor(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={sendingNote} onClick={() => void sendNote()}>
+              {noteFor === 'send-back' ? 'Send back' : 'Send for review'}
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <ConfirmDialog
         open={confirmRevert}
-        title="Undo these changes?"
+        title="Discard these changes?"
         message="Everything changed since the last publish is thrown away, and this goes back to exactly what the website is showing."
-        confirmLabel="Undo changes"
+        confirmLabel="Discard changes"
         onConfirm={revert}
         onCancel={() => setConfirmRevert(false)}
       />
@@ -1016,14 +1268,6 @@ export function EntryPage({
         confirmLabel="Delete"
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
-      />
-      <ConfirmDialog
-        open={blocker.state === 'blocked'}
-        title="Leave without saving?"
-        message="You have changes that are not saved. Leaving now throws them away."
-        confirmLabel="Discard changes"
-        onConfirm={() => blocker.proceed?.()}
-        onCancel={() => blocker.reset?.()}
       />
     </div>
   );

@@ -2,8 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import {
   ActivityLog,
+  Appointment,
   AvailabilitySetting,
   Booking,
+  BookingSettingsRow,
   BusinessSettings,
   Client,
   CmsEntry,
@@ -14,6 +16,7 @@ import {
   Invoice,
   MediaAsset,
   Message,
+  Notification,
   NotificationPreference,
   PortfolioItem,
   Project,
@@ -67,6 +70,9 @@ export class DatabaseService {
   readonly cmsEntries: PrismaRepository<CmsEntry>;
   readonly mediaAssets: PrismaRepository<MediaAsset>;
   readonly siteSettings: PrismaRepository<SiteSettings>;
+  readonly bookingSettings: PrismaRepository<BookingSettingsRow>;
+  readonly appointments: PrismaRepository<Appointment>;
+  readonly notifications: PrismaRepository<Notification>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -134,13 +140,22 @@ export class DatabaseService {
       dates: ['created_at'],
     });
     this.cmsEntries = new PrismaRepository(prisma.cmsEntry, 'cms_entries', {
-      dates: ['published_at', 'updated_at'],
+      dates: ['published_at', 'updated_at', 'review_at'],
     });
     this.mediaAssets = new PrismaRepository(prisma.mediaAsset, 'media_assets', {
       dates: stamps,
     });
     this.siteSettings = new PrismaRepository(prisma.siteSettings, 'site_settings', {
       dates: ['launch_at', 'updated_at'],
+    });
+    this.bookingSettings = new PrismaRepository(prisma.bookingSettings, 'booking_settings', {
+      dates: ['updated_at'],
+    });
+    this.appointments = new PrismaRepository(prisma.appointment, 'appointments', {
+      dates: [...stamps, 'starts_at', 'ends_at', 'cancelled_at'],
+    });
+    this.notifications = new PrismaRepository(prisma.notification, 'notifications', {
+      dates: ['created_at', 'read_at'],
     });
   }
 

@@ -20,6 +20,7 @@ import type { Metadata } from "next";
 import { pageMetadata } from "@/lib/seo";
 import { BookingWizard } from "./BookingWizard";
 import {
+  getCompany,
   getPage,
   getServiceDetails,
   getTestimonial,
@@ -39,10 +40,11 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  const [params, content, services] = await Promise.all([
+  const [params, content, services, company] = await Promise.all([
     searchParams,
     getPage("booking"),
     getServiceDetails(),
+    getCompany(),
   ]);
   const quote = await getTestimonial(content.panel.testimonialId);
 
@@ -79,6 +81,7 @@ export default async function BookingPage({
       services={options}
       backgroundImage={media(content.backgroundImageId)}
       quote={quote}
+      logos={company.logos}
     />
   );
 }

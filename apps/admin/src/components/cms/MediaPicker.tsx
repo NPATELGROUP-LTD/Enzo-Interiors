@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { Image as ImageIcon, UploadSimple, X } from '@phosphor-icons/react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
@@ -13,10 +14,7 @@ import {
 } from '@/types/cms';
 
 /** The public site. */
-export const WEB_URL = (import.meta.env.VITE_WEB_URL ?? 'http://localhost:3000').replace(
-  //+$/,
-  '',
-);
+export const WEB_URL = (import.meta.env.VITE_WEB_URL ?? 'http://localhost:3000').replace(/\/+$/, '');
 
 /**
  * Uploads a file and returns the library row for it.
@@ -267,6 +265,7 @@ export function MediaField({
   onChange,
   assets,
   onAssetsChanged,
+  logo,
 }: {
   label: string;
   hint?: string;
@@ -275,26 +274,31 @@ export function MediaField({
   onChange: (next: string[]) => void;
   assets: MediaAsset[];
   onAssetsChanged?: () => void;
+  /** Show the whole image on the ground it is meant for, rather than a cropped photo. */
+  logo?: 'light' | 'dark';
 }) {
   const [open, setOpen] = useState(false);
   const byId = useMemo(() => new Map(assets.map((asset) => [asset.id, asset])), [assets]);
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-semibold text-ink">{label}</span>
+      <span className="text-[13px] font-medium text-ink-muted">{label}</span>
       <div className="flex flex-wrap items-center gap-2">
         {value.map((id, position) => {
           const asset = byId.get(id);
           return (
             <span
               key={`${id}-${position}`}
-              className="relative flex h-20 w-28 items-center justify-center overflow-hidden rounded-[10px] bg-surface-muted"
+              className={clsx(
+                'relative flex h-20 items-center justify-center overflow-hidden rounded-[10px]',
+                logo === 'dark' ? 'w-40 bg-green-900' : logo ? 'w-40 bg-surface-muted' : 'w-28 bg-surface-muted',
+              )}
             >
               {asset?.src_resolved ? (
                 <img
                   src={asset.src_resolved}
                   alt={asset.alt}
-                  className="h-full w-full object-cover"
+                  className={logo ? 'h-full w-full object-contain p-3' : 'h-full w-full object-cover'}
                 />
               ) : (
                 // A referenced id with no row behind it. Showing the id beats

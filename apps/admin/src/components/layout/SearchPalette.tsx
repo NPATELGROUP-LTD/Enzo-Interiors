@@ -2,8 +2,9 @@ import clsx from 'clsx';
 import {
   ArrowSquareOut,
   Browsers,
+  CalendarCheck,
   CloudCheck,
-  Gear,
+  UserCircle,
   Image as ImageIcon,
   MagnifyingGlass,
   Moon,
@@ -18,6 +19,8 @@ import { useNavigate } from 'react-router-dom';
 import { PAGES } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
 import { api } from '@/lib/api';
+
+import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 
 import { SECTIONS } from './AdminLayout';
 
@@ -164,8 +167,19 @@ export function SearchPalette({ open, onClose, actions }: {
         run: go(row.to),
       })),
       ...(actions.isAdmin
-        ? [{ id: 'settings', group: 'Go to', label: 'Settings', detail: 'Launch date, notifications', Icon: Gear, run: go('/settings') }]
+        ? [
+            { id: 'bookings', group: 'Go to', label: 'Bookings', detail: 'Consultations, new booking', Icon: CalendarCheck, run: go('/bookings') },
+            ...SETTINGS_SECTIONS.map((row) => ({
+              id: `settings-${row.id}`,
+              group: 'Settings',
+              label: `Settings › ${row.label}`,
+              detail: row.detail,
+              Icon: row.Icon,
+              run: go(`/settings/${row.id}`),
+            })),
+          ]
         : []),
+      { id: 'account', group: 'Go to', label: 'Account settings', detail: 'Your name, password, appearance', Icon: UserCircle, run: go('/account') },
       ...(actions.isAdmin && actions.unpublished > 0
         ? [{
             id: 'publish',

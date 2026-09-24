@@ -7,6 +7,8 @@ import { CmsHome, CollectionPage, EntryPage } from './pages/Cms';
 import { LoginPage } from './pages/Login';
 import { NotFoundPage } from './pages/NotFound';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
+import { AccountPage } from './pages/Account';
+import { AppointmentsPage } from './pages/Appointments';
 import { SiteSettingsPage } from './pages/SiteSettings';
 import type { CmsCollection } from './types/cms';
 
@@ -17,7 +19,7 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 }
 
 /**
- * v1 routes: the CMS, its settings and sign-in.
+ * v1 routes: the CMS, bookings, settings, your account and sign-in.
  *
  * The CRM screens in src/pages (Dashboard, Clients, Bookings, Quotes,
  * Projects, Invoices, Messages, Enquiries, Settings) are kept but not routed:
@@ -50,7 +52,7 @@ export function App() {
   }
 
   // The API refuses these accounts anyway; saying so beats a screen of errors.
-  if (user.kind !== 'Staff' || !['Admin', 'Designer'].includes(user.role)) {
+  if (user.kind !== 'Staff' || !['Admin', 'Editor', 'Designer'].includes(user.role)) {
     return (
       <div className="wallpaper flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="max-w-sm text-ink">
@@ -69,9 +71,14 @@ export function App() {
       <Route element={<AdminLayout />}>
         <Route path="/" element={<Navigate to="/cms" replace />} />
         <Route path="/cms" element={<CmsHome />} />
+        <Route path="/account" element={<AccountPage />} />
         <Route
-          path="/settings"
+          path="/settings/:section?"
           element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to="/cms" replace />}
+        />
+        <Route
+          path="/bookings"
+          element={user.role === 'Admin' ? <AppointmentsPage /> : <Navigate to="/cms" replace />}
         />
         {SECTIONS.flatMap(({ to, collection }) =>
           // The overview lists every page, so there is no separate page list;

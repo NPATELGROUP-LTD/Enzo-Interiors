@@ -41,9 +41,18 @@ export interface CollectionSchema {
   publishFlagKey?: string;
 }
 
+/** An editor's "send for review", waiting for an admin. */
+export interface CmsReview {
+  by: string;
+  at: string;
+  note: string | null;
+}
+
 export interface CmsOverview {
   schemas: CollectionSchema[];
   counts: Record<string, { total: number; dirty: number }>;
+  /** Everything waiting for an admin, oldest first. */
+  reviews: Array<CmsReview & { collection: CmsCollection; slug: string; title: string }>;
 }
 
 export interface CmsEntrySummary {
@@ -62,6 +71,7 @@ export interface CmsEntrySummary {
   isNew: boolean;
   /** Saved since the last publish. */
   isDirty: boolean;
+  review: CmsReview | null;
 }
 
 export interface CmsEntry {
@@ -75,6 +85,7 @@ export interface CmsEntry {
   updated_at: string;
   updated_by: string | null;
   isDirty: boolean;
+  review: CmsReview | null;
 }
 
 export interface MediaAsset {

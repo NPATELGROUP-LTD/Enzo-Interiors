@@ -171,19 +171,148 @@ export function orderKeys(body: Record<string, unknown>, mediaKeys: string[] = [
   );
 }
 
-/** A human line for one item in a list, for its collapsed row. */
+/** Keys that name the thing they sit in, most telling first. */
+const TITLE_KEYS = [
+  'title',
+  'heading',
+  'name',
+  'clientName',
+  'q',
+  'label',
+  'step',
+  'tier',
+  'item',
+  'ask',
+  'year',
+  'text',
+  'lead',
+  'value',
+  'open',
+  'day',
+];
+
+/** Keys that describe the thing, for the second line under its title. */
+const DETAIL_KEYS = ['body', 'desc', 'description', 'text', 'lede', 'sub', 'a', 'note', 'why', 'promise'];
+
+/** A string, or a list of strings read as one line; otherwise ''. */
+function words(value: unknown): string {
+  if (typeof value === 'string') return value.trim();
+  if (Array.isArray(value) && value.length > 0 && value.every((item) => typeof item === 'string'))
+    return value.join(' ').trim();
+  return '';
+}
+
+/**
+ * A human line for one item in a list, for its collapsed row.
+ *
+ * Titles beat eyebrows ("From the Anchor..." rather than "01 → 02"), and an
+ * item whose words live one level down — a hero room's caption — is named by
+ * them rather than by its id.
+ */
 export function summarize(item: unknown): string {
   if (typeof item === 'string') return item;
   if (!item || typeof item !== 'object') return '';
   const record = item as Record<string, unknown>;
-  for (const key of READING_ORDER.concat(['step', 'tier', 'value', 'open'])) {
-    const value = record[key];
-    if (typeof value === 'string' && value.trim()) return value;
-    if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim())
-      return value.join(' ');
+  for (const key of TITLE_KEYS.concat(READING_ORDER)) {
+    const text = words(record[key]);
+    if (text) return text;
   }
-  const first = Object.values(record).find((value) => typeof value === 'string' && value.trim());
-  return typeof first === 'string' ? first : '';
+  for (const value of Object.values(record)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const text = summarize(value);
+      if (text) return text;
+    }
+  }
+  const first = Object.entries(record).find(
+    ([key, value]) => !/^(id|key|kind)$/.test(key) && words(value),
+  );
+  return first ? words(first[1]) : '';
+}
+
+/** The item's describing words, when they are not already its title. */
+export function describe(item: unknown, title: string): string {
+  if (!item || typeof item !== 'object' || Array.isArray(item)) return '';
+  const record = item as Record<string, unknown>;
+  for (const key of DETAIL_KEYS) {
+    const text = words(record[key]);
+    if (text && text !== title) return text;
+  }
+  for (const value of Object.values(record)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      const text = describe(value, title);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
+/** Keys whose value is a web address. */
+export function isLinkKey(key: string): boolean {
+  return /^(href|url|link)$|(Href|Url)$/.test(key);
+}
+
+/**
+ * Text-and-link pairs in one object — `ctaLabel` + `ctaHref`, `label` +
+ * `href` — which the editor shows as one button rather than two boxes.
+ */
+export function buttonPairs(keys: string[]): Array<[label: string, href: string]> {
+  return keys.flatMap((key) => {
+    const prefix = key === 'label' ? '' : key.endsWith('Label') ? key.slice(0, -5) : null;
+    if (prefix === null) return [];
+    const href = prefix ? `${prefix}Href` : 'href';
+    return keys.includes(href) ? [[key, href] as [string, string]] : [];
+  });
+}
+
+/**
+ * A heading written as parts — `{ lead: 'Stop', accent: 'Dreaming', tail: '.' }`
+ * per line — where the accent is the word the website highlights.
+ */
+export function isSentenceList(list: unknown[]): boolean {
+  return (
+    list.length > 0 &&
+    list.every(
+      (item) =>
+        !!item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        typeof (item as Record<string, unknown>).accent === 'string' &&
+        Object.keys(item).every((key) => ['lead', 'accent', 'tail'].includes(key)),
+    )
+  );
+}
+
+/**
+ * The columns for a list short enough to edit as a table — opening hours,
+ * trust figures, footer links — or null when its items need room of their own.
+ *
+ * A list qualifies when every item is a flat record of at most four short
+ * words-or-numbers, counting only the keys `visible` shows and refusing any
+ * key `plain` says needs its own control (a picture, a dropdown).
+ */
+export function compactColumns(
+  list: unknown[],
+  visible: (key: string) => boolean,
+  plain: (key: string) => boolean,
+): string[] | null {
+  if (list.length === 0) return null;
+  const columns: string[] = [];
+  for (const item of list) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return null;
+    for (const [key, value] of Object.entries(item)) {
+      if (!visible(key)) continue;
+      if (!plain(key)) return null;
+      const short =
+        value === null ||
+        typeof value === 'number' ||
+        (typeof value === 'string' && value.length <= 70);
+      if (!short) return null;
+      if (!columns.includes(key)) columns.push(key);
+    }
+  }
+  if (columns.length === 0 || columns.length > 4) return null;
+  const sample = Object.assign({}, ...(list as object[])) as Record<string, unknown>;
+  return orderKeys(sample).filter((key) => columns.includes(key));
 }
 
 /**

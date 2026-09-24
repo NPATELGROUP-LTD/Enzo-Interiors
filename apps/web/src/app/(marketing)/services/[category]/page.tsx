@@ -80,12 +80,18 @@ export async function generateMetadata({
   ]);
   if (!service) return {};
 
-  // Both halves come off the service record; only the suffix is page copy.
+  // The templates are page copy; {title} and {description} come off the
+  // service record. An older CMS row has no descriptionTemplate yet.
+  const { metadata } = content;
   return pageMetadata({
-    title: fill(content.metadata.titleTemplate, { title: service.title }),
-    description: service.heroDesc,
+    title: fill(metadata.titleTemplate, { title: service.title }),
+    description: fill(metadata.descriptionTemplate ?? "{description}", {
+      title: service.title,
+      description: service.heroDesc,
+    }),
     path: `/services/${service.slug}`,
     ogKey: service.slug,
+    ogImageId: metadata.ogImageId,
   });
 }
 

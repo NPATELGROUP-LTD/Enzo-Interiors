@@ -1,6 +1,6 @@
 {
   "metadata": {
-    "titleTemplate": "{title} — Enzo Interiors"
+    "titleTemplate": "{title} — Enzo Interiors", "descriptionTemplate": "{description}", "ogImageId": ""
   },
   "hero": {
     "index": "A1",

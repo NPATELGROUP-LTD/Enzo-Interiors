@@ -282,6 +282,9 @@ async function main(): Promise<void> {
         published_at: now,
         updated_at: now,
         updated_by: 'content import',
+        review_by: null,
+        review_at: null,
+        review_note: null,
       });
       added += 1;
     }

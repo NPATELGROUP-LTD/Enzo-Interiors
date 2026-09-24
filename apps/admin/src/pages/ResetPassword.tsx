@@ -81,7 +81,10 @@ export function ForgotPasswordPage() {
  */
 export function ResetPasswordPage() {
   const navigate = useNavigate();
-  const token = new URLSearchParams(useLocation().hash.slice(1)).get('token') ?? '';
+  const params = new URLSearchParams(useLocation().hash.slice(1));
+  const token = params.get('token') ?? '';
+  // An invitation is the same link with invite=1: same page, friendlier words.
+  const invite = params.get('invite') === '1';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +121,14 @@ export function ResetPasswordPage() {
   };
 
   return (
-    <AuthScreen title="Choose a new password" lede="At least 12 characters. This signs you out everywhere else.">
+    <AuthScreen
+      title={invite ? 'Welcome to Enzo Interiors' : 'Choose a new password'}
+      lede={
+        invite
+          ? 'Choose a password to finish setting up your account. At least 12 characters.'
+          : 'At least 12 characters. This signs you out everywhere else.'
+      }
+    >
       <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
         {/* Lets a password manager file the new password against the account. */}
         <input type="text" name="username" autoComplete="username" hidden readOnly />
@@ -141,7 +151,7 @@ export function ResetPasswordPage() {
         />
         <FormError message={error} />
         <Button type="submit" variant="primary" loading={pending} className="w-full">
-          Save new password
+          {invite ? 'Set password' : 'Save new password'}
         </Button>
       </form>
     </AuthScreen>

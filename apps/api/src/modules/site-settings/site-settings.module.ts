@@ -54,6 +54,11 @@ export class UpdateSiteSettingsDto {
   @IsEmail({}, { each: true, message: 'Each notification address must be a valid email.' })
   @MaxLength(254, { each: true })
   notification_emails!: string[];
+
+  /** Media ids. Omitted = unchanged; null = the shipped default. */
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) logo_light_id?: string | null;
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) logo_dark_id?: string | null;
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) favicon_id?: string | null;
 }
 
 export class PreviewDto {
@@ -66,7 +71,11 @@ export class PreviewDto {
 export interface PublicSiteStatus {
   status: SiteStatus;
   launchAt: string | null;
+  /** Media ids; null = what the site ships with. */
+  brand: { logoLight: string | null; logoDark: string | null; favicon: string | null };
 }
+
+const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id'] as const;
 
 /**
  * General site settings: whether the public site is live or showing its
@@ -94,6 +103,9 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       status: 'coming_soon',
       launch_at: null,
       notification_emails: [],
+      logo_light_id: 'logo-forest',
+      logo_dark_id: 'logo-white',
+      favicon_id: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
     });
@@ -101,7 +113,11 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
 
   async publicStatus(): Promise<PublicSiteStatus> {
     const row = await this.get();
-    return { status: row.status, launchAt: row.launch_at };
+    return {
+      status: row.status,
+      launchAt: row.launch_at,
+      brand: { logoLight: row.logo_light_id, logoDark: row.logo_dark_id, favicon: row.favicon_id },
+    };
   }
 
   /** Where enquiries go: the configured list, else the bootstrap admin. */
@@ -115,10 +131,20 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
   async update(principal: AuthPrincipal, dto: UpdateSiteSettingsDto): Promise<SiteSettings> {
     await this.get();
     const emails = [...new Set(dto.notification_emails.map((e) => e.trim().toLowerCase()))];
+    const brand: Partial<SiteSettings> = {};
+    for (const key of BRAND_KEYS) {
+      const id = dto[key];
+      if (id === undefined) continue;
+      if (id !== null && !(await this.db.mediaAssets.findById(id))) {
+        throw new BadRequestException('That image is no longer in the media library. Choose another.');
+      }
+      brand[key] = id;
+    }
     const saved = (await this.db.siteSettings.update(ID, {
       status: dto.status,
       launch_at: dto.launch_at ? new Date(dto.launch_at).toISOString() : null,
       notification_emails: emails,
+      ...brand,
       updated_at: new Date().toISOString(),
       updated_by: principal.name,
     }))!;
@@ -222,7 +248,7 @@ export class SiteSettingsController {
   }
 
   @Post('settings/preview-token')
-  @Roles('Admin', 'Designer')
+  @Roles('Admin', 'Editor', 'Designer')
   @HttpCode(200)
   previewToken() {
     return this.settings.previewToken();

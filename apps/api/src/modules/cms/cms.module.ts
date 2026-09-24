@@ -4,6 +4,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Injectable,
   Logger,
   Module,
@@ -13,15 +14,17 @@ import {
   Put,
   Query,
 } from '@nestjs/common';
-import { IsInt, IsObject, IsOptional, IsString, Matches } from 'class-validator';
+import { IsInt, IsObject, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { CMS_COLLECTIONS, CmsCollection, CmsEntry } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { MailService, templates } from '../../core/mail.service';
 import { RevalidateService } from '../../core/revalidate.service';
 import { DatabaseService } from '../../data/database.service';
 import { MediaModule, MediaService } from '../media/media.module';
+import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
 import { CMS_SCHEMAS, CollectionSchema, schemaFor } from './schemas';
 
@@ -56,6 +59,16 @@ export class CreateEntryDto {
   @IsInt()
   sort_order?: number;
 }
+
+/** An editor's note to the admins, or an admin's reply. */
+export class ReviewDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+}
+
+const NO_REVIEW = { review_by: null, review_at: null, review_note: null };
 
 /** Link-valued keys: anything named *href / *url, plus the nav's paths. */
 const LINK_KEY = /(href|url)$/i;
@@ -152,7 +165,37 @@ export interface CmsEntrySummary {
   isNew: boolean;
   /** Saved since the last publish. Drives the "unpublished changes" badge. */
   isDirty: boolean;
+  /** Waiting for an admin, if an editor sent it for review. */
+  review: CmsReview | null;
 }
+
+export interface CmsReview {
+  by: string;
+  at: string;
+  note: string | null;
+}
+
+/** An entry waiting for an admin, for the overview. */
+export interface CmsReviewItem extends CmsReview {
+  collection: CmsCollection;
+  slug: string;
+  title: string;
+}
+
+/** "Home", "Service detail": a page's key, readable. */
+const pageName = (slug: string) => slug[0]!.toUpperCase() + slug.slice(1).replace(/-/g, ' ');
+
+/** Where each collection is edited in the admin. */
+const ADMIN_PATHS: Record<CmsCollection, string> = {
+  pages: '/pages',
+  services: '/services',
+  portfolio: '/recent-work',
+  testimonials: '/testimonials',
+  team: '/team',
+  faqs: '/faqs',
+  navigation: '/menu',
+  company: '/company',
+};
 
 function isDirty(entry: CmsEntry): boolean {
   if (entry.published === null) return true;
@@ -184,13 +227,40 @@ function firstImage(body: Record<string, unknown>, schema: CollectionSchema): st
 
 @Injectable()
 export class CmsService {
+  private readonly adminUrl = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
+
   constructor(
     private readonly db: DatabaseService,
     private readonly activity: ActivityLogService,
     private readonly revalidate: RevalidateService,
     private readonly media: MediaService,
     private readonly siteSettings: SiteSettingsService,
+    private readonly notifications: NotificationsService,
+    private readonly mail: MailService,
   ) {}
+
+  /** Staff names by id, for "sent by". */
+  private async names(): Promise<Map<string, string>> {
+    return new Map((await this.db.staffUsers.findAll()).map((row) => [row.id, row.name]));
+  }
+
+  private reviewOf(entry: CmsEntry, names: Map<string, string>): CmsReview | null {
+    if (!entry.review_at) return null;
+    return { by: names.get(entry.review_by ?? '') ?? 'An editor', at: entry.review_at, note: entry.review_note };
+  }
+
+  /** How an entry is named in a notification: "Home", "Service “Kitchens”". */
+  private label(entry: CmsEntry): string {
+    if (entry.collection === 'pages') return pageName(entry.slug);
+    const schema = schemaFor(entry.collection)!;
+    const title = columnText(entry.draft, schema.titleField) || entry.slug;
+    return schema.fixed ? schema.label : `${schema.singular[0]!.toUpperCase()}${schema.singular.slice(1)} “${title}”`;
+  }
+
+  private adminPath(entry: CmsEntry): string {
+    const base = ADMIN_PATHS[entry.collection];
+    return entry.collection === 'company' ? base : `${base}/${entry.slug}`;
+  }
 
   private assertCollection(collection: string): CmsCollection {
     const schema = schemaFor(collection);
@@ -213,6 +283,7 @@ export class CmsService {
     const key = this.assertCollection(collection);
     const schema = schemaFor(key)!;
     const rows = await this.db.cmsEntries.findAll((row) => row.collection === key);
+    const names = await this.names();
 
     return rows
       .sort((a, b) => a.sort_order - b.sort_order || a.slug.localeCompare(b.slug))
@@ -231,20 +302,27 @@ export class CmsService {
         updated_by: entry.updated_by,
         isNew: entry.published === null,
         isDirty: isDirty(entry),
+        review: this.reviewOf(entry, names),
       }));
   }
 
-  async get(collection: string, slug: string): Promise<CmsEntry & { isDirty: boolean }> {
+  async get(collection: string, slug: string): Promise<CmsEntry & { isDirty: boolean; review: CmsReview | null }> {
     const entry = await this.require(collection, slug);
-    return { ...entry, isDirty: isDirty(entry) };
+    return { ...entry, isDirty: isDirty(entry), review: this.reviewOf(entry, await this.names()) };
   }
 
   /** Everything the admin needs to open the CMS: schemas plus per-collection counts. */
   async overview(): Promise<{
     schemas: typeof CMS_SCHEMAS;
     counts: Record<string, { total: number; dirty: number }>;
+    reviews: CmsReviewItem[];
   }> {
     const rows = await this.db.cmsEntries.findAll();
+    const names = await this.names();
+    const reviews = rows
+      .filter((row) => row.review_at)
+      .map((row) => ({ collection: row.collection, slug: row.slug, title: this.label(row), ...this.reviewOf(row, names)! }))
+      .sort((a, b) => a.at.localeCompare(b.at));
     const counts: Record<string, { total: number; dirty: number }> = {};
     for (const collection of CMS_COLLECTIONS) {
       const mine = rows.filter((row) => row.collection === collection);
@@ -253,7 +331,7 @@ export class CmsService {
         dirty: mine.filter(isDirty).length,
       };
     }
-    return { schemas: CMS_SCHEMAS, counts };
+    return { schemas: CMS_SCHEMAS, counts, reviews };
   }
 
   /* ---- Writes ---- */
@@ -288,6 +366,7 @@ export class CmsService {
       published_at: null,
       updated_at: new Date().toISOString(),
       updated_by: principal.name,
+      ...NO_REVIEW,
     });
 
     await this.activity.record({
@@ -343,8 +422,10 @@ export class CmsService {
       published_at: now,
       updated_at: now,
       updated_by: principal.name,
+      ...NO_REVIEW,
     });
     if (!updated) throw new NotFoundException('Entry disappeared while publishing.');
+    await this.tellEditor(entry, principal, 'published', null);
 
     await this.activity.record({
       principal,
@@ -367,7 +448,9 @@ export class CmsService {
         published_at: now,
         updated_at: now,
         updated_by: principal.name,
+        ...NO_REVIEW,
       });
+      await this.tellEditor(entry, principal, 'published', null);
     }
     if (rows.length > 0) {
       await this.activity.record({
@@ -380,6 +463,71 @@ export class CmsService {
       await this.revalidate.ping(`${rows.length} entries`);
     }
     return { published: rows.length };
+  }
+
+  /* ---- Review ---- */
+
+  /**
+   * An editor cannot publish, so they send their changes to the admins, with
+   * a note if they like. The admins get it in their bell and by email.
+   */
+  async requestReview(principal: AuthPrincipal, collection: string, slug: string, note?: string): Promise<CmsReview> {
+    const entry = await this.require(collection, slug);
+    if (!isDirty(entry)) {
+      throw new BadRequestException('Nothing has changed since it was published, so there is nothing to review.');
+    }
+    const at = new Date().toISOString();
+    const text = note?.trim() || null;
+    await this.db.cmsEntries.update(entry.id, { review_by: principal.id, review_at: at, review_note: text });
+
+    const title = this.label(entry);
+    const path = this.adminPath(entry);
+    await this.notifications.notifyAdmins(
+      { kind: 'review', title: `${principal.name} sent ${title} for review`, body: text, link: path },
+      principal.id,
+    );
+    const admins = await this.db.staffUsers.findAll((row) => row.role === 'Admin' && row.id !== principal.id);
+    if (admins.length) {
+      await this.mail.send({
+        to: admins.map((row) => row.email),
+        replyTo: principal.email,
+        ...templates.reviewRequested(principal.name, title, text, `${this.adminUrl}${path}`),
+      });
+    }
+    await this.activity.record({
+      principal,
+      action: 'cms_review_request',
+      targetTable: 'cms_entries',
+      targetId: entry.id,
+      details: { collection: entry.collection, slug },
+    });
+    return { by: principal.name, at, note: text };
+  }
+
+  /** An admin hands it back unpublished, saying what to change. */
+  async sendBack(principal: AuthPrincipal, collection: string, slug: string, note?: string): Promise<void> {
+    const entry = await this.require(collection, slug);
+    if (!entry.review_at) throw new BadRequestException('Nobody is waiting on a review of this.');
+    await this.db.cmsEntries.update(entry.id, NO_REVIEW);
+    await this.tellEditor(entry, principal, 'sent back', note?.trim() || null);
+    await this.activity.record({
+      principal,
+      action: 'cms_review_send_back',
+      targetTable: 'cms_entries',
+      targetId: entry.id,
+      details: { collection: entry.collection, slug },
+    });
+  }
+
+  /** Closes the loop with whoever asked for the review, if anyone did. */
+  private async tellEditor(entry: CmsEntry, principal: AuthPrincipal, what: 'published' | 'sent back', note: string | null) {
+    if (!entry.review_by || entry.review_by === principal.id) return;
+    await this.notifications.notify(entry.review_by, {
+      kind: 'review_reply',
+      title: `${principal.name} ${what} ${this.label(entry)}`,
+      body: note,
+      link: this.adminPath(entry),
+    });
   }
 
   /** Throws away unpublished edits and restores what the site is showing. */
@@ -547,12 +695,13 @@ export class CmsService {
 /**
  * The CMS.
  *
- * Designers may write copy; only an Admin may publish it, add an entry or
- * delete one. Installers have no business here at all. Enforced by the guards,
- * never by a check inside a handler.
+ * Editors (and the CRM's Designers) may write copy and send it for review;
+ * only an Admin may publish it, add an entry or delete one. Installers have no
+ * business here at all. Enforced by the guards, never by a check inside a
+ * handler.
  */
 @Controller('cms')
-@Roles('Admin', 'Designer')
+@Roles('Admin', 'Editor', 'Designer')
 export class CmsController {
   constructor(private readonly cms: CmsService) {}
 
@@ -606,6 +755,29 @@ export class CmsController {
     return this.cms.publish(principal, collection, slug);
   }
 
+  @Post('collections/:collection/:slug/review')
+  @HttpCode(200)
+  requestReview(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('collection') collection: string,
+    @Param('slug') slug: string,
+    @Body() dto: ReviewDto,
+  ) {
+    return this.cms.requestReview(principal, collection, slug, dto.note);
+  }
+
+  @Post('collections/:collection/:slug/send-back')
+  @Roles('Admin')
+  @HttpCode(204)
+  async sendBack(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('collection') collection: string,
+    @Param('slug') slug: string,
+    @Body() dto: ReviewDto,
+  ) {
+    await this.cms.sendBack(principal, collection, slug, dto.note);
+  }
+
   @Post('collections/:collection/:slug/revert')
   revert(
     @CurrentUser() principal: AuthPrincipal,
@@ -646,7 +818,7 @@ export class PublicSiteController {
 }
 
 @Module({
-  imports: [MediaModule, SiteSettingsModule],
+  imports: [MediaModule, SiteSettingsModule, NotificationsModule],
   controllers: [CmsController, PublicSiteController],
   providers: [CmsService],
   exports: [CmsService],

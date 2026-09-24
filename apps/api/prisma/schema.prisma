@@ -32,6 +32,8 @@ model StaffUser {
   // `tv` is rejected, which is what signs every other session out.
   token_version    Int       @default(0)
   // sha256 of the emailed reset token; the token itself is never stored.
+  // Also carries an invitation: an invited account has no password yet
+  // (password_hash is empty) until the emailed link is used.
   reset_token_hash String?   @unique
   reset_expires_at DateTime? @db.Timestamptz(6)
   created_at       DateTime  @default(now()) @db.Timestamptz(6)
@@ -333,6 +335,11 @@ model CmsEntry {
   published_at DateTime? @db.Timestamptz(6)
   updated_at   DateTime  @default(now()) @db.Timestamptz(6)
   updated_by   String?
+  // An editor's "send for review": who asked (staff_users.id), when, and the
+  // note they left. Cleared when an admin publishes or sends it back.
+  review_by    String?
+  review_at    DateTime? @db.Timestamptz(6)
+  review_note  String?
 
   @@unique([collection, slug])
   @@index([collection, sort_order])
@@ -368,8 +375,82 @@ model SiteSettings {
   launch_at           DateTime? @db.Timestamptz(6)
   // Who receives enquiry notifications. Empty falls back to ADMIN_EMAIL.
   notification_emails String[]  @default([])
+  // Brand: media ids. The logos replace company.logos on the site; a null
+  // favicon means the site's own /icon.png.
+  logo_light_id       String?   @default("logo-forest")
+  logo_dark_id        String?   @default("logo-white")
+  favicon_id          String?
   updated_at          DateTime  @default(now()) @db.Timestamptz(6)
   updated_by          String?
 
   @@map("site_settings")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Consultation bookings                                                      */
+/* -------------------------------------------------------------------------- */
+
+// The schedule and the booking form's rules. A single row, id "booking".
+// ponytail: one JSONB body validated by the DTO, so a new rule is a code
+// change and never a migration. Promote a field to a column if SQL needs it.
+model BookingSettings {
+  id         String   @id
+  config     Json
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@map("booking_settings")
+}
+
+// A home consultation, booked on the website or by staff. Separate from the
+// CRM's `bookings`, which belongs to a client record the website never has.
+model Appointment {
+  id            String    @id
+  // Short code quoted in emails ("EZ-7K3Q9P").
+  reference     String    @unique
+  // services.slug at booking time, and its name, kept in case it is renamed.
+  service       String
+  service_label String
+  starts_at     DateTime  @db.Timestamptz(6)
+  ends_at       DateTime  @db.Timestamptz(6)
+  // starts_at as ISO while the booking holds its slot, null once cancelled.
+  // Unique, so the database itself refuses a second booking at the same time
+  // however close together two visitors click.
+  slot          String?   @unique
+  // "Confirmed" | "Cancelled"
+  status        String    @default("Confirmed")
+  name          String
+  email         String
+  phone         String?
+  address       String?
+  postcode      String?
+  notes         String?
+  // Anything else the form carried (the quote tier).
+  details       Json?
+  // "website" | "admin"
+  source        String
+  created_by    String?
+  cancelled_at  DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([starts_at])
+  @@map("appointments")
+}
+
+// The admin's bell: one row per recipient.
+model Notification {
+  id           String    @id
+  recipient_id String
+  // "booking" | "review" | "review_reply"
+  kind         String
+  title        String
+  body         String?
+  // An admin path to open, e.g. /bookings?open=<id>.
+  link         String?
+  read_at      DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([recipient_id, created_at])
+  @@map("notifications")
 }

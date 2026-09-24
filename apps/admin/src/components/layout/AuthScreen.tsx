@@ -49,7 +49,12 @@ export function AuthScreen({
           <div className="mt-7">{children}</div>
         </div>
 
-        <p className="text-xs text-ink-muted">Enzo Interiors · Staff only</p>
+        <p className="text-xs text-ink-muted">
+          Enzo Interiors · Staff only · Made by{' '}
+          <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-semibold hover:text-ink hover:underline">
+            NPATEL GROUP LTD
+          </a>
+        </p>
       </main>
 
       {/* Decorative, so empty alt. */}

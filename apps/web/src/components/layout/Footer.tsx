@@ -452,7 +452,14 @@ export function Footer({
           </p>
           <p className="mt-1 text-enzo-cream/70">
             {content.madeByPrefix}{" "}
-            <span className="font-semibold text-enzo-sand">{company.madeBy}</span>
+            <a
+              href="https://www.npatelgroup.ltd"
+              target="_blank"
+              rel="noopener"
+              className="font-semibold text-enzo-sand underline-offset-4 hover:underline"
+            >
+              {company.madeBy}
+            </a>
           </p>
         </div>
         {/* The three notices, plus the consent-withdrawal control. The last
