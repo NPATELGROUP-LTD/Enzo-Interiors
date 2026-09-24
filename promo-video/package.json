@@ -1,0 +1,35 @@
+{
+  "name": "@enzo-interiors/promo-video",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Enzo Interiors — \"new website launching soon\" Instagram videos (Remotion)",
+  "type": "module",
+  "scripts": {
+    "sync-assets": "node scripts/sync-assets.mjs",
+    "capture-site": "node scripts/capture-site.mjs",
+    "dev": "node scripts/sync-assets.mjs && remotion studio",
+    "render": "npm run render:reel && npm run render:feed && npm run render:story && npm run render:stills",
+    "render:reel": "node scripts/sync-assets.mjs && remotion render LaunchReel out/enzo-launch-reel-9x16.mp4",
+    "render:feed": "node scripts/sync-assets.mjs && remotion render LaunchFeed out/enzo-launch-feed-4x5.mp4",
+    "render:story": "node scripts/sync-assets.mjs && remotion render LaunchStory out/enzo-launch-story-9x16.mp4",
+    "render:stills": "node scripts/sync-assets.mjs && remotion still ReelCover out/enzo-reel-cover-9x16.png && remotion still FeedPoster out/enzo-feed-poster-4x5.png",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource-variable/archivo": "^5.3.0",
+    "@fontsource-variable/inter": "^5.3.0",
+    "@fontsource-variable/space-grotesk": "^5.3.0",
+    "@remotion/cli": "4.0.528",
+    "@remotion/fonts": "4.0.528",
+    "react": "~19.2.0",
+    "react-dom": "~19.2.0",
+    "remotion": "4.0.528",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "playwright": "^1.56.1",
+    "typescript": "~5.9.3"
+  }
+}
