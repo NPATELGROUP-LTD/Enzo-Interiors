@@ -1,26 +1,15 @@
 "use client";
 
-// Hero v3 — three room frame sequences (Mediawall, Kitchen, Bedroom), each
-// separated by a bespoke parallax "chapter" (no video, no floating
-// glassmorphism cards — that copy now lives inside the parallax chapters
-// themselves), ending in an asymmetric parallax CTA. Everything is one
-// continuous story on a single master ScrollTrigger pin+scrub: since
-// nothing here plays back in real time anymore, every segment is purely
-// scroll-position-driven and therefore trivially, exactly reversible. The
-// one exception is the end-frame hold (see HOLD_PX), which takes the scroll
-// over briefly to pin each room and then glide into the next scene.
+// Hero — three room frame sequences (Mediawall, Kitchen, Bedroom) played back
+// to back on one master ScrollTrigger pin + scrub, ending in a parallax CTA.
+// Every segment is scroll-position-driven and so exactly reversible. The one
+// exception is the end-frame hold (see HOLD_PX), which pins each room on its
+// last frame and, on the next push down, glides into the next room by itself.
+// Rooms cut straight into each other: no chapters between them.
 //
-// The intro (rooms + chapters) reads as an unbranded cinematic teaser: no
-// Navbar, no site frame, just a "scroll to begin" cue — see the
-// data-hero-chrome toggling below and .site-navbar/.site-frame in
-// theme.css. Both fade in together only once the CTA segment arrives,
-// marking the shift from "intro" to "the site starts here."
-//
-// Chapters are given generous scroll distance and a direct (unsmoothed) scrub
-// factor specifically so a fast flick-scroll still gets time to visibly
-// play out the parallax rather than blowing through it in a frame or two.
-// See SCRUB_SMOOTHING and TRANSITION_PX below for how the two are tuned and
-// why the scrub is direct rather than eased.
+// The intro reads as an unbranded cinematic teaser: no Navbar, no site frame,
+// just a "scroll to begin" cue — see the data-hero-chrome toggling below and
+// .site-navbar/.site-frame in theme.css. Both fade in once the CTA arrives.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import gsap from "gsap";
@@ -34,7 +23,6 @@ import {
   fill,
   MEDIA_BASE,
   type HeroRoomContent,
-  type HeroTransitionContent,
   type HomeContent,
   type MediaItem,
 } from "@/lib/content";
@@ -53,36 +41,26 @@ function roomFrameUrl(room: { framesDir: string }, frameIndex1: number): string 
 // intro lands near 8,600px: roughly a third of the travel, while each room
 // still gets several screen-heights of scrub rather than flicking past.
 const PX_PER_FRAME = 14;
-// The transitions are the only two places in the sequence with something to
-// *read* — a room's 144 frames are a moving photograph, but a transition
-// holds a line of copy on a still. At 850px those two chapters travelled at
-// exactly the same rate as the photography either side of them, which meant
-// the text arrived and left inside about half a screen of wheel: fast enough
-// that most people never learned it was there, and anyone who did notice had
-// to scroll back up to finish the sentence.
-//
-// Scroll distance *is* the speed control here — the animation is scrubbed, so
-// giving a chapter more pixels makes the same motion take more wheel. 1700
-// roughly doubles the time the copy is legible without slowing the rooms, so
-// the sequence now has a rhythm (move, pause to read, move) rather than one
-// constant rate throughout.
-const TRANSITION_PX = 1700;
 const CTA_PX = 1100;
-// End-frame hold: each room's last frame stays put for HOLD_PX of scroll
-// (the way §02 holds a stage) under a caption and a "scroll to continue"
-// cue. Arriving from above stops Lenis and settles onto HOLD_REST, so a hard
-// flick can't carry straight through the pin; once the wheel has been quiet
-// for QUIET_MS (trackpad inertia keeps firing long after the finger lifts),
-// the next nudge down glides on its own into the next scene.
-const HOLD_PX = 600;
+// End-frame hold: each room's last frame stays put under a caption and a
+// "scroll to continue" cue. Arriving from above stops Lenis and settles onto
+// HOLD_REST, so a hard flick can't carry through the pin. After MIN_HOLD_MS
+// the next deliberate push down (see isPush) glides on its own into the next
+// room — one notch or swipe, not a long scroll out.
+const HOLD_PX = 500;
 /** Short of 1: the exact boundary already belongs to the next segment. */
 const HOLD_REST = 0.8;
-/** Where an advance lands in a chapter — doors open, copy fully up. */
-const TRANSITION_REST = 0.7;
-const NUDGE_PX = 8;
+/** How far into the next room a glide lands, so its frames are already moving. */
+const NEXT_ROOM_LEAD = 0.12;
 const SETTLE_S = 0.6;
-const ADVANCE_S = 1.8;
-const QUIET_MS = 200;
+const ADVANCE_S = 1.2;
+/** Long enough to take in the frame; short enough not to feel stuck. */
+const MIN_HOLD_MS = 450;
+/** A wheel event this long after the last one starts a new gesture. */
+const GESTURE_GAP_MS = 140;
+/** Smallest mouse-wheel notch; trackpads report many smaller events instead. */
+const NOTCH_DELTA = 40;
+const SWIPE_PX = 24;
 const MAX_DPR = 1.5;
 // ── Why this is `true` and not a number ──
 // A numeric scrub adds a *second* easing on top of the one Lenis already
@@ -118,12 +96,11 @@ const CTA_RESUME_FRACTION = 0.85;
 
 let scrollTriggerRegistered = false;
 
-type Layer = "room" | "hold" | "transition0" | "transition1" | "cta";
+type Layer = "room" | "hold" | "cta";
 
 type Segment =
   | { type: "room"; roomIndex: number; px: number }
   | { type: "hold"; roomIndex: number; px: number }
-  | { type: "transition"; transitionIndex: number; px: number }
   | { type: "cta"; px: number };
 
 /**
@@ -147,19 +124,13 @@ interface TimelineModel {
   ctaResumeRawPx: number;
 }
 
-function buildTimeline(
-  rooms: HeroRoomContent[],
-  transitionCount: number,
-): TimelineModel {
+function buildTimeline(rooms: HeroRoomContent[]): TimelineModel {
   const frameCount = rooms[0]?.frameCount ?? 0;
   const segments: Segment[] = [];
 
   rooms.forEach((_, roomIndex) => {
     segments.push({ type: "room", roomIndex, px: frameCount * PX_PER_FRAME });
     segments.push({ type: "hold", roomIndex, px: HOLD_PX });
-    if (roomIndex < transitionCount) {
-      segments.push({ type: "transition", transitionIndex: roomIndex, px: TRANSITION_PX });
-    }
   });
   segments.push({ type: "cta", px: CTA_PX });
 
@@ -175,7 +146,7 @@ function buildTimeline(
     ctaResumeRawPx: totalPx - CTA_PX * (1 - CTA_RESUME_FRACTION),
     holdStops(i: number) {
       const next = segments[i + 1]!;
-      const landing = next.type === "cta" ? CTA_RESUME_FRACTION : TRANSITION_REST;
+      const landing = next.type === "cta" ? CTA_RESUME_FRACTION : NEXT_ROOM_LEAD;
       return {
         start: starts[i]!,
         rest: starts[i]! + HOLD_PX * HOLD_REST,
@@ -190,12 +161,26 @@ function clamp01(v: number): number {
 }
 
 // Linear ease-in/out window: 0 before `start`, 1 after `end`, ramping
-// between — used to fade transition-chapter copy in and back out as the
-// user scrubs through its local progress range.
+// between — fades the hold caption in and back out across its segment.
 function windowed(p: number, inStart: number, inEnd: number, outStart: number, outEnd: number) {
   const fadeIn = clamp01((p - inStart) / (inEnd - inStart));
   const fadeOut = 1 - clamp01((p - outStart) / (outEnd - outStart));
   return Math.min(fadeIn, fadeOut);
+}
+
+/**
+ * Whether a downward wheel event while held is the visitor asking to move on
+ * rather than the inertia tail of the flick that brought them here. A tail
+ * only ever shrinks; a push is a fresh gesture, a harder push than the last
+ * event, or a mouse wheel's steady equal-sized notches.
+ */
+export function isPush(deltaY: number, prevDelta: number, sinceLastMs: number): boolean {
+  if (deltaY <= 0) return false;
+  return (
+    sinceLastMs > GESTURE_GAP_MS ||
+    deltaY > prevDelta * 1.5 + 4 ||
+    (deltaY >= NOTCH_DELTA && deltaY >= prevDelta)
+  );
 }
 
 export interface HeroSequenceImages {
@@ -214,7 +199,6 @@ export function HeroSequence({
   rooms: HeroRoomContent[];
   images: HeroSequenceImages;
 }) {
-  const transitions: HeroTransitionContent[] = content.transitions;
   const sectionRef = useRef<HTMLElement | null>(null);
   // ScrollTrigger pins this inner element, never the <section>. Pinning wraps
   // whatever it pins in a `.pin-spacer` div, which re-parents that node — and
@@ -229,19 +213,6 @@ export function HeroSequence({
   const scrollHintRef = useRef<HTMLDivElement | null>(null);
   const holdRef = useRef<HTMLDivElement | null>(null);
   const holdCopyRef = useRef<HTMLDivElement | null>(null);
-
-  // Chapter 1 — double-door reveal (mediawall -> kitchen).
-  const t0BgRef = useRef<HTMLDivElement | null>(null);
-  const t0DoorLeftRef = useRef<HTMLDivElement | null>(null);
-  const t0DoorRightRef = useRef<HTMLDivElement | null>(null);
-  const t0SeamRef = useRef<HTMLDivElement | null>(null);
-  const t0ContentRef = useRef<HTMLDivElement | null>(null);
-
-  // Chapter 2 — horizontal marquee + drifting photo card (kitchen -> bedroom).
-  const t1BgRef = useRef<HTMLDivElement | null>(null);
-  const t1MarqueeRef = useRef<HTMLDivElement | null>(null);
-  const t1CardRef = useRef<HTMLDivElement | null>(null);
-  const t1ContentRef = useRef<HTMLDivElement | null>(null);
 
   // CTA — high-end editorial layout: luminous kinetic typography on the left +
   // interactive frosted consultation preview card on the right.
@@ -281,8 +252,8 @@ export function HeroSequence({
   }, []);
 
   const timeline = useMemo(
-    () => buildTimeline(rooms, transitions.length),
-    [rooms, transitions.length],
+    () => buildTimeline(rooms),
+    [rooms],
   );
 
   useEffect(() => {
@@ -344,12 +315,15 @@ export function HeroSequence({
     let revealed = false;
     let trigger: ScrollTrigger | null = null;
 
-    // End-frame hold state — see HOLD_PX.
-    let armedHold = -1;
+    // End-frame hold state — see HOLD_PX. `held` is the hold segment pinned
+    // right now (Lenis stopped, waiting for a push), -1 when free.
+    let held = -1;
+    let heldSince = 0;
     let snapping = false;
     let stoppedLenis = false;
     let lastWheelAt = 0;
-    let quietTimer: number | undefined;
+    let lastWheelDelta = 0;
+    let touchY: number | null = null;
     const settleEase = gsap.parseEase(EASE.enter);
     const advanceEase = gsap.parseEase(EASE.swap);
 
@@ -414,7 +388,9 @@ export function HeroSequence({
             onProgress?.();
             if (remaining === 0) resolve();
           };
-          img.onload = onDone;
+          // Decode off the main thread now, so the first scrub past a frame
+          // draws it rather than stalling on a synchronous decode.
+          img.onload = () => void img.decode().catch(() => {}).finally(onDone);
           img.onerror = onDone;
           img.src = roomFrameUrl(room, frameIndex + 1);
           images[roomIndex]![frameIndex] = img;
@@ -485,55 +461,6 @@ export function HeroSequence({
       return { seg: last, index: SEGMENTS.length - 1, localProgress: 1 };
     }
 
-    // Chapter 1: mediawall's last frame splits down the middle and opens
-    // like double doors, revealing kitchen's first frame behind — the
-    // seam line collapses as the doors finish opening, and the copy
-    // arrives centered only once the reveal has fully settled.
-    function renderTransition0(localProgress: number) {
-      setActiveRoom(0);
-      setLayer("transition0");
-      const doorOpen = clamp01(localProgress / 0.62);
-      if (t0BgRef.current) {
-        t0BgRef.current.style.transform = `scale(${1.1 - doorOpen * 0.1})`;
-      }
-      if (t0DoorLeftRef.current) t0DoorLeftRef.current.style.transform = `translateX(${-doorOpen * 100}%)`;
-      if (t0DoorRightRef.current) t0DoorRightRef.current.style.transform = `translateX(${doorOpen * 100}%)`;
-      if (t0SeamRef.current) {
-        t0SeamRef.current.style.opacity = String(1 - doorOpen);
-        t0SeamRef.current.style.transform = `scaleY(${1 - doorOpen * 0.5})`;
-      }
-      const textOpacity = windowed(localProgress, 0.42, 0.6, 0.84, 0.98);
-      if (t0ContentRef.current) {
-        t0ContentRef.current.style.opacity = String(textOpacity);
-        t0ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 20}px) scale(${0.98 + textOpacity * 0.02})`;
-      }
-    }
-
-    // Chapter 2: kitchen's last frame is pinned to the wall as a framed,
-    // labeled photo card that drifts up and away, while an oversized
-    // horizontal marquee word and bedroom's first frame settle in behind
-    // it — a different mechanic from Chapter 1's door reveal.
-    function renderTransition1(localProgress: number) {
-      setActiveRoom(1);
-      setLayer("transition1");
-      if (t1BgRef.current) {
-        t1BgRef.current.style.transform = `scale(${1.1 - localProgress * 0.1}) translateY(${(localProgress - 0.5) * -4}%)`;
-      }
-      if (t1MarqueeRef.current) {
-        t1MarqueeRef.current.style.transform = `translateX(${(0.5 - localProgress) * 30}%)`;
-      }
-      if (t1CardRef.current) {
-        const cardProgress = clamp01((localProgress - 0.05) / 0.55);
-        t1CardRef.current.style.transform = `translateY(${-cardProgress * 55}px) scale(${1 - cardProgress * 0.08})`;
-        t1CardRef.current.style.opacity = String(1 - clamp01((localProgress - 0.62) / 0.3));
-      }
-      const textOpacity = windowed(localProgress, 0.2, 0.4, 0.8, 0.97);
-      if (t1ContentRef.current) {
-        t1ContentRef.current.style.opacity = String(textOpacity);
-        t1ContentRef.current.style.transform = `translateY(${(1 - textOpacity) * 24}px)`;
-      }
-    }
-
     // CTA: 2-column luxury editorial layout — eyebrow badge, masked line-by-line
     // headline reveal (with luminous warm gradient text), subtext, buttons,
     // trust chips, plus a floating frosted consultation preview card on the right.
@@ -587,26 +514,35 @@ export function HeroSequence({
         duration: SETTLE_S,
         easing: settleEase,
         force: true,
-        onComplete: () => armWhenQuiet(index),
+        onComplete: () => {
+          if (disposed) return;
+          snapping = false;
+          held = index;
+          heldSince = performance.now();
+        },
       });
     }
 
-    function armWhenQuiet(index: number) {
-      if (disposed) return;
-      const wait = QUIET_MS - (performance.now() - lastWheelAt);
-      if (wait > 0) {
-        quietTimer = window.setTimeout(() => armWhenQuiet(index), wait);
-        return;
-      }
-      armedHold = index;
-      snapping = false;
+    /**
+     * Let go of the pin and hand the scroll back. `by` replays the input that
+     * asked for it, which Lenis swallowed while stopped, so scrolling up
+     * moves at once instead of on the second notch.
+     */
+    function release(by = 0) {
+      held = -1;
       stoppedLenis = false;
-      getLenis()?.start();
+      const lenis = getLenis();
+      lenis?.start();
+      if (by) lenis?.scrollTo(window.scrollY + by);
     }
 
-    function advance(target: number) {
+    /** Glide out of the hold into the next room (or the CTA after the last). */
+    function advance() {
+      if (held < 0 || performance.now() - heldSince < MIN_HOLD_MS) return;
       const lenis = getLenis();
       if (!lenis || !trigger) return;
+      const target = holdStops(held).next;
+      release();
       snapping = true;
       lenis.scrollTo(trigger.start + target, {
         duration: ADVANCE_S,
@@ -625,7 +561,7 @@ export function HeroSequence({
       // See resumingAtCta's declaration above: while the eased scrub
       // progress is still catching up to the scroll jump below, ignore
       // its intermediate ticks entirely (they'd otherwise repaint the
-      // room/transition frames the visitor already skipped past) and keep
+      // room frames the visitor already skipped past) and keep
       // showing the CTA state painted manually further down. Once real
       // progress genuinely reaches the CTA on its own, hand off to normal
       // rendering — both already agree on the same state at that point,
@@ -645,9 +581,6 @@ export function HeroSequence({
         setActiveRoom(seg.roomIndex);
         setLayer("hold");
         renderRoomFrame(seg.roomIndex, FRAME_COUNT);
-      } else if (seg.type === "transition") {
-        if (seg.transitionIndex === 0) renderTransition0(localProgress);
-        else renderTransition1(localProgress);
       } else {
         renderCta(localProgress);
       }
@@ -656,18 +589,8 @@ export function HeroSequence({
       if (holdRef.current) holdRef.current.style.opacity = String(holdReveal);
       if (holdCopyRef.current) holdCopyRef.current.style.transform = `translateY(${(1 - holdReveal) * 24}px)`;
 
-      if (!snapping) {
-        if (armedHold >= 0) {
-          const stops = holdStops(armedHold);
-          if (rawPx < stops.start) {
-            armedHold = -1;
-          } else if (rawPx > stops.rest + NUDGE_PX) {
-            armedHold = -1;
-            if (rawPx < stops.next) advance(stops.next);
-          }
-        } else if (seg.type === "hold" && self.direction === 1) {
-          settle(index);
-        }
+      if (!snapping && held < 0 && seg.type === "hold" && self.direction === 1) {
+        settle(index);
       }
 
       updateProgressUI(rawPx);
@@ -735,13 +658,38 @@ export function HeroSequence({
 
     resizeCanvas();
 
-    const onWheel = () => {
-      lastWheelAt = performance.now();
+    // While held, Lenis is stopped, so the page does not move: these read the
+    // visitor's intent straight off the input instead.
+    const onWheel = (event: WheelEvent) => {
+      const now = performance.now();
+      if (held >= 0) {
+        if (event.deltaY < 0) release(event.deltaY);
+        else if (isPush(event.deltaY, lastWheelDelta, now - lastWheelAt)) advance();
+      }
+      lastWheelAt = now;
+      lastWheelDelta = Math.max(0, event.deltaY);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (held < 0 || (event.target as HTMLElement | null)?.closest("input, textarea, select")) return;
+      if (["ArrowDown", "PageDown", " "].includes(event.key)) advance();
+      else if (["ArrowUp", "PageUp"].includes(event.key)) release(-window.innerHeight / 3);
+    };
+    const onTouchStart = (event: TouchEvent) => {
+      touchY = event.touches[0]?.clientY ?? null;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      const y = event.touches[0]?.clientY;
+      if (held < 0 || touchY === null || y === undefined) return;
+      if (touchY - y > SWIPE_PX) advance();
+      else if (y - touchY > SWIPE_PX) release(touchY - y);
     };
 
     window.addEventListener("resize", onWindowResize);
     window.addEventListener("orientationchange", onWindowResize);
     window.addEventListener("wheel", onWheel, { passive: true });
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: true });
 
     // Drives the loader below directly with real decode progress instead
     // of a fixed animation timeline.
@@ -756,7 +704,9 @@ export function HeroSequence({
       window.removeEventListener("resize", onWindowResize);
       window.removeEventListener("orientationchange", onWindowResize);
       window.removeEventListener("wheel", onWheel);
-      window.clearTimeout(quietTimer);
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
       if (stoppedLenis) getLenis()?.start();
       if (resizeTimer) cancelAnimationFrame(resizeTimer);
       // Revert the pin before React removes the section. Without the explicit
@@ -771,21 +721,8 @@ export function HeroSequence({
     };
   }, [rooms, timeline]);
 
-  const mediawallRoom = rooms[0]!;
-  const kitchenRoom = rooms[1]!;
-  const bedroomRoom = rooms[2]!;
-  const transition0 = transitions[0]!;
-  const transition1 = transitions[1]!;
   const activeRoom = rooms[activeRoomIndex]!;
   const showRoom = activeLayer === "room" || activeLayer === "hold";
-  const FRAME_COUNT = timeline.frameCount;
-
-  // Decorative, and derived rather than authored: the two rooms this chapter
-  // moves between, alternating. Rename the service and the marquee follows.
-  const MARQUEE_SEP = "\u00a0\u00a0\u00b7\u00a0\u00a0";
-  const marqueePair = kitchenRoom.label + MARQUEE_SEP + bedroomRoom.label;
-  const marqueeText = marqueePair + MARQUEE_SEP + marqueePair;
-
   return (
     <section ref={sectionRef} className="relative w-full">
       <div
@@ -844,112 +781,6 @@ export function HeroSequence({
                 {loadProgress}%
               </span>
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Chapter 1 — double doors: mediawall's last frame splits and opens,
-          revealing kitchen behind. */}
-      <div
-        className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
-        style={{ opacity: activeLayer === "transition0" ? 1 : 0 }}
-        aria-hidden={activeLayer !== "transition0"}
-      >
-        <div ref={t0BgRef} className="absolute inset-0">
-          <img
-            src={roomFrameUrl(kitchenRoom, 1)}
-            alt=""
-            className="h-full w-full scale-110 object-cover"
-          />
-          <div className="absolute inset-0 bg-enzo-dark/45" />
-        </div>
-
-        <div ref={t0DoorLeftRef} className="absolute inset-y-0 left-0 w-1/2 overflow-hidden">
-          <img
-            src={roomFrameUrl(mediawallRoom, FRAME_COUNT)}
-            alt=""
-            className="absolute inset-y-0 left-0 h-full w-[200%] max-w-none object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/10 via-transparent to-black/35" />
-        </div>
-        <div ref={t0DoorRightRef} className="absolute inset-y-0 right-0 w-1/2 overflow-hidden">
-          <img
-            src={roomFrameUrl(mediawallRoom, FRAME_COUNT)}
-            alt=""
-            className="absolute inset-y-0 right-0 h-full w-[200%] max-w-none object-cover"
-          />
-          <div className="absolute inset-0 bg-gradient-to-l from-black/10 via-transparent to-black/35" />
-        </div>
-
-        <div
-          ref={t0SeamRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-enzo-sage/60"
-        />
-
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8 text-center">
-          <div ref={t0ContentRef} className="max-w-lg opacity-0">
-            <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-              {transition0.eyebrow}
-            </span>
-            <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
-              {transition0.heading}
-            </h2>
-            <p className="mx-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
-              {transition0.body}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Chapter 2 — horizontal marquee + drifting framed photo card:
-          kitchen recedes, bedroom emerges. Different mechanic from
-          Chapter 1's door reveal. */}
-      <div
-        className="absolute inset-0 overflow-hidden transition-opacity duration-300 ease-linear"
-        style={{ opacity: activeLayer === "transition1" ? 1 : 0 }}
-        aria-hidden={activeLayer !== "transition1"}
-      >
-        <div ref={t1BgRef} className="absolute inset-0">
-          <img
-            src={roomFrameUrl(bedroomRoom, 1)}
-            alt=""
-            className="h-full w-full scale-110 object-cover blur-[3px]"
-          />
-          <div className="absolute inset-0 bg-enzo-dark/60" />
-        </div>
-        <div
-          ref={t1MarqueeRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-x-[-20%] top-1/2 -translate-y-1/2 select-none whitespace-nowrap text-center font-title leading-none text-enzo-cream/[0.07]"
-          style={{ fontSize: "clamp(4rem, 14vw, 11rem)" }}
-        >
-          {marqueeText}
-        </div>
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-end px-8 md:px-16">
-          <div className="absolute right-[10%] top-[14%] hidden md:block">
-            <div
-              ref={t1CardRef}
-              className="w-[300px] overflow-hidden rounded-[18px] border-2 border-enzo-sand shadow-[0_28px_70px_rgba(0,0,0,0.55)]"
-            >
-              <img src={roomFrameUrl(kitchenRoom, FRAME_COUNT)} alt="" className="block w-full" />
-              <div className="bg-enzo-sand px-4 py-2.5">
-                <span className="font-sans text-[11px] font-semibold uppercase tracking-[0.15em] text-enzo-forest">
-                  {fill(transition1.cardLabel ?? "", { label: kitchenRoom.label })}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div ref={t1ContentRef} className="max-w-md text-right opacity-0">
-            <span className="mb-4 block font-sans text-[12px] font-semibold uppercase tracking-[0.3em] text-enzo-sage">
-              {transition1.eyebrow}
-            </span>
-            <h2 className="mb-4 font-title text-[clamp(1.75rem,4vw,3rem)] font-semibold leading-[1.08] tracking-[-0.03em] text-enzo-cream">
-              {transition1.heading}
-            </h2>
-            <p className="ml-auto max-w-[38ch] text-[15px] leading-[1.6] text-enzo-cream/75 md:text-[16px]">
-              {transition1.body}
-            </p>
           </div>
         </div>
       </div>
@@ -1104,8 +935,7 @@ export function HeroSequence({
       </div>
 
       {/* Room label — fills the otherwise-empty top of the frame with the
-          same editorial eyebrow style used in the transition chapters
-          below, and doubles as a "which room am I in" cue while scrubbing
+          same editorial eyebrow style as the hold caption, and doubles as a "which room am I in" cue while scrubbing
           through the frame sequence, not just at idle. */}
       <div
         aria-hidden="true"

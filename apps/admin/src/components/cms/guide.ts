@@ -230,7 +230,8 @@ const FIELD_LABELS: Record<string, string> = {
  * from Settings › Booking, and the logos from Settings › Logo & icon.
  */
 export const RETIRED: Partial<Record<string, string[]>> = {
-  pages: ['timeSlots', 'wordmark'],
+  // hero.transitions: the chapters between hero rooms were removed from the site.
+  pages: ['timeSlots', 'wordmark', 'hero.transitions'],
   company: ['logos'],
 };
 
@@ -259,4 +260,22 @@ const TECHNICAL =
 
 export function isTechnical(key: string): boolean {
   return TECHNICAL.test(key);
+}
+
+/**
+ * A display copy of `body` without the given keys ("a" or "a.b"). Only the
+ * copy loses them: the editor writes by path into the real body, so a hidden
+ * key is kept on save.
+ */
+export function hideKeys(body: Record<string, unknown>, keys: string[]): Record<string, unknown> {
+  const out = { ...body };
+  for (const key of keys) {
+    const [head, ...rest] = key.split('.');
+    const child = out[head!];
+    if (!rest.length) delete out[head!];
+    else if (child && typeof child === 'object' && !Array.isArray(child)) {
+      out[head!] = hideKeys(child as Record<string, unknown>, [rest.join('.')]);
+    }
+  }
+  return out;
 }

@@ -61,7 +61,7 @@ export async function generateMetadata(): Promise<Metadata> {
       ? { icon: mediaSrc(site.brand.favicon), apple: mediaSrc(site.brand.favicon) }
       : { icon: "/icon.png", apple: "/apple-icon.png" },
     openGraph: { type: "website", locale: "en_GB", siteName: SITE_NAME, images: ["/og/home"] },
-    twitter: { card: "summary_large_image" },
+    twitter: { card: "summary_large_image", images: ["/og/home/twitter"] },
     // Before launch every address is the coming-soon page; none of it
     // belongs in an index.
     ...(isLive(site) ? {} : { robots: { index: false, follow: false } }),

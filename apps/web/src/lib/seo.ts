@@ -43,6 +43,12 @@ export function pageMetadata({
       description,
       images: [image],
     },
-    twitter: { card: "summary_large_image", title, description, images: [image.url] },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      // X crops to 2:1, so the generated card has its own 1200×600 cut.
+      images: [custom ? image : { url: `/og/${ogKey}/twitter`, width: 1200, height: 600, alt: title }],
+    },
   };
 }

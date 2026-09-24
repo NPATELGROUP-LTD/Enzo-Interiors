@@ -27,7 +27,7 @@ import {
   type EditorContext,
   type Path,
 } from '@/components/cms/JsonEditor';
-import { DETAILS_GUIDE, PAGES, RETIRED, USED_ON, fieldLabel, isTechnical } from '@/components/cms/guide';
+import { DETAILS_GUIDE, PAGES, RETIRED, USED_ON, fieldLabel, hideKeys, isTechnical } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
 import { DETAILS_SECTION, orderKeys, splitSections } from '@/components/cms/paths';
 import { SECTIONS, useCmsShell } from '@/components/layout/AdminLayout';
@@ -907,7 +907,7 @@ export function EntryPage({
   const path = sitePath(collection, slug);
   // Keys something else now controls (guide.ts RETIRED): kept, not shown.
   const retired = new Set(RETIRED[collection] ?? []);
-  const shown = retired.size ? Object.fromEntries(Object.entries(body).filter(([key]) => !retired.has(key))) : body;
+  const shown = retired.size ? hideKeys(body, [...retired]) : body;
 
   // Send for review (editors) and send back (admins) both carry a note.
   const sendNote = async () => {

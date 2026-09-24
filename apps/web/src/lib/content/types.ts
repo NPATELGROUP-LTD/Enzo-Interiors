@@ -283,10 +283,3 @@ export interface HeroRoomContent {
   hold: { heading: string; body: string };
 }
 
-export interface HeroTransitionContent {
-  id: string;
-  eyebrow: string;
-  heading: string;
-  body: string;
-  cardLabel?: string;
-}

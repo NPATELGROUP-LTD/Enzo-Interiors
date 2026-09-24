@@ -683,6 +683,11 @@ export class CmsService {
       navigation: of('navigation'),
       pages,
       site: await this.siteSettings.publicStatus(),
+      // "collection/slug" -> last publish, so the sitemap's <lastmod> tracks
+      // real edits rather than the build date.
+      publishedAt: Object.fromEntries(
+        sorted.map((row) => [`${row.collection}/${row.slug}`, row.published_at]),
+      ),
       generatedAt: new Date().toISOString(),
     };
   }

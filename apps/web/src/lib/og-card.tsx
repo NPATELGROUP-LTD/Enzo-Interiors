@@ -13,18 +13,17 @@ import { getPage, getServiceDetails } from "@/lib/content";
  * A page whose CMS entry sets a share image never links here at all.
  */
 
-const SIZE = { width: 1200, height: 630 };
+/** Open Graph (Facebook, LinkedIn, iMessage…) and X, whose large card is 2:1. */
+export const OG_SIZE = { width: 1200, height: 630 };
+export const TWITTER_SIZE = { width: 1200, height: 600 };
 const FOREST = "#102E2D";
 const CREAM = "#F2F0EB";
 const SAGE = "#8A9E8C";
 
-// The same content re-reads that drive the pages drive these.
-export const revalidate = 3600;
-
 const PAGE_KEYS = ["home", "services", "portfolio", "about", "contact", "booking", "privacy", "terms", "cookies"];
 
-/** Prerendered at build; a service added later renders on first request. */
-export async function generateStaticParams(): Promise<Array<{ key: string }>> {
+/** Every key with a card. Routes prerender these; a service added later renders on first request. */
+export async function cardKeys(): Promise<Array<{ key: string }>> {
   const services = await getServiceDetails();
   return [...PAGE_KEYS, ...services.map((row) => row.slug)].map((key) => ({ key }));
 }
@@ -69,11 +68,10 @@ async function card(key: string): Promise<{ eyebrow: string; title: string; body
   return { eyebrow: "Enzo Interiors · Services", title: service.title, body: service.heroDesc };
 }
 
-export async function GET(
-  _request: Request,
-  { params }: { params: Promise<{ key: string }> },
+export async function renderCard(
+  key: string,
+  size: { width: number; height: number },
 ): Promise<Response> {
-  const { key } = await params;
   const content = await card(key);
   if (!content) return new Response("Not found", { status: 404 });
 
@@ -119,7 +117,7 @@ export async function GET(
       </div>
     ),
     {
-      ...SIZE,
+      ...size,
       fonts: [
         { name: "Archivo", data: semibold, weight: 600, style: "normal" },
         { name: "Archivo", data: regular, weight: 400, style: "normal" },

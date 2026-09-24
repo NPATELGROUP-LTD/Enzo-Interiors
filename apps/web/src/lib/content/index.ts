@@ -107,6 +107,8 @@ interface Bundle {
   team: typeof teamRows;
   faqs: typeof faqRows;
   navigation: typeof navigationRows;
+  /** "collection/slug" -> ISO time of its last publish. */
+  publishedAt?: Record<string, string | null>;
   pages: {
     site: typeof site;
     shared: typeof shared;
@@ -186,6 +188,7 @@ function merge(raw: Partial<Bundle> | null): Bundle {
     team: nonEmpty(raw.team, FALLBACK.team),
     faqs: nonEmpty(raw.faqs, FALLBACK.faqs),
     navigation: nonEmpty(raw.navigation, FALLBACK.navigation),
+    publishedAt: raw.publishedAt ?? {},
     // Section by section, so a section added to src/data renders from the
     // shipped copy until the CMS has one (the import adds it on its next run).
     pages: Object.fromEntries(
@@ -491,6 +494,11 @@ export async function getCompany(): Promise<Company> {
 
 export async function getSiteStatus(): Promise<SiteStatus> {
   return (await load()).bundle.site;
+}
+
+/** When each CMS entry ("collection/slug") was last published. Empty offline. */
+export async function getPublishedAt(): Promise<Record<string, string | null>> {
+  return (await load()).bundle.publishedAt ?? {};
 }
 
 export async function getNavigation(): Promise<NavLink[]> {
