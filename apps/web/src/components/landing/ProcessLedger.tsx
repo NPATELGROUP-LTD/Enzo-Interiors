@@ -42,12 +42,25 @@ const PINNED_COLUMNS = "minmax(0,1fr) minmax(0,23rem)";
 export function ProcessLedger({ content }: { content: HomeContent["process"] }) {
   const sectionRef = useRef<HTMLElement>(null);
   const [active, setActive] = useState(0);
+  // The mobile drawing has no stage to track, only "not yet" and "all of
+  // it", so it keeps its own flag rather than sharing `active` — whose
+  // initial 0 would ink stage one in at mount, wherever the drawing is.
+  const [mobileInked, setMobileInked] = useState(false);
   const stages = content.stages;
 
   useGSAP(
     sectionRef,
     (section, reduced, { desktop }) => {
       const track = section.querySelector<HTMLElement>("[data-process-track]");
+      // Two copies of the drawing are mounted and only one is ever
+      // displayed, so pick the one this layout shows. A bare querySelector
+      // returns the desktop copy at every width, and a trigger on a
+      // `display: none` element resolves to the top of the page — which
+      // inked the phone drawing in at load, thousands of pixels below the
+      // fold, and sent its reveal to an element nobody could see.
+      const drawing = section.querySelector<HTMLElement>(
+        `[data-process-drawing="${desktop ? "desktop" : "mobile"}"]`,
+      );
       let cleanupActive: (() => void) | undefined;
 
       if (desktop && track) {
@@ -77,16 +90,16 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
         gsap.ticker.add(computeActive);
         computeActive();
         cleanupActive = () => gsap.ticker.remove(computeActive);
-      } else {
-        const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
-        if (drawing) {
-          observeScroll({
-            trigger: drawing,
-            start: "top 80%",
-            once: true,
-            onEnter: () => setActive(stages.length - 1),
-          });
-        }
+      } else if (reduced) {
+        // Nothing to watch it do, so show the finished sheet from the start.
+        setMobileInked(true);
+      } else if (drawing) {
+        observeScroll({
+          trigger: drawing,
+          start: "top 80%",
+          once: true,
+          onEnter: () => setMobileInked(true),
+        });
       }
 
       if (reduced) return cleanupActive;
@@ -106,7 +119,6 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
         );
       }
 
-      const drawing = section.querySelector<HTMLElement>("[data-process-drawing]");
       if (drawing) {
         fromOnScroll(
           drawing,
@@ -245,7 +257,7 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                     an edge, and the slack falls into the gutter between the
                     columns where it reads as spacing rather than as drift. */}
                 <div
-                  data-process-drawing
+                  data-process-drawing="desktop"
                   className="flex h-full min-h-0 w-full items-center justify-start"
                 >
                   <ElevationDrawing
@@ -373,8 +385,11 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
 
       {/* ── Mobile: drawing once, then a plain list ── */}
       <div className="shell pb-20 lg:hidden">
-        <div data-process-drawing className="mt-10">
-          <ElevationDrawing active={active} content={content.drawing} />
+        <div data-process-drawing="mobile" className="mt-10">
+          <ElevationDrawing
+            active={mobileInked ? stages.length - 1 : -1}
+            content={content.drawing}
+          />
         </div>
 
         <ol className="mt-8">

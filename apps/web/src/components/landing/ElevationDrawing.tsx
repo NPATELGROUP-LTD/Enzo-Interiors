@@ -26,7 +26,7 @@ import { cn } from "@/lib/utils";
 import type { HomeContent } from "@/lib/content";
 
 interface ElevationDrawingProps {
-  /** Index of the furthest stage that should be inked in (0-based). */
+  /** Index of the furthest stage that should be inked in (0-based; -1 for none). */
   active: number;
   /**
    * The figures and labels lettered onto the sheet. They are copy, not
