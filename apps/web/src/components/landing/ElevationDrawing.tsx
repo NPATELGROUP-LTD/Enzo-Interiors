@@ -14,8 +14,10 @@
 //   [data-draw]  strokes — animated with the stroke-dashoffset technique
 //   [data-fade]  text and fills — animated with opacity
 //
-// Path lengths are measured at runtime via getTotalLength(), so the geometry
-// below can be edited freely without hand-maintaining dash values.
+// Every stroke is given `pathLength="1"` at runtime, which renormalises its
+// length to 1 whatever its real geometry, so a single dasharray/offset pair
+// inks in any shape and the geometry below can be edited freely without
+// hand-maintaining dash values.
 import { useEffect, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@/hooks/useGSAP";
@@ -60,12 +62,15 @@ export function ElevationDrawing({ active, content, className }: ElevationDrawin
       const strokes = gsap.utils.toArray<SVGGeometryElement>("[data-draw]", group);
       const fades = gsap.utils.toArray<SVGElement>("[data-fade]", group);
 
-      strokes.forEach((el) => {
-        // Some browsers report 0 for a not-yet-laid-out element; the fallback
-        // keeps such a stroke visible rather than permanently hidden behind
-        // an offset it can never animate away from.
-        const length = el.getTotalLength() || 0;
-        gsap.set(el, { strokeDasharray: length || "none", strokeDashoffset: length });
+      // Normalised, not measured. ProcessLedger mounts this drawing twice —
+      // desktop and mobile — so one copy is always `display: none`, and
+      // getTotalLength() on a non-rendered element throws InvalidStateError
+      // in current Chromium, which escaped the layout effect and took the
+      // whole page down. `pathLength: 1` needs no layout at all.
+      gsap.set(strokes, {
+        attr: { pathLength: 1 },
+        strokeDasharray: 1,
+        strokeDashoffset: 1,
       });
       if (fades.length) {
         gsap.set(fades, { opacity: 0 });
