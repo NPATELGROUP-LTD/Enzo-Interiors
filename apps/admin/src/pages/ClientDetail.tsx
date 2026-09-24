@@ -1,4 +1,6 @@
-import { ArrowLeft } from 'lucide-react';
+import {
+  ArrowLeft,
+} from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -112,7 +114,7 @@ export function ClientDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <p className="label-eyebrow">Contact details</p>
-            <dl className="mt-3 flex flex-col gap-2.5">
+            <dl className="mt-3 rows">
               {[
                 ['Email', client.email],
                 ['Phone', client.phone ?? '—'],
@@ -120,7 +122,7 @@ export function ClientDetailPage() {
                 ['Portal access', client.has_portal_access ? 'Enabled' : 'Not set up'],
                 ['Assigned to', assigned_staff ? `${assigned_staff.name} (${assigned_staff.role})` : 'Unassigned'],
               ].map(([label, value]) => (
-                <div key={label} className="flex flex-wrap justify-between gap-2 border-b border-border pb-2 last:border-0">
+                <div key={label} className="flex flex-wrap justify-between gap-2">
                   <dt className="text-ink-muted">{label}</dt>
                   <dd className="text-right font-medium text-ink">{value}</dd>
                 </div>
@@ -133,7 +135,7 @@ export function ClientDetailPage() {
             {quotes.length === 0 ? (
               <p className="py-6 text-center text-ink-muted">No quotes raised yet.</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {quotes.slice(0, 5).map((quote) => (
                   <li key={quote.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
                     <div className="min-w-0">
@@ -157,7 +159,7 @@ export function ClientDetailPage() {
             {bookings.length === 0 ? (
               <p className="py-6 text-center text-ink-muted">No consultations booked.</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {bookings.slice(-6).reverse().map((booking) => (
                   <li key={booking.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
                     <div>
@@ -312,7 +314,7 @@ export function ClientDetailPage() {
           </Card>
         ) : (
           <Card>
-            <ul className="flex flex-col divide-y divide-border">
+            <ul className="rows">
               {activity.map((entry) => (
                 <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">

@@ -30,6 +30,7 @@ import {
 } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
+import { hashPassword, verify } from '../auth/auth.service';
 import {
   BusinessSettings,
   NotificationPreference,
@@ -63,15 +64,14 @@ export class CreateStaffDto {
   @IsEmail({}, { message: 'Enter a valid email address' }) email!: string;
   @IsIn(STAFF_ROLES, { message: `Role must be one of: ${STAFF_ROLES.join(', ')}` }) role!: StaffRole;
 
-  /** MOCK ONLY — stored as plaintext, see StaffUser.password_hash. */
-  @IsString() @MinLength(6, { message: 'Password must be at least 6 characters' }) password!: string;
+  @IsString() @MinLength(12, { message: 'Use at least 12 characters' }) @MaxLength(72) password!: string;
 }
 
 export class UpdateStaffDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsIn(STAFF_ROLES) role?: StaffRole;
-  @IsOptional() @IsString() @MinLength(6) password?: string;
+  @IsOptional() @IsString() @MinLength(12, { message: 'Use at least 12 characters' }) @MaxLength(72) password?: string;
 }
 
 export class UpdateNotificationPreferencesDto {
@@ -89,7 +89,7 @@ export class SavedReplyDto {
 
 export class ChangePasswordDto {
   @IsString() current_password!: string;
-  @IsString() @MinLength(6, { message: 'New password must be at least 6 characters' }) new_password!: string;
+  @IsString() @MinLength(12, { message: 'Use at least 12 characters' }) @MaxLength(72) new_password!: string;
 }
 
 /** Staff as returned over the wire — never carries the credential. */
@@ -157,9 +157,11 @@ export class SettingsService {
     const created = await this.db.staffUsers.create({
       name: dto.name.trim(),
       email: dto.email.trim().toLowerCase(),
-      // MOCK ONLY — plaintext.
-      password_hash: dto.password,
+      password_hash: await hashPassword(dto.password),
       role: dto.role,
+      token_version: 0,
+      reset_token_hash: null,
+      reset_expires_at: null,
       created_at: now,
       updated_at: now,
     });
@@ -200,7 +202,10 @@ export class SettingsService {
     if (dto.name !== undefined) patch.name = dto.name.trim();
     if (dto.email !== undefined) patch.email = dto.email.trim().toLowerCase();
     if (dto.role !== undefined) patch.role = dto.role;
-    if (dto.password !== undefined) patch.password_hash = dto.password; // MOCK ONLY
+    if (dto.password !== undefined) {
+      patch.password_hash = await hashPassword(dto.password);
+      patch.token_version = existing.token_version + 1;
+    }
 
     const updated = await this.db.staffUsers.update(id, patch);
     if (!updated) throw new NotFoundException('Team member not found');
@@ -297,26 +302,27 @@ export class SettingsService {
   /**
    * Change your own password.
    *
-   * MOCK ONLY — plaintext comparison and storage, matching AuthService. Real
-   * hashing is required before this leaves the prototype.
+   * Not mounted in v1: staff use PUT /auth/password, which also re-issues
+   * the token. Kept hashed so remounting this is safe.
    */
   async changePassword(principal: AuthPrincipal, dto: ChangePasswordDto): Promise<{ ok: true }> {
     if (principal.kind === 'Staff') {
       const staff = await this.db.staffUsers.findById(principal.id);
-      if (!staff || staff.password_hash !== dto.current_password) {
+      if (!staff || !(await verify(dto.current_password, staff.password_hash))) {
         throw new BadRequestException('Your current password is not correct');
       }
       await this.db.staffUsers.update(principal.id, {
-        password_hash: dto.new_password,
+        password_hash: await hashPassword(dto.new_password),
+        token_version: staff.token_version + 1,
         updated_at: new Date().toISOString(),
       });
     } else {
       const client = await this.db.clients.findById(principal.id);
-      if (!client || client.password_hash !== dto.current_password) {
+      if (!client || !(await verify(dto.current_password, client.password_hash))) {
         throw new BadRequestException('Your current password is not correct');
       }
       await this.db.clients.update(principal.id, {
-        password_hash: dto.new_password,
+        password_hash: await hashPassword(dto.new_password),
         updated_at: new Date().toISOString(),
       });
     }

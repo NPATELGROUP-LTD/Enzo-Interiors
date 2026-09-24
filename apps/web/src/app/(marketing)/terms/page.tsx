@@ -21,12 +21,13 @@
 // only the business can supply, and the whole page should be reviewed by a
 // solicitor before launch. This is not legal advice.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { LegalSheet } from "@/components/legal/LegalSheet";
 import { getPage } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { terms } = await getPage("legal");
-  return terms.metadata;
+  const metadata = (await getPage("legal")).terms.metadata;
+  return pageMetadata({ ...metadata, path: "/terms", ogKey: "terms" });
 }
 
 export default async function TermsPage() {

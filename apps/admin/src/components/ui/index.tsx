@@ -1,5 +1,11 @@
 import clsx from 'clsx';
-import { AlertCircle, Check, ChevronDown, Loader2, X } from 'lucide-react';
+import {
+  CaretDown,
+  Check,
+  CircleNotch,
+  WarningCircle,
+  X,
+} from '@phosphor-icons/react';
 import {
   useEffect,
   useId,
@@ -15,14 +21,16 @@ import {
  * The admin design system.
  *
  * Built directly from docs/Enzo_Interiors_UI_UX_Brief_v6.md, which calls itself
- * a strict implementation contract. The rules it enforces here:
- *   - 44px minimum control height and touch target
- *   - 8px corners on controls, 12px on cards/tiles/modals
- *   - No fully rounded/pill buttons anywhere
+ * a strict implementation contract, restyled for the macOS-style desktop shell
+ * (see styles/theme.css). The rules it enforces here:
+ *   - 44px minimum touch target; mouse users get compact 36px macOS controls
+ *   - 8px corners on controls, 12px on cards/tiles, 14px on windows/sheets
+ *   - No pill buttons; switches, tags and segmented controls are capsules
  *   - Status tags are written labels only — no dots or bullet markers
  *   - Text links never gain a background, box, shadow or movement on hover
- *   - 1px borders preferred over shadows; one permitted overlay shadow
- *   - No gradients, glows, floating shapes or decorative icons
+ *   - No hairline grids: cards float on soft shadows, lists and tables use
+ *     Finder-style striped rows, and tone (not rails or lines) carries meaning
+ *   - No glows, floating shapes or decorative icons
  *
  * apps/portal has its own copy of this file. Per the build brief the two are
  * kept consistent by following the same document, not by sharing code.
@@ -41,12 +49,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-green-900 text-on-primary hover:bg-green-800 border border-green-900 hover:border-green-800',
+  primary:
+    'bg-green-900 text-on-primary hover:bg-green-800 border border-green-900 hover:border-green-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.15),0_1px_2px_rgba(0,0,0,0.15)]',
   secondary:
-    'bg-secondary text-green-900 border border-green-900/25 hover:bg-secondary-hover hover:border-green-900/50',
+    'bg-surface text-ink border border-border shadow-card hover:bg-secondary-hover hover:border-green-900/40',
   // Destructive is a surface with danger text/border until hovered, per the
   // brief's button table — it is used only behind a confirmation.
-  destructive: 'bg-surface text-danger border border-danger/40 hover:bg-danger-bg hover:border-danger',
+  destructive: 'bg-surface text-danger border border-danger/40 shadow-card hover:bg-danger-bg hover:border-danger',
   ghost: 'bg-transparent text-ink border border-transparent hover:bg-surface-muted',
 };
 
@@ -64,16 +73,16 @@ export function Button({
       {...rest}
       disabled={disabled || loading}
       className={clsx(
-        // 44px min height and 8px corners — never a pill.
-        'inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-4 text-sm font-semibold',
-        'transition-colors duration-[160ms]',
+        // 44px on touch, 36px with a mouse; 8px corners — never a pill.
+        'inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3.5 text-sm font-semibold pointer-fine:min-h-9',
+        'transition-colors duration-[160ms] active:brightness-95',
         'disabled:cursor-not-allowed disabled:opacity-50',
         BUTTON_VARIANTS[variant],
         className,
       )}
     >
       {loading ? (
-        <Loader2 size={16} className="animate-spin" aria-hidden="true" />
+        <CircleNotch size={16} className="animate-spin" aria-hidden="true" />
       ) : (
         icon
       )}
@@ -89,7 +98,7 @@ export function Button({
 interface CardProps {
   children: ReactNode;
   className?: string;
-  /** A 3px semantic left rail, per the brief's card anatomy. */
+  /** Semantic tone, shown as a tinted surface rather than a left rail. */
   accent?: 'primary' | 'success' | 'warning' | 'danger' | 'none';
   /**
    * Fully interactive cards may shift 2px and take a border change. A card
@@ -99,23 +108,30 @@ interface CardProps {
   interactive?: boolean;
 }
 
-const ACCENT_RAIL: Record<NonNullable<CardProps['accent']>, string> = {
-  primary: 'before:bg-green-900',
-  success: 'before:bg-success',
-  warning: 'before:bg-warning',
-  danger: 'before:bg-danger',
-  none: '',
+const ACCENT_TINT: Record<NonNullable<CardProps['accent']>, string> = {
+  primary: 'bg-surface',
+  success: 'bg-success-bg',
+  warning: 'bg-warning-bg',
+  danger: 'bg-danger-bg',
+  none: 'bg-surface',
+};
+
+const TONE_TEXT: Record<NonNullable<CardProps['accent']>, string> = {
+  primary: 'text-green-900',
+  success: 'text-success',
+  warning: 'text-warning',
+  danger: 'text-danger',
+  none: 'text-ink',
 };
 
 export function Card({ children, className, accent = 'none', interactive = false }: CardProps) {
   return (
     <div
       className={clsx(
-        'relative overflow-hidden rounded-card border border-border bg-surface p-4',
-        accent !== 'none' &&
-          `before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:content-[''] ${ACCENT_RAIL[accent]}`,
+        'relative overflow-hidden rounded-card p-4 shadow-soft',
+        ACCENT_TINT[accent],
         interactive &&
-          'cursor-pointer transition-[border-color,transform] duration-[160ms] hover:-translate-y-0.5 hover:border-green-900 hover:shadow-overlay',
+          'cursor-pointer transition-[box-shadow,transform] duration-[160ms] hover:-translate-y-0.5 hover:shadow-overlay',
         className,
       )}
     >
@@ -139,9 +155,9 @@ export function MetricCard({
   accent?: CardProps['accent'];
 }) {
   return (
-    <Card accent={accent} className="flex h-full flex-col pl-5">
+    <Card accent={accent} className="flex h-full flex-col p-5">
       <p className="label-eyebrow">{eyebrow}</p>
-      <p className="tabular mt-2 text-[38px] font-bold leading-none tracking-tight text-green-900">
+      <p className={clsx('tabular mt-3 text-[40px] font-bold leading-none tracking-tight', TONE_TEXT[accent])}>
         {value}
       </p>
       {context ? (
@@ -171,7 +187,7 @@ export function StatusTag({ tone = 'neutral', children }: { tone?: StatusTone; c
   return (
     <span
       className={clsx(
-        'inline-flex items-center rounded-control border px-2 py-1 text-xs font-semibold',
+        'inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold',
         STATUS_TONES[tone],
       )}
     >
@@ -184,9 +200,9 @@ export function StatusTag({ tone = 'neutral', children }: { tone?: StatusTone; c
 /* Form controls                                                              */
 /* -------------------------------------------------------------------------- */
 
-const FIELD_BASE =
-  'w-full min-h-11 rounded-control border border-border bg-surface px-3 text-ink placeholder:text-ink-muted/70 ' +
-  'transition-colors duration-[160ms] focus:border-green-900 disabled:opacity-60';
+export const FIELD_BASE =
+  'w-full min-h-11 rounded-[7px] border border-border bg-surface px-3 text-ink shadow-card placeholder:text-ink-muted/70 pointer-fine:min-h-9 ' +
+  'transition-[border-color,box-shadow] duration-[160ms] focus:border-green-900 focus:ring-[3px] focus:ring-focus-ring/35 focus-visible:outline-none disabled:opacity-60';
 
 interface FieldWrapProps {
   label: string;
@@ -214,7 +230,7 @@ export function Field({ label, error, hint, required, children }: FieldWrapProps
       {children(id, messageId)}
       {error ? (
         <p id={messageId} className="flex items-center gap-1.5 text-xs font-medium text-danger">
-          <AlertCircle size={13} aria-hidden="true" />
+          <WarningCircle size={13} aria-hidden="true" />
           {error}
         </p>
       ) : hint ? (
@@ -294,7 +310,7 @@ export function Select({
           >
             {children}
           </select>
-          <ChevronDown
+          <CaretDown
             size={16}
             aria-hidden="true"
             className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted"
@@ -305,7 +321,7 @@ export function Select({
   );
 }
 
-/** Accessible switch. 44px target, no pill on the control itself. */
+/** Accessible macOS-style switch. */
 export function Toggle({
   label,
   description,
@@ -337,14 +353,14 @@ export function Toggle({
         disabled={disabled}
         onClick={() => onChange(!checked)}
         className={clsx(
-          'relative h-6 w-11 shrink-0 rounded-control border transition-colors duration-[160ms] disabled:opacity-50',
-          checked ? 'border-green-900 bg-green-900' : 'border-border bg-surface-muted',
+          'relative h-6 w-10 shrink-0 rounded-full transition-colors duration-[160ms] disabled:opacity-50',
+          checked ? 'bg-green-900' : 'bg-ink/20',
         )}
       >
         <span
           className={clsx(
-            'absolute top-0.5 h-4 w-4 rounded-[3px] transition-[left] duration-[160ms]',
-            checked ? 'left-[1.65rem] bg-on-primary' : 'left-0.5 bg-ink-muted',
+            'absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,0.3)] transition-transform duration-[160ms]',
+            checked && 'translate-x-4',
           )}
         />
       </button>
@@ -396,7 +412,7 @@ export function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 sm:items-center sm:p-4">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/25 p-0 backdrop-blur-[3px] sm:items-center sm:p-4">
       {/* Click-outside to dismiss. Not a focusable control — Escape and the
           explicit close button are the keyboard paths. */}
       <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
@@ -407,13 +423,13 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={clsx(
-          'relative max-h-[92vh] w-full overflow-y-auto rounded-t-card border border-border bg-surface shadow-overlay sm:rounded-card',
+          'relative max-h-[92vh] w-full overflow-y-auto rounded-t-[16px] bg-surface shadow-window sm:rounded-[16px]',
           width === 'sm' && 'sm:max-w-md',
           width === 'md' && 'sm:max-w-2xl',
           width === 'lg' && 'sm:max-w-4xl',
         )}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-border p-4">
+        <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">
           <div>
             <h2 id={titleId} className="text-lg font-semibold tracking-tight text-ink">
               {title}
@@ -429,9 +445,9 @@ export function Modal({
             <X size={18} aria-hidden="true" />
           </button>
         </div>
-        <div className="p-4">{children}</div>
+        <div className="px-5 py-3">{children}</div>
         {footer ? (
-          <div className="flex flex-wrap justify-end gap-2 border-t border-border bg-surface-muted/50 p-4">
+          <div className="flex flex-wrap justify-end gap-2 bg-canvas/70 px-5 py-4">
             {footer}
           </div>
         ) : null}
@@ -490,7 +506,7 @@ export function ConfirmDialog({
 export function LoadingState({ label = 'Loading…' }: { label?: string }) {
   return (
     <div className="flex items-center justify-center gap-3 py-16 text-ink-muted" role="status">
-      <Loader2 size={18} className="animate-spin" aria-hidden="true" />
+      <CircleNotch size={18} className="animate-spin" aria-hidden="true" />
       <span>{label}</span>
     </div>
   );
@@ -501,7 +517,7 @@ export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; column
   return (
     <div className="animate-pulse p-4" aria-hidden="true">
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <div key={rowIndex} className="flex gap-4 border-b border-border py-3 last:border-0">
+        <div key={rowIndex} className="flex gap-4 rounded-control px-3 py-3 even:bg-ink/[0.03]">
           {Array.from({ length: columns }).map((__, columnIndex) => (
             <div
               key={columnIndex}
@@ -536,7 +552,7 @@ export function EmptyState({
 export function ErrorState({ message, onRetry }: { message: string; onRetry?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center" role="alert">
-      <AlertCircle size={22} className="text-danger" aria-hidden="true" />
+      <WarningCircle size={22} className="text-danger" aria-hidden="true" />
       <p className="max-w-md text-ink">{message}</p>
       {onRetry ? (
         <Button variant="secondary" onClick={onRetry}>
@@ -561,9 +577,9 @@ export function PageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">{title}</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px] sm:leading-tight">{title}</h1>
         {description ? <p className="mt-1 max-w-2xl text-ink-muted">{description}</p> : null}
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
@@ -579,8 +595,8 @@ export function PageHeader({
  */
 export function TableWrap({ children }: { children: ReactNode }) {
   return (
-    <div className="overflow-x-auto rounded-card border border-border bg-surface">
-      <table className="w-full min-w-[44rem] border-collapse text-left">{children}</table>
+    <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
+      <table className="data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left">{children}</table>
     </div>
   );
 }
@@ -590,7 +606,7 @@ export function Th({ children, className }: { children: ReactNode; className?: s
     <th
       scope="col"
       className={clsx(
-        'label-eyebrow whitespace-nowrap border-b border-border bg-surface-muted px-3 py-2.5',
+        'label-eyebrow whitespace-nowrap px-3 py-2',
         className,
       )}
     >
@@ -601,7 +617,7 @@ export function Th({ children, className }: { children: ReactNode; className?: s
 
 export function Td({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <td className={clsx('border-b border-border px-3 py-3 align-middle', className)}>{children}</td>
+    <td className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
   );
 }
 
@@ -609,33 +625,101 @@ export function Tabs({
   tabs,
   active,
   onChange,
+  vertical = false,
 }: {
   tabs: Array<{ id: string; label: string; count?: number }>;
   active: string;
   onChange: (id: string) => void;
+  /** A System Settings style sidebar from lg up; a segmented control below. */
+  vertical?: boolean;
 }) {
+  // A macOS segmented control. The outer box scrolls if the segments outgrow a
+  // phone screen, so the page itself never scrolls sideways.
   return (
-    <div role="tablist" className="mb-4 flex gap-1 overflow-x-auto border-b border-border">
-      {tabs.map((tab) => {
-        const selected = tab.id === active;
+    <div className={clsx('mb-4 max-w-full overflow-x-auto', vertical && 'lg:mb-0')}>
+      <div
+        role="tablist"
+        aria-orientation={vertical ? 'vertical' : undefined}
+        className={clsx(
+          'inline-flex gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
+          vertical && 'lg:flex lg:flex-col lg:gap-1 lg:rounded-card lg:bg-surface lg:p-2 lg:shadow-soft',
+        )}
+      >
+        {tabs.map((tab) => {
+          const selected = tab.id === active;
+          return (
+            <button
+              key={tab.id}
+              role="tab"
+              type="button"
+              aria-selected={selected}
+              onClick={() => onChange(tab.id)}
+              className={clsx(
+                'min-h-11 whitespace-nowrap rounded-[7px] px-3 text-sm font-semibold transition-colors duration-[160ms] pointer-fine:min-h-8',
+                vertical && 'lg:flex lg:items-center lg:justify-between lg:text-left pointer-fine:lg:min-h-9',
+                selected
+                  ? clsx('bg-surface text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]', vertical && 'lg:bg-green-900 lg:text-on-primary lg:shadow-none')
+                  : clsx('text-ink-muted hover:text-ink', vertical && 'lg:hover:bg-ink/[0.05]'),
+              )}
+            >
+              {tab.label}
+              {tab.count !== undefined ? (
+                <span className={clsx('tabular ml-1.5 text-xs text-ink-muted', selected && vertical && 'lg:text-on-primary/75')}>{tab.count}</span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * macOS-style Appearance picker: two large swatches instead of a dropdown.
+ * Each swatch is a real pressed-state button, so it reads correctly to
+ * assistive tech as well as by eye.
+ */
+export function AppearancePicker({
+  value,
+  onChange,
+}: {
+  value: 'light' | 'dark';
+  onChange: (next: 'light' | 'dark') => void;
+}) {
+  const options = [
+    { id: 'light' as const, label: 'Light', ground: '#f7f5f0', panel: '#fffefa', bar: '#173c30', line: '#d8d2c6' },
+    { id: 'dark' as const, label: 'Dark', ground: '#14170f', panel: '#1c201a', bar: '#7fb99b', line: '#333a2e' },
+  ];
+  return (
+    <div className="grid gap-3 sm:grid-cols-2" role="group" aria-label="Appearance">
+      {options.map((option) => {
+        const selected = value === option.id;
         return (
           <button
-            key={tab.id}
-            role="tab"
+            key={option.id}
             type="button"
-            aria-selected={selected}
-            onClick={() => onChange(tab.id)}
+            aria-pressed={selected}
+            onClick={() => onChange(option.id)}
             className={clsx(
-              'min-h-11 whitespace-nowrap border-b-2 px-3 text-sm font-semibold transition-colors duration-[160ms]',
-              selected
-                ? 'border-green-900 text-green-900'
-                : 'border-transparent text-ink-muted hover:text-ink',
+              'flex flex-col gap-2.5 rounded-card p-2.5 text-left transition-colors duration-[160ms]',
+              selected ? 'bg-green-100 ring-2 ring-green-900' : 'bg-ink/[0.035] hover:bg-ink/[0.06]',
             )}
           >
-            {tab.label}
-            {tab.count !== undefined ? (
-              <span className="tabular ml-1.5 text-xs text-ink-muted">{tab.count}</span>
-            ) : null}
+            <span
+              aria-hidden="true"
+              className="flex h-28 items-end gap-2 rounded-[10px] p-3"
+              style={{ background: option.ground }}
+            >
+              <span className="flex h-full flex-1 flex-col gap-1.5 rounded-[7px] p-2.5" style={{ background: option.panel }}>
+                <span className="h-2 w-1/2 rounded-full" style={{ background: option.bar }} />
+                <span className="h-1.5 w-4/5 rounded-full" style={{ background: option.line }} />
+                <span className="h-1.5 w-3/5 rounded-full" style={{ background: option.line }} />
+              </span>
+            </span>
+            <span className="flex items-center justify-between px-1 text-sm font-semibold text-ink">
+              {option.label}
+              {selected ? <Check size={15} className="text-green-900" aria-hidden="true" /> : null}
+            </span>
           </button>
         );
       })}
@@ -654,9 +738,9 @@ export function Progress({ value, label }: { value: number; label?: string }) {
         aria-valuemin={0}
         aria-valuemax={100}
         aria-label={label ?? 'Progress'}
-        className="h-1.5 flex-1 overflow-hidden rounded-[3px] bg-surface-muted"
+        className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink/10"
       >
-        <div className="h-full bg-green-900" style={{ width: `${clamped}%` }} />
+        <div className="h-full rounded-full bg-green-900" style={{ width: `${clamped}%` }} />
       </div>
       <span className="tabular w-9 shrink-0 text-right text-xs text-ink-muted">{clamped}%</span>
     </div>
@@ -677,7 +761,7 @@ export function Checkbox({
     <label htmlFor={id} className="flex min-h-11 cursor-pointer items-center gap-2.5">
       <span
         className={clsx(
-          'flex h-5 w-5 items-center justify-center rounded-[4px] border transition-colors',
+          'flex h-5 w-5 items-center justify-center rounded-[5px] border shadow-card transition-colors',
           checked ? 'border-green-900 bg-green-900' : 'border-border bg-surface',
         )}
       >

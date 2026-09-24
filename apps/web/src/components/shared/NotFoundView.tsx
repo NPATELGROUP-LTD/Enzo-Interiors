@@ -2,103 +2,136 @@
 
 // The 404, split out from app/not-found.tsx so the copy can be fetched.
 //
-// `router.back()` and the entrance animations need the client; the words do
-// not. The route file is a Server Component that reads them from
-// src/data/pages/site.json and hands them here, which is the same arrangement
-// every other page on this site uses.
+// `router.back()` needs the client; the words and links do not. The route
+// file is a Server Component that reads them from the CMS and hands them
+// here, the arrangement every other page on this site uses.
 //
-// Ported from Boilerplate:src/app/components/pages/NotFoundPage.tsx.
-// This is the FINAL 404 page, not a placeholder.
+// Set over the first frame of the hero's kitchen: the same room as the home
+// page, before anything is built in it. "This room doesn't exist — yet."
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { motion } from "motion/react";
-import { MoveLeft, Home } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { ArrowRight, MoveLeft, Phone } from "lucide-react";
 import type { SiteContent } from "@/lib/content";
 
-export function NotFoundView({ content }: { content: SiteContent["notFound"] }) {
+export interface NotFoundLink {
+  label: string;
+  href: string;
+  tagline: string;
+}
+
+export function NotFoundView({
+  content,
+  background,
+  links,
+  phone,
+}: {
+  content: SiteContent["notFound"];
+  background: string;
+  links: NotFoundLink[];
+  phone: { display: string; href: string };
+}) {
   const router = useRouter();
+  const reduced = useReducedMotion();
+  const rise = (delay: number) =>
+    reduced
+      ? {}
+      : {
+          initial: { opacity: 0, y: 14 },
+          animate: { opacity: 1, y: 0 },
+          transition: { duration: 0.7, delay, ease: [0.22, 1, 0.36, 1] as const },
+        };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Left - Dark with animated silhouette */}
-      <div className="md:w-1/2 bg-[#1E1E1C] flex items-center justify-center p-12 min-h-[40vh] md:min-h-screen relative overflow-hidden">
-        {/* Animated geometric lines */}
-        <svg className="absolute inset-0 w-full h-full opacity-[0.04]" viewBox="0 0 600 600">
-          <motion.circle cx="300" cy="300" r="200" stroke="#F2F0EB" strokeWidth="0.5" fill="none" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 3, ease: "easeInOut" }} />
-          <motion.circle cx="300" cy="300" r="250" stroke="#F2F0EB" strokeWidth="0.3" fill="none" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 3, delay: 0.5, ease: "easeInOut" }} />
-          <motion.rect x="150" y="150" width="300" height="300" stroke="#F2F0EB" strokeWidth="0.3" fill="none" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 3, delay: 1, ease: "easeInOut" }} />
-          <motion.line x1="100" y1="200" x2="500" y2="200" stroke="#F2F0EB" strokeWidth="0.3" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 1.5 }} />
-          <motion.line x1="100" y1="400" x2="500" y2="400" stroke="#F2F0EB" strokeWidth="0.3" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 2 }} />
-        </svg>
+    <main className="relative isolate flex min-h-dvh items-end overflow-hidden bg-enzo-forest text-enzo-cream md:items-center">
+      {/* The empty room. Decorative: the heading says what it means. */}
+      {background ? (
+        // eslint-disable-next-line @next/next/no-img-element -- one full-bleed backdrop from storage
+        <img
+          src={background}
+          alt=""
+          aria-hidden
+          className="absolute inset-0 -z-20 h-full w-full object-cover opacity-45"
+        />
+      ) : null}
+      <div
+        aria-hidden
+        className="absolute inset-0 -z-10 bg-gradient-to-t from-enzo-forest via-enzo-forest/85 to-enzo-forest/40 md:bg-gradient-to-r md:from-enzo-forest md:via-enzo-forest/80 md:to-transparent"
+      />
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 text-center"
+      <div className="mx-auto w-full max-w-6xl px-6 pb-16 pt-28 md:px-12 md:py-24">
+        <motion.p
+          {...rise(0)}
+          className="font-display text-[clamp(5rem,16vw,11rem)] font-semibold leading-none tracking-tight text-enzo-sand/35 tabular-nums"
+          aria-hidden
         >
-          <span className="font-title block" style={{ fontSize: "clamp(7rem, 18vw, 14rem)", fontWeight: 600, letterSpacing: "-0.05em", lineHeight: 0.9, color: "var(--primary)" }}>
-            {content.figure}
-          </span>
-          <motion.div
-            className="h-px bg-primary/30 mx-auto mt-4"
-            initial={{ width: 0 }}
-            animate={{ width: "80%" }}
-            transition={{ duration: 1, delay: 0.5 }}
-          />
-        </motion.div>
-      </div>
+          {content.figure}
+        </motion.p>
 
-      {/* Right - Cream with message */}
-      <div className="md:w-1/2 bg-[#F2F0EB] flex items-center justify-center p-12 min-h-[60vh] md:min-h-screen">
-        <motion.div
-          initial={{ opacity: 0, x: 30 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.7, delay: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-md"
+        <motion.p {...rise(0.08)} className="mt-6 text-[12px] font-medium uppercase tracking-[0.22em] text-enzo-sage">
+          {content.eyebrow}
+        </motion.p>
+        <motion.h1
+          {...rise(0.14)}
+          className="mt-3 max-w-2xl font-title text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-[1.05] tracking-tight"
         >
-          <motion.span
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-            className="text-[#8A9E8C] text-[12px] uppercase tracking-[0.25em]"
-          >
-            {content.eyebrow}
-          </motion.span>
-          <h2 className="text-primary mt-4" style={{ fontSize: "clamp(1.8rem, 3vw, 2.5rem)" }}>
-            {content.heading}
-          </h2>
-          <p className="text-[#6B6B65] mt-4 text-[15px] leading-relaxed">
-            {content.body}
-          </p>
+          {content.heading}
+        </motion.h1>
+        <motion.p {...rise(0.2)} className="mt-5 max-w-xl text-[16px] leading-relaxed text-enzo-cream/75">
+          {content.body}
+        </motion.p>
 
-          <div className="mt-8 flex flex-col sm:flex-row gap-3">
-            <button
-              onClick={() => router.back()}
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full border border-primary text-primary text-[14px] hover:bg-primary hover:text-primary-foreground transition-all duration-300"
-            >
-              <MoveLeft size={16} /> {content.backLabel}
-            </button>
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-primary text-primary-foreground text-[14px] hover:bg-enzo-forest-light transition-all duration-300 justify-center"
-            >
-              <Home size={16} /> {content.homeLabel}
-            </Link>
-          </div>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1 }}
-            className="mt-20"
+        <motion.div {...rise(0.26)} className="mt-9 flex flex-wrap items-center gap-3">
+          <Link
+            href="/"
+            className="rounded-full bg-enzo-cream px-6 py-3 text-[14px] font-medium text-enzo-forest transition-colors hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-forest"
           >
-            <span className="font-title text-[#C4B8A8]" style={{ fontSize: "1.1rem" }}>
-              {content.wordmark}
-            </span>
-          </motion.div>
+            {content.homeLabel}
+          </Link>
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 rounded-full border border-enzo-cream/30 px-6 py-3 text-[14px] transition-colors hover:border-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand"
+          >
+            <MoveLeft size={16} aria-hidden /> {content.backLabel}
+          </button>
+          <a
+            href={phone.href}
+            className="inline-flex items-center gap-2 px-2 py-3 text-[14px] text-enzo-cream/80 underline-offset-4 hover:text-enzo-cream hover:underline"
+          >
+            <Phone size={15} aria-hidden /> {phone.display}
+          </a>
         </motion.div>
+
+        {links.length ? (
+          <motion.nav
+            {...rise(0.32)}
+            aria-label={content.linksLabel}
+            className="mt-14 grid max-w-3xl gap-px overflow-hidden rounded-2xl border border-enzo-cream/15 bg-enzo-cream/15 sm:grid-cols-3"
+          >
+            {links.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="group flex flex-col gap-1 bg-enzo-forest/90 px-5 py-4 transition-colors hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-enzo-sand"
+              >
+                <span className="flex items-center justify-between text-[15px] font-medium">
+                  {link.label}
+                  <ArrowRight
+                    size={15}
+                    aria-hidden
+                    className="text-enzo-sage transition-transform group-hover:translate-x-0.5"
+                  />
+                </span>
+                <span className="text-[13px] leading-snug text-enzo-cream/60">{link.tagline}</span>
+              </Link>
+            ))}
+          </motion.nav>
+        ) : null}
+
+        <p className="mt-12 text-[12px] uppercase tracking-[0.22em] text-enzo-cream/40">{content.wordmark}</p>
       </div>
-    </div>
+    </main>
   );
 }

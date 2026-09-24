@@ -8,7 +8,13 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import clsx from 'clsx';
-import { Columns3, Eye, EyeOff, List, Plus } from 'lucide-react';
+import {
+  Eye,
+  EyeSlash,
+  Kanban,
+  List,
+  Plus,
+} from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
@@ -58,7 +64,7 @@ function ProjectCard({
       ref={setNodeRef}
       style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
       className={clsx(
-        'rounded-card border border-border bg-surface p-3',
+        'rounded-[12px] bg-surface p-3 shadow-soft',
         isDragging && 'opacity-50 shadow-overlay',
       )}
     >
@@ -115,14 +121,14 @@ function ProjectCard({
           }
           title={project.client_visible ? 'Visible to client' : 'Hidden from client'}
           className={clsx(
-            'flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border transition-colors',
+            'flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/[0.05] transition-colors hover:bg-ink/[0.09]',
             project.client_visible ? 'text-success' : 'text-ink-muted',
           )}
         >
           {project.client_visible ? (
             <Eye size={14} aria-hidden="true" />
           ) : (
-            <EyeOff size={14} aria-hidden="true" />
+            <EyeSlash size={14} aria-hidden="true" />
           )}
         </button>
       </div>
@@ -151,8 +157,8 @@ function Column({
     <div
       ref={setNodeRef}
       className={clsx(
-        'flex min-w-64 flex-1 flex-col rounded-card border bg-canvas p-2 transition-colors',
-        isOver ? 'border-green-900' : 'border-border',
+        'flex min-w-64 flex-1 flex-col rounded-card p-2 transition-colors',
+        isOver ? 'bg-green-100' : 'bg-ink/[0.035]',
       )}
     >
       <div className="mb-2 flex items-center justify-between px-1">
@@ -161,7 +167,7 @@ function Column({
       </div>
       <div className="flex flex-col gap-2">
         {projects.length === 0 ? (
-          <p className="rounded-card border border-dashed border-border px-3 py-6 text-center text-xs text-ink-muted">
+          <p className="rounded-[12px] px-3 py-6 text-center text-xs text-ink-muted">
             Nothing at this stage
           </p>
         ) : (
@@ -297,17 +303,17 @@ export function ProjectsPage() {
         description="Five-stage pipeline from consultation through to completion."
         actions={
           <>
-            <div className="flex rounded-control border border-border" role="group" aria-label="View mode">
+            <div className="flex gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5" role="group" aria-label="View mode">
               <button
                 type="button"
                 onClick={() => setView('board')}
                 aria-pressed={view === 'board'}
                 className={clsx(
-                  'flex min-h-11 items-center gap-1.5 rounded-l-control px-3 text-sm font-semibold transition-colors',
-                  view === 'board' ? 'bg-green-100 text-green-900' : 'text-ink-muted hover:text-ink',
+                  'flex min-h-10 items-center gap-1.5 rounded-[7px] px-3 text-sm font-semibold transition-colors',
+                  view === 'board' ? 'bg-surface text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-ink-muted hover:text-ink',
                 )}
               >
-                <Columns3 size={15} aria-hidden="true" />
+                <Kanban size={15} aria-hidden="true" />
                 Board
               </button>
               <button
@@ -315,8 +321,8 @@ export function ProjectsPage() {
                 onClick={() => setView('list')}
                 aria-pressed={view === 'list'}
                 className={clsx(
-                  'flex min-h-11 items-center gap-1.5 rounded-r-control border-l border-border px-3 text-sm font-semibold transition-colors',
-                  view === 'list' ? 'bg-green-100 text-green-900' : 'text-ink-muted hover:text-ink',
+                  'flex min-h-10 items-center gap-1.5 rounded-[7px] px-3 text-sm font-semibold transition-colors',
+                  view === 'list' ? 'bg-surface text-ink shadow-[0_1px_3px_rgba(0,0,0,0.12)]' : 'text-ink-muted hover:text-ink',
                 )}
               >
                 <List size={15} aria-hidden="true" />

@@ -18,13 +18,14 @@
 // CONSENT_VERSION in src/lib/consent.ts both have to change — bumping the
 // version re-asks everyone, which is the point of it.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { LegalSheet } from "@/components/legal/LegalSheet";
 import { CookieSettingsButton } from "@/components/legal/CookieSettingsButton";
 import { getPage } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { cookies } = await getPage("legal");
-  return cookies.metadata;
+  const metadata = (await getPage("legal")).cookies.metadata;
+  return pageMetadata({ ...metadata, path: "/cookies", ogKey: "cookies" });
 }
 
 export default async function CookiesPage() {

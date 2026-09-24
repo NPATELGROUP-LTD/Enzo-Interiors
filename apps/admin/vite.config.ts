@@ -17,11 +17,11 @@ export default defineConfig({
     VitePWA({
       // TRD 11.2: new CRM logic must reach staff without a manual reinstall.
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.png', 'apple-touch-icon.png', 'enzo-mark.png'],
       manifest: {
-        name: 'Enzo Interiors — Admin',
-        short_name: 'Enzo Admin',
-        description: 'Staff CRM for Enzo Interiors: clients, bookings, quotes, projects and invoices.',
+        name: 'Enzo Interiors',
+        short_name: 'Enzo',
+        description: 'Edit the words and pictures on the Enzo Interiors website.',
         // Standalone removes browser chrome so the portal feels like an app.
         display: 'standalone',
         orientation: 'portrait-primary',
@@ -45,27 +45,9 @@ export default defineConfig({
         // Never let a cached shell shadow a newer one.
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
-        runtimeCaching: [
-          {
-            /**
-             * API GETs are stale-while-revalidate per TRD 11.2, so the shell
-             * can paint last-seen data instantly while the network refreshes.
-             *
-             * Deliberately NOT applied to auth or mutations: a cached login or
-             * a replayed write would be a correctness bug, not a nicety.
-             */
-            urlPattern: ({ url, request }) =>
-              request.method === 'GET' &&
-              url.port === '4000' &&
-              !url.pathname.startsWith('/auth'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'enzo-admin-api',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [200] },
-            },
-          },
-        ],
+        // No runtime caching of API responses. This is an editor: a cached
+        // GET would show a draft as it was before the last save, and "did my
+        // change land?" must always be answered by the server.
       },
       devOptions: {
         // Keep the SW off in dev: it caches aggressively and makes "did my

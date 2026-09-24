@@ -1,14 +1,11 @@
 {
   "metadata": {
     "title": "Book a consultation — Enzo Interiors",
-    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price."
+    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price.",
+    "ogImageId": ""
   },
   "backToHomeLabel": "← Back",
   "backgroundImageId": "pf-dark-kitchen",
-  "wordmark": {
-    "name": "Enzo",
-    "suffix": "INTERIORS"
-  },
   "panel": {
     "headingLines": [
       "Book Your Free",
@@ -49,14 +46,18 @@
         "name": "Full name",
         "email": "Email address",
         "phone": "Phone number",
-        "notes": "Any additional notes (optional)"
-      }
+        "notes": "Any additional notes (optional)",
+        "address": "Address (first line)",
+        "postcode": "Postcode"
+      },
+      "optionalSuffix": " (optional)"
     },
     "confirmation": {
       "heading": "Booking Confirmed!",
-      "body": "We've sent a confirmation to your email. We look forward to meeting you!",
+      "body": "A confirmation is on its way to your inbox. We look forward to meeting you.",
       "serviceLabel": "Service:",
-      "tierSuffix": " ({tier})"
+      "tierSuffix": " ({tier})",
+      "referenceLabel": "Reference:"
     }
   },
   "nav": {
@@ -65,17 +66,11 @@
     "confirmLabel": "Confirm Booking"
   },
   "toast": {
-    "message": "Booking confirmed{suffix}! We'll send you a confirmation email shortly.",
-    "tierSuffix": " ({tier} tier)"
+    "message": "Your consultation is booked{suffix}. Check your inbox for the confirmation.",
+    "error": "Sorry, that did not send. Please try again, or call or email us instead.",
+    "tierSuffix": " ({tier} tier)",
+    "taken": "Sorry, that time was just taken. Please choose another."
   },
-  "timeSlots": [
-    "9:00am",
-    "10:30am",
-    "12:00pm",
-    "1:30pm",
-    "3:00pm",
-    "4:30pm"
-  ],
   "calendar": {
     "months": [
       "January",
@@ -99,6 +94,13 @@
       "Fri",
       "Sat",
       "Sun"
-    ]
-  }
+    ],
+    "loading": "Finding free times…",
+    "empty": "No free days left this month. Try the next one.",
+    "error": "We could not load the calendar. Please try again, or call or email us.",
+    "retry": "Try again",
+    "previous": "Previous month",
+    "next": "Next month"
+  },
+  "logoLabel": "Enzo Interiors home"
 }

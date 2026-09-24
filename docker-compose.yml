@@ -1,0 +1,307 @@
+# Enzo Interiors — v1 production stack: public site + admin CMS.
+#
+# Brings up PostgreSQL, MinIO, the API, the admin portal and the public site.
+# Intended for Coolify on the Proxmox host (docs/Implementation_Plan), and
+# usable as-is locally. PostgreSQL and MinIO only ever run here — host dev
+# servers start just those two and connect to them:
+#
+#   docker compose up -d --wait postgres minio minio-init
+#
+# The full stack is two commands, in this order:
+#
+#   docker compose up -d --build --wait  # the stack; migrations run on api boot
+#   docker compose run --rm seed         # the site's copy, imported into the CMS
+#
+# and `docker compose down --volumes` deletes the database and every upload,
+# for starting again from nothing.
+#
+# The first admin account is created by the API itself on first boot, from
+# ADMIN_EMAIL / ADMIN_PASSWORD in .env. There is no demo data in this stack.
+#
+# The second is a one-shot in the `setup` profile, so `up` never re-runs it.
+# It exists as a service rather than a host command because the runtime image
+# drops tsx with the dev dependencies, and the content import reads
+# apps/web/src/data, which is not in the API's build context — the `build`
+# stage has the first and a read-only mount supplies the second.
+#
+# Startup order is enforced with conditions, not with `depends_on` alone:
+# the API waits for a database that answers AND for the buckets to exist, and
+# the two front ends wait for an API that has proved it can reach Postgres.
+# Without that, a fresh `up` can serve a 502 or refuse the first upload with
+# NoSuchBucket, and neither looks like a race when you hit it.
+#
+# Public access arrives through the Cloudflare Tunnel; the published ports are
+# for the host (dev servers, psql, the MinIO console).
+
+name: enzo-interiors
+
+# Every Node service checks itself the same way, and node:alpine has no curl.
+x-node-health: &node-health
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  # Generous: a cold Next.js or Nest boot on a laptop is slower than on the
+  # host it will deploy to, and a start_period that is too short turns a slow
+  # boot into a restart loop.
+  start_period: 45s
+
+services:
+  # The database. In the `db` profile so production can run PostgreSQL on its
+  # own, outside this stack, and point DATABASE_URL at it instead: an app
+  # redeploy then never touches the container or the volume holding the data.
+  # Locally it stays here (COMPOSE_PROFILES=dev,db). docs/prelaunch.md has the
+  # production setup.
+  postgres:
+    profiles: ['db']
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-enzo}
+      # Not `:?` — Compose checks every service, and production runs without this one.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-enzo}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    # Published for the dev servers on the host and for inspection, on
+    # loopback only: nothing off this machine has any business with it. The
+    # tunnel points at web, admin, api and minio.
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    healthcheck:
+      # The API waits on this, so a slow first boot does not look like a crash.
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enzo} -d ${POSTGRES_DB:-enzo}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
+    volumes:
+      - minio-data:/data
+    ports:
+      # The API port, not only the console: MEDIA_BASE_URL is fetched by the
+      # visitor's browser, which cannot resolve "minio".
+      - '${MINIO_PORT:-9000}:9000'
+      - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates the two buckets and gives only the marketing one public read.
+  #
+  # Two buckets, two rules, on purpose: site photography is fetched by
+  # anonymous visitors and embedded in statically cached pages, so it needs a
+  # stable public URL; client documents are private and are signed per request
+  # with a short TTL. See MediaService for the full reasoning.
+  #
+  # The API waits for this to exit 0, so the buckets exist before anything can
+  # be asked to write to them. `set -e` so a failed `mc mb` fails the service
+  # instead of letting the `echo` report success.
+  minio-init:
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      mc alias set enzo http://minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}' &&
+      mc mb --ignore-existing enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      mc mb --ignore-existing enzo/${S3_PRIVATE_BUCKET:-enzo-private} &&
+      mc anonymous set download enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      echo 'Buckets ready.'
+      "
+    restart: 'no'
+
+  api:
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    depends_on:
+      # Not required: with an external DATABASE_URL there is no postgres here,
+      # and `prisma migrate deploy` simply retries on restart until it answers.
+      postgres:
+        condition: service_healthy
+        required: false
+      # Healthy is not enough: an empty MinIO is healthy, and the first upload
+      # would fail with NoSuchBucket.
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public}
+      JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -base64 48}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      # The first administrator. Used only while staff_users is empty, so it
+      # never overwrites an account; change the password in the admin after.
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      # The admin, and the public site's enquiry forms.
+      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${WEB_PUBLIC_URL:-http://localhost:3000}
+      # Where password-reset links point.
+      ADMIN_URL: ${ADMIN_URL:-http://localhost:5174}
+      # Proxy hops in front of the API (Coolify + Cloudflare Tunnel = 2), so
+      # rate limits see the visitor's IP. 0 when nothing is in front.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
+      # Outgoing email. Unset SMTP_HOST = nothing is sent (logged instead).
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-Enzo Interiors <no-reply@localhost>}
+      # Publishing in the CMS pokes this so an edit is live in seconds.
+      WEB_REVALIDATE_URL: http://web:3000/api/revalidate
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?generate with openssl rand -base64 32}
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      # The browser-reachable address of the public bucket, which is not the
+      # in-network one above: a visitor cannot resolve "minio".
+      S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?public URL of the media bucket}
+    # Published, not merely exposed: the admin portal is a browser SPA, so it
+    # calls the API from the visitor's machine and cannot resolve "api".
+    # In the deployed stack this is what the Cloudflare Tunnel points at.
+    ports:
+      - '${API_PORT:-4000}:4000'
+    healthcheck:
+      # /health runs a query, so this goes red when Postgres does — which is
+      # the case worth catching, the API process survives it.
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
+
+  # One-shot: schema, then the site's copy imported into the CMS and published.
+  # In the `setup` profile, so `docker compose up` does not run it.
+  #
+  #   docker compose run --rm seed
+  #
+  # Safe on a live database: the import only adds entries that are missing and
+  # never overwrites an edit. Uses the
+  # API's `build` stage because the runtime image has no tsx, and mounts the
+  # content read-only because the importer only ever reads it.
+  seed:
+    profiles: ['setup']
+    build:
+      context: ./apps/api
+      target: build
+    depends_on:
+      postgres:
+        condition: service_healthy
+        required: false
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public}
+      # The import uploads apps/api/seed-media into the public bucket.
+      S3_ENDPOINT: http://minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+    volumes:
+      # import-content.ts resolves apps/web/src/data relative to its own file,
+      # which lands at /web/src/data from /app/scripts. Matching that here is
+      # what lets the script run unmodified in the container.
+      - ./apps/web/src/data:/web/src/data:ro
+      - ./apps/api/seed-media:/app/seed-media:ro
+    command:
+      - sh
+      - -c
+      - npx prisma migrate deploy && npx tsx scripts/import-content.ts
+    restart: 'no'
+
+  web:
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://api:4000
+        # The enquiry forms post from the visitor's browser, which cannot
+        # resolve "api".
+        NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL:?public URL of the API}
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+        SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      # Server-side calls stay on the internal network.
+      NEXT_PUBLIC_API_BASE_URL: http://api:4000
+      NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL}
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+      # Canonical origin for metadata, the sitemap and OG images.
+      SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      # Search Console's HTML-tag token, if you verify that way.
+      GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
+    ports:
+      - '${WEB_PORT:-3000}:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
+
+  admin:
+    build:
+      context: ./apps/admin
+      args:
+        # Vite inlines these at build time, so the admin image is specific to
+        # the environment it was built for.
+        VITE_API_BASE_URL: ${API_PUBLIC_URL:?public URL of the API}
+        VITE_WEB_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Substituted into the Content-Security-Policy by nginx at start.
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+    ports:
+      - '${ADMIN_PORT:-5174}:80'
+    healthcheck:
+      # Static files behind nginx: serving index.html is the whole contract.
+      # wget is busybox's, already in the alpine image.
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # Dev only: catches every email the API sends. UI on :8025.
+  # Enabled by COMPOSE_PROFILES=dev in a local .env, with SMTP_HOST=mailpit.
+  mailpit:
+    profiles: ['dev']
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
+      - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+
+volumes:
+  postgres-data:
+  minio-data:

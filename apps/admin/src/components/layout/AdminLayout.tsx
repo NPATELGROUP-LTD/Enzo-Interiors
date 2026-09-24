@@ -1,209 +1,402 @@
+import {
+  Armchair,
+  ArrowSquareOut,
+  Browsers,
+  Buildings,
+  Check,
+  CloudCheck,
+  ImagesSquare,
+  ListBullets,
+  Question,
+  Star,
+  UsersThree,
+  type Icon as PhosphorIcon,
+} from '@phosphor-icons/react';
 import clsx from 'clsx';
 import {
-  CalendarDays,
-  FileText,
-  FolderKanban,
-  LayoutDashboard,
-  LogOut,
-  MessageSquare,
-  Menu,
-  Moon,
-  Newspaper,
-  ReceiptText,
-  Settings,
-  Sun,
-  Users,
-  X,
-} from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react';
+import { flushSync } from 'react-dom';
+import { NavLink, useLocation, useOutletContext } from 'react-router-dom';
 
+import { PAGES } from '@/components/cms/guide';
+import { WEB_URL } from '@/components/cms/MediaPicker';
+import { Button } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
+import { useQuery } from '@/hooks/useApi';
+import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { initials } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import { useUnreadCount } from '@/hooks/useUnreadCount';
+import type { CmsCollection, CmsOverview } from '@/types/cms';
+
+import { Badge, Desktop } from './Desktop';
+import { Notifications } from './Notifications';
+import { SearchPalette } from './SearchPalette';
 
 /**
- * Admin shell: persistent sidebar on desktop, slide-over on mobile.
+ * The Enzo Interiors admin. In this version it manages the public website:
+ * its content (the CMS menu below), consultation bookings, and its settings.
  *
- * The nav order is fixed by the UI/UX brief ("Desktop sidebar: Dashboard,
- * Clients, Bookings, Quotes & Pricing, Projects, Invoices, Messages, Content
- * and Settings") and by websitemap.md §3. Do not reorder it for taste.
+ * Each section is one kind of content. Pages hold the words of each page; the
+ * rest are the things several pages share — a service appears on the home
+ * page, the services page, its own page and the booking form — so each gets
+ * its own place rather than being edited inside whichever page shows it.
+ *
+ * The CRM screens (clients, quotes, projects...) are still in src/pages but
+ * are not routed, because the v1 API does not serve them. See App.tsx.
  */
-
-const NAV = [
-  { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
-  { to: '/clients', label: 'Clients', Icon: Users },
-  { to: '/bookings', label: 'Bookings', Icon: CalendarDays },
-  { to: '/quotes', label: 'Quotes & Pricing', Icon: FileText },
-  { to: '/projects', label: 'Projects', Icon: FolderKanban },
-  { to: '/invoices', label: 'Invoices', Icon: ReceiptText },
-  { to: '/messages', label: 'Messages', Icon: MessageSquare, badge: 'unread' as const },
-  { to: '/content', label: 'Content', Icon: Newspaper },
-  { to: '/settings', label: 'Settings', Icon: Settings },
+export const SECTIONS: Array<{
+  to: string;
+  label: string;
+  collection: CmsCollection;
+  Icon: PhosphorIcon;
+}> = [
+  { to: '/pages', label: 'Pages', collection: 'pages', Icon: Browsers },
+  { to: '/services', label: 'Services', collection: 'services', Icon: Armchair },
+  { to: '/recent-work', label: 'Recent work', collection: 'portfolio', Icon: ImagesSquare },
+  { to: '/testimonials', label: 'Testimonials', collection: 'testimonials', Icon: Star },
+  { to: '/team', label: 'Team', collection: 'team', Icon: UsersThree },
+  { to: '/faqs', label: 'FAQs', collection: 'faqs', Icon: Question },
+  { to: '/menu', label: 'Menu', collection: 'navigation', Icon: ListBullets },
+  { to: '/company', label: 'Company', collection: 'company', Icon: Buildings },
 ];
 
-/** Offline banner. The brief requires a clear reconnection message, not a break. */
-function ConnectionBanner() {
-  const [offline, setOffline] = useState(!navigator.onLine);
+/** What every CMS screen gets from the shell. */
+export interface CmsShell {
+  /** Null until the first load, or when it failed (see `error`). */
+  overview: CmsOverview | null;
+  error: string | null;
+  /** Re-reads the unpublished-change counts after a save, publish or delete. */
+  refresh: () => void;
+  /** Opens the search palette. */
+  openSearch: () => void;
+}
+
+export function useCmsShell(): CmsShell {
+  return useOutletContext<CmsShell>();
+}
+
+/**
+ * The menu bar's one menu, the way a Mac app's menus work: pointing at "CMS"
+ * drops the list of everything that can be edited, clicking it opens the
+ * overview. Keyboard: ArrowDown opens it and moves through it, Escape closes.
+ * Touch has no hover, so a tap goes straight to the overview, which lists the
+ * same things.
+ *
+ * It is a manual popover rather than a child of the menu bar so it lands in
+ * the top layer — see the stacking note in Desktop.tsx.
+ */
+function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLAnchorElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  const closing = useRef(0);
+  const { pathname } = useLocation();
 
   useEffect(() => {
-    const goOffline = () => setOffline(true);
-    const goOnline = () => setOffline(false);
-    window.addEventListener('offline', goOffline);
-    window.addEventListener('online', goOnline);
-    return () => {
-      window.removeEventListener('offline', goOffline);
-      window.removeEventListener('online', goOnline);
-    };
-  }, []);
+    const el = menu.current;
+    if (!el) return;
+    if (open) {
+      el.style.left = `${trigger.current?.getBoundingClientRect().left ?? 8}px`;
+      if (!el.matches(':popover-open')) el.showPopover();
+    } else if (el.matches(':popover-open')) {
+      el.hidePopover();
+    }
+  }, [open]);
 
-  if (!offline) return null;
+  // Choosing something closes the menu, as it does on a Mac.
+  useEffect(() => setOpen(false), [pathname]);
+  useEffect(() => () => window.clearTimeout(closing.current), []);
+
+  // A short grace period, so crossing the gap between the title and the menu
+  // (or overshooting its edge) does not snap it shut.
+  const hover = (next: boolean) => (event: { pointerType: string }) => {
+    if (event.pointerType !== 'mouse') return;
+    window.clearTimeout(closing.current);
+    if (next) setOpen(true);
+    else closing.current = window.setTimeout(() => setOpen(false), 180);
+  };
+
+  const items = () => Array.from(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+  const onKeyDown = (event: KeyboardEvent) => {
+    const list = items();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    const focus = (index: number) => list[(index + list.length) % list.length]?.focus();
+    if (event.key === 'Escape') {
+      setOpen(false);
+      trigger.current?.focus();
+    } else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (!open) setOpen(true);
+      // The popover has to be showing before anything in it can take focus.
+      requestAnimationFrame(() => focus(event.key === 'ArrowDown' ? at + 1 : at < 0 ? -1 : at - 1));
+    } else if (event.key === 'Home' || event.key === 'End') {
+      if (at < 0) return;
+      event.preventDefault();
+      focus(event.key === 'Home' ? 0 : -1);
+    } else if (event.key === 'Tab' && open) {
+      setOpen(false);
+    }
+  };
+
+  const shared = SECTIONS.filter((section) => section.collection !== 'pages');
+  const heading = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
+
   return (
-    <div role="status" className="bg-warning-bg px-4 py-2 text-center text-warning">
-      You are offline — showing the last data loaded. Reconnecting…
-    </div>
+    <>
+      <NavLink
+        ref={trigger}
+        to="/cms"
+        end
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-controls="cms-menu"
+        onPointerEnter={hover(true)}
+        onPointerLeave={hover(false)}
+        onKeyDown={onKeyDown}
+        className={({ isActive }) =>
+          clsx(
+            'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+            open ? 'bg-ink/15 text-ink' : isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+          )
+        }
+      >
+        CMS
+      </NavLink>
+
+      <div
+        ref={menu}
+        id="cms-menu"
+        role="menu"
+        aria-label="CMS"
+        popover="manual"
+        onPointerEnter={hover(true)}
+        onPointerLeave={hover(false)}
+        onKeyDown={onKeyDown}
+        className="glass fixed inset-auto top-10 m-0 max-h-[calc(100dvh-3rem)] w-72 overflow-y-auto rounded-[10px] border border-glass-border p-1.5 text-[13px] text-ink shadow-window"
+      >
+        <MenuItem to="/cms" end label="Overview" onChoose={() => setOpen(false)} />
+        <Separator />
+        <p className={heading} aria-hidden="true">
+          Pages
+          <Badge count={counts.pages?.dirty ?? 0} />
+        </p>
+        {Object.entries(PAGES).map(([slug, page]) => (
+          <MenuItem
+            key={slug}
+            to={`/pages/${slug}`}
+            label={page.name}
+            hint={page.path ?? ''}
+            onChoose={() => setOpen(false)}
+          />
+        ))}
+        <Separator />
+        <p className={heading} aria-hidden="true">
+          Shared content
+        </p>
+        {shared.map(({ to, label, collection, Icon }) => (
+          <MenuItem
+            key={to}
+            to={to}
+            label={label}
+            Icon={Icon}
+            hint={collection === 'company' ? '' : String(counts[collection]?.total ?? '')}
+            badge={counts[collection]?.dirty ?? 0}
+            onChoose={() => setOpen(false)}
+          />
+        ))}
+      </div>
+    </>
   );
 }
 
-export function AdminLayout() {
-  const { user, logout } = useAuth();
-  const { theme, toggle } = useTheme();
-  const unread = useUnreadCount();
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const location = useLocation();
+/** A plain menu-bar item that goes straight to a screen, like CMS without its menu. */
+function MenuBarLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <NavLink
+      to={to}
+      className={({ isActive }) =>
+        clsx(
+          'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+          isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+        )
+      }
+    >
+      {children}
+    </NavLink>
+  );
+}
 
-  // Close the mobile drawer whenever the route changes, so tapping a link
-  // does not leave the overlay covering the page it just opened.
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [location.pathname]);
+function Separator() {
+  return <div role="separator" className="mx-2 my-1 h-px bg-ink/10" />;
+}
 
-  const nav = (
-    <nav className="flex flex-1 flex-col gap-0.5 p-2" aria-label="Main">
-      {NAV.map(({ to, label, Icon, badge }) => (
-        <NavLink
-          key={to}
-          to={to}
-          className={({ isActive }) =>
-            clsx(
-              'flex min-h-11 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-colors duration-[160ms]',
-              isActive
-                ? 'bg-green-100 text-green-900'
-                : 'text-ink-muted hover:bg-surface-muted hover:text-ink',
-            )
-          }
-        >
-          <Icon size={18} aria-hidden="true" className="shrink-0" />
-          <span className="flex-1">{label}</span>
-          {badge === 'unread' && unread > 0 ? (
-            <span className="tabular rounded-control bg-green-900 px-1.5 py-0.5 text-xs font-bold text-on-primary">
-              {unread}
+/** A menu row: tick for where you are, label, and a muted hint where a Mac shows the shortcut. */
+function MenuItem({
+  to,
+  end,
+  label,
+  hint,
+  badge = 0,
+  Icon,
+  onChoose,
+}: {
+  to: string;
+  end?: boolean;
+  label: string;
+  hint?: ReactNode;
+  badge?: number;
+  Icon?: PhosphorIcon;
+  onChoose: () => void;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      role="menuitem"
+      tabIndex={-1}
+      onClick={onChoose}
+      className="group flex min-h-7 items-center gap-1.5 rounded-[6px] px-1.5 outline-none hover:bg-green-900 hover:text-on-primary focus-visible:bg-green-900 focus-visible:text-on-primary pointer-coarse:min-h-11"
+    >
+      {({ isActive }) => (
+        <>
+          <span className="flex w-4 shrink-0 justify-center">
+            {isActive ? <Check size={12} weight="bold" aria-label="Current" /> : null}
+          </span>
+          {Icon ? <Icon size={15} aria-hidden="true" className="shrink-0 opacity-80" /> : null}
+          <span className="min-w-0 flex-1 truncate">{label}</span>
+          <Badge count={badge} />
+          {hint ? (
+            <span className="tabular shrink-0 pl-3 text-[12px] text-ink-muted group-hover:text-on-primary/75 group-focus-visible:text-on-primary/75">
+              {hint}
             </span>
           ) : null}
-        </NavLink>
-      ))}
-    </nav>
+        </>
+      )}
+    </NavLink>
   );
+}
 
-  const footer = (
-    <div className="border-t border-border p-3">
-      <div className="mb-2 flex items-center gap-2.5">
-        <span
-          aria-hidden="true"
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-green-100 text-xs font-bold text-green-900"
-        >
-          {user ? initials(user.name) : '—'}
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-ink">{user?.name}</p>
-          <p className="truncate text-xs text-ink-muted">{user?.role}</p>
-        </div>
-      </div>
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={toggle}
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-control border border-border text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
-        >
-          {theme === 'dark' ? <Sun size={16} aria-hidden="true" /> : <Moon size={16} aria-hidden="true" />}
-          {theme === 'dark' ? 'Light' : 'Dark'}
-        </button>
-        <button
-          type="button"
-          onClick={logout}
-          className="flex min-h-11 flex-1 items-center justify-center gap-2 rounded-control border border-border text-sm font-semibold text-ink-muted transition-colors hover:text-danger"
-        >
-          <LogOut size={16} aria-hidden="true" />
-          Sign out
-        </button>
-      </div>
-    </div>
+/** The window's title and back button, from where you are. */
+function useWindowTitle(): { title: string; back: { to: string; label: string } | null } {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/settings')) return { title: 'Settings', back: null };
+  if (pathname === '/bookings') return { title: 'Bookings', back: null };
+  if (pathname === '/account') return { title: 'Account', back: null };
+  const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
+  if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
+  const isEntry = pathname !== section.to && section.collection !== 'pages';
+  return {
+    title: section.label,
+    back: isEntry ? { to: section.to, label: section.label } : { to: '/cms', label: 'CMS' },
+  };
+}
+
+export function AdminLayout() {
+  const toast = useToast();
+  const { isAdmin, logout } = useAuth();
+  const { toggle: toggleTheme } = useTheme();
+  const overview = useQuery<CmsOverview>('/cms/overview');
+  const [publishing, setPublishing] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const openSearch = useCallback(() => setSearching(true), []);
+
+  // Ctrl/⌘ K, from anywhere in the app.
+  useEffect(() => {
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        // Rendered now rather than on the next frame, for the same reason.
+        flushSync(() => setSearching(true));
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+  const { title, back } = useWindowTitle();
+
+  // Keyed on refetch, which is stable per path; `overview` itself is a new
+  // object every render and would re-render every screen below on each one.
+  const { refetch } = overview;
+  const refresh = useCallback(() => void refetch(), [refetch]);
+  const counts = overview.data?.counts ?? {};
+  const unpublished = Object.values(counts).reduce((total, count) => total + count.dirty, 0);
+
+  const publishAll = async () => {
+    setPublishing(true);
+    try {
+      const result = await api.post<{ published: number }>('/cms/publish');
+      refresh();
+      toast.success(
+        result.published === 0
+          ? 'Everything was already live.'
+          : `Published ${result.published} ${result.published === 1 ? 'change' : 'changes'}. The website is updating now.`,
+      );
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'That did not publish.');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const context = useMemo<CmsShell>(
+    () => ({ overview: overview.data, error: overview.error, refresh, openSearch }),
+    [overview.data, overview.error, refresh, openSearch],
   );
 
   return (
-    <div className="flex min-h-dvh bg-canvas">
-      {/* Desktop sidebar */}
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface lg:flex">
-        <div className="flex h-14 items-center gap-2.5 border-b border-border px-4">
-          <span
-            aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-[4px] bg-green-900 text-xs font-bold text-on-primary"
+    <>
+    <SearchPalette
+      open={searching}
+      onClose={() => setSearching(false)}
+      actions={{ isAdmin, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
+    />
+    <Desktop
+      appName="Enzo Interiors"
+      onSearch={openSearch}
+      settingsTo={isAdmin ? '/settings' : '/account'}
+      menus={
+        <>
+          <CmsMenu counts={counts} />
+          {isAdmin ? <MenuBarLink to="/bookings">Bookings</MenuBarLink> : null}
+          {isAdmin ? <MenuBarLink to="/settings">Settings</MenuBarLink> : null}
+        </>
+      }
+      status={<Notifications onChange={refresh} />}
+      title={title}
+      back={back}
+      context={context}
+      windowActions={
+        <>
+          <a
+            href={WEB_URL}
+            target="_blank"
+            rel="noopener"
+            className="hidden min-h-8 items-center gap-1.5 rounded-[7px] px-2 text-[13px] font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink sm:flex"
           >
-            E
-          </span>
-          <span className="text-sm font-bold tracking-tight text-ink">Enzo Admin</span>
-        </div>
-        {nav}
-        {footer}
-      </aside>
-
-      {/* Mobile slide-over */}
-      {mobileOpen ? (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <div
-            className="absolute inset-0 bg-ink/40"
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <aside className="relative flex h-full w-72 max-w-[85vw] flex-col border-r border-border bg-surface">
-            <div className="flex h-14 items-center justify-between border-b border-border px-4">
-              <span className="text-sm font-bold tracking-tight text-ink">Enzo Admin</span>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                aria-label="Close menu"
-                className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-ink"
-              >
-                <X size={18} aria-hidden="true" />
-              </button>
-            </div>
-            {nav}
-            {footer}
-          </aside>
-        </div>
-      ) : null}
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <ConnectionBanner />
-        {/* Mobile top bar */}
-        <header className="flex h-14 items-center gap-3 border-b border-border bg-surface px-3 lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open menu"
-            className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink"
-          >
-            <Menu size={20} aria-hidden="true" />
-          </button>
-          <span className="text-sm font-bold tracking-tight text-ink">Enzo Admin</span>
-        </header>
-
-        <main className="min-w-0 flex-1 p-4 sm:p-6">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+            <ArrowSquareOut size={15} aria-hidden="true" />
+            View website
+          </a>
+          {isAdmin && unpublished > 0 ? (
+            <Button
+              variant="primary"
+              onClick={publishAll}
+              loading={publishing}
+              icon={<CloudCheck size={16} />}
+              className="min-h-8 px-2.5 text-[13px] pointer-fine:min-h-8"
+            >
+              Publish all ({unpublished})
+            </Button>
+          ) : null}
+        </>
+      }
+    />
+    </>
   );
 }

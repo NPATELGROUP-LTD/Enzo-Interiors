@@ -72,7 +72,7 @@
     "quote_id": null,
     "amount": 1440,
     "vat_rate": 20,
-    "status": "Draft",
+    "status": "Outstanding",
     "due_date": "2026-09-27",
     "paid_at": null,
     "created_at": "2026-08-23T08:00:00.000Z"

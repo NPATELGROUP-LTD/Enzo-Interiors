@@ -1,5 +1,8 @@
 import clsx from 'clsx';
-import { ArrowLeft, Download } from 'lucide-react';
+import {
+  ArrowLeft,
+  DownloadSimple,
+} from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -153,7 +156,7 @@ export function ProjectDetailPage() {
                       ? 'border-green-900 bg-green-900 text-on-primary'
                       : step.reached
                         ? 'border-green-900 bg-green-100 text-green-900'
-                        : 'border-border bg-surface text-ink-muted',
+                        : 'border-transparent bg-ink/[0.07] text-ink-muted',
                   )}
                 >
                   {index + 1}
@@ -186,7 +189,7 @@ export function ProjectDetailPage() {
 
         <p className="mt-3 text-ink">{STAGE_DESCRIPTIONS[project.status]}</p>
         {project.current_stage ? (
-          <p className="mt-2 rounded-control border border-border bg-surface-muted px-2.5 py-2 text-ink">
+          <p className="mt-2 rounded-control bg-surface-muted px-2.5 py-2 text-ink">
             {project.current_stage}
           </p>
         ) : null}
@@ -207,7 +210,7 @@ export function ProjectDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <p className="label-eyebrow">Project details</p>
-            <dl className="mt-3 flex flex-col gap-2.5">
+            <dl className="mt-3 rows">
               {[
                 ['Service', SERVICE_LABELS[project.type]],
                 ['Current stage', project.status],
@@ -218,7 +221,7 @@ export function ProjectDetailPage() {
               ].map(([label, value]) => (
                 <div
                   key={label}
-                  className="flex justify-between gap-3 border-b border-border pb-2 last:border-0"
+                  className="flex justify-between gap-3"
                 >
                   <dt className="text-ink-muted">{label}</dt>
                   <dd className="text-right font-medium text-ink">{value}</dd>
@@ -232,7 +235,7 @@ export function ProjectDetailPage() {
             {activity.length === 0 ? (
               <p className="py-6 text-center text-ink-muted">No updates recorded yet.</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {activity.slice(0, 8).map((entry) => (
                   <li key={entry.id} className="py-2.5 first:pt-0">
                     <p className="font-medium text-ink">{humanise(entry.action)}</p>
@@ -294,7 +297,7 @@ export function ProjectDetailPage() {
           </Card>
         ) : (
           <Card>
-            <ul className="flex flex-col divide-y divide-border">
+            <ul className="rows">
               {documents.map((document) => (
                 <li
                   key={document.id}
@@ -310,7 +313,7 @@ export function ProjectDetailPage() {
                   <Button
                     variant="secondary"
                     className="min-h-9 px-2 text-xs"
-                    icon={<Download size={14} aria-hidden="true" />}
+                    icon={<DownloadSimple size={14} aria-hidden="true" />}
                     onClick={() =>
                       toast.info('File storage is not part of this prototype, so there is nothing to download yet.')
                     }
@@ -331,7 +334,7 @@ export function ProjectDetailPage() {
           </Card>
         ) : (
           <Card>
-            <ul className="flex flex-col divide-y divide-border">
+            <ul className="rows">
               {invoices.map((invoice) => (
                 <li
                   key={invoice.id}

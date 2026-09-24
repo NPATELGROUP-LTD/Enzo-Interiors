@@ -3,5 +3,6 @@ dist/
 *.tsbuildinfo
 .env
 
-# Transient files from JsonRepository's atomic write (write temp, then rename).
-data/*.tmp
+# Local environment of every flavour.
+.env.*
+!.env.example

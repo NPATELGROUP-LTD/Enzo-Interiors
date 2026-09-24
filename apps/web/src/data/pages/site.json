@@ -1,7 +1,8 @@
 {
   "metadata": {
     "title": "Enzo Interiors",
-    "description": "Bespoke interior design & fitted furniture, designed and handcrafted in Leicester."
+    "description": "Bespoke interior design & fitted furniture, designed and handcrafted in Leicester.",
+    "ogImageId": ""
   },
   "skipLink": "Skip to content",
   "navbar": {
@@ -83,6 +84,17 @@
     "body": "The page you're looking for has been moved, deleted, or perhaps never existed. Let us help you find your way back to beautiful spaces.",
     "backLabel": "Go Back",
     "homeLabel": "Go Home",
+    "linksLabel": "Where to next",
     "wordmark": "Enzo Interiors"
+  },
+  "comingSoon": {
+    "eyebrow": "Leicester · Bespoke interiors",
+    "heading": "A new home for Enzo Interiors is nearly ready.",
+    "body": "We are putting the finishing touches to the new site. In the meantime we are still measuring, drawing and building — get in touch and we will talk about your room.",
+    "countdownLabel": "Opening in",
+    "noDateLabel": "Opening soon",
+    "units": { "days": "Days", "hours": "Hours", "minutes": "Minutes", "seconds": "Seconds" },
+    "launchingLabel": "Opening now — one moment…",
+    "contactLabel": "Talk to us today"
   }
 }

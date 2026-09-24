@@ -10,8 +10,8 @@
  *
  * Prototype-phase deviations from the schema doc, all deliberate:
  *   - `uuid` columns are plain `string` ids. The seed uses readable stable ids
- *     ("cli_sarah_jones") rather than random UUIDs so the JSON files in
- *     apps/api/data/ can be read and cross-referenced by a human.
+ *     ("cli_sarah_jones") rather than random UUIDs so demo records can be
+ *     read and cross-referenced by a human.
  *   - `decimal(n,2)` columns are `number`, always rounded to 2dp on write via
  *     common/util/money.ts. See that file for why this is tolerable here and
  *     why it is NOT how the Postgres schema should be defined.
@@ -29,8 +29,15 @@
 /* Enums                                                                      */
 /* -------------------------------------------------------------------------- */
 
-export const STAFF_ROLES = ['Admin', 'Designer', 'Installer'] as const;
+/**
+ * v1's admin has two roles: Admin, and Editor (writes content, cannot publish).
+ * Designer and Installer are the CRM's; a Designer is treated as an Editor.
+ */
+export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
+
+/** The roles the v1 admin invites and assigns. */
+export const ADMIN_ROLES = ['Admin', 'Editor'] as const;
 
 export const CLIENT_STATUSES = ['Active', 'Inactive'] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -82,11 +89,17 @@ export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 export const SUBMISSION_STATUSES = ['New', 'Contacted', 'Converted', 'Archived'] as const;
 export type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 
+export const ENQUIRY_KINDS = ['contact', 'quote', 'booking'] as const;
+export type EnquiryKind = (typeof ENQUIRY_KINDS)[number];
+
+export const SITE_STATUSES = ['live', 'coming_soon'] as const;
+export type SiteStatus = (typeof SITE_STATUSES)[number];
+
 /* -------------------------------------------------------------------------- */
 /* Tables                                                                     */
 /* -------------------------------------------------------------------------- */
 
-/** Every record carries a string PK. JsonRepository is generic over this. */
+/** Every record carries a string PK. PrismaRepository is generic over this. */
 export interface BaseRecord {
   id: string;
 }
@@ -95,14 +108,14 @@ export interface BaseRecord {
 export interface StaffUser extends BaseRecord {
   name: string;
   email: string;
-  /**
-   * MOCK ONLY. This holds a PLAINTEXT password, not a hash, per the prototype
-   * brief. The column keeps its documented name so the Postgres migration does
-   * not need a rename, but the value must be replaced with a real bcrypt or
-   * argon2 hash before this leaves the prototype. NOT PRODUCTION-SAFE.
-   */
+  /** bcrypt hash (AuthService). */
   password_hash: string;
   role: StaffRole;
+  /** Bumped on password change/reset; JWTs carrying an older one are refused. */
+  token_version: number;
+  /** sha256 of the emailed reset token. The token itself is never stored. */
+  reset_token_hash: string | null;
+  reset_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -319,6 +332,9 @@ export interface ContactSubmission extends BaseRecord {
   service_interest: string | null;
   message: string;
   status: SubmissionStatus;
+  kind: EnquiryKind;
+  /** The form's extra fields (tier, room, preferred date...). */
+  details: Record<string, string> | null;
   created_at: string;
 }
 
@@ -350,5 +366,133 @@ export interface ActivityLog extends BaseRecord {
   target_table: string;
   target_id: string;
   details: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/* -------------------------------------------------------------------------- */
+/* CMS                                                                        */
+/* -------------------------------------------------------------------------- */
+
+/** The collections a CmsEntry can belong to. Also the admin CMS menu order. */
+export const CMS_COLLECTIONS = [
+  'pages',
+  'services',
+  'portfolio',
+  'testimonials',
+  'team',
+  'faqs',
+  'navigation',
+  'company',
+] as const;
+export type CmsCollection = (typeof CMS_COLLECTIONS)[number];
+
+/**
+ * One editable thing on the public site.
+ *
+ * `draft` is what the admin edits; `published` is what apps/web renders. They
+ * diverge the moment someone saves, and converge again on publish — which is
+ * the whole point, and how the admin knows to show an "unpublished changes"
+ * badge. A null `published` means this entry has never been live, so the
+ * public bundle leaves it out entirely rather than showing a half-written row.
+ *
+ * The shape of `draft` is not typed here because it differs per collection.
+ * It is described by the field descriptors in modules/cms/schemas.ts, which
+ * validate writes and are served to the admin to render its forms.
+ */
+export interface CmsEntry extends BaseRecord {
+  collection: CmsCollection;
+  slug: string;
+  sort_order: number;
+  draft: Record<string, unknown>;
+  published: Record<string, unknown> | null;
+  published_at: string | null;
+  updated_at: string;
+  updated_by: string | null;
+  /** Set while an editor's changes wait for an admin: who asked, when, their note. */
+  review_by: string | null;
+  review_at: string | null;
+  review_note: string | null;
+}
+
+/**
+ * An image or file the CMS can point at.
+ *
+ * `storage_key` is an object key in the PUBLIC bucket and never a URL; the
+ * URL is built from S3_PUBLIC_BASE_URL when the row is served. `source` says
+ * where the file came from: "upload", "site", or "unsplash"/"randomuser" for a
+ * placeholder still to be replaced.
+ */
+export interface MediaAsset extends BaseRecord {
+  storage_key: string;
+  alt: string;
+  title: string | null;
+  source: string;
+  width: number | null;
+  height: number | null;
+  byte_size: number | null;
+  mime_type: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** General site settings. A single row, id "site". */
+export interface SiteSettings extends BaseRecord {
+  status: SiteStatus;
+  /** Once set and passed, the site is live whatever `status` says. */
+  launch_at: string | null;
+  notification_emails: string[];
+  /** Media ids. Null logo = the shipped one; null favicon = the site's /icon.png. */
+  logo_light_id: string | null;
+  logo_dark_id: string | null;
+  favicon_id: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Consultation bookings                                                      */
+/* -------------------------------------------------------------------------- */
+
+/** The booking settings row. `config` is validated by BookingConfigDto. */
+export interface BookingSettingsRow extends BaseRecord {
+  config: Record<string, unknown>;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export const APPOINTMENT_STATUSES = ['Confirmed', 'Cancelled'] as const;
+export type AppointmentStatus = (typeof APPOINTMENT_STATUSES)[number];
+
+export interface Appointment extends BaseRecord {
+  reference: string;
+  service: string;
+  service_label: string;
+  starts_at: string;
+  ends_at: string;
+  /** starts_at while the booking holds the slot; null once cancelled. Unique. */
+  slot: string | null;
+  status: AppointmentStatus;
+  name: string;
+  email: string;
+  phone: string | null;
+  address: string | null;
+  postcode: string | null;
+  notes: string | null;
+  details: Record<string, string> | null;
+  source: 'website' | 'admin';
+  created_by: string | null;
+  cancelled_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One line in a staff member's notification bell. */
+export interface Notification extends BaseRecord {
+  recipient_id: string;
+  kind: 'booking' | 'review' | 'review_reply';
+  title: string;
+  body: string | null;
+  link: string | null;
+  read_at: string | null;
   created_at: string;
 }

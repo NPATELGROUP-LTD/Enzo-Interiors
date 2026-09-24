@@ -65,7 +65,7 @@ export function ProjectsPage() {
               <p className="mt-3 text-ink-muted">{STAGE_DESCRIPTIONS[project.status]}</p>
 
               {project.current_stage ? (
-                <p className="mt-2 rounded-control border border-border bg-surface-muted px-2.5 py-1.5 text-xs text-ink">
+                <p className="mt-2 rounded-control bg-surface-muted px-2.5 py-1.5 text-xs text-ink">
                   {project.current_stage}
                 </p>
               ) : null}

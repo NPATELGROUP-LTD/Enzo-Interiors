@@ -193,7 +193,7 @@
     "client_id": "cli_sarah_jones",
     "service_type": "Wardrobe",
     "date_time": "2026-09-11T14:30:00.000Z",
-    "status": "Pending",
+    "status": "Confirmed",
     "linked_quote_id": "qte_jones_wardrobe",
     "created_at": "2026-08-24T08:00:00.000Z"
   },
@@ -211,7 +211,7 @@
     "client_id": "cli_raj_patel",
     "service_type": "Wardrobe",
     "date_time": "2026-09-24T09:30:00.000Z",
-    "status": "Confirmed",
+    "status": "Cancelled",
     "linked_quote_id": null,
     "created_at": "2026-08-27T08:00:00.000Z"
   },

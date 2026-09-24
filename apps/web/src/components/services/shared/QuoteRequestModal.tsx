@@ -38,7 +38,9 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import { toast } from "sonner";
+import { Honeypot } from "@/components/shared/Honeypot";
 import { fill, type SharedContent } from "@/lib/content";
+import { sendEnquiry } from "@/lib/enquiry";
 
 export interface QuoteRequestInfo {
   /** Pricing tier the visitor selected, e.g. "Premium". */
@@ -82,6 +84,8 @@ export function QuoteModalRoot({
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
   const [requestInfo, setRequestInfo] = useState<QuoteRequestInfo>({});
+  const [sending, setSending] = useState(false);
+  const [trap, setTrap] = useState("");
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusTo = useRef<HTMLElement | null>(null);
 
@@ -129,14 +133,38 @@ export function QuoteModalRoot({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
-    const suffix = requestInfo.tier
-      ? fill(content.toastTierSuffix, { tier: requestInfo.tier })
-      : "";
-    toast.success(fill(content.toast, { service: serviceTitle, suffix }));
-    setIsOpen(false);
-    setForm(EMPTY_FORM);
-    setRequestInfo({});
-    returnFocusTo.current?.focus();
+    if (sending) return;
+    setSending(true);
+    sendEnquiry(
+      {
+        kind: "quote",
+        name: form.name,
+        email: form.email,
+        phone: form.phone,
+        message: form.details,
+        details: {
+          service: serviceTitle,
+          tier: requestInfo.tier,
+          estimate: requestInfo.estimateLabel,
+          budget: form.budget,
+        },
+        website: trap,
+      },
+      content.errorToast,
+    )
+      .then(() => {
+        const suffix = requestInfo.tier
+          ? fill(content.toastTierSuffix, { tier: requestInfo.tier })
+          : "";
+        toast.success(fill(content.toast, { service: serviceTitle, suffix }));
+        setIsOpen(false);
+        setForm(EMPTY_FORM);
+        setRequestInfo({});
+        returnFocusTo.current?.focus();
+      })
+      // Stays open with their answers, so trying again costs nothing.
+      .catch((error: Error) => toast.error(error.message))
+      .finally(() => setSending(false));
   };
 
   return (
@@ -308,9 +336,12 @@ export function QuoteModalRoot({
                   />
                 </div>
 
+                <Honeypot value={trap} onChange={setTrap} />
                 <button
                   type="submit"
-                  className="w-full rounded-full bg-primary py-3.5 text-[14px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  disabled={sending}
+                  aria-busy={sending}
+                  className="w-full rounded-full bg-primary py-3.5 text-[14px] font-medium text-primary-foreground transition-colors duration-300 hover:bg-enzo-forest-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-wait disabled:opacity-60"
                 >
                   {content.submitLabel}
                 </button>

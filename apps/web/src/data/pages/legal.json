@@ -8,7 +8,8 @@
   "privacy": {
     "metadata": {
       "title": "Privacy Policy — Enzo Interiors",
-      "description": "How Enzo Interiors collects, uses and protects your personal data, and the rights you have under UK GDPR."
+      "description": "How Enzo Interiors collects, uses and protects your personal data, and the rights you have under UK GDPR.",
+      "ogImageId": ""
     },
     "index": "L1",
     "eyebrow": "Privacy",
@@ -124,7 +125,8 @@
   "terms": {
     "metadata": {
       "title": "Terms & Conditions — Enzo Interiors",
-      "description": "Terms for using the Enzo Interiors website, and your statutory rights when you order fitted furniture from us."
+      "description": "Terms for using the Enzo Interiors website, and your statutory rights when you order fitted furniture from us.",
+      "ogImageId": ""
     },
     "index": "L2",
     "eyebrow": "Terms",
@@ -215,7 +217,8 @@
   "cookies": {
     "metadata": {
       "title": "Cookie Policy — Enzo Interiors",
-      "description": "Exactly what this website stores on your device, why, and how to change your mind."
+      "description": "Exactly what this website stores on your device, why, and how to change your mind.",
+      "ogImageId": ""
     },
     "index": "L3",
     "eyebrow": "Cookies",

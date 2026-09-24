@@ -1,5 +1,8 @@
 import clsx from 'clsx';
-import { ArrowLeft, Upload } from 'lucide-react';
+import {
+  ArrowLeft,
+  UploadSimple,
+} from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -139,7 +142,7 @@ export function ProjectDetailPage() {
                         ? 'border-green-900 bg-green-900 text-on-primary'
                         : step.reached
                           ? 'border-green-900 bg-green-100 text-green-900'
-                          : 'border-border bg-surface text-ink-muted',
+                          : 'border-transparent bg-ink/[0.07] text-ink-muted',
                     )}
                   >
                     {index + 1}
@@ -237,7 +240,7 @@ export function ProjectDetailPage() {
         <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <p className="label-eyebrow">Project details</p>
-            <dl className="mt-3 flex flex-col gap-2.5">
+            <dl className="mt-3 rows">
               {[
                 ['Client', client?.name ?? '—'],
                 ['Service', SERVICE_LABELS[project.type]],
@@ -248,7 +251,7 @@ export function ProjectDetailPage() {
                 ['Created', date(project.created_at)],
                 ['Last updated', dateTime(project.updated_at)],
               ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3 border-b border-border pb-2 last:border-0">
+                <div key={label} className="flex justify-between gap-3">
                   <dt className="text-ink-muted">{label}</dt>
                   <dd className="text-right font-medium text-ink">{value}</dd>
                 </div>
@@ -261,7 +264,7 @@ export function ProjectDetailPage() {
             {activity.length === 0 ? (
               <p className="py-6 text-center text-ink-muted">Nothing recorded yet.</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {activity.slice(0, 6).map((entry) => (
                   <li key={entry.id} className="py-2.5 first:pt-0">
                     <p className="font-medium text-ink">{humanise(entry.action)}</p>
@@ -281,7 +284,7 @@ export function ProjectDetailPage() {
           <div className="mb-3 flex justify-end">
             <Button
               variant="primary"
-              icon={<Upload size={16} aria-hidden="true" />}
+              icon={<UploadSimple size={16} aria-hidden="true" />}
               onClick={() => setUploading(true)}
             >
               Add document
@@ -376,7 +379,7 @@ export function ProjectDetailPage() {
           </Card>
         ) : (
           <Card>
-            <ul className="flex flex-col divide-y divide-border">
+            <ul className="rows">
               {activity.map((entry) => (
                 <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">

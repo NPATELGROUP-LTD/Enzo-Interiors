@@ -143,19 +143,19 @@ export function QuotesPage() {
 
                 {quote.lines.length > 0 ? (
                   <div className="mt-4 overflow-x-auto">
-                    <table className="w-full min-w-[28rem] border-collapse text-left">
+                    <table className="data-table w-full min-w-[28rem] border-separate border-spacing-0 text-left">
                       <thead>
                         <tr>
-                          <th className="label-eyebrow border-b border-border bg-surface-muted px-2.5 py-2">
+                          <th className="label-eyebrow px-2.5 py-2">
                             Item
                           </th>
-                          <th className="label-eyebrow border-b border-border bg-surface-muted px-2.5 py-2 text-right">
+                          <th className="label-eyebrow px-2.5 py-2 text-right">
                             Qty
                           </th>
-                          <th className="label-eyebrow border-b border-border bg-surface-muted px-2.5 py-2 text-right">
+                          <th className="label-eyebrow px-2.5 py-2 text-right">
                             Unit
                           </th>
-                          <th className="label-eyebrow border-b border-border bg-surface-muted px-2.5 py-2 text-right">
+                          <th className="label-eyebrow px-2.5 py-2 text-right">
                             Total
                           </th>
                         </tr>
@@ -163,16 +163,16 @@ export function QuotesPage() {
                       <tbody>
                         {quote.lines.map((line) => (
                           <tr key={line.id}>
-                            <td className="border-b border-border px-2.5 py-2 text-ink">
+                            <td className="px-2.5 py-2 text-ink">
                               {line.component_name}
                             </td>
-                            <td className="tabular border-b border-border px-2.5 py-2 text-right text-ink-muted">
+                            <td className="tabular px-2.5 py-2 text-right text-ink-muted">
                               {line.quantity}
                             </td>
-                            <td className="tabular border-b border-border px-2.5 py-2 text-right text-ink-muted">
+                            <td className="tabular px-2.5 py-2 text-right text-ink-muted">
                               {money(line.unit_price)}
                             </td>
-                            <td className="tabular border-b border-border px-2.5 py-2 text-right font-medium text-ink">
+                            <td className="tabular px-2.5 py-2 text-right font-medium text-ink">
                               {money(line.line_total)}
                             </td>
                           </tr>
@@ -182,7 +182,7 @@ export function QuotesPage() {
                   </div>
                 ) : null}
 
-                <dl className="mt-4 flex flex-col gap-1.5 border-t border-border pt-3">
+                <dl className="mt-4 flex flex-col gap-1.5 px-2.5 pt-1">
                   {quote.design_fee > 0 ? (
                     <div className="flex justify-between">
                       <dt className="text-ink-muted">3D design &amp; visualisation</dt>
@@ -277,7 +277,7 @@ export function QuotesPage() {
         <form id="decision-form" onSubmit={submit} noValidate>
           {decision ? (
             <>
-              <p className="mb-3 rounded-control border border-border bg-surface-muted px-3 py-2 text-ink">
+              <p className="mb-3 rounded-control bg-surface-muted px-3 py-2 text-ink">
                 {SERVICE_LABELS[decision.quote.service_id]} ·{' '}
                 <span className="tabular font-semibold">{money(decision.quote.total)}</span>{' '}
                 including VAT

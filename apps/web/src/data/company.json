@@ -50,5 +50,6 @@
       "byAppointment": "By appointment"
     }
   },
+  "address": { "street": "", "postcode": "" },
   "madeBy": "NPATEL GROUP LTD"
 }

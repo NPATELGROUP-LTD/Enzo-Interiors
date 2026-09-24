@@ -1,7 +1,8 @@
 {
   "metadata": {
     "title": "Services — Enzo Interiors",
-    "description": "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. See where each discipline starts and what is included."
+    "description": "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. See where each discipline starts and what is included.",
+    "ogImageId": ""
   },
   "hero": {
     "headingLines": ["{countWord} disciplines.", "One workshop."],

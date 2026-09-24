@@ -1,8 +1,9 @@
 import nextConfig from 'eslint-config-next';
-import rootConfig from '../../eslint.config.js';
 
+// Self-contained: eslint-config-next already brings typescript-eslint, and
+// importing the repo root's config as well registered that plugin twice
+// ("Cannot redefine plugin").
 const config = [
-  ...rootConfig,
   ...nextConfig,
   {
     ignores: ['.next/**'],

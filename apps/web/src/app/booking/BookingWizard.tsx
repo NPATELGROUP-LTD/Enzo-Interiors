@@ -1,28 +1,15 @@
 "use client";
 
-// Ported from Boilerplate:src/app/components/pages/BookingPage.tsx. That
-// version put the whole 5-step wizard (step state, calendar math, contact
-// form, confirmation) in one component — no server data is involved (this
-// is a client-only mock booking flow, same as QuoteModal.tsx's "no real
-// submission endpoint exists yet" pattern), so it stays that way here. The
-// only structural change from the boilerplate is the App Router split: the
-// route's page.tsx (Server Component) reads `?service=`/`?tier=` and passes
-// them down as initial state, this file owns everything interactive.
+// The consultation booking wizard: service, day, time, details, confirmed.
+// The route's page.tsx (a Server Component) validates `?service=`/`?tier=`
+// and hands them down as initial state; everything interactive lives here.
 //
-// Deviations from the boilerplate:
-// - No `useScrollToTop()` port: that hook called react-router's
-//   `useLocation()`, which doesn't exist here. Next's App Router already
-//   scrolls new pages to the top on navigation by default, so the hook has
-//   no equivalent behavior left to port.
-// - Raw hex literals (`#1C4A3A`, `#F2F0EB`, etc.) are replaced with the
-//   matching tokens from src/styles/theme.css (bg-primary, text-secondary,
-//   bg-sidebar-accent, ...) instead of arbitrary-value Tailwind classes.
-// - `tier` (from the Service Detail quote-to-booking handoff) isn't a wizard
-//   step on its own — the boilerplate never had one — so it's surfaced as
-//   read-only context: a note under Step 1's heading, and folded into the
-//   confirmation summary + toast, mirroring how QuoteModal.tsx appends tier
-//   to its own toast message.
-import { useState } from "react";
+// Days and times come from the API (`GET /booking/availability`), worked out
+// from the schedule set in the admin's Settings minus what is already booked,
+// so a taken time is never offered. Booking is `POST /booking`, which checks
+// the time again and answers 409 if someone got there first. Which contact
+// fields are asked for, and which services can be booked, are also Settings.
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import Link from "next/link";
 import {
@@ -37,7 +24,15 @@ import {
   Tv,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Honeypot } from "@/components/shared/Honeypot";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
+import {
+  SlotTakenError,
+  fetchAvailability,
+  sendBooking,
+  type Availability,
+  type FieldRule,
+} from "@/lib/booking";
 import {
   fill,
   type BookingPageContent,
@@ -67,6 +62,29 @@ export interface BookingServiceOption {
 /** The four questions. The fifth screen is the confirmation, not a step. */
 const TOTAL_STEPS = 4;
 
+const pad = (n: number) => String(n).padStart(2, "0");
+const isoDate = (year: number, month: number, day: number) => `${year}-${pad(month + 1)}-${pad(day)}`;
+
+/** "14:30" -> "2:30pm", the way the rest of the site writes times. */
+function clock(time: string): string {
+  const [h = 0, m = 0] = time.split(":").map(Number);
+  return `${h % 12 || 12}:${pad(m)}${h < 12 ? "am" : "pm"}`;
+}
+
+/** Today as a studio date. The studio is in Leicester, whatever the visitor's zone. */
+function studioToday(): { year: number; month: number; day: number } {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" })
+    .format(new Date())
+    .split("-")
+    .map(Number);
+  return { year: year!, month: month! - 1, day: day! };
+}
+
+type ContactKey = "phone" | "address" | "postcode" | "notes";
+const CONTACT_KEYS: ContactKey[] = ["phone", "address", "postcode", "notes"];
+const INPUT =
+  "w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all";
+
 export function BookingWizard({
   initialService,
   initialTier,
@@ -74,6 +92,7 @@ export function BookingWizard({
   services,
   backgroundImage,
   quote,
+  logos,
 }: {
   initialService?: string;
   initialTier?: string;
@@ -82,108 +101,167 @@ export function BookingWizard({
   backgroundImage: MediaItem;
   /** The panel's review, by id — the same record /portfolio quotes. */
   quote: Testimonial | null;
+  logos: { onLight: MediaItem; onDark: MediaItem };
 }) {
+  const [today] = useState(studioToday);
   const [step, setStep] = useState(1);
-  const [selectedService, setSelectedService] = useState<string>(
-    initialService ?? "",
-  );
-  const [selectedDate, setSelectedDate] = useState<number | null>(null);
+  const [selectedService, setSelectedService] = useState<string>(initialService ?? "");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
-
-  const today = new Date();
-  const todayMonth = today.getMonth();
-  const todayYear = today.getFullYear();
-  const todayDate = today.getDate();
-
-  const [currentMonth, setCurrentMonth] = useState(todayMonth);
-  const [currentYear, setCurrentYear] = useState(todayYear);
-  const [contactForm, setContactForm] = useState({
+  const [view, setView] = useState({ year: today.year, month: today.month });
+  /** The latest answer; kept while another month loads, for the form's rules. */
+  const [free, setFree] = useState<Availability | null>(null);
+  /** Which request `free` answers (month + attempt), or that it failed. */
+  const [loaded, setLoaded] = useState<{ key: string; ok: boolean } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [form, setForm] = useState<Record<"name" | "email" | ContactKey, string>>({
     name: "",
     email: "",
     phone: "",
+    address: "",
+    postcode: "",
     notes: "",
   });
+  const [sending, setSending] = useState(false);
+  const [reference, setReference] = useState<string | null>(null);
+  const [trap, setTrap] = useState("");
 
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDay = new Date(currentYear, currentMonth, 1).getDay();
-  const unavailableDays = [3, 7, 14, 21, 28]; // Sundays and some dates — mock data
+  const daysInMonth = new Date(view.year, view.month + 1, 0).getDate();
+  const firstDay = new Date(view.year, view.month, 1).getDay();
+  const monthStart = isoDate(view.year, view.month, 1);
+  const monthEnd = isoDate(view.year, view.month, daysInMonth);
 
-  const isPastMonth =
-    currentYear < todayYear ||
-    (currentYear === todayYear && currentMonth < todayMonth);
+  const requestKey = `${monthStart}|${attempt}`;
+  const calendarState = loaded?.key !== requestKey ? "loading" : loaded.ok ? "ready" : "failed";
+  const load = () => setAttempt((n) => n + 1);
 
-  const isPastDate = (day: number): boolean => {
-    if (currentYear > todayYear) return false;
-    if (currentYear < todayYear) return true;
-    if (currentMonth > todayMonth) return false;
-    if (currentMonth < todayMonth) return true;
-    return day < todayDate;
+  useEffect(() => {
+    let live = true;
+    fetchAvailability(monthStart, monthEnd)
+      .then((result) => {
+        if (!live) return;
+        setFree(result);
+        setLoaded({ key: requestKey, ok: true });
+      })
+      .catch(() => live && setLoaded({ key: requestKey, ok: false }));
+    return () => {
+      live = false;
+    };
+  }, [requestKey, monthStart, monthEnd]);
+
+  // Services the studio takes bookings for; all of them unless Settings narrows it.
+  const bookable = useMemo(
+    () => (free?.services.length ? services.filter((s) => free.services.includes(s.id)) : services),
+    [free, services],
+  );
+
+  const fields: Record<ContactKey, FieldRule> = free?.fields ?? {
+    phone: "required",
+    address: "off",
+    postcode: "optional",
+    notes: "optional",
   };
+
+  const isFirstMonth = view.year === today.year && view.month === today.month;
+  const lastBookable = free
+    ? new Date(Date.UTC(today.year, today.month, today.day + free.horizonDays)).toISOString().slice(0, 10)
+    : null;
+  const isLastMonth = lastBookable !== null && monthEnd >= lastBookable;
+  const times = selectedDate ? (free?.days[selectedDate] ?? []) : [];
+  const serviceLabel = services.find((s) => s.id === selectedService)?.label;
 
   const canProceed = () => {
     switch (step) {
       case 1:
-        return !!selectedService;
+        return bookable.some((s) => s.id === selectedService);
       case 2:
-        return selectedDate !== null;
+        return selectedDate !== null && times.length > 0;
       case 3:
-        return !!selectedTime;
+        return times.includes(selectedTime);
       case 4:
-        return !!(contactForm.name && contactForm.email && contactForm.phone);
+        return (
+          !!form.name.trim() &&
+          /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()) &&
+          CONTACT_KEYS.every((key) => fields[key] !== "required" || !!form[key].trim())
+        );
       default:
         return false;
     }
   };
 
-  const handleConfirm = () => {
-    const suffix = initialTier
-      ? fill(content.toast.tierSuffix, { tier: initialTier })
-      : "";
-    toast.success(fill(content.toast.message, { suffix }));
-    setStep(5);
+  const moveMonth = (delta: number) => {
+    const next = new Date(view.year, view.month + delta, 1);
+    setView({ year: next.getFullYear(), month: next.getMonth() });
   };
+
+  const handleConfirm = () => {
+    if (sending || !selectedDate) return;
+    setSending(true);
+    const contact = Object.fromEntries(
+      CONTACT_KEYS.filter((key) => fields[key] !== "off").map((key) => [key, form[key]]),
+    );
+    sendBooking(
+      {
+        service: selectedService,
+        date: selectedDate,
+        time: selectedTime,
+        name: form.name,
+        email: form.email,
+        ...contact,
+        tier: initialTier,
+        website: trap,
+      },
+      content.toast.error,
+    )
+      .then((result) => {
+        const suffix = initialTier ? fill(content.toast.tierSuffix, { tier: initialTier }) : "";
+        toast.success(fill(content.toast.message, { suffix }));
+        setReference(result.reference ?? null);
+        setStep(5);
+      })
+      .catch((error: Error) => {
+        if (error instanceof SlotTakenError) {
+          toast.error(content.toast.taken);
+          setSelectedTime("");
+          setStep(3);
+          load();
+        } else {
+          toast.error(error.message);
+        }
+      })
+      .finally(() => setSending(false));
+  };
+
+  const placeholder = (key: ContactKey) => {
+    const text = content.steps.details.placeholders[key];
+    const suffix = content.steps.details.optionalSuffix;
+    return fields[key] === "optional" && !text.toLowerCase().includes(suffix.trim().toLowerCase())
+      ? `${text}${suffix}`
+      : text;
+  };
+
+  const prettyDate = selectedDate
+    ? (() => {
+        const [y, m, d] = selectedDate.split("-").map(Number);
+        return `${d} ${content.calendar.months[m! - 1]} ${y}`;
+      })()
+    : "";
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row">
-      {/* Back to Home link - mobile */}
-      <Link
-        href="/"
-        className="fixed top-4 right-4 z-50 lg:hidden px-4 py-2 rounded-full bg-background/90 text-primary text-[12px] backdrop-blur-sm"
-      >
-        {content.backToHomeLabel}
-      </Link>
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-[40%] relative bg-primary flex-col justify-between p-12">
         <div className="absolute inset-0 opacity-20">
-          <ImageWithFallback
-            src={backgroundImage.src}
-            alt=""
-            className="w-full h-full object-cover"
-          />
+          <ImageWithFallback src={backgroundImage.src} alt="" className="w-full h-full object-cover" />
         </div>
         <div className="relative z-10">
-          <span
-            className="font-title text-primary-foreground"
-            style={{ fontSize: "1.5rem", fontWeight: 600 }}
-          >
-            {content.wordmark.name}{" "}
-            <span
-              style={{
-                fontWeight: 300,
-                fontStyle: "normal",
-                fontSize: "0.75rem",
-                letterSpacing: "0.15em",
-              }}
-            >
-              {content.wordmark.suffix}
-            </span>
-          </span>
+          <Link href="/" aria-label={content.logoLabel} className="inline-block">
+            {/* eslint-disable-next-line @next/next/no-img-element -- a small logo from the media bucket; next/image would need its host configured for no gain */}
+            <img src={logos.onDark.src} alt={logos.onDark.alt} className="h-11 w-auto" />
+          </Link>
         </div>
         <div className="relative z-10">
-          <h1
-            className="text-primary-foreground"
-            style={{ fontSize: "2.5rem", lineHeight: 1.15 }}
-          >
+          <h1 className="text-primary-foreground" style={{ fontSize: "2.5rem", lineHeight: 1.15 }}>
             {content.panel.headingLines.map((line, index) => (
               <span key={line}>
                 {index > 0 && <br />}
@@ -191,15 +269,10 @@ export function BookingWizard({
               </span>
             ))}
           </h1>
-          <p className="text-secondary mt-4 text-[15px] leading-relaxed max-w-sm">
-            {content.panel.lede}
-          </p>
+          <p className="text-secondary mt-4 text-[15px] leading-relaxed max-w-sm">{content.panel.lede}</p>
           <ul className="mt-8 space-y-3">
             {content.panel.benefits.map((item) => (
-              <li
-                key={item}
-                className="flex items-center gap-3 text-primary-foreground/80 text-[14px]"
-              >
+              <li key={item} className="flex items-center gap-3 text-primary-foreground/80 text-[14px]">
                 <Check size={14} className="text-secondary" />
                 {item}
               </li>
@@ -212,24 +285,34 @@ export function BookingWizard({
               &ldquo;{quote.pullQuote ?? quote.text}&rdquo;
             </p>
             <p className="text-secondary text-[13px] mt-3">
-              {fill(content.panel.attribution, {
-                name: quote.name,
-                role: quote.role,
-              })}
+              {fill(content.panel.attribution, { name: quote.name, role: quote.role })}
             </p>
           </div>
         )}
       </div>
 
       {/* Right Panel */}
-      <div className="flex-1 bg-background min-h-screen pt-24 lg:pt-0 flex flex-col">
+      <div className="flex-1 bg-background min-h-screen flex flex-col">
+        {/* Phones and tablets have no side panel, so the logo and the way home sit here. */}
+        <div className="flex items-center justify-between gap-4 px-6 pt-6 md:px-12 lg:hidden">
+          <Link href="/" aria-label={content.logoLabel}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- see the panel logo above */}
+            <img src={logos.onLight.src} alt={logos.onLight.alt} className="h-9 w-auto" />
+          </Link>
+          <Link
+            href="/"
+            className="px-4 py-2 rounded-full border border-border text-primary text-[12px] hover:border-primary transition-colors"
+          >
+            {content.backToHomeLabel}
+          </Link>
+        </div>
+
         {/* Progress */}
         <div className="p-6 md:p-12 pb-0">
           <div className="flex items-center justify-between mb-2">
-            {/* forest-light, not `text-secondary`: the sage secondary is
-                #8A9E8C, which on this cream ground measures 2.51:1 — the
-                one piece of text telling you where you are in a four-step
-                form was the least readable thing in it. */}
+            {/* forest-light, not `text-secondary`: the sage secondary measures
+                2.51:1 on this cream ground, too faint for the one line saying
+                where you are in the form. */}
             <span className="text-enzo-forest-light text-[12px] uppercase tracking-[0.2em]">
               {step <= TOTAL_STEPS
                 ? fill(content.progress.step, { step, total: TOTAL_STEPS })
@@ -239,9 +322,7 @@ export function BookingWizard({
           <div className="h-1 bg-border/30 rounded-full overflow-hidden">
             <motion.div
               className="h-full bg-primary rounded-full"
-              animate={{
-                width: `${step > TOTAL_STEPS ? 100 : (step / TOTAL_STEPS) * 100}%`,
-              }}
+              animate={{ width: `${step > TOTAL_STEPS ? 100 : (step / TOTAL_STEPS) * 100}%` }}
               transition={{ duration: 0.4 }}
             />
           </div>
@@ -254,43 +335,34 @@ export function BookingWizard({
                 <h2 className="text-primary" style={{ fontSize: "1.8rem" }}>
                   {content.steps.service.heading}
                 </h2>
-                <p className="text-muted-foreground text-[14px] mt-2">
-                  {content.steps.service.lede}
-                </p>
+                <p className="text-muted-foreground text-[14px] mt-2">{content.steps.service.lede}</p>
                 {initialTier && (
                   <p className="text-primary text-[13px] mt-2" style={{ fontWeight: 600 }}>
                     {fill(content.steps.service.tierNote, { tier: initialTier })}
                   </p>
                 )}
                 <div className="mt-8 grid grid-cols-2 gap-4">
-                  {services.map(({ id, label, icon }) => {
+                  {bookable.map(({ id, label, icon }) => {
                     const Icon = ICONS[icon] ?? ChefHat;
+                    const selected = selectedService === id;
                     return (
-                    <button
-                      key={id}
-                      type="button"
-                      onClick={() => setSelectedService(id)}
-                      className={`p-6 rounded-2xl border-2 transition-all duration-300 text-left ${
-                        selectedService === id
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-secondary"
-                      }`}
-                    >
-                      <Icon
-                        size={28}
-                        className={
-                          selectedService === id
-                            ? "text-primary"
-                            : "text-secondary"
-                        }
-                      />
-                      <p
-                        className={`mt-3 text-[15px] ${selectedService === id ? "text-primary" : "text-foreground"}`}
-                        style={{ fontWeight: 500 }}
+                      <button
+                        key={id}
+                        type="button"
+                        aria-pressed={selected}
+                        onClick={() => setSelectedService(id)}
+                        className={`p-6 rounded-2xl border-2 transition-all duration-300 text-left ${
+                          selected ? "border-primary bg-primary/5" : "border-border hover:border-secondary"
+                        }`}
                       >
-                        {label}
-                      </p>
-                    </button>
+                        <Icon size={28} className={selected ? "text-primary" : "text-secondary"} />
+                        <p
+                          className={`mt-3 text-[15px] ${selected ? "text-primary" : "text-foreground"}`}
+                          style={{ fontWeight: 500 }}
+                        >
+                          {label}
+                        </p>
+                      </button>
                     );
                   })}
                 </div>
@@ -302,85 +374,92 @@ export function BookingWizard({
                 <h2 className="text-primary" style={{ fontSize: "1.8rem" }}>
                   {content.steps.date.heading}
                 </h2>
-                <p className="text-muted-foreground text-[14px] mt-2">
-                  {content.steps.date.lede}
-                </p>
-                <div className="mt-8 bg-white rounded-2xl p-6 shadow-[0_2px_16px_rgba(0,0,0,0.04)]">
+                <p className="text-muted-foreground text-[14px] mt-2">{content.steps.date.lede}</p>
+                <div className="mt-8 bg-white rounded-2xl p-6 shadow-[0_2px_16px_rgba(0,0,0,0.04)] max-w-md">
                   <div className="flex items-center justify-between mb-6">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (currentMonth === 0) {
-                          setCurrentMonth(11);
-                          setCurrentYear(currentYear - 1);
-                        } else {
-                          setCurrentMonth(currentMonth - 1);
-                        }
-                      }}
-                      disabled={isPastMonth}
-                      className={`${isPastMonth ? "text-border/40 cursor-not-allowed" : "text-secondary hover:text-primary"}`}
+                      onClick={() => moveMonth(-1)}
+                      disabled={isFirstMonth}
+                      aria-label={content.calendar.previous}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-secondary hover:text-primary hover:bg-primary/5 disabled:text-border/40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     >
                       <ChevronLeft size={20} />
                     </button>
-                    <span
-                      className="text-primary text-[15px]"
-                      style={{ fontWeight: 500 }}
-                    >
-                      {content.calendar.months[currentMonth]} {currentYear}
+                    <span className="text-primary text-[15px]" style={{ fontWeight: 500 }} aria-live="polite">
+                      {content.calendar.months[view.month]} {view.year}
                     </span>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (currentMonth === 11) {
-                          setCurrentMonth(0);
-                          setCurrentYear(currentYear + 1);
-                        } else {
-                          setCurrentMonth(currentMonth + 1);
-                        }
-                      }}
-                      className="text-secondary hover:text-primary"
+                      onClick={() => moveMonth(1)}
+                      disabled={isLastMonth}
+                      aria-label={content.calendar.next}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-secondary hover:text-primary hover:bg-primary/5 disabled:text-border/40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                     >
                       <ChevronRight size={20} />
                     </button>
                   </div>
-                  <div className="grid grid-cols-7 gap-1 text-center">
-                    {content.calendar.weekdays.map(
-                      (d) => (
-                        <div
-                          key={d}
-                          className="text-secondary text-[11px] uppercase tracking-wider py-2"
-                        >
+
+                  {calendarState === "failed" ? (
+                    <div className="py-10 text-center">
+                      <p className="text-[14px] text-muted-foreground">{content.calendar.error}</p>
+                      <button
+                        type="button"
+                        onClick={load}
+                        className="mt-4 px-5 py-2 rounded-full border border-border text-[13px] text-primary hover:border-primary"
+                      >
+                        {content.calendar.retry}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-7 gap-1 text-center" aria-busy={calendarState === "loading"}>
+                      {content.calendar.weekdays.map((d) => (
+                        <div key={d} className="text-secondary text-[11px] uppercase tracking-wider py-2">
                           {d}
                         </div>
-                      ),
-                    )}
-                    {Array.from({ length: (firstDay + 6) % 7 }).map((_, i) => (
-                      <div key={`empty-${i}`} />
-                    ))}
-                    {Array.from({ length: daysInMonth }).map((_, i) => {
-                      const day = i + 1;
-                      const isUnavailable =
-                        unavailableDays.includes(day) || isPastDate(day);
-                      const isSelected = selectedDate === day;
-                      return (
-                        <button
-                          key={day}
-                          type="button"
-                          disabled={isUnavailable}
-                          onClick={() => setSelectedDate(day)}
-                          className={`h-10 w-10 mx-auto rounded-full text-[13px] transition-all duration-200 ${
-                            isSelected
-                              ? "bg-primary text-primary-foreground"
-                              : isUnavailable
-                                ? "text-border cursor-not-allowed"
-                                : "text-foreground hover:bg-primary/10"
-                          }`}
-                        >
-                          {day}
-                        </button>
-                      );
-                    })}
-                  </div>
+                      ))}
+                      {Array.from({ length: (firstDay + 6) % 7 }).map((_, i) => (
+                        <div key={`empty-${i}`} />
+                      ))}
+                      {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const day = i + 1;
+                        const date = isoDate(view.year, view.month, day);
+                        const open = calendarState === "ready" && !!free?.days[date]?.length;
+                        const isSelected = selectedDate === date;
+                        return (
+                          <button
+                            key={day}
+                            type="button"
+                            disabled={!open}
+                            aria-pressed={isSelected}
+                            onClick={() => {
+                              setSelectedDate(date);
+                              setSelectedTime("");
+                            }}
+                            className={`relative h-10 w-10 mx-auto rounded-full text-[13px] transition-all duration-200 ${
+                              isSelected
+                                ? "bg-primary text-primary-foreground"
+                                : open
+                                  ? "text-foreground font-medium hover:bg-primary/10"
+                                  : "text-border cursor-not-allowed"
+                            } ${calendarState === "loading" ? "animate-pulse" : ""}`}
+                          >
+                            {day}
+                            {open && !isSelected ? (
+                              <span aria-hidden className="absolute bottom-1 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-secondary" />
+                            ) : null}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="mt-4 min-h-5 text-center text-[13px] text-muted-foreground" role="status">
+                    {calendarState === "loading"
+                      ? content.calendar.loading
+                      : calendarState === "ready" && free && Object.keys(free.days).length === 0
+                        ? content.calendar.empty
+                        : ""}
+                  </p>
                 </div>
               </StepWrapper>
             )}
@@ -391,13 +470,14 @@ export function BookingWizard({
                   {content.steps.time.heading}
                 </h2>
                 <p className="text-muted-foreground text-[14px] mt-2">
-                  {content.steps.time.lede}
+                  {content.steps.time.lede} <span className="text-primary">{prettyDate}</span>
                 </p>
                 <div className="mt-8 flex flex-wrap gap-3">
-                  {content.timeSlots.map((time) => (
+                  {times.map((time) => (
                     <button
                       key={time}
                       type="button"
+                      aria-pressed={selectedTime === time}
                       onClick={() => setSelectedTime(time)}
                       className={`px-6 py-3 rounded-full text-[14px] transition-all duration-300 ${
                         selectedTime === time
@@ -405,10 +485,13 @@ export function BookingWizard({
                           : "border border-border text-foreground hover:border-primary"
                       }`}
                     >
-                      {time}
+                      {clock(time)}
                     </button>
                   ))}
                 </div>
+                {times.length === 0 && calendarState !== "loading" ? (
+                  <p className="mt-6 text-[14px] text-muted-foreground">{content.calendar.empty}</p>
+                ) : null}
               </StepWrapper>
             )}
 
@@ -417,49 +500,77 @@ export function BookingWizard({
                 <h2 className="text-primary" style={{ fontSize: "1.8rem" }}>
                   {content.steps.details.heading}
                 </h2>
-                <p className="text-muted-foreground text-[14px] mt-2">
-                  {content.steps.details.lede}
-                </p>
+                <p className="text-muted-foreground text-[14px] mt-2">{content.steps.details.lede}</p>
                 <div className="mt-8 space-y-4 max-w-md">
                   <input
                     type="text"
-                    value={contactForm.name}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, name: e.target.value })
-                    }
+                    autoComplete="name"
+                    value={form.name}
+                    onChange={(e) => setForm({ ...form, name: e.target.value })}
                     placeholder={content.steps.details.placeholders.name}
-                    className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all"
+                    aria-label={content.steps.details.placeholders.name}
+                    className={INPUT}
                     required
                   />
                   <input
                     type="email"
-                    value={contactForm.email}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, email: e.target.value })
-                    }
+                    autoComplete="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
                     placeholder={content.steps.details.placeholders.email}
-                    className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all"
+                    aria-label={content.steps.details.placeholders.email}
+                    className={INPUT}
                     required
                   />
-                  <input
-                    type="tel"
-                    value={contactForm.phone}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, phone: e.target.value })
-                    }
-                    placeholder={content.steps.details.placeholders.phone}
-                    className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all"
-                    required
-                  />
-                  <textarea
-                    value={contactForm.notes}
-                    onChange={(e) =>
-                      setContactForm({ ...contactForm, notes: e.target.value })
-                    }
-                    placeholder={content.steps.details.placeholders.notes}
-                    rows={3}
-                    className="w-full px-4 py-3 rounded-xl bg-input-background border border-border text-[14px] focus:outline-none focus:border-primary focus:bg-white transition-all resize-none"
-                  />
+                  {fields.phone !== "off" && (
+                    <input
+                      type="tel"
+                      autoComplete="tel"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      placeholder={placeholder("phone")}
+                      aria-label={placeholder("phone")}
+                      className={INPUT}
+                      required={fields.phone === "required"}
+                    />
+                  )}
+                  {fields.address !== "off" && (
+                    <input
+                      type="text"
+                      autoComplete="address-line1"
+                      value={form.address}
+                      onChange={(e) => setForm({ ...form, address: e.target.value })}
+                      placeholder={placeholder("address")}
+                      aria-label={placeholder("address")}
+                      className={INPUT}
+                      required={fields.address === "required"}
+                    />
+                  )}
+                  {fields.postcode !== "off" && (
+                    <input
+                      type="text"
+                      autoComplete="postal-code"
+                      value={form.postcode}
+                      onChange={(e) => setForm({ ...form, postcode: e.target.value })}
+                      placeholder={placeholder("postcode")}
+                      aria-label={placeholder("postcode")}
+                      className={`${INPUT} max-w-[12rem] uppercase placeholder:normal-case`}
+                      maxLength={10}
+                      required={fields.postcode === "required"}
+                    />
+                  )}
+                  {fields.notes !== "off" && (
+                    <textarea
+                      value={form.notes}
+                      onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                      placeholder={placeholder("notes")}
+                      aria-label={placeholder("notes")}
+                      rows={3}
+                      className={`${INPUT} resize-none`}
+                      required={fields.notes === "required"}
+                    />
+                  )}
+                  <Honeypot value={trap} onChange={setTrap} />
                 </div>
               </StepWrapper>
             )}
@@ -479,29 +590,26 @@ export function BookingWizard({
                   <div className="mt-8 bg-white rounded-2xl p-6 max-w-sm mx-auto shadow-[0_2px_16px_rgba(0,0,0,0.04)] text-left">
                     <div className="space-y-3 text-[14px]">
                       <div className="flex items-center gap-3">
-                        <span className="text-secondary">
-                          {content.steps.confirmation.serviceLabel}
-                        </span>
+                        <span className="text-secondary">{content.steps.confirmation.serviceLabel}</span>
                         <span className="text-foreground">
-                          {services.find((s) => s.id === selectedService)?.label}
-                          {initialTier
-                            ? fill(content.steps.confirmation.tierSuffix, {
-                                tier: initialTier,
-                              })
-                            : ""}
+                          {serviceLabel}
+                          {initialTier ? fill(content.steps.confirmation.tierSuffix, { tier: initialTier }) : ""}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Calendar size={14} className="text-secondary" />
-                        <span className="text-foreground">
-                          {selectedDate} {content.calendar.months[currentMonth]}{" "}
-                          {currentYear}
-                        </span>
+                        <span className="text-foreground">{prettyDate}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Clock size={14} className="text-secondary" />
-                        <span className="text-foreground">{selectedTime}</span>
+                        <span className="text-foreground">{clock(selectedTime)}</span>
                       </div>
+                      {reference ? (
+                        <div className="flex items-center gap-3 border-t border-border/40 pt-3">
+                          <span className="text-secondary">{content.steps.confirmation.referenceLabel}</span>
+                          <span className="font-medium tracking-wide text-foreground">{reference}</span>
+                        </div>
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -526,7 +634,8 @@ export function BookingWizard({
                 if (step === TOTAL_STEPS) handleConfirm();
                 else setStep((s) => s + 1);
               }}
-              disabled={!canProceed()}
+              disabled={!canProceed() || sending}
+              aria-busy={sending}
               className="px-8 py-2.5 rounded-full bg-primary text-primary-foreground text-[14px] hover:bg-enzo-forest-light transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {step === TOTAL_STEPS ? content.nav.confirmLabel : content.nav.nextLabel}

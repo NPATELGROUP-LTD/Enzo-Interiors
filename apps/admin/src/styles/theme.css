@@ -14,6 +14,12 @@
  * apps/portal carries a byte-identical copy of this file. Per the build brief
  * there is no shared package: when a token changes, change it in both.
  *
+ * DESKTOP REDESIGN (Sep 2026): the shell is now a macOS-style desktop — menu
+ * bar with the pages in it, one full-height window. That deliberately relaxes three
+ * brief rules at the product owner's request: translucent "glass" chrome,
+ * soft wallpaper gradients, and pill-shaped switches/tags. Colour, type and
+ * contrast tokens below are unchanged.
+ *
  * DARK MODE IS A DERIVED ASSUMPTION. Brief v6 mandates "WCAG AA contrast in
  * every theme" and a light/dark toggle, but specifies light values only. The
  * dark ramp below inverts the canvas/surface/ink relationships while keeping
@@ -56,7 +62,22 @@
 
   /* 8px controls, 12px cards/tiles/modals. */
   --radius-control: 8px;
-  --radius-card: 12px;
+  --radius-card: 14px;
+
+  /* --- Desktop shell --- */
+  --wallpaper:
+    radial-gradient(70rem 50rem at 5% -10%, #cfe0d3 0%, transparent 60%),
+    radial-gradient(60rem 45rem at 105% 0%, #efdcc2 0%, transparent 55%),
+    radial-gradient(70rem 55rem at 55% 120%, #b7cfbf 0%, transparent 60%), #e9e5da;
+  --glass: rgba(255, 254, 250, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --shadow-window: 0 24px 60px -18px rgba(23, 40, 31, 0.35), 0 0 0 0.5px rgba(23, 40, 31, 0.12);
+  --shadow-card: 0 1px 2px rgba(30, 38, 31, 0.05);
+  /* Borderless card lift: a barely-there edge plus a soft falloff. */
+  --shadow-soft: 0 0 0 0.5px rgba(30, 38, 31, 0.07), 0 1px 2px rgba(30, 38, 31, 0.04), 0 6px 20px -8px rgba(30, 38, 31, 0.12);
+  --stripe: rgba(36, 39, 35, 0.035);
+  --row-hover: rgba(23, 60, 48, 0.07);
+  --badge: #d23b35;
 }
 
 .dark {
@@ -85,6 +106,18 @@
   --on-primary: #14170f;
 
   --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  --wallpaper:
+    radial-gradient(70rem 50rem at 5% -10%, #1f4434 0%, transparent 60%),
+    radial-gradient(60rem 45rem at 105% 0%, #3b2c1d 0%, transparent 55%),
+    radial-gradient(70rem 55rem at 55% 120%, #173c30 0%, transparent 60%), #0d110c;
+  --glass: rgba(30, 35, 28, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-window: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.5);
+  --stripe: rgba(255, 255, 255, 0.03);
+  --row-hover: rgba(127, 185, 155, 0.1);
 }
 
 @theme inline {
@@ -112,9 +145,15 @@
   --radius-card: var(--radius-card);
 
   --shadow-overlay: var(--shadow-overlay);
+  --shadow-window: var(--shadow-window);
+  --shadow-card: var(--shadow-card);
+  --shadow-soft: var(--shadow-soft);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-badge: var(--badge);
 
-  /* Inter only. The brief forbids any serif anywhere. */
-  --font-sans: "Inter", system-ui, sans-serif;
+  /* San Francisco on Apple devices, Inter everywhere else. Still no serif. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
 }
 
 @layer base {
@@ -246,8 +285,55 @@
     }
   }
 
+  /* ---- Desktop shell ---------------------------------------------------- */
+
+  .wallpaper {
+    background: var(--wallpaper);
+    background-attachment: fixed;
+  }
+
+  /* Menu bar and menu chrome. */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+  }
+
   /* Tabular figures keep money columns from jittering as values change. */
   .tabular {
     font-variant-numeric: tabular-nums;
   }
+}
+
+/*
+ * No hairline grids. Tables and lists read as Finder-style striped rows: odd
+ * rows take a faint tint and round their ends, hover lifts a table row in
+ * green. Unlayered so it beats padding utilities (first:pt-0 and friends)
+ * that were written for divider lines.
+ */
+.data-table tbody tr:nth-child(even) > td {
+  background: var(--stripe);
+}
+.data-table tbody tr:hover > td {
+  background: var(--row-hover);
+}
+.data-table td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.data-table td:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rows > * {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-inline: -12px;
+}
+.rows > *:nth-child(odd) {
+  background: var(--stripe);
 }

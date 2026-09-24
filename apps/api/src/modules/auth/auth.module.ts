@@ -4,6 +4,18 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { UsersController, UsersService } from './users';
+
+/** The signing key, or a loud failure at boot. */
+function mustHaveSecret(config: ConfigService): string {
+  const secret = config.get<string>('JWT_SECRET');
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'JWT_SECRET must be set to at least 32 characters. Generate one with: openssl rand -base64 48',
+    );
+  }
+  return secret;
+}
 
 /**
  * Registers JwtModule globally so JwtAuthGuard (an APP_GUARD in AppModule) and
@@ -16,7 +28,10 @@ import { AuthService } from './auth.service';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        secret: config.get<string>('JWT_SECRET') ?? 'enzo-interiors-prototype-secret',
+        // No fallback on purpose. A default signing key that ships in the
+        // repository is a key everyone has, and it would let anyone mint a
+        // token with role: Admin. Refusing to boot is the correct failure.
+        secret: mustHaveSecret(config),
         signOptions: {
           // jsonwebtoken types this as a `ms` StringValue template literal
           // ("12h", "7d", ...). It comes from env as a plain string, so the
@@ -26,7 +41,7 @@ import { AuthService } from './auth.service';
       }),
     }),
   ],
-  controllers: [AuthController],
-  providers: [AuthService],
+  controllers: [AuthController, UsersController],
+  providers: [AuthService, UsersService],
 })
 export class AuthModule {}

@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 
 import {
+  AppearancePicker,
   Button,
   Card,
   Input,
   PageHeader,
-  Select,
   Tabs,
   Toggle,
 } from '@/components/ui';
@@ -68,7 +69,9 @@ export function SettingsPage() {
     <>
       <PageHeader title="Settings" description="Your details, notifications and security." />
 
+      <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
       <Tabs
+        vertical
         tabs={[
           { id: 'profile', label: 'Profile' },
           { id: 'notifications', label: 'Notifications' },
@@ -79,34 +82,45 @@ export function SettingsPage() {
         onChange={setTab}
       />
 
+      <div className="min-w-0">
       {tab === 'profile' ? (
-        <Card className="max-w-xl">
-          <p className="label-eyebrow">Your details</p>
-          <dl className="mt-3 flex flex-col gap-2.5">
-            <div className="flex justify-between gap-3 border-b border-border pb-2">
-              <dt className="text-ink-muted">Name</dt>
-              <dd className="font-medium text-ink">{user?.name}</dd>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card className="p-5">
+            <p className="label-eyebrow">Your details</p>
+            <dl className="mt-3 rows">
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Name</dt>
+                <dd className="font-medium text-ink">{user?.name}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
+                <dt className="text-ink-muted">Email</dt>
+                <dd className="truncate font-medium text-ink">{user?.email}</dd>
+              </div>
+            </dl>
+          </Card>
+          <Card accent="success" className="flex flex-col p-5">
+            <p className="label-eyebrow">Something out of date?</p>
+            <p className="mt-2 text-ink">
+              To update your name, address or phone number, message the Enzo team and we will change
+              it for you.
+            </p>
+            <div className="mt-auto pt-4">
+              <Link to="/messages" className="text-link">
+                Message the team
+              </Link>
             </div>
-            <div className="flex justify-between gap-3 border-b border-border pb-2">
-              <dt className="text-ink-muted">Email</dt>
-              <dd className="font-medium text-ink">{user?.email}</dd>
-            </div>
-          </dl>
-          <p className="mt-4 text-ink-muted">
-            To update your name, address or phone number, message the Enzo team and we will change
-            it for you.
-          </p>
-        </Card>
+          </Card>
+        </div>
       ) : null}
 
       {tab === 'notifications' ? (
-        <Card className="max-w-xl">
+        <Card className="p-5">
           <p className="label-eyebrow">How we contact you</p>
           <p className="mt-1 text-ink-muted">
             Choose how you would like to hear about project updates, messages and invoices.
           </p>
           {preferences.data ? (
-            <div className="mt-4 flex flex-col gap-1">
+            <div className="mt-4 grid gap-3 md:grid-cols-3 [&>div]:rounded-control [&>div]:bg-ink/[0.035] [&>div]:p-3">
               <Toggle
                 label="Email"
                 description="Project updates and new messages."
@@ -127,7 +141,7 @@ export function SettingsPage() {
               />
             </div>
           ) : null}
-          <p className="mt-4 rounded-control border border-border bg-surface-muted px-3 py-2 text-xs text-ink-muted">
+          <p className="mt-4 rounded-control bg-surface-muted px-3 py-2 text-xs text-ink-muted">
             Prototype note: these preferences are saved, but no email or SMS is actually sent in
             this build.
           </p>
@@ -135,7 +149,7 @@ export function SettingsPage() {
       ) : null}
 
       {tab === 'security' ? (
-        <div className="grid max-w-3xl gap-4 lg:grid-cols-2">
+        <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <p className="label-eyebrow">Change password</p>
             <form onSubmit={changePassword} className="mt-3 flex flex-col gap-4" noValidate>
@@ -198,21 +212,16 @@ export function SettingsPage() {
       ) : null}
 
       {tab === 'appearance' ? (
-        <Card className="max-w-xl">
+        <Card className="p-5">
           <p className="label-eyebrow">Theme</p>
           <p className="mt-1 text-ink-muted">Applies to this browser only.</p>
-          <div className="mt-3 max-w-xs">
-            <Select
-              label="Appearance"
-              value={theme}
-              onChange={(event) => setTheme(event.target.value as 'light' | 'dark')}
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </Select>
+          <div className="mt-4">
+            <AppearancePicker value={theme} onChange={setTheme} />
           </div>
         </Card>
       ) : null}
+      </div>
+      </div>
     </>
   );
 }

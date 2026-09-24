@@ -57,6 +57,7 @@
     "submitLabel": "Send quote request",
     "bookingLinkLabel": "Rather talk it through? Book a free consultation",
     "toast": "Quote request submitted for {service}{suffix}. We'll be in touch within 24 hours.",
-    "toastTierSuffix": " ({tier} specification)"
+    "toastTierSuffix": " ({tier} specification)",
+    "errorToast": "Sorry, that did not send. Please try again, or call or email us instead."
   }
 }

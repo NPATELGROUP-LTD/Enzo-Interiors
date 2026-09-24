@@ -47,6 +47,10 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** Switch to a token the API just issued (after a password change). */
+  adopt: (result: LoginResponse) => void;
+  /** Take the API's fresh copy of me (after a name change). */
+  update: (user: Principal) => void;
   /** Role check for hiding UI. The API enforces the same rules server-side. */
   can: (...roles: StaffRole[]) => boolean;
   isAdmin: boolean;
@@ -110,16 +114,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-    const result = await api.post<LoginResponse>(
-      '/auth/admin/login',
-      { email, password },
-      { allowUnauthorized: true },
-    );
+  const adopt = useCallback((result: LoginResponse) => {
     tokenStore.set(result.access_token);
     userCache.write(result.user);
     setUser(result.user);
   }, []);
+
+  const update = useCallback((next: Principal) => {
+    userCache.write(next);
+    setUser(next);
+  }, []);
+
+  const login = useCallback(
+    async (email: string, password: string) => {
+      adopt(
+        await api.post<LoginResponse>(
+          '/auth/admin/login',
+          { email, password },
+          { allowUnauthorized: true },
+        ),
+      );
+    },
+    [adopt],
+  );
 
   const logout = useCallback(() => {
     tokenStore.clear();
@@ -133,11 +150,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       login,
       logout,
+      adopt,
+      update,
       can: (...roles: StaffRole[]) =>
         user !== null && roles.includes(user.role as StaffRole),
       isAdmin: user?.role === 'Admin',
     }),
-    [user, loading, login, logout],
+    [user, loading, login, logout, adopt, update],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

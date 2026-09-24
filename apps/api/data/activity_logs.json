@@ -390,5 +390,119 @@
     },
     "created_at": "2026-08-28T09:20:01.770Z",
     "id": "activity_logs_e4490cbe-1c50-406f-a24b-f81076052808"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "project_visibility_change",
+    "target_table": "projects",
+    "target_id": "prj_patel_kitchen",
+    "details": {
+      "client_visible": false
+    },
+    "created_at": "2026-09-16T18:37:22.556Z",
+    "id": "activity_logs_198cc692-e956-42fa-ba37-08f38e419262"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "project_update",
+    "target_table": "projects",
+    "target_id": "prj_patel_kitchen",
+    "details": {
+      "fields": [
+        "name",
+        "type",
+        "progress_pct",
+        "current_stage",
+        "assigned_designer_id",
+        "client_visible"
+      ]
+    },
+    "created_at": "2026-09-16T18:37:22.559Z",
+    "id": "activity_logs_2dde840f-ffcc-4229-94a3-432eeb2eb6da"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "project_update",
+    "target_table": "projects",
+    "target_id": "prj_patel_kitchen",
+    "details": {
+      "fields": [
+        "name",
+        "type",
+        "progress_pct",
+        "current_stage",
+        "assigned_designer_id",
+        "client_visible"
+      ]
+    },
+    "created_at": "2026-09-16T18:37:24.319Z",
+    "id": "activity_logs_4a142a11-aabf-4074-9256-cc22e125b909"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "booking_status_change",
+    "target_table": "bookings",
+    "target_id": "bkg_jones_wardrobe",
+    "details": {
+      "from": "Pending",
+      "to": "Confirmed"
+    },
+    "created_at": "2026-09-16T19:19:06.540Z",
+    "id": "activity_logs_2dfe6815-07da-4bcf-81d3-b9b4bfab04d4"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "booking_status_change",
+    "target_table": "bookings",
+    "target_id": "bkg_patel_snagging",
+    "details": {
+      "from": "Confirmed",
+      "to": "Cancelled"
+    },
+    "created_at": "2026-09-16T19:19:14.193Z",
+    "id": "activity_logs_6c3d7f8e-991c-43c2-96b2-d8920918772b"
+  },
+  {
+    "staff_id": "stf_admin",
+    "actor_type": "Staff",
+    "actor_name": "Oyz Khan",
+    "action": "invoice_update",
+    "target_table": "invoices",
+    "target_id": "inv_shaw_bedroom",
+    "details": {
+      "fields": [
+        "project_id",
+        "amount",
+        "vat_rate",
+        "due_date",
+        "status"
+      ],
+      "number": "INV-2026-0006"
+    },
+    "created_at": "2026-09-16T19:19:43.659Z",
+    "id": "activity_logs_b19a3a13-4717-4de3-b0db-1e29ca16139a"
+  },
+  {
+    "staff_id": "cli_sarah_jones",
+    "actor_type": "Client",
+    "actor_name": "Sarah Jones",
+    "action": "quote_accept",
+    "target_table": "quotes",
+    "target_id": "qte_jones_wardrobe",
+    "details": {
+      "total": 5040
+    },
+    "created_at": "2026-09-16T19:22:37.975Z",
+    "id": "activity_logs_3dfbc64f-34e4-4757-80a9-2d70ed34115a"
   }
 ]

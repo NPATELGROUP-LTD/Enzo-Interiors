@@ -18,6 +18,8 @@
 // The former BookingCTA and InstagramGrid are now one section
 // (StudioInvite): the hero already closes on a booking CTA, so a second
 // full-bleed one mid-page was repeating the ask rather than building on it.
+import type { Metadata } from "next";
+
 import { Hero } from "@/components/landing/Hero";
 import { ServicesBoard } from "@/components/landing/ServicesBoard";
 import { ProcessLedger } from "@/components/landing/ProcessLedger";
@@ -34,6 +36,12 @@ import {
   getTestimonials,
   media,
 } from "@/lib/content";
+import { pageMetadata } from "@/lib/seo";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { metadata } = await getPage("home");
+  return pageMetadata({ ...metadata, path: "/", ogKey: "home" });
+}
 
 export default async function HomePage() {
   const [services, testimonials, portfolioItems, content, rooms, company] =

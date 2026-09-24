@@ -1,9 +1,13 @@
 import type { Metadata } from "next";
 import { Archivo, Inter, Space_Grotesk } from "next/font/google";
+import { draftMode } from "next/headers";
 import Script from "next/script";
 import "@/styles/theme.css";
+import { ComingSoon } from "@/components/coming-soon/ComingSoon";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
+import { getPage, getSiteStatus, isLive, mediaSrc } from "@/lib/content";
+import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
 // CSS variables on <html> that src/styles/theme.css reads as --font-heading
@@ -40,21 +44,44 @@ const spaceGrotesk = Space_Grotesk({
   display: "swap",
 });
 
-export const metadata: Metadata = {
-  title: "Enzo Interiors",
-  description:
-    "Bespoke interior design & fitted furniture, designed and handcrafted in Leicester.",
-};
+/**
+ * Site-wide defaults. Each page's own generateMetadata adds its canonical,
+ * title and share card on top (see lib/seo.ts).
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const [{ metadata }, site] = await Promise.all([getPage("site"), getSiteStatus()]);
+  const verification = process.env.GOOGLE_SITE_VERIFICATION;
+  return {
+    metadataBase: new URL(SITE_URL),
+    title: metadata.title,
+    description: metadata.description,
+    applicationName: SITE_NAME,
+    // The favicon chosen in the admin's Settings, else the one in public/.
+    icons: site.brand?.favicon
+      ? { icon: mediaSrc(site.brand.favicon), apple: mediaSrc(site.brand.favicon) }
+      : { icon: "/icon.png", apple: "/apple-icon.png" },
+    openGraph: { type: "website", locale: "en_GB", siteName: SITE_NAME, images: ["/og/home"] },
+    twitter: { card: "summary_large_image", images: ["/og/home/twitter"] },
+    // Before launch every address is the coming-soon page; none of it
+    // belongs in an index.
+    ...(isLive(site) ? {} : { robots: { index: false, follow: false } }),
+    ...(verification ? { verification: { google: verification } } : {}),
+  };
+}
 
-
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [site, draft] = await Promise.all([getSiteStatus(), draftMode()]);
+  // Draft mode is the preview cookie from /api/preview: an editor looking at
+  // the finished site before the public can.
+  const gated = !isLive(site) && !draft.isEnabled;
+
   return (
     <html
-      lang="en"
+      lang="en-GB"
       className={`${archivo.variable} ${inter.variable} ${spaceGrotesk.variable}`}
       data-scroll-behavior="smooth"
     >
@@ -91,7 +118,19 @@ export default function RootLayout({
             (it's a higher z-index) always covers the seam, guaranteeing no
             gap regardless of sub-pixel rounding. */}
         <div aria-hidden className="site-frame pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
-        <SmoothScroll>{children}</SmoothScroll>
+        <SmoothScroll>{gated ? <ComingSoon site={site} /> : children}</SmoothScroll>
+        {draft.isEnabled ? (
+          <div className="fixed bottom-5 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-4 rounded-full bg-enzo-dark/90 py-2 pl-5 pr-2 text-sm text-enzo-cream shadow-lg backdrop-blur">
+            <span>Previewing — {isLive(site) ? "this is the live site" : "not public yet"}</span>
+            {/* A plain link: this is a route handler, not a page. */}
+            <a
+              href="/api/preview/exit"
+              className="rounded-full bg-enzo-cream px-3 py-1 font-medium text-enzo-forest hover:bg-white"
+            >
+              Exit preview
+            </a>
+          </div>
+        ) : null}
         <Toaster />
       </body>
     </html>

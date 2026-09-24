@@ -1,5 +1,9 @@
 import clsx from 'clsx';
-import { Paperclip, Send, X } from 'lucide-react';
+import {
+  Paperclip,
+  PaperPlaneRight,
+  X,
+} from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
 import {
@@ -184,8 +188,8 @@ export function MessagesPage() {
       ) : (
         <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
           {/* Thread list */}
-          <Card className="p-0 lg:max-h-[calc(100dvh-13rem)] lg:overflow-y-auto">
-            <ul className="flex flex-col divide-y divide-border">
+          <Card className="p-0 lg:h-[calc(100dvh-19rem)] lg:overflow-y-auto">
+            <ul className="rows">
               {(conversations.data ?? []).map((conversation) => (
                 <li key={conversation.id}>
                   <button
@@ -233,10 +237,10 @@ export function MessagesPage() {
           </Card>
 
           {/* Thread */}
-          <Card className="flex min-h-[28rem] flex-col p-0 lg:max-h-[calc(100dvh-13rem)]">
+          <Card className="flex min-h-[28rem] flex-col p-0 lg:h-[calc(100dvh-19rem)]">
             {active ? (
               <>
-                <div className="flex items-center justify-between gap-3 border-b border-border p-3">
+                <div className="flex items-center justify-between gap-3 bg-ink/[0.025] p-3">
                   <div className="min-w-0">
                     <p className="truncate font-semibold text-ink">{active.client_name}</p>
                     <p className="truncate text-xs text-ink-muted">{active.subject}</p>
@@ -267,8 +271,8 @@ export function MessagesPage() {
                               className={clsx(
                                 'max-w-[85%] rounded-card border p-2.5 sm:max-w-[70%]',
                                 fromStaff
-                                  ? 'border-green-900/25 bg-green-100'
-                                  : 'border-border bg-surface-muted',
+                                  ? 'border-transparent bg-green-100'
+                                  : 'border-transparent bg-surface-muted',
                               )}
                             >
                               <p className="whitespace-pre-wrap leading-relaxed text-ink">
@@ -304,7 +308,7 @@ export function MessagesPage() {
                   ) : null}
                 </div>
 
-                <form onSubmit={send} className="border-t border-border p-3">
+                <form onSubmit={send} className="bg-ink/[0.025] p-3">
                   {(savedReplies.data ?? []).length > 0 ? (
                     <div className="mb-2">
                       <Select
@@ -333,7 +337,7 @@ export function MessagesPage() {
                       {attachments.map((attachment, index) => (
                         <li
                           key={`${attachment.name}-${index}`}
-                          className="flex items-center gap-1.5 rounded-control border border-border bg-surface-muted px-2 py-1 text-xs text-ink"
+                          className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
                         >
                           <Paperclip size={12} aria-hidden="true" />
                           <span className="max-w-40 truncate">{attachment.name}</span>
@@ -397,7 +401,7 @@ export function MessagesPage() {
                       variant="primary"
                       loading={sending}
                       disabled={!draft.trim() && attachments.length === 0}
-                      icon={<Send size={16} aria-hidden="true" />}
+                      icon={<PaperPlaneRight size={16} aria-hidden="true" />}
                     >
                       Send
                     </Button>

@@ -182,7 +182,7 @@ export function DashboardPage() {
                 You have no active projects at the moment.
               </p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {data.timeline.map((project) => (
                   <li key={project.id} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex flex-wrap items-start justify-between gap-2">

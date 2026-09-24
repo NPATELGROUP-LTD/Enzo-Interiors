@@ -1,5 +1,9 @@
 import clsx from 'clsx';
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react';
+import {
+  CaretLeft,
+  CaretRight,
+  Plus,
+} from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import {
@@ -150,7 +154,7 @@ export function BookingsPage() {
     }
   };
 
-  const selectedBookings = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+  const selectedBookings = selectedDay ? (byDay.get(selectedDay) ?? []) : upcoming.slice(0, 6);
 
   return (
     <>
@@ -188,17 +192,17 @@ export function BookingsPage() {
                   type="button"
                   onClick={() => shiftMonth(-1)}
                   aria-label="Previous month"
-                  className="flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border text-ink-muted hover:text-ink"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/[0.05] text-ink-muted hover:bg-ink/[0.09] hover:text-ink"
                 >
-                  <ChevronLeft size={16} aria-hidden="true" />
+                  <CaretLeft size={16} aria-hidden="true" />
                 </button>
                 <button
                   type="button"
                   onClick={() => shiftMonth(1)}
                   aria-label="Next month"
-                  className="flex min-h-11 min-w-11 items-center justify-center rounded-control border border-border text-ink-muted hover:text-ink"
+                  className="flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/[0.05] text-ink-muted hover:bg-ink/[0.09] hover:text-ink"
                 >
-                  <ChevronRight size={16} aria-hidden="true" />
+                  <CaretRight size={16} aria-hidden="true" />
                 </button>
               </div>
             </div>
@@ -230,18 +234,18 @@ export function BookingsPage() {
                         aria-label={`${cell.getUTCDate()} ${monthLabel}, ${dayBookings.length} booking${dayBookings.length === 1 ? '' : 's'}`}
                         aria-pressed={isSelected}
                         className={clsx(
-                          'flex min-h-16 flex-col items-start gap-1 rounded-control border p-1.5 text-left transition-colors',
+                          'flex min-h-16 flex-col items-start gap-1 rounded-[10px] p-2 text-left transition-colors lg:min-h-[5.5rem]',
                           isSelected
-                            ? 'border-green-900 bg-green-100'
+                            ? 'bg-green-900 text-on-primary'
                             : isToday
-                              ? 'border-green-900 bg-surface'
-                              : 'border-border bg-surface hover:border-green-900/50',
+                              ? 'bg-green-100 ring-2 ring-inset ring-green-900'
+                              : 'bg-ink/[0.035] hover:bg-green-100',
                         )}
                       >
                         <span
                           className={clsx(
                             'tabular text-xs font-semibold',
-                            isToday ? 'text-green-900' : 'text-ink',
+                            isSelected ? 'text-on-primary' : isToday ? 'text-green-900' : 'text-ink',
                           )}
                         >
                           {cell.getUTCDate()}
@@ -256,7 +260,7 @@ export function BookingsPage() {
                             {dayBookings.slice(0, 3).map((booking) => (
                               <span
                                 key={booking.id}
-                                className="h-1 w-full rounded-[2px] bg-green-900"
+                                className={clsx('h-1 w-full rounded-full', isSelected ? 'bg-on-primary' : 'bg-green-900')}
                               />
                             ))}
                             {dayBookings.length > 3 ? (
@@ -283,23 +287,23 @@ export function BookingsPage() {
                     month: 'long',
                     timeZone: 'UTC',
                   })
-                : 'Select a day'}
+                : 'Coming up'}
             </p>
-            {!selectedDay ? (
+            {selectedBookings.length === 0 ? (
               <p className="py-8 text-center text-ink-muted">
-                Choose a date in the calendar to see its appointments.
+                {selectedDay ? 'Nothing booked on this day.' : 'No upcoming appointments.'}
               </p>
-            ) : selectedBookings.length === 0 ? (
-              <p className="py-8 text-center text-ink-muted">Nothing booked on this day.</p>
             ) : (
-              <ul className="mt-3 flex flex-col divide-y divide-border">
+              <ul className="mt-3 rows">
                 {selectedBookings
                   .sort((a, b) => a.date_time.localeCompare(b.date_time))
                   .map((booking) => (
                     <li key={booking.id} className="py-3 first:pt-0 last:pb-0">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <p className="tabular font-semibold text-ink">{time(booking.date_time)}</p>
+                          <p className="tabular font-semibold text-ink">
+                            {selectedDay ? time(booking.date_time) : dateTime(booking.date_time)}
+                          </p>
                           <p className="truncate text-ink">{booking.client_name}</p>
                           <p className="text-xs text-ink-muted">
                             {SERVICE_LABELS[booking.service_type]}
@@ -352,7 +356,7 @@ export function BookingsPage() {
           </Card>
         ) : (
           <Card>
-            <ul className="flex flex-col divide-y divide-border">
+            <ul className="rows">
               {upcoming.map((booking) => (
                 <li
                   key={booking.id}
@@ -405,7 +409,7 @@ export function BookingsPage() {
               These drive the slots offered by the public booking wizard.
               {isAdmin ? '' : ' Only an Admin can change them.'}
             </p>
-            <ul className="mt-4 flex flex-col divide-y divide-border">
+            <ul className="mt-4 rows">
               {(availability.data ?? []).map((day) => (
                 <li key={day.id} className="flex flex-wrap items-end gap-3 py-3 first:pt-0">
                   <p className="w-24 shrink-0 font-semibold text-ink">

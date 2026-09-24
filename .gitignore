@@ -24,3 +24,9 @@ Thumbs.db
 *.tsbuildinfo
 # Playwright CLI output (may contain credentials)
 .playwright-cli/
+
+# Other tools' local state, never part of the codebase.
+.pnpm-store/
+.kilo/
+.claude/worktrees/
+.claude/settings.local.json

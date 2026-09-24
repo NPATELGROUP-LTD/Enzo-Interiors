@@ -31,14 +31,15 @@
 // since it is image-heavy; `revalidate` re-generates it periodically
 // instead of on every request.
 import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
 import { PortfolioRoot } from "@/components/portfolio/PortfolioRoot";
 import { getPage, getPortfolioItems } from "@/lib/content";
 
 export const revalidate = 3600;
 
 export async function generateMetadata(): Promise<Metadata> {
-  const { metadata } = await getPage("portfolio");
-  return metadata;
+  const metadata = (await getPage("portfolio")).metadata;
+  return pageMetadata({ ...metadata, path: "/portfolio", ogKey: "portfolio" });
 }
 
 export default async function PortfolioPage() {
