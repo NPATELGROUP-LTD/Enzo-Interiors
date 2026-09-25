@@ -123,6 +123,9 @@ services:
     restart: 'no'
 
   api:
+    # Explicit names let `up` reuse the images Coolify builds in its helper
+    # container instead of rebuilding from a folder that has no source.
+    image: enzo-interiors-api:latest
     build:
       context: ./apps/api
     restart: unless-stopped
@@ -200,6 +203,7 @@ services:
   # content read-only because the importer only ever reads it.
   seed:
     profiles: ['setup']
+    image: enzo-interiors-seed:latest
     build:
       context: ./apps/api
       target: build
@@ -230,6 +234,7 @@ services:
     restart: 'no'
 
   web:
+    image: enzo-interiors-web:latest
     build:
       context: ./apps/web
       args:
@@ -268,6 +273,7 @@ services:
       <<: *node-health
 
   admin:
+    image: enzo-interiors-admin:latest
     build:
       context: ./apps/admin
       args:
