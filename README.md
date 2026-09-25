@@ -14,10 +14,9 @@ The platform is split into four independently deployable applications rather tha
 - **Backend API** — sole owner of business logic, database access, auth, and file storage.
 
 > **v1 ships three of the four:** the public site, the API, and the admin
-> (CMS, site settings and account screens). The CRM screens and modules and the client
-> portal are still in the repository with their database tables intact, but
-> are not routed or mounted — see `apps/api/src/app.module.ts` and
-> `apps/admin/src/App.tsx` to bring them back.
+> (CMS, site settings and account screens). This `main` branch holds only what
+> the v1 deployment needs. The client portal, design docs, promo video and dev
+> tooling live on `develop`.
 
 Payments and multi-tenancy are **permanently out of scope**: invoices are tracked and marked "Paid" manually by Admin, and the system will never serve any business other than Enzo Interiors.
 
@@ -28,15 +27,14 @@ enzo-interiors/
 ├── apps/
 │   ├── web/            # Next.js (App Router) — public marketing site
 │   ├── admin/          # Staff/Admin Portal (CRM), React/Vite SPA
-│   ├── portal/         # Client Portal, React/Vite SPA
 │   └── api/            # NestJS backend API (single source of business logic)
-└── docs/               # Architecture, PRD/TRD, implementation plan
+├── docs/               # Deployment guide and pre-launch checklist
+└── docker-compose.yml  # The production stack
 ```
 
 Each app is **fully self-contained**: its own `package.json`, its own install,
 its own types and its own design system. There is deliberately no `packages/`
-layer — `apps/admin` and `apps/portal` stay visually consistent by following the
-same UI/UX brief, not by importing from one another.
+layer.
 
 
 ## Running the platform locally
