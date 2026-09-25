@@ -1,0 +1,63 @@
+{
+  "questions": {
+    "srHeading": "Questions",
+    "label": "Notes",
+    "datum": "{count} answered"
+  },
+  "roomPlan": {
+    "caption": "Plan — {caption}",
+    "ariaLabel": "Plan drawing of a {caption} installation"
+  },
+  "roomSize": {
+    "label": "Room size",
+    "sizes": { "small": "Small", "medium": "Medium", "large": "Large" }
+  },
+  "bookSurveyCta": {
+    "eyebrow": "A6 — Book",
+    "stages": [
+      {
+        "title": "We measure",
+        "body": "Every wall, every service and every awkward corner, photographed as we go."
+      },
+      {
+        "title": "We listen",
+        "body": "How you use the room, what has to stay, and what you would rather spend it on."
+      },
+      {
+        "title": "You get drawings",
+        "body": "And an honest figure — before anything is ordered and before anything is cut."
+      }
+    ],
+    "browsePrefix": "Prefer to browse first?",
+    "browseLabel": "See finished rooms",
+    "browseHref": "/portfolio"
+  },
+  "quoteModal": {
+    "eyebrow": "Quote request",
+    "tierNote": "{tier} specification",
+    "estimateLabel": "Estimated {estimate}",
+    "closeLabel": "Close quote request",
+    "fields": {
+      "name": { "label": "Full name", "placeholder": "Your name" },
+      "email": { "label": "Email", "placeholder": "you@email.com" },
+      "phone": { "label": "Phone", "placeholder": "07XXX XXXXXX" },
+      "budget": { "label": "Budget range", "placeholder": "Select range…" },
+      "details": {
+        "label": "Project details",
+        "placeholder": "Tell us about your space and what you're looking for…"
+      }
+    },
+    "budgets": [
+      "Under £3,000",
+      "£3,000 – £5,000",
+      "£5,000 – £10,000",
+      "£10,000 – £20,000",
+      "£20,000+"
+    ],
+    "submitLabel": "Send quote request",
+    "bookingLinkLabel": "Rather talk it through? Book a free consultation",
+    "toast": "Quote request submitted for {service}{suffix}. We'll be in touch within 24 hours.",
+    "toastTierSuffix": " ({tier} specification)",
+    "errorToast": "Sorry, that did not send. Please try again, or call or email us instead."
+  }
+}

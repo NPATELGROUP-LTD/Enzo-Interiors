@@ -1,0 +1,88 @@
+{
+  "metadata": {
+    "title": "Services — Enzo Interiors",
+    "description": "Fitted kitchens, bedrooms, wardrobes and media walls, drawn for your room and built in our Leicester workshop. See where each discipline starts and what is included.",
+    "ogImageId": ""
+  },
+  "hero": {
+    "headingLines": ["{countWord} disciplines.", "One workshop."],
+    "lede": "Drawn for your room, built in our Leicester workshop, fitted by the people who made it.",
+    "openLabel": "Open {title}",
+    "listPriceSuffix": " · from {price}"
+  },
+  "pricing": {
+    "srHeading": "Starting prices",
+    "index": "02",
+    "label": "Scale",
+    "datum": "{count} plotted",
+    "lines": ["Where each one", "starts."],
+    "lede": "Entry specification, typical room, everything included. Plotted on one scale so you can see how the disciplines actually compare before you talk to anyone.",
+    "footnote": {
+      "lead": "Starting prices are the entry specification for a typical room.",
+      "unpricedOne": "{count} service is quoted on application.",
+      "unpricedOther": "{count} services are quoted on application.",
+      "tail": "Your own figure comes from the survey — we do not price a room we have not measured."
+    }
+  },
+  "constants": {
+    "srHeading": "What every job includes",
+    "index": "03",
+    "label": "Constant",
+    "datum": "on every job",
+    "lines": ["Four things that", "never vary."],
+    "lede": "Whichever discipline you pick, and whatever it costs, these are fixed. They are the reason the schedule above is worth trusting.",
+    "items": [
+      {
+        "title": "One team, start to finish",
+        "body": "The person who measures your room is the person who draws it, and our own fitters install it. No subcontractors, no handovers, nobody blaming the last trade.",
+        "datum": "0 subcontractors"
+      },
+      {
+        "title": "Surveyed before it is quoted",
+        "body": "We come to you, measure every wall, and photograph the space before a number is written down. A quote given over the phone is a guess.",
+        "datum": "60–90 min visit"
+      },
+      {
+        "title": "Drawn in 3D before it is cut",
+        "body": "You see the room you are buying — finishes, handles, internal layout — and sign it off before a single sheet goes on the saw.",
+        "datum": "Included, always"
+      },
+      {
+        "title": "Five-year workmanship guarantee",
+        "body": "Every installation, every discipline, in writing. If something we fitted moves, sticks or fails, we come back and put it right.",
+        "datum": "5 years"
+      }
+    ],
+    "marks": {
+      "captions": ["Title block", "Survey — corner", "Iso — carcass", "Stamp"],
+      "titleBlockRows": ["Measured", "Drawn", "Fitted"],
+      "stampValue": "5",
+      "stampLabel": "Years"
+    }
+  },
+  "questions": {
+    "id": "services-questions",
+    "index": "04",
+    "lines": ["Asked before", "every job."],
+    "lede": "The questions that come up whichever discipline you are looking at. Each service page answers its own on top of these."
+  },
+  "closing": {
+    "eyebrow": "05 — Book",
+    "issuer": "Enzo Interiors — Leicestershire",
+    "lines": ["We would rather", "measure than guess."],
+    "lede": "A free survey, in your own home. We measure every wall, photograph the space, and tell you honestly what is worth doing — before anybody writes a number down.",
+    "question": {
+      "legend": "Which room are we looking at?",
+      "optional": "optional"
+    },
+    "facts": [
+      { "label": "Survey", "value": "Free" },
+      { "label": "On site", "value": "60–90 min" },
+      { "label": "Guarantee", "value": "5 years" }
+    ],
+    "ctaDefault": "Book a free survey",
+    "ctaChosen": "Book a survey — {title}",
+    "footerNote": "No obligation, nothing to sign.",
+    "talkPrefix": "Rather talk?"
+  }
+}

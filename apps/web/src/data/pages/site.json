@@ -1,0 +1,100 @@
+{
+  "metadata": {
+    "title": "Enzo Interiors",
+    "description": "Bespoke interior design & fitted furniture, designed and handcrafted in Leicester.",
+    "ogImageId": ""
+  },
+  "skipLink": "Skip to content",
+  "navbar": {
+    "ctaLabel": "Book a Consultation",
+    "openMenuLabel": "Open menu",
+    "closeMenuLabel": "Close menu",
+    "menuLabel": "Menu",
+    "servicePagesLabel": "Go to a service",
+    "sectionsLabel": "On this page",
+    "mobileServicesLabel": "Services",
+    "mobileCtaLabel": "Book Now"
+  },
+  "footer": {
+    "headline": {
+      "plain": "Live beautifully, designed with intent.",
+      "words": [
+        { "text": "Live" },
+        { "text": "beautifully,", "accent": true, "break": true },
+        { "text": "designed" },
+        { "text": "with" },
+        { "text": "intent.", "accent": true }
+      ]
+    },
+    "pageLinks": ["/", "/services", "/portfolio", "/contact"],
+    "pagesLabel": "Pages",
+    "pagesNavLabel": "Site pages",
+    "followLabel": "Follow",
+    "followNavLabel": "Follow Enzo Interiors",
+    "hoursLabel": "Opening Hours",
+    "contactLabel": "Begin A Conversation",
+    "mapLabel": "Where We Work",
+    "newsletter": {
+      "label": "The Studio Letter",
+      "placeholder": "Your email address",
+      "submitLabel": "Subscribe",
+      "thanks": "Thank you for subscribing with {email}"
+    },
+    "copyright": "© {year} Enzo Interiors. All rights reserved.",
+    "madeByPrefix": "Made by",
+    "legalNavLabel": "Legal",
+    "legalLinks": [
+      { "label": "Privacy Policy", "href": "/privacy" },
+      { "label": "Terms", "href": "/terms" },
+      { "label": "Cookies", "href": "/cookies" }
+    ],
+    "cookieSettingsLabel": "Cookie settings"
+  },
+  "cookieBanner": {
+    "regionLabel": "Cookie choices",
+    "eyebrow": "Cookies",
+    "body": "This site sets one small item on your device so it remembers this choice, and nothing else. We use no analytics, no advertising and no third-party trackers — if that ever changes, we will ask first.",
+    "policyLinkLabel": "Read the cookie policy",
+    "acceptLabel": "Accept all",
+    "saveLabel": "Save choices",
+    "rejectLabel": "Reject all",
+    "showDetailsLabel": "Choose individually",
+    "hideDetailsLabel": "Hide details",
+    "rows": [
+      {
+        "title": "Strictly necessary",
+        "body": "Remembers this choice and keeps the enquiry form working. Cannot be switched off.",
+        "state": "Always on"
+      },
+      {
+        "title": "Analytics",
+        "body": "Not in use today. Turning this on now permits it only if we add it later; leaving it off means we never will for you.",
+        "toggleLabel": "Allow"
+      }
+    ]
+  },
+  "pageTransition": {
+    "imprint": "Enzo Interiors — Leicester",
+    "fallbackLabel": "Enzo Interiors"
+  },
+  "notFound": {
+    "figure": "404",
+    "eyebrow": "Page Not Found",
+    "heading": "This room doesn't exist — yet.",
+    "body": "The page you're looking for has been moved, deleted, or perhaps never existed. Let us help you find your way back to beautiful spaces.",
+    "backLabel": "Go Back",
+    "homeLabel": "Go Home",
+    "linksLabel": "Where to next",
+    "wordmark": "Enzo Interiors"
+  },
+  "comingSoon": {
+    "eyebrow": "Leicester · Bespoke interiors",
+    "heading": "A new home for Enzo Interiors is nearly ready.",
+    "body": "We are putting the finishing touches to the new site. In the meantime we are still measuring, drawing and building — get in touch and we will talk about your room.",
+    "countdownLabel": "Opening in",
+    "noDateLabel": "Opening soon",
+    "units": { "days": "Days", "hours": "Hours", "minutes": "Minutes", "seconds": "Seconds" },
+    "launchingLabel": "Opening now — one moment…",
+    "contactLabel": "Talk to us today"
+  }
+}

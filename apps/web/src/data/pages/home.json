@@ -1,0 +1,245 @@
+{
+  "metadata": {
+    "title": "Enzo Interiors — Fitted kitchens, bedrooms & media walls in Leicester",
+    "description": "Bespoke fitted kitchens, bedrooms, wardrobes and media walls, designed and handmade in our Leicester workshop and fitted by our own team across Leicestershire.",
+    "ogImageId": ""
+  },
+  "hero": {
+    "loader": {
+      "label": "Loading the showcase",
+      "logoId": "logo-white"
+    },
+    "scrollHint": "Scroll to Begin",
+    "rooms": [
+      {
+        "id": "mediawall",
+        "serviceId": "media-walls",
+        "framesDir": "mediawall",
+        "frameCount": 144,
+        "hold": {
+          "heading": "Every cable, out of sight.",
+          "body": "Screen, storage, fire and lighting, built as one piece and scribed to your walls."
+        }
+      },
+      {
+        "id": "kitchen",
+        "serviceId": "kitchens",
+        "framesDir": "kitchen",
+        "frameCount": 144,
+        "hold": {
+          "heading": "Made for the way you cook.",
+          "body": "Cabinetry, worktops and appliances, drawn around your room rather than a catalogue."
+        }
+      },
+      {
+        "id": "bedroom",
+        "serviceId": "bedrooms",
+        "framesDir": "bedroom",
+        "frameCount": 144,
+        "hold": {
+          "heading": "Wall to wall, floor to ceiling.",
+          "body": "Wardrobes, headboards and bedsides, built into the room instead of standing in it."
+        }
+      }
+    ],
+    "hold": {
+      "eyebrow": "The finished {label}",
+      "cue": "Scroll to continue",
+      "next": "Next · {label}",
+      "nextFallback": "Your room"
+    },
+    "cta": {
+      "lines": [
+        { "lead": "Stop", "accent": "Dreaming", "tail": "." },
+        { "lead": "Start", "accent": "Building", "tail": "." }
+      ],
+      "sub": "One free consultation. Zero pressure. Built for you.",
+      "buttonLabel": "Book Free Consultation",
+      "buttonHref": "/booking",
+      "card": {
+        "imageId": "local-wardrobes",
+        "title": "Wardrobe Suite",
+        "sub": "Bespoke. Handcrafted."
+      },
+      "badge": { "label": "View Portfolio", "href": "/portfolio" },
+      "imageIds": ["local-bedroom", "local-kitchen", "local-media-wall"]
+    }
+  },
+  "heroStatic": {
+    "headingLead": "Fitted furniture,",
+    "headingAccent": "made to measure.",
+    "body": "Kitchens, wardrobes and media walls, built in our workshop and fitted by the same team.",
+    "primaryCta": { "label": "Book Consultation", "href": "/booking" },
+    "secondaryCta": { "label": "Our Work", "href": "/portfolio" },
+    "imageIds": ["local-media-wall", "local-kitchen", "local-bedroom"],
+    "trust": [
+      { "value": "Leicester", "label": "Own workshop" },
+      { "value": "Free", "label": "Consultation" }
+    ],
+    "scrollLabel": "See how we work"
+  },
+  "servicesBoard": {
+    "srHeading": "Services",
+    "index": "01",
+    "label": "Disciplines",
+    "datum": "{count} of them",
+    "lines": ["Four kinds of room.", "One bench."],
+    "lede": "Nothing here is bought in and re-badged. Every carcass is cut, sprayed and fitted by the same people who measured the wall it goes on.",
+    "featureCount": "{count} things included as standard",
+    "footerNote": "Not sure which of them you need? We work that out on the first visit.",
+    "compareLabel": "Compare all {count}",
+    "compareHref": "/services"
+  },
+  "process": {
+    "srHeading": "Our process",
+    "index": "02",
+    "label": "Process",
+    "datum": "five to eight weeks",
+    "lines": ["Drawn, made and fitted", "by the same hands."],
+    "lede": "Five stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does.",
+    "stagesAria": "Stage {current} of {total}",
+    "stages": [
+      {
+        "title": "Consultation",
+        "datum": "60–90 min",
+        "body": "We come to you, measure the room properly, photograph every wall and ask how you actually use the space."
+      },
+      {
+        "title": "Design",
+        "datum": "5–7 days",
+        "body": "You get a 3D visual of the finished room and a fixed, itemised quote — refined until you stop finding things to change."
+      },
+      {
+        "title": "Making",
+        "datum": "2–4 weeks",
+        "body": "Cut, edged and assembled in our Leicester workshop by the people who drew it. Every panel is made for your room."
+      },
+      {
+        "title": "Fitting",
+        "datum": "2–5 days",
+        "body": "Scribed to your walls, levelled and sealed. Floors covered, dust contained, every gap lined up."
+      },
+      {
+        "title": "Handover",
+        "datum": "same day",
+        "body": "We walk the room with you, clear the snag list, then leave care notes and a five-year workmanship guarantee."
+      }
+    ],
+    "ctaLabel": "Start at stage one",
+    "ctaHref": "/booking",
+    "mobileCard": {
+      "label": "Typical project",
+      "heading": "Five to eight weeks, start to fitted."
+    },
+    "drawing": {
+      "ariaLabel": "Wardrobe elevation drawing, inking in stage by stage as the process advances",
+      "cutListLabel": "CUT LIST",
+      "handoverLabel": "HANDOVER",
+      "dimensions": { "roomWidth": "3600", "roomHeight": "2440", "carcassWidth": "2100" }
+    }
+  },
+  "workshop": {
+    "srHeading": "How it is built",
+    "index": "03",
+    "label": "Construction",
+    "datum": "18 mm carcass",
+    "lines": ["Built like furniture,", "not like flat-pack."],
+    "lede": "Turn it, open the doors, look inside. A media wall, drawn to the millimetre.",
+    "ledeShowcase": "A media wall, drawn to the millimetre — turning through open and shut.",
+    "specs": [
+      { "value": "18 mm", "label": "Carcass", "note": "Moisture-resistant board, edge-banded on every visible face." },
+      { "value": "4 mm", "label": "Shadow gap", "note": "Consistent across the run and scribed to the wall at both ends." },
+      { "value": "75 in", "label": "TV recess", "note": "Cut to your screen, with cable routes dropped before we fit." },
+      { "value": "5 yr", "label": "Guarantee", "note": "On every joint, hinge and soft-close runner we fit." }
+    ],
+    "viewpoints": [
+      {
+        "id": "room",
+        "label": "The room",
+        "note": "Back far enough to read the wall as part of a living room.",
+        "azimuth": 0,
+        "polar": 1.5,
+        "radius": 6.2,
+        "targetY": -0.1
+      },
+      {
+        "id": "angle",
+        "label": "Three-quarter",
+        "note": "Turned, to read how far the unit stands off the wall.",
+        "azimuth": -0.52,
+        "polar": 1.44,
+        "radius": 5.4,
+        "targetY": -0.05
+      },
+      {
+        "id": "base",
+        "label": "Base cabinets",
+        "note": "Down at the run — open the doors and the bays are genuinely empty.",
+        "azimuth": -0.3,
+        "polar": 1.34,
+        "radius": 3.5,
+        "targetY": -0.72
+      },
+      {
+        "id": "shelf",
+        "label": "Display shelves",
+        "note": "In close on the flank shelving, clear of the screen.",
+        "azimuth": -0.42,
+        "polar": 1.5,
+        "radius": 2.5,
+        "targetY": 0.42
+      }
+    ],
+    "controls": {
+      "viewpointGroupLabel": "Camera viewpoints",
+      "recentreLabel": "Recentre the model",
+      "doorsClosedLabel": "Open the doors",
+      "doorsOpenLabel": "Doors open",
+      "hint": "Drag to turn · scroll to zoom",
+      "showcaseNote": "Open on a desktop to turn it and open the doors yourself",
+      "stageAriaLabel": "Interactive media wall model — arrow keys turn it, plus and minus zoom, zero recentres, Enter opens the doors."
+    },
+    "disclaimer": "Illustrative 3D render only — not the actual finished piece. Your final design is built to the exact specification, materials and measurements agreed with you.",
+    "fallback": { "imageId": "local-media-wall", "alt": "Bespoke media wall built by Enzo Interiors" }
+  },
+  "work": {
+    "srHeading": "Recent work",
+    "index": "04",
+    "label": "Work",
+    "datum": "{count} projects · Leicestershire",
+    "lines": ["Recent work,", "and where it lives."],
+    "lede": "Five of the last nine. Every one drawn, built and fitted by us.",
+    "seeAllLabel": "See all {count} projects",
+    "seeAllHref": "/portfolio"
+  },
+  "voices": {
+    "srHeading": "Client reviews",
+    "index": "05",
+    "label": "Clients",
+    "datum": "{count} reviews · Leicestershire",
+    "lines": ["What people say", "once we have gone."],
+    "lede": "The real test of fitted furniture is the year after the fitters leave. Every review we have is here — not a selection of the good ones.",
+    "ratingLabel": "Five out of five",
+    "pauseLabel": "Pause the reviews",
+    "playLabel": "Start the reviews moving"
+  },
+  "invite": {
+    "srHeading": "Book a consultation",
+    "recentLabel": "Recent installs",
+    "index": "06",
+    "label": "Next",
+    "datum": "free, no obligation",
+    "lines": ["Let us measure", "your space."],
+    "lede": "An hour at your kitchen table, a tape measure and a few photographs. You get a drawing and a fixed price. Nothing else happens until you say so.",
+    "ledeShort": "An hour at your kitchen table and a tape measure. You get a drawing and a fixed price.",
+    "ctaLabel": "Book Consultation",
+    "ctaHref": "/booking",
+    "contact": {
+      "label": "Rather not book online",
+      "callLabel": "Call",
+      "emailLabel": "Email",
+      "note": "Send photos of the room and rough measurements and we will come back with a ballpark before we visit.",
+      "noteMobile": "Send photos of the room and rough measurements — we will come back with a ballpark before we visit."
+    }
+  }
+}

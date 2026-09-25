@@ -1,0 +1,390 @@
+{
+  "metadata": {
+    "titleTemplate": "{title} — Enzo Interiors", "descriptionTemplate": "{description}", "ogImageId": ""
+  },
+  "hero": {
+    "index": "A1",
+    "facts": {
+      "leadTimeLabel": "Lead time",
+      "survey": { "label": "Survey", "value": "Free, at home" },
+      "guarantee": { "label": "Guarantee", "value": "5 years" },
+      "fromLabel": "From"
+    },
+    "actions": {
+      "quoteLabel": "Get a free quote",
+      "bookLabel": "Book a survey",
+      "bookHref": "/booking?service={slug}"
+    },
+    "caption": { "figure": "Fig. 01", "meta": "{category} — Leicester" }
+  },
+  "included": {
+    "srHeading": "What your quotation would cover",
+    "index": "A2",
+    "label": "Scope",
+    "datum": "{fixed} fixed · {scope} per room",
+    "lines": ["There is no package.", "There is your room."],
+    "docketLabel": "Quotation — {category}",
+    "preparedLabel": "Prepared after survey",
+    "alwaysLabel": "On every quote we write",
+    "alwaysTag": "Always",
+    "always": [
+      {
+        "item": "Home survey and setting out",
+        "note": "Every wall measured, every service and awkward corner photographed. Free, and before any figure exists."
+      },
+      {
+        "item": "Design and 3D drawings",
+        "note": "The room drawn as it is, revised as many times as you like. Nothing is cut until you have signed one off."
+      },
+      {
+        "item": "Made in our own workshop",
+        "note": "Cut, edged and assembled in Leicester by the people who drew it."
+      },
+      {
+        "item": "Fitted by the same team",
+        "note": "No subcontractors. Scribed to your walls, levelled, sealed and cleared up after."
+      },
+      {
+        "item": "Five-year workmanship guarantee",
+        "note": "On every joint, hinge and runner we fit. Alongside your statutory rights, not instead of them."
+      }
+    ],
+    "scopeLabel": "Only if your room needs it",
+    "scopeTag": "priced per room",
+    "total": {
+      "label": "Total",
+      "headline": "after we have measured",
+      "body": "Not a tactic. A {categoryLower} job priced off a photograph is priced off a guess, and the guess is always corrected upward once somebody finds the wall is not straight. We would rather find that out for free, first.",
+      "ctaLabel": "Ask for this quote"
+    }
+  },
+  "model": {
+    "srHeading": "The model",
+    "index": "A3",
+    "datumDesktop": "drag to turn",
+    "datumShowcase": "turning itself",
+    "hint": "Drag to turn · scroll to zoom",
+    "viewpointGroupLabel": "Viewpoint",
+    "recentreLabel": "Recentre the model",
+    "stageAriaLabel": "{alt}. Interactive model — arrow keys turn it, plus and minus zoom, zero recentres, Enter {control}.",
+    "showcaseNote": "Turning on its own here — open it on a larger screen to take the controls.",
+    "reducedNote": "Motion is off, so this is a photograph of the same room.",
+    "keyboardNote": "Illustrative render. Keyboard: arrows turn, +/− zoom, 0 recentres.",
+    "fallbackAlt": "{title} — finished installation",
+    "variants": [
+      {
+        "kind": "kitchen",
+        "label": "The model",
+        "lines": ["Turn it round.", "Open the doors."],
+        "lede": "The run, the tall bank and the island, drawn to the millimetre we would build them. Move the camera, or open it up and look inside a carcass.",
+        "viewpoints": [
+          {
+            "id": "room",
+            "label": "The room",
+            "note": "Back far enough to read the run, the island and the walkway between them.",
+            "azimuth": 0,
+            "polar": 1.46,
+            "radius": 7.0,
+            "targetY": -0.15
+          },
+          {
+            "id": "angle",
+            "label": "Three-quarter",
+            "note": "Turned, so the worktop return and the depth of the island read properly.",
+            "azimuth": -0.6,
+            "polar": 1.42,
+            "radius": 5.6,
+            "targetY": -0.1
+          },
+          {
+            "id": "base",
+            "label": "Base cabinets",
+            "note": "Down at the run — open the doors and the bays behind them are genuinely empty.",
+            "azimuth": -0.18,
+            "polar": 1.14,
+            "radius": 4.6,
+            "targetY": -0.45
+          },
+          {
+            "id": "island",
+            "label": "Island",
+            "note": "In close on the drawer bank, where the boxes run out on their runners.",
+            "azimuth": 0.46,
+            "polar": 1.3,
+            "radius": 3.9,
+            "targetY": -0.5
+          }
+        ],
+        "control": { "off": "Open the doors", "on": "Close the doors" },
+        "specs": [
+          { "value": "18 mm", "label": "Carcass", "note": "Moisture-resistant board, edge-banded on every visible face." },
+          { "value": "40 mm", "label": "Worktop", "note": "Quartz or granite, mitred at the returns and polished on site." },
+          { "value": "Soft", "label": "Close", "note": "Every door and every drawer, on runners rated to 50 kg." },
+          { "value": "5 yr", "label": "Guarantee", "note": "On every joint, hinge and runner we fit." }
+        ]
+      },
+      {
+        "kind": "bedroom",
+        "label": "The model",
+        "lines": ["Slide the fronts,", "see the inside."],
+        "lede": "A four-bay run with sliding fronts. Move the camera, or slide them apart and read the rails, the shelf stack and the drawer bank behind them.",
+        "viewpoints": [
+          {
+            "id": "room",
+            "label": "The room",
+            "note": "Back across the room, where the run reads as one wall of it.",
+            "azimuth": 0,
+            "polar": 1.42,
+            "radius": 5.6,
+            "targetY": 0.02
+          },
+          {
+            "id": "angle",
+            "label": "Three-quarter",
+            "note": "Turned, to read how little the run stands off the wall.",
+            "azimuth": -0.55,
+            "polar": 1.44,
+            "radius": 5.0,
+            "targetY": 0
+          },
+          {
+            "id": "interior",
+            "label": "Interior",
+            "note": "In close on the bays — slide the fronts and the rails and shelves are all there.",
+            "azimuth": -0.15,
+            "polar": 1.5,
+            "radius": 3.2,
+            "targetY": 0.05
+          }
+        ],
+        "control": { "off": "Slide the fronts", "on": "Close the fronts" },
+        "specs": [
+          { "value": "2.3 m", "label": "Height", "note": "Floor to ceiling, scribed to the plaster at both ends." },
+          { "value": "600 mm", "label": "Depth", "note": "Enough for a hanger to sit square without touching the front." },
+          { "value": "4 mm", "label": "Shadow gap", "note": "Consistent down the run and around every opening." },
+          { "value": "5 yr", "label": "Guarantee", "note": "On every runner, rail and soft-close we fit." }
+        ]
+      },
+      {
+        "kind": "media",
+        "label": "The model",
+        "lines": ["Turn it round.", "Put the lights on."],
+        "lede": "The wall as we would build it — recess, fire slot, flank shelving and a base run. Move the camera, or switch the lighting on and see what it does to the room.",
+        "viewpoints": [
+          {
+            "id": "room",
+            "label": "The room",
+            "note": "Back to the sofa, where the wall reads as part of a living room.",
+            "azimuth": 0,
+            "polar": 1.5,
+            "radius": 6.2,
+            "targetY": -0.1
+          },
+          {
+            "id": "angle",
+            "label": "Three-quarter",
+            "note": "Turned, to read how far the unit stands off the wall.",
+            "azimuth": -0.52,
+            "polar": 1.44,
+            "radius": 5.4,
+            "targetY": -0.05
+          },
+          {
+            "id": "recess",
+            "label": "The recess",
+            "note": "In close on the screen and the fire slot beneath it.",
+            "azimuth": -0.1,
+            "polar": 1.5,
+            "radius": 3.0,
+            "targetY": 0.3
+          },
+          {
+            "id": "base",
+            "label": "Base run",
+            "note": "Down at the cabinets, where the cable routes are dropped before we fit.",
+            "azimuth": -0.3,
+            "polar": 1.34,
+            "radius": 3.4,
+            "targetY": -0.72
+          }
+        ],
+        "control": { "off": "Put the lights on", "on": "Lights off" },
+        "specs": [
+          { "value": "18 mm", "label": "Carcass", "note": "Moisture-resistant board, edge-banded on every visible face." },
+          { "value": "4 mm", "label": "Shadow gap", "note": "Consistent across the run and scribed to the wall at both ends." },
+          { "value": "75 in", "label": "Recess", "note": "Cut to your screen, with cable routes dropped before we fit." },
+          { "value": "5 yr", "label": "Guarantee", "note": "On every joint, hinge and driver we fit." }
+        ]
+      },
+      {
+        "kind": "walkin",
+        "label": "The model",
+        "lines": ["Take the fronts off.", "Walk into it."],
+        "lede": "Two facing runs and an island block. Move the camera, or take the fronts off the near run — a walk-in has no outside to look at, the inside is the product.",
+        "viewpoints": [
+          {
+            "id": "room",
+            "label": "The room",
+            "note": "From the doorway, looking down the length of both runs.",
+            "azimuth": 0,
+            "polar": 1.48,
+            "radius": 6.0,
+            "targetY": -0.1
+          },
+          {
+            "id": "inside",
+            "label": "Inside",
+            "note": "Standing in it, between the two runs, at the island.",
+            "azimuth": 0.05,
+            "polar": 1.52,
+            "radius": 3.4,
+            "targetY": -0.05
+          },
+          {
+            "id": "run",
+            "label": "The run",
+            "note": "Along one side — rails above, shelf stack beside, shoe racks below.",
+            "azimuth": -0.75,
+            "polar": 1.46,
+            "radius": 4.2,
+            "targetY": 0
+          },
+          {
+            "id": "island",
+            "label": "Island",
+            "note": "Down at the drawer block, where the jewellery and folded layers live.",
+            "azimuth": 0.2,
+            "polar": 1.3,
+            "radius": 3.2,
+            "targetY": -0.68
+          }
+        ],
+        "control": { "off": "Take the fronts off", "on": "Put the fronts back" },
+        "specs": [
+          { "value": "2.3 m", "label": "Height", "note": "Floor to ceiling on both runs, scribed at every wall." },
+          { "value": "1.2 m", "label": "Walkway", "note": "Enough to open a drawer and still stand square to the rail." },
+          { "value": "Lit", "label": "Rails", "note": "LED over every hanging rail, on a sensor at the door." },
+          { "value": "5 yr", "label": "Guarantee", "note": "On every rail, runner and hinge we fit." }
+        ]
+      }
+    ]
+  },
+  "process": {
+    "srHeading": "How it is built",
+    "index": "A4",
+    "stageLabel": "Stage {index} / {total}",
+    "ofLabel": "of {total}",
+    "builtLabel": "{percent}% built",
+    "assemblyAriaLabel": "The wardrobe after stage {index}",
+    "variants": [
+      {
+        "label": "Sequence",
+        "datum": "{count} stages",
+        "lines": ["{countWord} stages,", "in order."],
+        "lede": "Nothing here is subcontracted and nothing skips a step. Keep scrolling and the sequence moves with you."
+      },
+      {
+        "label": "Sequence",
+        "datum": "{count} stages",
+        "lines": ["{countWord} stages,", "top to bottom."],
+        "lede": "Nothing here is subcontracted and nothing skips a step."
+      },
+      {
+        "label": "Sequence",
+        "datum": "{count} stages",
+        "lines": ["{countWord} stages,", "one after another."],
+        "lede": "Each step starts where the last one finished. Nothing here is subcontracted."
+      },
+      {
+        "label": "Assembly",
+        "datum": "{count} stages",
+        "lines": ["{countWord} stages,", "and it stands up."],
+        "lede": "The drawings down the left are the same wardrobe at each stage. Nothing is subcontracted between them — the person who measured the wall is the person who hangs the doors.",
+        "ledeShort": "The drawings are the same wardrobe at each stage. One team throughout."
+      }
+    ]
+  },
+  "investment": {
+    "srHeading": "Investment",
+    "index": "A5",
+    "onApplication": "On application",
+    "quoteLabel": "Get this quoted",
+    "roomFromLine": "{size} room · from {price}",
+    "fromLabel": "from {price}",
+    "variants": [
+      {
+        "label": "Investment",
+        "datum": "{count} specifications",
+        "lines": ["An honest range,", "before the survey."],
+        "lede": "Pick the size of your room and every specification re-prices instantly. Indicative ranges — the firm figure comes after we have measured.",
+        "recommendedLabel": "Most chosen",
+        "tierIndexLabel": "{index} / {tier}",
+        "footnote": "Ranges scale the specification’s starting price by room size. They are a guide for planning, not a quotation — we do not price a room we have not measured."
+      },
+      {
+        "label": "Budget",
+        "datum": "{count} specifications",
+        "lines": ["Tell us the budget.", "We'll tell you", "what it buys."],
+        "lede": "Set your room size, then move the slider. Indicative ranges — the firm figure comes after we have measured.",
+        "budgetLabel": "Your budget",
+        "buysLabel": "Buys you",
+        "sliderSrLabel": "Budget, from {floor} to {ceiling}",
+        "rangeLine": "{size} room · {tier} range {low} – {high}",
+        "ctaLabel": "Quote me at this budget",
+        "footnote": "Ranges scale each specification’s starting price by room size. A guide for planning, not a quotation — we do not price a room we have not measured."
+      },
+      {
+        "label": "Display",
+        "datum": "{count} specifications",
+        "lines": ["Put one up,", "and see the figure."],
+        "lede": "Pick a specification and a room size; the frame re-prices in place. Indicative ranges — the firm figure comes after we have measured.",
+        "specificationLabel": "Specification",
+        "frameHeader": "{index} — {tier}",
+        "roomLabel": "{size} room",
+        "movesLabel": "What moves the figure",
+        "moves": [
+          {
+            "label": "The wall behind",
+            "body": "Masonry costs less to fix into than stud. Stud we open up and reinforce."
+          },
+          {
+            "label": "How much of it is media",
+            "body": "A screen and a soundbar is one job. An amplifier, a subwoofer and a rack that has to breathe is another."
+          },
+          {
+            "label": "Where the cables come from ",
+            "body": "A socket already on that wall is free. One that has to come across the room is not."
+          }
+        ],
+        "footnote": "Ranges scale the specification’s starting price by room size. A guide for planning, not a quotation — we do not price a room we have not measured."
+      },
+      {
+        "label": "Specifications",
+        "datum": "{count} to open",
+        "lines": ["Open the one", "you want priced."],
+        "lede": "Each specification is a door. Point at one and it opens onto what is behind it. Indicative ranges — the firm figure comes after we have measured.",
+        "srTierLabel": "{tier} specification",
+        "srRangeLabel": ", {low} to {high}",
+        "footnote": "Ranges scale each specification’s starting price by room size. A guide for planning, not a quotation."
+      }
+    ]
+  },
+  "questions": {
+    "index": "A6",
+    "lines": ["Questions about", "{categoryLower}."],
+    "lede": "The things people ask before committing to {titleLower}. Anything else, just call — we would rather answer it now than after you have ordered."
+  },
+  "cta": {
+    "lines": ["Let's measure", "your room."],
+    "lede": "A free survey, in your home, with no obligation attached. We will tell you honestly what your {titleLower} project needs before anyone talks about money.",
+    "ctaLabel": "Book a consultation",
+    "ctaHref": "/booking?service={slug}",
+    "facts": {
+      "leadTime": "{timeline} lead time",
+      "fromPrice": "From {price}",
+      "fromPriceFallback": "Quoted per room",
+      "design": "3D design included",
+      "guarantee": "5-year guarantee"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "//": "Typechecks scripts/ alongside src/. Kept separate from tsconfig.json because `nest start --watch` compiles that config, and rootDir must stay src/ so dist/ mirrors src/ (which is what makes DATA_DIR resolve identically under tsx and under a build).",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "./"
+  },
+  "include": ["src/**/*", "scripts/**/*"]
+}
