@@ -7,16 +7,31 @@ import { k } from "./palette";
 import { Chip, GroundFill, Ribbon, Row, Stage, Sticker, Word } from "./parts";
 import { LogoTile } from "./illos";
 import { KineticScenes, SCENES } from "./scenes";
+import { KineticShortScenes, SHORT_SCENES } from "./short";
 import { mono } from "./type";
 
-export const KINETIC_DURATION = SCENES.end;
+/** The 16-second cut — the one to post. */
+export const KINETIC_DURATION = SHORT_SCENES.end;
+/** The full 30-second cut, beat for beat with the reference reel. */
+export const KINETIC_LONG_DURATION = SCENES.end;
+
+// The music starts on the first frame, so only a click-guard in. The short
+// cut ends on a bar line where the track's first section ends; the long one
+// ends where the track itself does. Both take a short tail out.
 
 export function KineticReel(props: KineticProps) {
   return (
     <AbsoluteFill>
+      <KineticShortScenes copy={props} />
+      <Soundtrack src={props.soundtrack} fadeIn={1} fadeOut={6} />
+    </AbsoluteFill>
+  );
+}
+
+export function KineticReelLong(props: KineticProps) {
+  return (
+    <AbsoluteFill>
       <KineticScenes copy={props} />
-      {/* The music starts on the first frame and is cut, not faded, at the
-          end of the track — so only a click-guard in, and a short tail out. */}
       <Soundtrack src={props.soundtrack} fadeIn={1} fadeOut={10} />
     </AbsoluteFill>
   );

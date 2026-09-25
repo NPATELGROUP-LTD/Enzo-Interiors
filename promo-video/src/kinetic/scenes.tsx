@@ -100,7 +100,7 @@ const faintLight = "rgba(242,240,235,0.14)";
 // ── Hook ──────────────────────────────────────────────────────────────────
 
 /** The brochure holds its place across the two hook scenes. */
-function HookBrochure({ offset }: { offset: number }) {
+export function HookBrochure({ offset }: { offset: number }) {
   const frame = useCurrentFrame() + offset;
   const bob = { y: Math.sin(frame / 14) * 7, r: Math.sin(frame / 21) * 0.9 };
   const rise = offset === 0 ? interpolate(frame, [0, 10], [900, 0], { ...clamp, easing: (t) => 1 - Math.pow(1 - t, 3) }) : 0;

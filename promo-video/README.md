@@ -14,9 +14,10 @@ real captures of the new pages.
 
 | File (after `npm run render`) | Size | Length | Post it as |
 |---|---|---|---|
-| `out/enzo-kinetic-reel-9x16.mp4` | 1080×1920 | 30.4 s, **with music** | **Reel** (and Story) — the main launch post |
+| `out/enzo-kinetic-reel-9x16.mp4` | 1080×1920 | 16 s, **with music** | **Reel** (and Story) — the main launch post |
 | `out/enzo-kinetic-cover-9x16.png` | 1080×1920 | still | The Reel's cover |
-| `out/enzo-kinetic-feed-4x5.mp4` | 1080×1350 | 30.4 s, with music | Feed video post (and Facebook) |
+| `out/enzo-kinetic-feed-4x5.mp4` | 1080×1350 | 16 s, with music | Feed video post (and Facebook) |
+| `out/enzo-kinetic-reel-30s-9x16.mp4` | 1080×1920 | 30.4 s, with music | The full-length kinetic cut (`npm run render:kinetic-30`) |
 | `out/enzo-launch-reel-9x16.mp4` | 1080×1920 | 27 s, silent | Editorial Reel |
 | `out/enzo-reel-cover-9x16.png` | 1080×1920 | still | Editorial Reel's cover |
 | `out/enzo-launch-feed-4x5.mp4` | 1080×1350 | 27 s, silent | Editorial feed video |
@@ -29,25 +30,29 @@ master (CRF 16) so they survive Instagram's re-encode.
 ## The kinetic cut
 
 The reference reel's shape is problem → fix → proof → call to action, with
-a scene change on the music's beat. Here it is told about Enzo, using the
-reasons the About page gives for the company existing:
+a scene change on the music's beat.
+
+**The 16-second cut** (`KineticReel`, `KineticFeed`) is the one to post.
+Short Reels that get watched to the end do better, and every line here gets
+time to be read. There are five scenes of exactly 3.2 s, two bars of the
+music each. The words land about one per beat, are all on screen within
+~1.5 s, and then hold. It ends at 16.0 s, where the track's first section
+ends, so the music stops on a phrase with a short fade.
 
 | Time | Scene | On screen |
 |---|---|---|
 | 0:00 | Hook | **Still picking a kitchen from a brochure?** A catalogue that says "One size fits all" |
-| 0:01.6 | | **Let's measure your room.** A dimension line across the brochure, "one size fits all" struck out, **MADE TO MEASURE** |
-| 0:03.2 | Sign 1/4 | **Priced over the phone.** A quote that won't sit still: accuracy 3% |
-| 0:04.4 | Sign 2/4 | **Nobody measured.** The dimensions are question marks |
-| 0:05.6 | Sign 3/4 | **The wall wasn't straight.** 14 mm gap |
-| 0:06.8 | Sign 4/4 | **Three trades. Who do you call?** Fitter calling… **NO ANSWER** |
-| 0:08.0 | The fix | **So we do it all ourselves.** |
-| 0:09.6 | | The Enzo logo, *Made in Leicester*; then a before/after of the homepage kitchen |
-| 0:12.8 | | **One team, start to finish:** ✓ Measure ✓ Design ✓ Build ✓ Fit |
-| 0:16.0 | | **Whatever the room:** kitchens from £4,500 · bedrooms £2,500 · media walls £1,800 · wardrobes £1,500 |
-| 0:19.2 | | **Our new website. Launching soon.** The real site in a phone: every room we've finished, every price up front, book a free survey |
-| 0:22.4 | | **Price in writing before we cut.** A quote with every line ticked, total fixed |
-| 0:24.0 | | The site's Fitted Run, then **One team to call, even after handover.** 5-year guarantee |
-| 0:25.6 | CTA | **Ready for a room that fits? DM us "SURVEY"** · enzointeriors.co.uk · New website, launching soon |
+| 0:03.2 | Answer | **Let's measure your room.** A dimension line across the brochure, "one size fits all" struck out, **MADE TO MEASURE** |
+| 0:06.4 | Team | **One team, start to finish:** ✓ Measure ✓ Design ✓ Build ✓ Fit · 0 subcontractors + 5-year guarantee |
+| 0:09.6 | Launch | The Enzo logo. **Our new website. Launching soon.** The real site in a phone: every room we've finished, every price up front, book a free survey |
+| 0:12.8 | CTA | The site's Fitted Run, then **DM us "SURVEY"** for a free home survey · enzointeriors.co.uk · send this to someone planning a kitchen |
+
+**The 30-second cut** (`KineticReel30`, `KineticFeed30`) keeps every scene
+of the reference reel. It adds four "signs" (priced over the phone, nobody
+measured, the wall wasn't straight, three trades and nobody answers), the
+logo reveal, a kitchen before/after, prices per room, a written quote and
+"one team to call". Every scene starts on the frame the reference changes
+scene on.
 
 The type is Archivo, the site's heading face, set on its width axis as
 Archivo Expanded Black, the kind of wide heavy grotesque the reference
@@ -58,10 +63,10 @@ green of the site's door panels. Every figure is the site's own
 
 ### The soundtrack
 
-`public/audio/launch-reel.m4a` is the track from NPATEL Group's reel. The
-cut is timed to it: the music runs at 150 BPM (a beat every 0.4 s, exactly
-12 frames), and every scene starts on the same frame the reference changes
-scene on, so the hits land on the cuts. The file is the original audio
+`public/audio/launch-reel.m4a` is the track from NPATEL Group's reel. Both
+cuts are timed to it: the music runs at 150 BPM (a beat every 0.4 s, exactly
+12 frames, and a bar every 48), and every scene starts on a beat, so the
+hits land on the cuts. The 16-second cut plays the first ten bars. The file is the original audio
 **pre-rolled by 2048 samples** (42.7 ms). Remotion's AAC encode delays audio
 by exactly that much, and the pre-roll cancels it. A render measures in
 sync to within half a millisecond.
@@ -99,7 +104,7 @@ Nothing here is invented; it is mirrored from `apps/web`:
 | The self-inking drawing | `components/landing/ElevationDrawing.tsx` |
 | Masked headline reveals, CTA pill, rotating badge, site frame | `SectionIntro`, `HeroCtaButton`, `RotatingBadge`, `app/layout.tsx` |
 | Copy, stages, room captions, facts ("from £1,500", "9 rooms") | `apps/web/src/data/*.json` |
-| Logo, photography, the three room-build sequences | `apps/web/public` (copied in by `npm run sync-assets`) |
+| Logo, photography, the three room-build sequences | `apps/api/seed-media`, the platform's media seed (copied in by `npm run sync-assets`) |
 
 If the site changes, `src/brand/tokens.ts`, `src/brand/copy.ts` and the
 kinetic scenes (`src/kinetic/scenes.tsx`) are where to bring it back in
@@ -115,7 +120,8 @@ npm run dev          # Remotion Studio: preview, scrub, edit the words live
 npm run render       # everything, into out/
 ```
 
-Or one cut at a time: `npm run render:kinetic` (Reel, feed and cover), or
+Or one cut at a time: `npm run render:kinetic` (the 16-second Reel, feed
+and cover), `render:kinetic-30` (the 30-second Reel and feed), or
 `render:editorial`, which runs `render:reel`, `render:feed`, `render:story`
 and `render:stills`.
 
@@ -185,7 +191,7 @@ poster to re-share on launch day.
 - **Hashtags** (Instagram now recommends 3–5): `#FittedFurniture #BespokeKitchens #FittedWardrobes #MediaWall #LeicesterInteriors`
 - **Alt text** (Advanced settings → Accessibility):
 
-  > Kinetic cut: bold words slam onto green backgrounds. "Still picking a kitchen from a brochure? Let's measure your room." Four signs follow: priced over the phone, nobody measured, the wall wasn't straight, nobody answers. Then "So we do it all ourselves", the Enzo Interiors logo, a kitchen before and after, a checklist of measure, design, build and fit, and prices for kitchens, bedrooms, media walls and wardrobes. A phone shows the new Enzo Interiors website. It ends on "Ready for a room that fits? DM us 'SURVEY'", enzointeriors.co.uk, new website launching soon.
+  > Kinetic cut (16 s): bold words slam onto green backgrounds. "Still picking a kitchen from a brochure?" over a catalogue that says one size fits all. "Let's measure your room", and a dimension line crosses it: made to measure. "One team, start to finish": measure, design, build, fit. The Enzo Interiors logo, "Our new website, launching soon", and a phone showing the new site. It ends on "DM us 'SURVEY' for a free home survey" and enzointeriors.co.uk.
   >
   > Editorial cut: a drawing of a fitted wardrobe inks itself onto a sheet, then a kitchen and a media wall build themselves in empty rooms. Green door panels close and open on the words "A new website, made to measure." A phone scrolls through the new Enzo Interiors website. It ends on the Enzo Interiors logo and "New website, launching soon. enzointeriors.co.uk".
 
@@ -214,13 +220,14 @@ src/
   components/   the brand devices: RuleRow, Masked, ElevationSheet, FittedRun,
                 RoomBuild, Plate, Phone, Brand (logo, frame, CTA, badge)
   kinetic/      the kinetic cut: type (glyph-fitted Archivo Expanded), palette,
-                parts (sweep, sticker, card, ribbon…), illos, scenes, KineticReel
+                parts (sweep, sticker, card, ribbon…), illos, short (16 s),
+                scenes (30 s), KineticReel
   scenes/       ProcessScene (cream act), SiteScene (forest act + the close)
   compositions/ Launch (Reel + Feed), StoryTeaser, Stills, Soundtrack
   layout.ts     where everything sits in 9:16 and 4:5
   props.ts      the editable words
 scripts/
-  sync-assets.mjs    copies logo, photos and room frames from apps/web/public
+  sync-assets.mjs    copies logo, photos and room frames from apps/api/seed-media
   capture-site.mjs   captures the site's pages for the phone
 public/site/         the captures (committed)
 public/audio/        the kinetic cut's soundtrack (committed)

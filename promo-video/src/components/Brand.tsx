@@ -6,7 +6,7 @@ import { color, DUR, EASE, sec } from "../brand/tokens";
 
 const clamp = { extrapolateLeft: "clamp", extrapolateRight: "clamp" } as const;
 
-/** The logo files' own proportions (apps/web/public/logo). */
+/** The logo files' own proportions (apps/api/seed-media/logo-*.png). */
 const LOGO_ASPECT = 2622 / 1327;
 
 /**
