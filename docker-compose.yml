@@ -131,6 +131,9 @@ services:
     build:
       context: ./apps/api
     restart: unless-stopped
+    # `coolify` is where Coolify's own Postgres resource lives; default keeps
+    # the api reachable from web/admin/minio.
+    networks: [default, coolify]
     depends_on:
       # Not required: with an external DATABASE_URL there is no postgres here,
       # and `prisma migrate deploy` simply retries on restart until it answers.
@@ -209,6 +212,7 @@ services:
     build:
       context: ./apps/api
       target: build
+    networks: [default, coolify]
     depends_on:
       postgres:
         condition: service_healthy
@@ -311,6 +315,11 @@ services:
     ports:
       - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
       - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+
+networks:
+  # Created by Coolify. For a local run, create it once: docker network create coolify
+  coolify:
+    external: true
 
 volumes:
   postgres-data:
