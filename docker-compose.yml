@@ -75,21 +75,23 @@ services:
       retries: 20
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # MinIO no longer publishes images to quay.io or Docker Hub; the bitnamilegacy
+    # mirror still serves the same 2025-04-22 release. Its entrypoint starts the
+    # server itself (API :9000, console :9001), so there is no `command`.
+    image: bitnamilegacy/minio:2025.4.22
     restart: unless-stopped
-    command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
     volumes:
-      - minio-data:/data
+      - minio-data:/bitnami/minio/data
     ports:
       # The API port, not only the console: MEDIA_BASE_URL is fetched by the
       # visitor's browser, which cannot resolve "minio".
       - '${MINIO_PORT:-9000}:9000'
       - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/minio/health/ready']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -105,7 +107,7 @@ services:
   # be asked to write to them. `set -e` so a failed `mc mb` fails the service
   # instead of letting the `echo` report success.
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: bitnamilegacy/minio-client:2025.4.16
     depends_on:
       minio:
         condition: service_healthy
