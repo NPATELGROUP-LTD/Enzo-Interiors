@@ -1,7 +1,7 @@
 import { CalendarPlus, CaretLeft, CaretRight, EnvelopeSimple, MapPin, Phone } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 
 import { DayTimePicker, STUDIO_ZONE, clock, type StaffAvailability } from '@/components/booking/DayTimePicker';
 import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, Tabs, Textarea } from '@/components/ui';
@@ -42,14 +42,47 @@ type Tab = 'upcoming' | 'past' | 'cancelled';
 /**
  * Consultations booked on the website or here. Admin only. Opening one shows
  * everything the customer gave and lets you move or cancel it; the customer
- * is emailed either way. `?open=<id>` (the bell's link) opens one directly.
+ * is emailed either way. The address carries the state, so the menu bar and
+ * the bell can link straight in: `?view=past|cancelled` picks the list,
+ * `?open=<id>` opens one booking, `?new=1` the new-booking form, `#month` the
+ * month at a glance.
  */
 export function AppointmentsPage() {
   const appointments = useQuery<Appointment[]>('/appointments');
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<Tab>('upcoming');
-  const [creating, setCreating] = useState(false);
+  const { hash } = useLocation();
+  const view = params.get('view');
+  const tab: Tab = view === 'past' || view === 'cancelled' ? view : 'upcoming';
+  const creating = params.get('new') === '1';
   const openId = params.get('open');
+
+  /**
+   * Changes some of the address's parameters and keeps the rest. Read from
+   * the live address rather than this render's, so two changes in a row (book,
+   * then close the form) both land.
+   */
+  const update = (changes: Record<string, string | null>, replace = false) =>
+    setParams(
+      () => {
+        const next = new URLSearchParams(window.location.search);
+        for (const [key, value] of Object.entries(changes)) {
+          if (value === null) next.delete(key);
+          else next.set(key, value);
+        }
+        return next;
+      },
+      { replace },
+    );
+  const setTab = (next: Tab) => update({ view: next === 'upcoming' ? null : next, open: null });
+  const setCreating = (on: boolean) => update({ new: on ? '1' : null }, !on);
+
+  // The menu bar's "Month at a glance" link, once there is a month to show.
+  const loaded = !!appointments.data;
+  useEffect(() => {
+    if (hash === '#month' && loaded) {
+      document.getElementById('month')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [hash, loaded]);
 
   const groups = useMemo(() => {
     const now = Date.now();
@@ -75,7 +108,7 @@ export function AppointmentsPage() {
   }, [appointments.data]);
 
   const open = appointments.data?.find((row) => row.id === openId) ?? null;
-  const setOpen = (id: string | null) => setParams(id ? { open: id } : {}, { replace: !id });
+  const setOpen = (id: string | null) => update({ open: id }, !id);
   const replace = (next: Appointment) =>
     appointments.setData((list) => (list ?? []).map((row) => (row.id === next.id ? next : row)));
 
@@ -209,7 +242,7 @@ function MonthGlance({
   };
 
   return (
-    <aside aria-label="Month at a glance" className="xl:sticky xl:top-6">
+    <aside id="month" aria-label="Month at a glance" className="scroll-mt-6 xl:sticky xl:top-6">
       <div className="rounded-card bg-surface p-4 shadow-soft">
         <div className="mb-3 flex items-center justify-between">
           <button

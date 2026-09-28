@@ -219,7 +219,7 @@
     "datum": "{count} reviews · Leicestershire",
     "lines": ["What people say", "once we have gone."],
     "lede": "The real test of fitted furniture is the year after the fitters leave. Every review we have is here — not a selection of the good ones.",
-    "ratingLabel": "Five out of five",
+    "ratingLabel": "{rating} out of 5 stars",
     "pauseLabel": "Pause the reviews",
     "playLabel": "Start the reviews moving"
   },

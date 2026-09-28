@@ -16,6 +16,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
+import { Link } from 'react-router-dom';
 
 /**
  * The admin design system.
@@ -391,23 +392,29 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
+  // Callers pass an inline onClose, a new function every render. Held in a ref
+  // so the effect below runs once per opening: when it depended on onClose it
+  // re-ran on every keystroke and pulled focus out of the field being typed in.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   // Escape closes, and the body cannot scroll behind the overlay.
   useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') closeRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    // Move focus into the dialog so the keyboard is not left behind it.
-    panelRef.current?.focus();
+    // Move focus into the dialog so the keyboard is not left behind it —
+    // unless a field inside has already taken it with autoFocus.
+    if (!panelRef.current?.contains(document.activeElement)) panelRef.current?.focus();
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
@@ -584,6 +591,49 @@ export function PageHeader({
       </div>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
     </div>
+  );
+}
+
+/** One step of a breadcrumb trail: a place to go back to, or (last) where you are. */
+export interface Crumb {
+  label: string;
+  to?: string;
+  onClick?: () => void;
+}
+
+/** "CMS › Services › Kitchens": every step but the last goes back there. */
+export function Crumbs({ items, className }: { items: Crumb[]; className?: string }) {
+  const step = 'rounded-[4px] text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35';
+  return (
+    <nav aria-label="Breadcrumb" className={clsx('min-w-0', className)}>
+      <ol className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold">
+        {items.map((item, index) => {
+          const last = index === items.length - 1;
+          return (
+            <li key={`${index}-${item.label}`} className={clsx('flex items-center gap-1.5', last ? 'min-w-0' : 'shrink-0')}>
+              {index > 0 ? (
+                <span aria-hidden="true" className="text-ink-muted/60">
+                  ›
+                </span>
+              ) : null}
+              {last ? (
+                <span aria-current="page" className="truncate text-ink">
+                  {item.label}
+                </span>
+              ) : item.to ? (
+                <Link to={item.to} className={step}>
+                  {item.label}
+                </Link>
+              ) : (
+                <button type="button" onClick={item.onClick} className={step}>
+                  {item.label}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
   );
 }
 
