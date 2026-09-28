@@ -93,7 +93,7 @@ export interface Testimonial {
   /** The project it was written about. */
   projectId: string;
   name: string;
-  /** The linked project's location — not stored on the review. */
+  /** The review's own location, else the linked project's. */
   role: string;
   text: string;
   /** A shorter pull-out, where one is authored. */

@@ -145,6 +145,24 @@
        while the left margin looks correct. Reserving the gutter is what
        makes the two margins actually match on screen. */
     scrollbar-gutter: stable;
+
+    /* A thin forest-green scroll bar on a clear track. Inherited by every
+       scrolling box on the site. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--enzo-forest) 45%, transparent) transparent;
+  }
+
+  /* Safari has no scrollbar-color yet: the same bar, drawn the WebKit way. */
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--enzo-forest) 45%, transparent) padding-box;
+    }
   }
 
   /* Archivo is a grotesque, not a high-contrast serif: it needs more weight

@@ -176,6 +176,25 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Thin, quiet scroll bars in the brand green, light and dark. Set once on
+     the root: scrollbar-color inherits into every scrolling pane. Safari has
+     no scrollbar-color yet, so it gets the WebKit pseudo-elements instead. */
+  :root {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--green-900) 45%, transparent) transparent;
+  }
+  @supports not (scrollbar-color: auto) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      border: 3px solid transparent;
+      border-radius: 10px;
+      background: color-mix(in srgb, var(--green-900) 45%, transparent) padding-box;
+    }
+  }
+
   body {
     margin: 0;
     background: var(--canvas);

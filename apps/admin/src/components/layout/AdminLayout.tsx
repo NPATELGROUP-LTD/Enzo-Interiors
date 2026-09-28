@@ -3,6 +3,8 @@ import {
   ArrowSquareOut,
   Browsers,
   Buildings,
+  CalendarBlank,
+  CalendarPlus,
   Check,
   CloudCheck,
   ImagesSquare,
@@ -27,12 +29,13 @@ import { NavLink, useLocation, useOutletContext } from 'react-router-dom';
 
 import { PAGES } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
-import { Button } from '@/components/ui';
+import { Button, Crumbs } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
+import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
 import { Badge, Desktop } from './Desktop';
@@ -83,16 +86,27 @@ export function useCmsShell(): CmsShell {
 }
 
 /**
- * The menu bar's one menu, the way a Mac app's menus work: pointing at "CMS"
- * drops the list of everything that can be edited, clicking it opens the
- * overview. Keyboard: ArrowDown opens it and moves through it, Escape closes.
- * Touch has no hover, so a tap goes straight to the overview, which lists the
- * same things.
+ * A menu-bar menu, the way a Mac app's menus work: pointing at the name drops
+ * its list, clicking it opens its screen. Keyboard: ArrowDown opens it and
+ * moves through it, Escape closes. Touch has no hover, so a tap goes straight
+ * to the screen, which lists the same things.
  *
  * It is a manual popover rather than a child of the menu bar so it lands in
  * the top layer — see the stacking note in Desktop.tsx.
  */
-function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
+function MenuBarMenu({
+  id,
+  label,
+  to,
+  end,
+  children,
+}: {
+  id: string;
+  label: string;
+  to: string;
+  end?: boolean;
+  children: (close: () => void) => ReactNode;
+}) {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLAnchorElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -145,18 +159,15 @@ function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
     }
   };
 
-  const shared = SECTIONS.filter((section) => section.collection !== 'pages');
-  const heading = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
-
   return (
     <>
       <NavLink
         ref={trigger}
-        to="/cms"
-        end
+        to={to}
+        end={end}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-controls="cms-menu"
+        aria-controls={id}
         onPointerEnter={hover(true)}
         onPointerLeave={hover(false)}
         onKeyDown={onKeyDown}
@@ -167,69 +178,108 @@ function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
           )
         }
       >
-        CMS
+        {label}
       </NavLink>
 
       <div
         ref={menu}
-        id="cms-menu"
+        id={id}
         role="menu"
-        aria-label="CMS"
+        aria-label={label}
         popover="manual"
         onPointerEnter={hover(true)}
         onPointerLeave={hover(false)}
         onKeyDown={onKeyDown}
         className="glass fixed inset-auto top-10 m-0 max-h-[calc(100dvh-3rem)] w-72 overflow-y-auto rounded-[10px] border border-glass-border p-1.5 text-[13px] text-ink shadow-window"
       >
-        <MenuItem to="/cms" end label="Overview" onChoose={() => setOpen(false)} />
-        <Separator />
-        <p className={heading} aria-hidden="true">
-          Pages
-          <Badge count={counts.pages?.dirty ?? 0} />
-        </p>
-        {Object.entries(PAGES).map(([slug, page]) => (
-          <MenuItem
-            key={slug}
-            to={`/pages/${slug}`}
-            label={page.name}
-            hint={page.path ?? ''}
-            onChoose={() => setOpen(false)}
-          />
-        ))}
-        <Separator />
-        <p className={heading} aria-hidden="true">
-          Shared content
-        </p>
-        {shared.map(({ to, label, collection, Icon }) => (
-          <MenuItem
-            key={to}
-            to={to}
-            label={label}
-            Icon={Icon}
-            hint={collection === 'company' ? '' : String(counts[collection]?.total ?? '')}
-            badge={counts[collection]?.dirty ?? 0}
-            onChoose={() => setOpen(false)}
-          />
-        ))}
+        {children(() => setOpen(false))}
       </div>
     </>
   );
 }
 
-/** A plain menu-bar item that goes straight to a screen, like CMS without its menu. */
-function MenuBarLink({ to, children }: { to: string; children: ReactNode }) {
+const MENU_HEADING = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
+
+/** CMS: every page and every kind of shared content. */
+function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
+  const shared = SECTIONS.filter((section) => section.collection !== 'pages');
   return (
-    <NavLink
-      to={to}
-      className={({ isActive }) =>
-        clsx(
-          'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
-          isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
-        )
+    <MenuBarMenu id="cms-menu" label="CMS" to="/cms" end>
+      {(close) => (
+        <>
+          <MenuItem to="/cms" end label="Overview" onChoose={close} />
+          <Separator />
+          <p className={MENU_HEADING} aria-hidden="true">
+            Pages
+            <Badge count={counts.pages?.dirty ?? 0} />
+          </p>
+          {Object.entries(PAGES).map(([slug, page]) => (
+            <MenuItem key={slug} to={`/pages/${slug}`} label={page.name} hint={page.path ?? ''} onChoose={close} />
+          ))}
+          <Separator />
+          <p className={MENU_HEADING} aria-hidden="true">
+            Shared content
+          </p>
+          {shared.map(({ to, label, collection, Icon }) => (
+            <MenuItem
+              key={to}
+              to={to}
+              label={label}
+              Icon={Icon}
+              hint={collection === 'company' ? '' : String(counts[collection]?.total ?? '')}
+              badge={counts[collection]?.dirty ?? 0}
+              onChoose={close}
+            />
+          ))}
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** The lists on the Bookings screen, addressed as /bookings?view=past. */
+export const BOOKING_VIEWS = [
+  { id: 'upcoming', label: 'Upcoming' },
+  { id: 'past', label: 'Past' },
+  { id: 'cancelled', label: 'Cancelled' },
+] as const;
+
+/** Bookings: its three lists, the month, and a new booking. */
+function BookingsMenu() {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/bookings' ? (new URLSearchParams(search).get('view') ?? 'upcoming') : null;
+  return (
+    <MenuBarMenu id="bookings-menu" label="Bookings" to="/bookings">
+      {(close) => (
+        <>
+          {BOOKING_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'upcoming' ? '/bookings' : `/bookings?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          <Separator />
+          <MenuItem to="/bookings#month" label="Month at a glance" Icon={CalendarBlank} active={false} onChoose={close} />
+          <MenuItem to="/bookings?new=1" label="New booking…" Icon={CalendarPlus} active={false} onChoose={close} />
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** Settings: each pane, as in its sidebar. */
+function SettingsMenu() {
+  return (
+    <MenuBarMenu id="settings-menu" label="Settings" to="/settings">
+      {(close) =>
+        SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
+          <MenuItem key={id} to={`/settings/${id}`} label={label} Icon={Icon} onChoose={close} />
+        ))
       }
-    >
-      {children}
-    </NavLink>
+    </MenuBarMenu>
   );
 }
 
@@ -245,6 +295,7 @@ function MenuItem({
   hint,
   badge = 0,
   Icon,
+  active,
   onChoose,
 }: {
   to: string;
@@ -253,6 +304,8 @@ function MenuItem({
   hint?: ReactNode;
   badge?: number;
   Icon?: PhosphorIcon;
+  /** Overrides the path match, for items that differ only by their query. */
+  active?: boolean;
   onChoose: () => void;
 }) {
   return (
@@ -267,7 +320,7 @@ function MenuItem({
       {({ isActive }) => (
         <>
           <span className="flex w-4 shrink-0 justify-center">
-            {isActive ? <Check size={12} weight="bold" aria-label="Current" /> : null}
+            {(active ?? isActive) ? <Check size={12} weight="bold" aria-label="Current" /> : null}
           </span>
           {Icon ? <Icon size={15} aria-hidden="true" className="shrink-0 opacity-80" /> : null}
           <span className="min-w-0 flex-1 truncate">{label}</span>
@@ -284,10 +337,22 @@ function MenuItem({
 }
 
 /** The window's title and back button, from where you are. */
-function useWindowTitle(): { title: string; back: { to: string; label: string } | null } {
-  const { pathname } = useLocation();
-  if (pathname.startsWith('/settings')) return { title: 'Settings', back: null };
-  if (pathname === '/bookings') return { title: 'Bookings', back: null };
+function useWindowTitle(): { title: ReactNode; back: { to: string; label: string } | null } {
+  const { pathname, search } = useLocation();
+  if (pathname.startsWith('/settings')) {
+    const pane = SETTINGS_SECTIONS.find(({ id }) => pathname === `/settings/${id}`);
+    return {
+      title: pane ? <Crumbs items={[{ label: 'Settings', to: '/settings' }, { label: pane.label }]} /> : 'Settings',
+      back: null,
+    };
+  }
+  if (pathname === '/bookings') {
+    const view = BOOKING_VIEWS.find(({ id }) => id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Bookings', to: '/bookings' }, { label: view.label }]} /> : 'Bookings',
+      back: null,
+    };
+  }
   if (pathname === '/account') return { title: 'Account', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
@@ -364,8 +429,8 @@ export function AdminLayout() {
       menus={
         <>
           <CmsMenu counts={counts} />
-          {isAdmin ? <MenuBarLink to="/bookings">Bookings</MenuBarLink> : null}
-          {isAdmin ? <MenuBarLink to="/settings">Settings</MenuBarLink> : null}
+          {isAdmin ? <BookingsMenu /> : null}
+          {isAdmin ? <SettingsMenu /> : null}
         </>
       }
       status={<Notifications onChange={refresh} />}

@@ -362,8 +362,12 @@ function resolve(bundle: Bundle): Resolved {
       id: row.id,
       projectId: row.projectId,
       name: row.clientName,
-      // Where they live is a fact about the project, not about the review.
-      role: projectsById.get(row.projectId)?.location ?? "",
+      // Where they live is read from the project, unless the review names
+      // a place of its own (a review without a project, or a different town).
+      role:
+        (row as { location?: string }).location?.trim() ||
+        projectsById.get(row.projectId)?.location ||
+        "",
       text: row.text,
       pullQuote: (row as { pullQuote?: string }).pullQuote,
       image: mediaSrc(row.imageId),

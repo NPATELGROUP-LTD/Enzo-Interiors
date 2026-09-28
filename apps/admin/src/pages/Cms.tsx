@@ -34,6 +34,7 @@ import { SECTIONS, useCmsShell } from '@/components/layout/AdminLayout';
 import {
   Button,
   ConfirmDialog,
+  Crumbs,
   EmptyState,
   ErrorState,
   Input,
@@ -43,6 +44,7 @@ import {
   Select,
   Textarea,
   Toggle,
+  type Crumb,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -410,11 +412,11 @@ export function CollectionPage({
     if (!slug) return;
     setPending(true);
     try {
-      // A new entry starts as an emptied copy of an existing one, so it has
-      // every field the collection uses rather than a blank form.
+      // A new entry starts from the collection's blank template, or else as an
+      // emptied copy of an existing one, so it has every field the site uses.
       const template = entries.data?.[0];
-      let draft: Record<string, unknown> = {};
-      if (template) {
+      let draft: Record<string, unknown> = { ...schema.template };
+      if (!schema.template && template) {
         const existing = await api.get<CmsEntry>(`/cms/collections/${collection}/${template.slug}`);
         draft = Object.fromEntries(
           Object.entries(existing.draft).map(([key, value]) => [
@@ -765,10 +767,13 @@ export function EntryPage({
 
   // Adopt the server's draft once per entry, keyed on the row id so moving to
   // another entry never leaves the previous one's words on screen.
-  if (entry.data && loadedFor !== entry.data.id) {
+  if (entry.data && schema && loadedFor !== entry.data.id) {
+    // Fields an older entry never had are filled in blank, so they can be
+    // edited. Only on screen: they reach the database with the next real edit.
+    const draft = { ...schema.template, ...entry.data.draft };
     setLoadedFor(entry.data.id);
-    setBody(entry.data.draft);
-    setSaved(entry.data.draft);
+    setBody(draft);
+    setSaved(draft);
     // A search result or the overview links straight to a section as /pages/home#process.
     const hash = decodeURIComponent(location.hash.slice(1));
     setSection(hash && hash in entry.data.draft ? hash : DETAILS_SECTION);
@@ -958,12 +963,17 @@ export function EntryPage({
 
   const remove = async () => {
     setConfirmDelete(false);
+    // Go on to the next one in the list (or the one before, if this was the
+    // last), the way deleting a mail moves to the next rather than the inbox.
+    const rows = siblings.data ?? [];
+    const at = rows.findIndex((row) => row.slug === slug);
+    const next = rows[at + 1] ?? rows[at - 1];
     try {
       await api.delete(`/cms/collections/${collection}/${slug}`);
       refresh();
       toast.success('Deleted.');
       leaving.current = true;
-      navigate(basePath);
+      navigate(next && at !== -1 ? `${basePath}/${next.slug}` : basePath);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'That could not be deleted.');
     }
@@ -980,7 +990,9 @@ export function EntryPage({
 
   /* ---- Pages step through their sections; everything else is one form ---- */
   let navigation: ReactNode = null;
-  let crumb = schema.fixed ? schema.label : `${schema.label} › ${title}`;
+  let crumbs: Crumb[] = schema.fixed
+    ? [{ label: 'CMS', to: '/cms' }, { label: schema.label }]
+    : [{ label: 'CMS', to: '/cms' }, { label: schema.label, to: basePath }, { label: title }];
   let content: ReactNode;
   if (collection === 'pages') {
     const { scalars, sections } = splitSections(
@@ -1027,7 +1039,11 @@ export function EntryPage({
         : [];
 
     if (current) {
-      crumb = `${title} › ${current.name}`;
+      crumbs = [
+        { label: 'CMS', to: '/cms' },
+        { label: title, onClick: () => select(items[0]!.id) },
+        { label: current.name },
+      ];
       navigation = (
         <Outline
           items={items}
@@ -1147,7 +1163,7 @@ export function EntryPage({
 
       <div className="flex min-w-0 flex-1 flex-col bg-surface">
         <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-5 py-2.5 sm:px-8">
-          <p className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink">{crumb}</p>
+          <Crumbs items={crumbs} className="flex-1" />
           <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
           <div className="flex flex-wrap items-center gap-2">
             {path ? (

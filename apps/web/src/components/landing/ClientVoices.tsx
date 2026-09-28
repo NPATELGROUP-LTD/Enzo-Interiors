@@ -165,12 +165,19 @@ export function ClientVoices({
                       aria-hidden={index >= column.length ? true : undefined}
                       className="rounded-2xl bg-enzo-white p-6 shadow-[0_2px_16px_rgba(16,46,45,0.05)]"
                     >
-                      <div className="flex gap-1" aria-label={content.ratingLabel}>
+                      <div
+                        className="flex gap-1"
+                        role="img"
+                        aria-label={fill(content.ratingLabel, { rating: testimonial.rating })}
+                      >
                         {Array.from({ length: 5 }, (_, star) => (
                           <Star
                             key={star}
                             aria-hidden="true"
-                            className="h-4 w-4 fill-enzo-sand text-enzo-sand"
+                            className={cn(
+                              "h-4 w-4 text-enzo-sand",
+                              star < testimonial.rating ? "fill-enzo-sand" : "opacity-40",
+                            )}
                           />
                         ))}
                       </div>

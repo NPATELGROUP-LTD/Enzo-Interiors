@@ -49,6 +49,13 @@ export interface CollectionSchema {
   readonlyKeys: string[];
   /** Keys that control whether the row appears on the public site at all. */
   publishFlagKey?: string;
+  /**
+   * Every field an entry of this collection can have, blank. A new entry
+   * starts from it, and the editor fills in any key an older entry lacks, so a
+   * field the site shows is always there to edit. Kept to flat collections;
+   * the nested ones (services, menu) start as an emptied copy of a sibling.
+   */
+  template?: Record<string, unknown>;
 }
 
 /**
@@ -136,13 +143,25 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     references: { serviceId: 'services' },
     readonlyKeys: ['id'],
     publishFlagKey: 'isPublished',
+    template: {
+      title: '',
+      serviceId: '',
+      location: '',
+      client: '',
+      duration: '',
+      year: '',
+      description: '',
+      materials: [],
+      imageIds: [],
+      isPublished: false,
+    },
   },
   {
     collection: 'testimonials',
     label: 'Testimonials',
     singular: 'testimonial',
     description:
-      'Client reviews. The location shown beside a name is read from the linked project rather than typed again here.',
+      'Client reviews, shown on the home page and beside the booking form. The place under a name comes from the linked project unless you type one here.',
     fixed: false,
     titleField: 'clientName',
     listColumns: ['rating', 'isPublished'],
@@ -152,6 +171,16 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     references: { projectId: 'portfolio' },
     readonlyKeys: ['id'],
     publishFlagKey: 'isPublished',
+    template: {
+      clientName: '',
+      location: '',
+      projectId: '',
+      rating: 5,
+      text: '',
+      pullQuote: '',
+      imageId: '',
+      isPublished: false,
+    },
   },
   {
     collection: 'team',
@@ -166,6 +195,7 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     longTextKeys: COMMON_LONG_TEXT,
     references: {},
     readonlyKeys: ['id'],
+    template: { name: '', role: '', note: '', imageId: '' },
   },
   {
     collection: 'faqs',
@@ -181,6 +211,7 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     longTextKeys: COMMON_LONG_TEXT,
     references: { serviceId: 'services' },
     readonlyKeys: ['id'],
+    template: { q: '', a: '', serviceId: null },
   },
   {
     collection: 'navigation',

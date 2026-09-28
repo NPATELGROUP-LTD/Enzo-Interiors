@@ -99,8 +99,8 @@ export function Desktop({
   appName: string;
   /** The app's menus, after its name in the menu bar. */
   menus?: ReactNode;
-  /** The window's title. */
-  title: string;
+  /** The window's title: a name, or a breadcrumb trail. */
+  title: ReactNode;
   /** Where the title bar's back button goes, when there is somewhere to go back to. */
   back?: { to: string; label: string } | null;
   /** Handed to the pages through useOutletContext. */
@@ -267,7 +267,7 @@ export function Desktop({
               </Link>
             ) : null}
           </div>
-          <p className="truncate text-center text-[13px] font-semibold text-ink">{title}</p>
+          <div className="flex min-w-0 justify-center truncate text-center text-[13px] font-semibold text-ink">{title}</div>
           <div className="flex items-center justify-end gap-1.5">{windowActions}</div>
         </div>
 

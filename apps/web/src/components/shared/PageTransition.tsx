@@ -175,6 +175,9 @@ export function PageTransition({
 
       const url = new URL(anchor.href, window.location.href);
       if (url.origin !== window.location.origin) return;
+      // Route handlers (Exit preview, the OG images) are not pages: the
+      // browser has to request them itself for their cookies and redirects.
+      if (url.pathname.startsWith("/api/")) return;
       // An anchor into the page already open ("#main", "/#home-services"):
       // that is a scroll, not a navigation, and Lenis owns it.
       if (url.pathname === window.location.pathname) return;

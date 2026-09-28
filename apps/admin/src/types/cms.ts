@@ -39,6 +39,8 @@ export interface CollectionSchema {
   references: Record<string, CmsCollection>;
   readonlyKeys: string[];
   publishFlagKey?: string;
+  /** Every field an entry can have, blank (see the API's schemas.ts). */
+  template?: Record<string, unknown>;
 }
 
 /** An editor's "send for review", waiting for an admin. */
