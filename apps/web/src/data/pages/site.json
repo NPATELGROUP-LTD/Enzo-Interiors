@@ -19,14 +19,32 @@
     "headline": {
       "plain": "Live beautifully, designed with intent.",
       "words": [
-        { "text": "Live" },
-        { "text": "beautifully,", "accent": true, "break": true },
-        { "text": "designed" },
-        { "text": "with" },
-        { "text": "intent.", "accent": true }
+        {
+          "text": "Live"
+        },
+        {
+          "text": "beautifully,",
+          "accent": true,
+          "break": true
+        },
+        {
+          "text": "designed"
+        },
+        {
+          "text": "with"
+        },
+        {
+          "text": "intent.",
+          "accent": true
+        }
       ]
     },
-    "pageLinks": ["/", "/services", "/portfolio", "/contact"],
+    "pageLinks": [
+      "/",
+      "/services",
+      "/portfolio",
+      "/contact"
+    ],
     "pagesLabel": "Pages",
     "pagesNavLabel": "Site pages",
     "followLabel": "Follow",
@@ -38,15 +56,25 @@
       "label": "The Studio Letter",
       "placeholder": "Your email address",
       "submitLabel": "Subscribe",
-      "thanks": "Thank you for subscribing with {email}"
+      "thanks": "Nearly there. Check {email} for a link to confirm.",
+      "error": "That did not go through. Check the address and try again."
     },
     "copyright": "© {year} Enzo Interiors. All rights reserved.",
     "madeByPrefix": "Made by",
     "legalNavLabel": "Legal",
     "legalLinks": [
-      { "label": "Privacy Policy", "href": "/privacy" },
-      { "label": "Terms", "href": "/terms" },
-      { "label": "Cookies", "href": "/cookies" }
+      {
+        "label": "Privacy Policy",
+        "href": "/privacy"
+      },
+      {
+        "label": "Terms",
+        "href": "/terms"
+      },
+      {
+        "label": "Cookies",
+        "href": "/cookies"
+      }
     ],
     "cookieSettingsLabel": "Cookie settings"
   },
@@ -93,8 +121,24 @@
     "body": "We are putting the finishing touches to the new site. In the meantime we are still measuring, drawing and building — get in touch and we will talk about your room.",
     "countdownLabel": "Opening in",
     "noDateLabel": "Opening soon",
-    "units": { "days": "Days", "hours": "Hours", "minutes": "Minutes", "seconds": "Seconds" },
+    "units": {
+      "days": "Days",
+      "hours": "Hours",
+      "minutes": "Minutes",
+      "seconds": "Seconds"
+    },
     "launchingLabel": "Opening now — one moment…",
     "contactLabel": "Talk to us today"
+  },
+  "newsletter": {
+    "confirming": "Confirming your email…",
+    "confirmed": "You are on the list. The next Studio Letter will come to you.",
+    "alreadyUnsubscribed": "This address has unsubscribed, so this link no longer signs it up. Sign up again any time.",
+    "unsubscribeHeading": "Unsubscribe from the Studio Letter?",
+    "unsubscribeBody": "You will not get any more newsletters. Nothing else changes.",
+    "unsubscribeButton": "Unsubscribe",
+    "unsubscribed": "Done. You will not hear from us again unless you sign up.",
+    "invalid": "That link is not valid any more. If you meant to sign up, try again from the website.",
+    "homeLabel": "Back to the website"
   }
 }

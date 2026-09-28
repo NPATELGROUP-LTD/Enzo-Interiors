@@ -5,6 +5,7 @@ import {
   Clock,
   EnvelopeSimple,
   Globe,
+  Newspaper,
   PaintBrush,
   Plus,
   UsersThree,
@@ -22,6 +23,7 @@ import { ApiError, api } from '@/lib/api';
 import type { MediaAsset } from '@/types/cms';
 
 import { BookingSchedule } from './settings/BookingSchedule';
+import { Newsletter } from './settings/Newsletter';
 import { OpeningHours } from './settings/OpeningHours';
 import { UsersSection } from './settings/Users';
 
@@ -44,6 +46,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'hours', label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
   { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
+  { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people, Admin or Editor', Icon: UsersThree },
 ];
 
@@ -88,6 +91,7 @@ export function SiteSettingsPage() {
   let pane: ReactNode;
   if (section === 'booking') pane = <BookingSchedule />;
   else if (section === 'hours') pane = <OpeningHours />;
+  else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else pane = <GeneralPane section={section as 'website' | 'brand' | 'emails'} />;
 

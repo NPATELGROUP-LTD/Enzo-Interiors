@@ -1,3 +1,4 @@
+import { ComingSoonNewsletter } from "@/components/coming-soon/ComingSoonNewsletter";
 import { Countdown } from "@/components/coming-soon/Countdown";
 import { getCompany, getPage, type SiteStatus } from "@/lib/content";
 
@@ -9,7 +10,8 @@ import { getCompany, getPage, type SiteStatus } from "@/lib/content";
  * kitchen should still leave with a phone number.
  */
 export async function ComingSoon({ site }: { site: SiteStatus }) {
-  const [{ comingSoon: copy }, company] = await Promise.all([getPage("site"), getCompany()]);
+  const [page, company] = await Promise.all([getPage("site"), getCompany()]);
+  const copy = page.comingSoon;
   // A date already passed still renders: this page can be a cached copy from
   // before launch, and the countdown shows "opening now" and reloads.
   const upcoming = site.launchAt ? new Date(site.launchAt) : null;
@@ -59,6 +61,10 @@ export async function ComingSoon({ site }: { site: SiteStatus }) {
             <Countdown launchAt={upcoming.toISOString()} units={copy.units} launchingLabel={copy.launchingLabel} />
           ) : null}
         </div>
+
+        {/* Hear when it opens — and, before launch, where the newsletter's
+            confirm and unsubscribe links land. */}
+        <ComingSoonNewsletter content={page} />
       </section>
 
       <footer className="flex flex-col gap-4 border-t border-enzo-cream/10 px-6 py-8 text-sm sm:flex-row sm:items-center sm:justify-between sm:px-12">

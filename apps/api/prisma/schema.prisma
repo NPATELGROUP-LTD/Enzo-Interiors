@@ -459,3 +459,53 @@ model Notification {
   @@index([recipient_id, created_at])
   @@map("notifications")
 }
+
+/* -------------------------------------------------------------------------- */
+/* Newsletter                                                                 */
+/* -------------------------------------------------------------------------- */
+
+// Someone who asked for the newsletter. Double opt-in: "pending" until they
+// click the link in the confirmation email; only "confirmed" rows are sent to.
+model NewsletterSubscriber {
+  id              String    @id
+  // Lower-cased and trimmed, so one address is one row.
+  email           String    @unique
+  // "pending" | "confirmed" | "unsubscribed"
+  status          String    @default("pending")
+  // In the confirm and unsubscribe links. Random, never reused.
+  token           String    @unique
+  // Where they signed up: "coming_soon" | "footer".
+  source          String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  // The last confirmation email, so a form cannot be used to mail-bomb someone.
+  confirm_sent_at DateTime? @db.Timestamptz(6)
+  confirmed_at    DateTime? @db.Timestamptz(6)
+  unsubscribed_at DateTime? @db.Timestamptz(6)
+
+  @@index([status, created_at])
+  @@map("newsletter_subscribers")
+}
+
+// One newsletter: its HTML body, and how far sending got.
+model NewsletterCampaign {
+  id           String    @id
+  subject      String
+  // The body as the admin wrote it, already sanitised; wrapped in the branded
+  // shell (logo, address, unsubscribe link) when sent.
+  html         String
+  // "draft" | "sending" | "sent"
+  status       String    @default("draft")
+  recipients   Int       @default(0)
+  sent_count   Int       @default(0)
+  failed_count Int       @default(0)
+  // The last subscriber id handled, so a restart carries on rather than
+  // starting again.
+  cursor       String?
+  created_by   String?
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  sent_at      DateTime? @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@map("newsletter_campaigns")
+}
