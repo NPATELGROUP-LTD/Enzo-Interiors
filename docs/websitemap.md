@@ -68,7 +68,14 @@ Next.js, SSR/SEO-optimized. Shared on every page: **Navbar** (transparent-over-h
 5. Confirmation
 - Footer
 
-### 1.8 404 Not Found — `*` (any unmatched route)
+### 1.8 Quote Builder — `/quote-builder` (standalone prototype, `feature/3d-2d-quote-builder`)
+Not yet linked from the main navigation. Data lives in the browser (localStorage) until `apps/api` exists.
+- `/quote-builder` — choose quick estimate or room planner
+- `/quote-builder/quick` — quick estimate: room type, wall length, door finish → live price range
+- `/quote-builder/plan` — room planner: room (rectangle or L-shape) → drag-and-drop layout with 2D plan / 3D view and finishes per unit → estimate with board cutting diagrams; `?studio=1` shows cost and margin
+- `/quote-builder/admin` — studio catalogue (staff): boards with photos, units with sizes, panel lists and live 3D preview, margin and price-range settings, saved estimates
+
+### 1.9 404 Not Found — `*` (any unmatched route)
 - Branded split-screen error page
 - Link back to Home
 
