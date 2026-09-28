@@ -125,7 +125,9 @@ export function PortfolioClose({
               className="mt-6 max-w-[16ch] font-title font-semibold leading-[1.0] tracking-[-0.045em]"
               style={{ fontSize: "clamp(2.2rem, 5vw, 3.8rem)" }}
             >
-              {fill(content.heading, { count: items.length })}
+              {items.length
+                ? fill(content.heading, { count: items.length })
+                : (content.emptyHeading ?? "Our latest rooms are being photographed.")}
             </h2>
           </div>
 

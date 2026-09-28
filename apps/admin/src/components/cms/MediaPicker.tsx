@@ -2,7 +2,7 @@ import clsx from 'clsx';
 import { Image as ImageIcon, UploadSimple, X } from '@phosphor-icons/react';
 import { useMemo, useRef, useState, type ChangeEvent } from 'react';
 
-import { Button, EmptyState, Input, LoadingState, Modal } from '@/components/ui';
+import { Button, EmptyState, ErrorState, Input, LoadingState, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -216,8 +216,10 @@ export function MediaPicker({ open, onClose, value, multiple, onChange, title, o
           </Button>
         </div>
 
-        {assets.loading ? (
+        {assets.loading && !assets.data ? (
           <LoadingState label="Loading the image library…" />
+        ) : assets.error ? (
+          <ErrorState message={assets.error} onRetry={assets.refetch} />
         ) : filtered.length === 0 ? (
           <EmptyState
             title={search ? 'Nothing matches that' : 'No images yet'}

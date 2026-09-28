@@ -484,7 +484,16 @@ export function CollectionPage({
           message={
             search
               ? `Nothing in ${schema.label.toLowerCase()} mentions “${search.trim()}”.`
-              : `Add the first ${schema.singular} to get started.`
+              : isAdmin && !schema.fixed
+                ? `Add the first ${schema.singular} to get started.`
+                : `Nothing has been added yet. An Admin can add the first ${schema.singular}.`
+          }
+          action={
+            !search && isAdmin && !schema.fixed ? (
+              <Button variant="primary" onClick={() => setCreating(true)} icon={<Plus size={16} />}>
+                New {schema.singular}
+              </Button>
+            ) : null
           }
         />
       ) : (
