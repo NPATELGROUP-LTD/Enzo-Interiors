@@ -60,7 +60,10 @@ import type {
   Testimonial,
 } from "./types";
 
+import { hoursRows, type OpeningHoursSetting } from "./hours";
+
 export type * from "./types";
+export type { OpeningHoursSetting } from "./hours";
 
 /**
  * Fills `{token}` placeholders. Copy that has to carry a number or a name is
@@ -89,8 +92,17 @@ export interface SiteStatus {
   /** ISO time. Once passed, the site is live whatever `status` says. */
   launchAt: string | null;
   /** Media ids set in the admin's Settings; missing or null = the shipped ones. */
-  brand?: { logoLight: string | null; logoDark: string | null; favicon: string | null };
+  brand?: {
+    logoLight: string | null;
+    logoDark: string | null;
+    favicon: string | null;
+    faviconDark?: string | null;
+  };
+  /** Settings › Opening hours; missing or null = the company record's hours. */
+  openingHours?: OpeningHoursSetting | null;
 }
+
+
 
 /** The one rule for "is the public site open", shared by layout, robots and sitemap. */
 export function isLive(site: SiteStatus, now = Date.now()): boolean {
@@ -382,18 +394,22 @@ function resolve(bundle: Bundle): Resolved {
     image: mediaSrc(row.imageId),
   }));
 
+  // Settings › Opening hours wins; the company record's hours are what the
+  // site had before that page existed, and what an older API sends.
+  const opening = bundle.site.openingHours ?? null;
+  const weekly: Record<string, Array<{ open: string; close: string }>> = opening?.weekly ?? bundle.company.hours.weekly;
   const hours: StudioHours = {
     weekly: Object.fromEntries(
       DAY_ORDER.map((day, index) => [
         index,
-        (bundle.company.hours.weekly[day] ?? []).map<HoursWindow>((window) => ({
+        (weekly[day] ?? []).map<HoursWindow>((window) => ({
           open: toMinutes(window.open),
           close: toMinutes(window.close),
         })),
       ]),
     ),
-    rows: bundle.company.hours.rows,
-    note: bundle.company.hours.note,
+    rows: opening ? hoursRows(opening, bundle.company.hours.closedLabel ?? "Closed") : bundle.company.hours.rows,
+    note: opening ? opening.note : bundle.company.hours.note,
     status: bundle.company.hours.status,
   };
 

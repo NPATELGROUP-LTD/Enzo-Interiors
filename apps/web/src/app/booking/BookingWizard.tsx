@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 import { Honeypot } from "@/components/shared/Honeypot";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
+import { OpeningHoursList } from "@/components/shared/OpeningHoursList";
 import {
   SlotTakenError,
   fetchAvailability,
@@ -37,6 +38,7 @@ import {
   fill,
   type BookingPageContent,
   type MediaItem,
+  type StudioHours,
   type Testimonial,
 } from "@/lib/content";
 
@@ -93,6 +95,7 @@ export function BookingWizard({
   backgroundImage,
   quote,
   logos,
+  hours,
 }: {
   initialService?: string;
   initialTier?: string;
@@ -102,6 +105,8 @@ export function BookingWizard({
   /** The panel's review, by id — the same record /portfolio quotes. */
   quote: Testimonial | null;
   logos: { onLight: MediaItem; onDark: MediaItem };
+  /** The studio's opening hours, printed under the calendar. */
+  hours: StudioHours;
 }) {
   const [today] = useState(studioToday);
   const [step, setStep] = useState(1);
@@ -461,6 +466,12 @@ export function BookingWizard({
                         : ""}
                   </p>
                 </div>
+                <OpeningHoursList
+                  label={content.calendar.hoursLabel ?? "Studio hours"}
+                  rows={hours.rows}
+                  note={hours.note}
+                  className="mt-8 max-w-md"
+                />
               </StepWrapper>
             )}
 

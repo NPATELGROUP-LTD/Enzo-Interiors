@@ -6,7 +6,7 @@ import "@/styles/theme.css";
 import { ComingSoon } from "@/components/coming-soon/ComingSoon";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
-import { getPage, getSiteStatus, isLive, mediaSrc } from "@/lib/content";
+import { getPage, getSiteStatus, isLive, mediaSrc, type SiteStatus } from "@/lib/content";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
@@ -45,6 +45,22 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 /**
+ * The favicons chosen in the admin's Settings, else the ones in public/.
+ * The dark one is listed last with a media query: a browser in dark mode
+ * matches both and takes the last, one in light mode only matches the first.
+ * A custom light icon without a dark one is used for both, rather than
+ * pairing it with the shipped dark icon of a different design.
+ */
+function favicons(brand: SiteStatus["brand"]): NonNullable<Metadata["icons"]> {
+  const light = brand?.favicon ? mediaSrc(brand.favicon) : "/icon.png";
+  const dark = brand?.faviconDark ? mediaSrc(brand.faviconDark) : brand?.favicon ? null : "/icon-dark.png";
+  return {
+    icon: [{ url: light }, ...(dark ? [{ url: dark, media: "(prefers-color-scheme: dark)" }] : [])],
+    apple: brand?.favicon ? light : "/apple-icon.png",
+  };
+}
+
+/**
  * Site-wide defaults. Each page's own generateMetadata adds its canonical,
  * title and share card on top (see lib/seo.ts).
  */
@@ -56,10 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: metadata.title,
     description: metadata.description,
     applicationName: SITE_NAME,
-    // The favicon chosen in the admin's Settings, else the one in public/.
-    icons: site.brand?.favicon
-      ? { icon: mediaSrc(site.brand.favicon), apple: mediaSrc(site.brand.favicon) }
-      : { icon: "/icon.png", apple: "/apple-icon.png" },
+    icons: favicons(site.brand),
     openGraph: { type: "website", locale: "en_GB", siteName: SITE_NAME, images: ["/og/home"] },
     twitter: { card: "summary_large_image", images: ["/og/home/twitter"] },
     // Before launch every address is the coming-soon page; none of it

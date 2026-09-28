@@ -227,12 +227,13 @@ const FIELD_LABELS: Record<string, string> = {
 /**
  * Keys the editor no longer shows. Their data stays (nothing is deleted), but
  * something else now controls what they did: the booking page's times come
- * from Settings › Booking, and the logos from Settings › Logo & icon.
+ * from Settings › Booking, the logos from Settings › Logo & icon, and the
+ * opening hours from Settings › Opening hours (their wording stays here).
  */
 export const RETIRED: Partial<Record<string, string[]>> = {
   // hero.transitions: the chapters between hero rooms were removed from the site.
   pages: ['timeSlots', 'wordmark', 'hero.transitions'],
-  company: ['logos'],
+  company: ['logos', 'hours.weekly', 'hours.rows', 'hours.note'],
 };
 
 /** Where each kind of shared content shows up on the site, for the overview. */

@@ -233,7 +233,7 @@ export const CMS_SCHEMAS: CollectionSchema[] = [
     label: 'Company details',
     singular: 'company details',
     description:
-      'Phone, email, address, opening hours, social links and logos. These appear in the header, the footer and the contact page.',
+      'Phone, email, address, social links and the wording around the opening hours. These appear in the header, the footer and the contact page. The hours themselves and the logos are in Settings.',
     fixed: true,
     titleField: 'name',
     listColumns: [],

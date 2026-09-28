@@ -1139,6 +1139,14 @@ export function EntryPage({
             ) : (
               'Settings › Logo & icon'
             )}
+            , and the opening hours in{' '}
+            {isAdmin ? (
+              <Link to="/settings/hours" className="text-link">
+                Settings › Opening hours
+              </Link>
+            ) : (
+              'Settings › Opening hours'
+            )}
             .
           </p>
         ) : null}
