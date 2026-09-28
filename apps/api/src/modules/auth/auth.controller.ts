@@ -34,8 +34,8 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
   @Post('admin/reset-password')
   @HttpCode(204)
-  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
-    await this.auth.resetPassword(dto.token, dto.new_password);
+  async resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string): Promise<void> {
+    await this.auth.resetPassword(dto.token, dto.new_password, ip);
   }
 
   /**

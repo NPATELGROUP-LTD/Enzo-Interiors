@@ -59,7 +59,8 @@ export async function sendBooking(booking: Booking, fallbackError: string): Prom
   if (!response.ok) {
     // A 400 carries the API's own plain-English reason ("Enter your phone number.").
     const message = Array.isArray(json?.message) ? json.message[0] : json?.message;
-    throw new Error(response.status === 400 && message ? message : fallbackError);
+    // So does a 429 ("Too many attempts. Try again in 3 minutes.").
+    throw new Error((response.status === 400 || response.status === 429) && message ? message : fallbackError);
   }
   return { reference: json?.reference };
 }

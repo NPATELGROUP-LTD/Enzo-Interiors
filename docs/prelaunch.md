@@ -106,3 +106,34 @@ Keeping upgrades backward compatible is a rule for migrations, not for Docker:
       `ADMIN_PASSWORD` in `.env` is only used on the very first boot.
 - [ ] Settings → Logo & icon: confirm both logos, and choose a favicon if the
       built-in one is not wanted.
+
+## Rate limits
+
+Three layers; each catches what the one below cannot.
+
+1. **Cloudflare (the edge).** Floods and bots stop here, before the home
+   server. In the Cloudflare dashboard for the domain:
+   - [ ] Security → WAF → turn on the **Cloudflare Managed Ruleset** (free plans get the free managed rules).
+   - [ ] Security → Bots → **Bot Fight Mode** on.
+   - [ ] Security → WAF → **Rate limiting rules**: one rule, for requests whose
+         path starts with `/auth/`, `/booking`, `/enquiries` or `/newsletter`
+         and method is `POST` — 20 requests per 10 seconds per IP → Block for
+         10 minutes (as many rules as the plan allows; this one matters most).
+   - [ ] Caching → Cache Rules: cache `/og/*` and `/_next/static/*` at the edge.
+   - [ ] Keep **Under Attack Mode** in mind for a live attack (Overview page).
+2. **The API** (`@nestjs/throttler`, counters in Redis): 300 requests a
+   minute per IP overall, and tighter per route on every public write
+   (sign-in, reset, enquiry, booking, newsletter). Sign-in also locks an
+   address+IP pair progressively (5 failures → 1 min, 10 → 15 min, 15 → 1 h)
+   and an address after 50 failures from anywhere (15 min; a password reset
+   lifts it). Password-reset emails: 3 an hour per address. 429s carry
+   `Retry-After` and a message the admin and website show as-is.
+   - [ ] Run the `redis` service (in `docker-compose.yml`, or a Coolify Redis
+         resource) and set `REDIS_URL` on the API. Without it limits still
+         work, per process, and reset on restart.
+   - [ ] `TRUST_PROXY` set to the number of proxies in front of the API
+         (Cloudflare Tunnel → Coolify proxy = 2), or every visitor shares one
+         limit — the proxy's.
+3. **The forms**: a honeypot field on each public form. If spam still gets
+   through, add Cloudflare Turnstile to the forms next.
+

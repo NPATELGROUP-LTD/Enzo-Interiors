@@ -3,6 +3,8 @@
  * public address. The API answers a sign-up the same way whether or not the
  * address is already on the list.
  */
+import { tooMany } from "@/lib/enquiry";
+
 const API = (process.env.NEXT_PUBLIC_API_PUBLIC_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000").replace(/\/+$/, "");
 
 export type NewsletterSource = "coming_soon" | "footer";
@@ -15,10 +17,11 @@ async function post(path: string, body: unknown): Promise<Response> {
   });
 }
 
-/** Resolves once the confirmation email is on its way; rejects on anything else. */
+/** Resolves once the confirmation email is on its way; rejects with the API's message for a 429, else an empty one. */
 export async function subscribe(email: string, source: NewsletterSource, website: string): Promise<void> {
   const response = await post("/newsletter", { email: email.trim(), source, website: website || undefined });
-  if (!response.ok) throw new Error(String(response.status));
+  if (response.status === 429) throw new Error(await tooMany(response, ""));
+  if (!response.ok) throw new Error("");
 }
 
 /** "confirmed", "unsubscribed" (an old link), or "invalid". */
