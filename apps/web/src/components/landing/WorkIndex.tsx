@@ -127,6 +127,8 @@ export function WorkIndex({ items, content }: WorkIndexProps) {
     { queries: { desktop: "(min-width: 1024px)" } },
   );
 
+  if (!items.length) return null;
+
   return (
     <section ref={sectionRef} id="home-work"
       aria-labelledby="work-heading" className="relative bg-enzo-white scroll-mt-24">

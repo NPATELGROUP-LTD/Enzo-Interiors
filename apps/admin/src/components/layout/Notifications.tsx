@@ -35,19 +35,24 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
   const navigate = useNavigate();
   const [items, setItems] = useState<Note[]>([]);
   const [unread, setUnread] = useState(0);
+  /** Null until the first answer; then whether the last load worked. */
+  const [loaded, setLoaded] = useState<boolean | null>(null);
   const menu = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
       const result = await api.get<{ items: Note[]; unread: number }>('/notifications');
       setItems(result.items);
+      setLoaded(true);
       setUnread((before) => {
         // Something new arrived: let the screens behind refresh their counts.
         if (result.unread > before) onChange?.();
         return result.unread;
       });
     } catch {
-      /* Offline or signed out: the bell just stays as it was. */
+      // Offline or signed out: what was already shown stays, and an empty
+      // bell says it could not load rather than that nothing happened.
+      setLoaded(false);
     }
   }, [onChange]);
 
@@ -108,9 +113,20 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
         </div>
         <div className="my-1 h-px bg-border" />
         {items.length === 0 ? (
-          <p className="px-2 py-6 text-center text-[13px] text-ink-muted">
-            New bookings and review requests will show up here.
-          </p>
+          <div className="px-2 py-6 text-center text-[13px] text-ink-muted" role="status">
+            {loaded === null ? (
+              'Loading…'
+            ) : loaded ? (
+              'Nothing yet. New bookings and review requests will show up here.'
+            ) : (
+              <>
+                Could not load notifications.{' '}
+                <button type="button" onClick={() => void load()} className="text-link">
+                  Try again
+                </button>
+              </>
+            )}
+          </div>
         ) : (
           <ul className="max-h-[min(28rem,calc(100dvh-6rem))] overflow-y-auto">
             {items.map((item) => {

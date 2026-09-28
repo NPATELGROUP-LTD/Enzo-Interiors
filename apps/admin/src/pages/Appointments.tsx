@@ -150,7 +150,20 @@ export function AppointmentsPage() {
       {groups.length === 0 ? (
         <EmptyState
           title={tab === 'upcoming' ? 'Nothing booked yet' : tab === 'past' ? 'No past bookings' : 'Nothing cancelled'}
-          message={tab === 'upcoming' ? 'Bookings made on the website appear here straight away.' : ''}
+          message={
+            tab === 'upcoming'
+              ? 'Bookings made on the website appear here straight away.'
+              : tab === 'past'
+                ? 'Consultations move here once they have happened.'
+                : 'Cancelled bookings are kept here for the record.'
+          }
+          action={
+            tab === 'upcoming' ? (
+              <Button variant="primary" icon={<CalendarPlus size={16} />} onClick={() => setCreating(true)}>
+                New booking
+              </Button>
+            ) : null
+          }
         />
       ) : (
         <div className="mt-2 flex flex-col gap-8">

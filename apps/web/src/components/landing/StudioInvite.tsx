@@ -192,6 +192,7 @@ export function StudioInvite({ items, content, company }: StudioInviteProps) {
           </a>
         </div>
 
+        {items.length ? (
         <div
           aria-hidden="true"
           className="flex flex-col gap-3 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_7%,black_93%,transparent)] md:gap-4"
@@ -232,6 +233,7 @@ export function StudioInvite({ items, content, company }: StudioInviteProps) {
             </div>
           ))}
         </div>
+        ) : null}
       </div>
 
       {/* The ask, lifted into the rows above it. The negative top margin is

@@ -7,13 +7,28 @@
   "masthead": {
     "eyebrow": "01 — Archive",
     "countLabel": "{count} finished",
-    "lines": ["Every room", "we have finished."],
+    "lines": [
+      "Every room",
+      "we have finished."
+    ],
     "chooseLabel": "Choose a room",
     "figures": [
-      { "key": "rooms", "label": "Rooms finished" },
-      { "key": "disciplines", "label": "Disciplines" },
-      { "key": "towns", "label": "Towns & villages" },
-      { "key": "years", "label": "Years" }
+      {
+        "key": "rooms",
+        "label": "Rooms finished"
+      },
+      {
+        "key": "disciplines",
+        "label": "Disciplines"
+      },
+      {
+        "key": "towns",
+        "label": "Towns & villages"
+      },
+      {
+        "key": "years",
+        "label": "Years"
+      }
     ]
   },
   "wall": {
@@ -21,7 +36,10 @@
     "index": "02",
     "label": "Wall",
     "datum": "{count} shown",
-    "lines": ["All of it,", "on one wall."],
+    "lines": [
+      "All of it,",
+      "on one wall."
+    ],
     "lede": "Filter by discipline and the wall rearranges rather than reloading. Any tile opens its case study.",
     "allLabel": "All work",
     "filterGroupLabel": "Filter by discipline",
@@ -35,15 +53,30 @@
     "index": "03",
     "label": "In full",
     "datum": "{category} · {year}",
-    "lines": ["One of them,", "taken apart."],
+    "lines": [
+      "One of them,",
+      "taken apart."
+    ],
     "lede": "The wall above is nine thumbnails. This is what is behind one of them — who it was for, how long we were in their house, what it is made of, and what actually got decided.",
     "ledeShort": "What is behind one of those thumbnails: who, where, how long, and what it is made of.",
     "captionMeta": "{location} · {duration} on site",
     "facts": [
-      { "key": "client", "label": "Client" },
-      { "key": "location", "label": "Where" },
-      { "key": "duration", "label": "On site" },
-      { "key": "year", "label": "Finished" }
+      {
+        "key": "client",
+        "label": "Client"
+      },
+      {
+        "key": "location",
+        "label": "Where"
+      },
+      {
+        "key": "duration",
+        "label": "On site"
+      },
+      {
+        "key": "year",
+        "label": "Finished"
+      }
     ],
     "runnerUpLabel": "Also on the bench",
     "specifiedLabel": "Specified",
@@ -70,17 +103,30 @@
     ],
     "footerNote": "Answer them in about a minute. We reply the same working day, and the survey after it is free with nothing to sign.",
     "ctaLabel": "Answer the three",
-    "ctaHref": "/contact#contact-docket"
+    "ctaHref": "/contact#contact-docket",
+    "emptyHeading": "Our latest rooms are being photographed. Yours could be the first we show."
   },
   "caseStudy": {
     "closeLabel": "Close case study",
     "position": "{index} / {total}",
     "specifiedLabel": "Specified",
     "spec": [
-      { "key": "client", "label": "Client" },
-      { "key": "location", "label": "Location" },
-      { "key": "duration", "label": "On site" },
-      { "key": "year", "label": "Completed" }
+      {
+        "key": "client",
+        "label": "Client"
+      },
+      {
+        "key": "location",
+        "label": "Location"
+      },
+      {
+        "key": "duration",
+        "label": "On site"
+      },
+      {
+        "key": "year",
+        "label": "Completed"
+      }
     ],
     "previousLabel": "Previous",
     "nextLabel": "Next",

@@ -356,6 +356,13 @@ export function BookingSchedule() {
           What can be booked
         </h3>
         <p className={HELP}>Leave all unticked to take bookings for every service on the website.</p>
+        {services.error ? (
+          <ErrorState message={services.error} onRetry={services.refetch} />
+        ) : services.data && published.length === 0 ? (
+          <p className="mt-4 text-sm text-ink-muted">
+            No services are published yet. Publish one in CMS › Services and it can be booked here.
+          </p>
+        ) : null}
         <div className="mt-4 flex flex-wrap gap-x-6 gap-y-3">
           {published.map((row) => (
             <label key={row.slug} className="flex min-h-9 items-center gap-2 text-sm text-ink">

@@ -184,21 +184,30 @@ const REVALIDATE_SECONDS = Number(process.env.CONTENT_REVALIDATE_SECONDS ?? 3600
  * Merged rather than replaced so that a collection the CMS has no published
  * rows for — a fresh database, a half-finished import — shows the shipped
  * content instead of an empty page. The site is never blank because of us.
+ *
+ * Once the CMS holds the company record it has been imported, and an empty
+ * showcase list (reviews, projects, team, questions) is somebody's decision:
+ * it stays empty and its section hides, rather than bringing back the
+ * shipped examples that were deleted. Services, the menu and the images stay
+ * guarded, because the site's routes and every picture depend on them.
  */
 function merge(raw: Partial<Bundle> | null): Bundle {
   if (!raw) return FALLBACK;
   const nonEmpty = <T,>(value: T[] | undefined, fallback: T[]): T[] =>
     Array.isArray(value) && value.length > 0 ? value : fallback;
+  const seeded = !!raw.company;
+  const showcase = <T,>(value: T[] | undefined, fallback: T[]): T[] =>
+    seeded && Array.isArray(value) ? value : nonEmpty(value, fallback);
 
   return {
     site: raw.site ?? FALLBACK.site,
     company: raw.company ?? FALLBACK.company,
     media: nonEmpty(raw.media, FALLBACK.media),
     services: nonEmpty(raw.services, FALLBACK.services),
-    portfolio: nonEmpty(raw.portfolio, FALLBACK.portfolio),
-    testimonials: nonEmpty(raw.testimonials, FALLBACK.testimonials),
-    team: nonEmpty(raw.team, FALLBACK.team),
-    faqs: nonEmpty(raw.faqs, FALLBACK.faqs),
+    portfolio: showcase(raw.portfolio, FALLBACK.portfolio),
+    testimonials: showcase(raw.testimonials, FALLBACK.testimonials),
+    team: showcase(raw.team, FALLBACK.team),
+    faqs: showcase(raw.faqs, FALLBACK.faqs),
     navigation: nonEmpty(raw.navigation, FALLBACK.navigation),
     publishedAt: raw.publishedAt ?? {},
     // Section by section, so a section added to src/data renders from the
