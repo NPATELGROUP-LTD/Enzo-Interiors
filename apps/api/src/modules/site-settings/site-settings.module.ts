@@ -22,6 +22,7 @@ import {
   IsEmail,
   IsIn,
   IsISO8601,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -29,12 +30,13 @@ import {
 } from 'class-validator';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
-import { SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
+import { OpeningHours, SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
 import { RevalidateService } from '../../core/revalidate.service';
 import { DatabaseService } from '../../data/database.service';
+import { fromCompany, parseOpeningHours } from './opening-hours';
 
 const ID = 'site';
 const PREVIEW_AUDIENCE = 'preview';
@@ -59,6 +61,13 @@ export class UpdateSiteSettingsDto {
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) logo_light_id?: string | null;
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) logo_dark_id?: string | null;
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) favicon_id?: string | null;
+  @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) favicon_dark_id?: string | null;
+}
+
+export class OpeningHoursDto {
+  /** Checked field by field in parseOpeningHours. */
+  @IsObject()
+  hours!: Record<string, unknown>;
 }
 
 export class PreviewDto {
@@ -72,10 +81,12 @@ export interface PublicSiteStatus {
   status: SiteStatus;
   launchAt: string | null;
   /** Media ids; null = what the site ships with. */
-  brand: { logoLight: string | null; logoDark: string | null; favicon: string | null };
+  brand: { logoLight: string | null; logoDark: string | null; favicon: string | null; faviconDark: string | null };
+  /** Null = the company record's hours (nothing saved in Settings yet). */
+  openingHours: OpeningHours | null;
 }
 
-const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id'] as const;
+const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id', 'favicon_dark_id'] as const;
 
 /**
  * General site settings: whether the public site is live or showing its
@@ -106,6 +117,8 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       logo_light_id: 'logo-forest',
       logo_dark_id: 'logo-white',
       favicon_id: null,
+      favicon_dark_id: null,
+      opening_hours: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
     });
@@ -116,8 +129,41 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     return {
       status: row.status,
       launchAt: row.launch_at,
-      brand: { logoLight: row.logo_light_id, logoDark: row.logo_dark_id, favicon: row.favicon_id },
+      brand: {
+        logoLight: row.logo_light_id,
+        logoDark: row.logo_dark_id,
+        favicon: row.favicon_id,
+        faviconDark: row.favicon_dark_id,
+      },
+      openingHours: row.opening_hours,
     };
+  }
+
+  /** The hours Settings edits: what was saved, else the company record's. */
+  async openingHours(): Promise<{ hours: OpeningHours; saved: boolean }> {
+    const row = await this.get();
+    if (row.opening_hours) return { hours: row.opening_hours, saved: true };
+    const company = await this.db.cmsEntries.findOne((entry) => entry.collection === 'company');
+    return { hours: fromCompany(company?.published ?? company?.draft), saved: false };
+  }
+
+  async saveOpeningHours(principal: AuthPrincipal, dto: OpeningHoursDto): Promise<{ hours: OpeningHours; saved: boolean }> {
+    await this.get();
+    const hours = parseOpeningHours(dto.hours);
+    await this.db.siteSettings.update(ID, {
+      opening_hours: hours,
+      updated_at: new Date().toISOString(),
+      updated_by: principal.name,
+    });
+    await this.activity.record({
+      principal,
+      action: 'opening_hours_update',
+      targetTable: 'site_settings',
+      targetId: ID,
+      details: {},
+    });
+    await this.revalidate.ping('opening hours');
+    return { hours, saved: true };
   }
 
   /** Where enquiries go: the configured list, else the bootstrap admin. */
@@ -239,6 +285,18 @@ export class SiteSettingsController {
   @Roles('Admin')
   update(@CurrentUser() principal: AuthPrincipal, @Body() dto: UpdateSiteSettingsDto) {
     return this.settings.update(principal, dto);
+  }
+
+  @Get('settings/opening-hours')
+  @Roles('Admin')
+  openingHours() {
+    return this.settings.openingHours();
+  }
+
+  @Put('settings/opening-hours')
+  @Roles('Admin')
+  saveOpeningHours(@CurrentUser() principal: AuthPrincipal, @Body() dto: OpeningHoursDto) {
+    return this.settings.saveOpeningHours(principal, dto);
   }
 
   @Post('settings/test-email')

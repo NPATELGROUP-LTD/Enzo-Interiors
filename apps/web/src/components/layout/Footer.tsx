@@ -57,13 +57,16 @@ function HoursList({
             <span className={cn("tabular-nums text-enzo-cream/70", row.time === "Closed" && "text-enzo-cream/65")}>
               {row.time}
             </span>
+            {row.note ? <span className="basis-full text-[12px] text-enzo-sand">{row.note}</span> : null}
           </div>
         ))}
       </div>
-      <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/70">
-        <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
-        {note}
-      </p>
+      {note ? (
+        <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed text-enzo-cream/70">
+          <Phone className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-enzo-sand" />
+          {note}
+        </p>
+      ) : null}
     </div>
   );
 }

@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import {
   ArrowSquareOut,
   CalendarBlank,
+  Clock,
   EnvelopeSimple,
   Globe,
   PaintBrush,
@@ -21,6 +22,7 @@ import { ApiError, api } from '@/lib/api';
 import type { MediaAsset } from '@/types/cms';
 
 import { BookingSchedule } from './settings/BookingSchedule';
+import { OpeningHours } from './settings/OpeningHours';
 import { UsersSection } from './settings/Users';
 
 interface SiteSettings {
@@ -30,6 +32,7 @@ interface SiteSettings {
   logo_light_id: string | null;
   logo_dark_id: string | null;
   favicon_id: string | null;
+  favicon_dark_id: string | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -38,6 +41,7 @@ interface SiteSettings {
 export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = [
   { id: 'website', label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
   { id: 'brand', label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
+  { id: 'hours', label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
   { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
   { id: 'users', label: 'Users', detail: 'Invite people, Admin or Editor', Icon: UsersThree },
@@ -83,6 +87,7 @@ export function SiteSettingsPage() {
 
   let pane: ReactNode;
   if (section === 'booking') pane = <BookingSchedule />;
+  else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'users') pane = <UsersSection />;
   else pane = <GeneralPane section={section as 'website' | 'brand' | 'emails'} />;
 
@@ -137,10 +142,13 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
   const [status, setStatus] = useState<SiteSettings['status']>('coming_soon');
   const [launch, setLaunch] = useState('');
   const [emails, setEmails] = useState<string[]>([]);
-  const [brand, setBrand] = useState<Pick<SiteSettings, 'logo_light_id' | 'logo_dark_id' | 'favicon_id'>>({
+  const [brand, setBrand] = useState<
+    Pick<SiteSettings, 'logo_light_id' | 'logo_dark_id' | 'favicon_id' | 'favicon_dark_id'>
+  >({
     logo_light_id: null,
     logo_dark_id: null,
     favicon_id: null,
+    favicon_dark_id: null,
   });
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -156,6 +164,7 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
       logo_light_id: settings.data.logo_light_id,
       logo_dark_id: settings.data.logo_dark_id,
       favicon_id: settings.data.favicon_id,
+      favicon_dark_id: settings.data.favicon_dark_id,
     });
   }, [settings.data]);
 
@@ -169,7 +178,8 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
       cleanEmails.join(',') !== saved.notification_emails.join(',') ||
       brand.logo_light_id !== saved.logo_light_id ||
       brand.logo_dark_id !== saved.logo_dark_id ||
-      brand.favicon_id !== saved.favicon_id);
+      brand.favicon_id !== saved.favicon_id ||
+      brand.favicon_dark_id !== saved.favicon_dark_id);
 
   if (settings.error) return <ErrorState message={settings.error} onRetry={settings.refetch} />;
   if (!saved) return <LoadingState label="Loading settings…" />;
@@ -353,6 +363,16 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
                 </p>
               )}
             </div>
+            <MediaField
+              label="Browser-tab icon in dark mode (optional)"
+              hint="Shown instead when someone's browser or computer is set to dark mode, where a dark icon can disappear against a dark tab. Leave empty to use the icon above everywhere."
+              value={brand.favicon_dark_id ? [brand.favicon_dark_id] : []}
+              logo="dark"
+              multiple={false}
+              onChange={pick('favicon_dark_id')}
+              assets={assets.data ?? []}
+              onAssetsChanged={() => void assets.refetch()}
+            />
           </div>
         </>
       ) : null}

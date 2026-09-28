@@ -119,6 +119,8 @@ export interface HoursWindow {
 export interface HoursRow {
   day: string;
   time: string;
+  /** A note for this day alone, set in Settings › Opening hours. */
+  note?: string;
 }
 
 export interface StudioHours {

@@ -445,8 +445,22 @@ export interface SiteSettings extends BaseRecord {
   logo_light_id: string | null;
   logo_dark_id: string | null;
   favicon_id: string | null;
+  /** Dark-mode favicon; null = favicon_id for both. */
+  favicon_dark_id: string | null;
+  /** Null until saved in Settings; the company record's hours until then. */
+  opening_hours: OpeningHours | null;
   updated_at: string;
   updated_by: string | null;
+}
+
+/** Keyed by lower-case weekday name, "monday" … "sunday". */
+export interface OpeningHours {
+  /** "HH:MM" windows, in order. An empty list is a closed day. */
+  weekly: Record<string, Array<{ open: string; close: string }>>;
+  /** A note beside one day ("Late opening"). Days without one are left out. */
+  notes: Record<string, string>;
+  /** One note under the whole list. */
+  note: string;
 }
 
 /* -------------------------------------------------------------------------- */

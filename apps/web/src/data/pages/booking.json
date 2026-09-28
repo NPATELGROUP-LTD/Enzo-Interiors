@@ -100,7 +100,8 @@
     "error": "We could not load the calendar. Please try again, or call or email us.",
     "retry": "Try again",
     "previous": "Previous month",
-    "next": "Next month"
+    "next": "Next month",
+    "hoursLabel": "Studio hours"
   },
   "logoLabel": "Enzo Interiors home"
 }

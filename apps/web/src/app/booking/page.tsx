@@ -82,6 +82,7 @@ export default async function BookingPage({
       backgroundImage={media(content.backgroundImageId)}
       quote={quote}
       logos={company.logos}
+      hours={company.hours}
     />
   );
 }

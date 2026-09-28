@@ -380,6 +380,11 @@ model SiteSettings {
   logo_light_id       String?   @default("logo-forest")
   logo_dark_id        String?   @default("logo-white")
   favicon_id          String?
+  // Shown in browsers set to dark mode; null = favicon_id for both.
+  favicon_dark_id     String?
+  // The studio's opening hours: { weekly, notes, note }. Null until first
+  // saved in Settings, and until then the company record's hours are used.
+  opening_hours       Json?
   updated_at          DateTime  @default(now()) @db.Timestamptz(6)
   updated_by          String?
 
