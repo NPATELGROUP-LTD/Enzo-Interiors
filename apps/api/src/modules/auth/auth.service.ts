@@ -14,7 +14,9 @@ import * as bcrypt from 'bcryptjs';
 
 import { StaffUser } from '../../common/types/domain';
 import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
+import { waitFor } from '../../common/guards/throttle.guard';
 import { MailService, templates } from '../../core/mail.service';
+import { RateLimitStore } from '../../core/rate-limit';
 import { DatabaseService } from '../../data/database.service';
 
 export interface LoginResult {
@@ -63,9 +65,18 @@ export function digest(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
-/** Failed sign-ins allowed per address+IP before that pair is locked for LOCK_MS. */
-const MAX_FAILURES = 5;
-const LOCK_MS = 15 * 60 * 1000;
+/**
+ * Sign-in lockout. Per address+IP it is progressive: every 5 failures within
+ * the hour lock that pair for longer (1 minute, 15 minutes, then an hour).
+ * Per address alone there is a ceiling, for guessing spread across many IPs:
+ * 50 failures within the hour lock the account for 15 minutes from anywhere.
+ * A password reset (which proves the mailbox) lifts it.
+ */
+const FAILURES_PER_STEP = 5;
+const LOCK_STEPS = [60_000, 15 * 60_000, 60 * 60_000];
+const FAILURE_WINDOW = 60 * 60_000;
+const ACCOUNT_FAILURES = 50;
+const ACCOUNT_LOCK = 15 * 60_000;
 const RESET_TTL_MS = 30 * 60 * 1000;
 
 /**
@@ -78,17 +89,13 @@ const RESET_TTL_MS = 30 * 60 * 1000;
 @Injectable()
 export class AuthService implements OnApplicationBootstrap {
   private readonly logger = new Logger(AuthService.name);
-  // ponytail: in-memory and per-process, so it resets on restart and is not
-  // shared between replicas. v1 runs one API container; move this to the
-  // database or Redis if that changes. The throttler caps attempts per IP on
-  // top of this.
-  private readonly failures = new Map<string, { count: number; since: number; lockedUntil: number }>();
   private readonly adminUrl = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
 
   constructor(
     private readonly db: DatabaseService,
     private readonly jwt: JwtService,
     private readonly mail: MailService,
+    private readonly limits: RateLimitStore,
   ) {}
 
   /**
@@ -127,49 +134,40 @@ export class AuthService implements OnApplicationBootstrap {
 
   /* ---- Lockout ---- */
 
-  /**
-   * Keyed on IP + address, not address alone: keyed on the address, anyone
-   * could lock the owner out of their own admin by typing their email wrong
-   * five times from anywhere.
-   */
-  private lockKey(email: string, ip: string): string {
-    return `${ip}|${email}`;
+  // Keyed on IP + address as well as address alone: keyed only on the
+  // address, anyone could lock the owner out by typing their email wrong five
+  // times from anywhere. The address-wide ceiling is ten times higher.
+
+  private async assertNotLocked(email: string, ip: string): Promise<void> {
+    const wait = Math.max(
+      await this.limits.remaining(`login:lock:${ip}|${email}`),
+      await this.limits.remaining(`login:lock:${email}`),
+    );
+    if (wait > 0) {
+      throw new HttpException(`Too many attempts. Try again in ${waitFor(wait)}.`, HttpStatus.TOO_MANY_REQUESTS);
+    }
   }
 
-  private assertNotLocked(key: string): void {
-    const entry = this.failures.get(key);
-    if (!entry?.lockedUntil) return;
-    if (entry.lockedUntil > Date.now()) {
-      const minutes = Math.ceil((entry.lockedUntil - Date.now()) / 60_000);
-      throw new HttpException(
-        `Too many attempts. Try again in ${minutes} minute${minutes === 1 ? '' : 's'}.`,
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+  private async recordFailure(email: string, ip: string): Promise<void> {
+    const pair = await this.limits.hit(`login:fail:${ip}|${email}`, FAILURE_WINDOW);
+    if (pair % FAILURES_PER_STEP === 0) {
+      const step = Math.min(pair / FAILURES_PER_STEP, LOCK_STEPS.length) - 1;
+      await this.limits.set(`login:lock:${ip}|${email}`, LOCK_STEPS[step]!);
     }
-    this.failures.delete(key);
+    if ((await this.limits.hit(`login:fail:${email}`, FAILURE_WINDOW)) >= ACCOUNT_FAILURES) {
+      await this.limits.set(`login:lock:${email}`, ACCOUNT_LOCK);
+      this.logger.warn(`Sign-in for ${email} locked for 15 minutes after repeated failures from several addresses.`);
+    }
   }
 
-  private recordFailure(key: string): void {
-    const now = Date.now();
-    if (this.failures.size > 1000) {
-      for (const [k, e] of this.failures) {
-        if ((e.lockedUntil || e.since + LOCK_MS) < now) this.failures.delete(k);
-      }
-    }
-    const previous = this.failures.get(key);
-    const count = (previous?.count ?? 0) + 1;
-    this.failures.set(key, {
-      count,
-      since: previous?.since ?? now,
-      lockedUntil: count >= MAX_FAILURES ? now + LOCK_MS : 0,
-    });
-  }
-
-  /** A reset proves ownership of the address, so it clears its locks everywhere. */
-  private clearLocks(email: string): void {
-    for (const key of this.failures.keys()) {
-      if (key.endsWith(`|${email}`)) this.failures.delete(key);
-    }
+  /** A reset proves ownership of the address: lifts its lock, and the resetting IP's. */
+  private clearLocks(email: string, ip: string): Promise<void> {
+    return this.limits.clear(
+      `login:lock:${email}`,
+      `login:fail:${email}`,
+      `login:lock:${ip}|${email}`,
+      `login:fail:${ip}|${email}`,
+    );
   }
 
   private findByEmail(email: string): Promise<StaffUser | null> {
@@ -182,17 +180,16 @@ export class AuthService implements OnApplicationBootstrap {
   /** POST /auth/admin/login */
   async loginStaff(email: string, password: string, ip: string): Promise<LoginResult> {
     const address = email.trim().toLowerCase();
-    const key = this.lockKey(address, ip);
-    this.assertNotLocked(key);
+    await this.assertNotLocked(address, ip);
 
     const staff = await this.findByEmail(address);
     if (!staff || !(await verify(password, staff.password_hash))) {
-      this.recordFailure(key);
+      await this.recordFailure(address, ip);
       // One message for "no such account" and "wrong password" alike, so this
       // endpoint cannot be used to find out which addresses are registered.
       throw new UnauthorizedException('Incorrect email or password');
     }
-    this.failures.delete(key);
+    await this.limits.clear(`login:fail:${ip}|${address}`);
     return this.issue(staff);
   }
 
@@ -219,6 +216,9 @@ export class AuthService implements OnApplicationBootstrap {
   async forgotPassword(email: string): Promise<void> {
     const staff = await this.findByEmail(email);
     if (!staff) return;
+    // Three reset emails an hour per address, from anywhere: the form cannot
+    // be used to flood someone's inbox. Answered the same way either way.
+    if ((await this.limits.hit(`forgot:${staff.email.toLowerCase()}`, 60 * 60_000)) > 3) return;
 
     const token = randomBytes(32).toString('base64url');
     await this.db.staffUsers.update(staff.id, {
@@ -233,14 +233,14 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   /** POST /auth/admin/reset-password */
-  async resetPassword(token: string, newPassword: string): Promise<void> {
+  async resetPassword(token: string, newPassword: string, ip: string): Promise<void> {
     const hash = digest(token);
     const staff = await this.db.staffUsers.findOne((row) => row.reset_token_hash === hash);
     if (!staff || !staff.reset_expires_at || Date.parse(staff.reset_expires_at) < Date.now()) {
       throw new BadRequestException('This reset link has expired or was already used. Ask for a new one.');
     }
     await this.setPassword(staff, newPassword);
-    this.clearLocks(staff.email.toLowerCase());
+    await this.clearLocks(staff.email.toLowerCase(), ip);
   }
 
   /** Stores the new hash, burns any reset token, and signs every session out. */

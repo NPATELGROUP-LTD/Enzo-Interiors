@@ -1,11 +1,13 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { FriendlyThrottlerGuard } from './common/guards/throttle.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { CoreModule } from './core/core.module';
+import { RateLimitStore } from './core/rate-limit';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CmsModule } from './modules/cms/cms.module';
@@ -39,12 +41,16 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // 600 requests a minute per IP across the API: flood control, loose enough
-    // for an office of editors behind one address. Sign-in, reset and the
-    // public enquiry form tighten this per route with @Throttle.
-    // ponytail: in-memory, per process. Fine for one API container; give it
-    // a Redis store if the API is ever scaled out.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 600 }]),
+    // 300 requests a minute per IP across the API: flood control, loose enough
+    // for an office of editors behind one address. Every public write
+    // (sign-in, reset, enquiry, booking, newsletter) tightens this per route
+    // with @Throttle. Counters live in Redis when REDIS_URL is set, so limits
+    // hold across restarts and replicas; see core/rate-limit.ts. Floods that
+    // big belong to the edge (Cloudflare), docs/prelaunch.md → Rate limits.
+    ThrottlerModule.forRootAsync({
+      inject: [RateLimitStore],
+      useFactory: (storage: RateLimitStore) => ({ throttlers: [{ ttl: 60_000, limit: 300 }], storage }),
+    }),
     CoreModule,
     AuthModule,
     MediaModule,
@@ -57,7 +63,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
   ],
   providers: [
     // First, so a flood is refused before any token is verified.
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: FriendlyThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
   ],

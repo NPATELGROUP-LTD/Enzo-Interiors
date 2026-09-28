@@ -28,6 +28,7 @@ export function NewsletterSignup({
   const [website, setWebsite] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
   const [sentTo, setSentTo] = useState("");
+  const [problem, setProblem] = useState("");
   const [before, after] = labels.thanks.split("{email}");
 
   const submit = async (event: React.FormEvent) => {
@@ -38,7 +39,8 @@ export function NewsletterSignup({
       setSentTo(email.trim());
       setEmail("");
       setState("sent");
-    } catch {
+    } catch (error) {
+      setProblem(error instanceof Error ? error.message : "");
       setState("failed");
     }
   };
@@ -79,7 +81,7 @@ export function NewsletterSignup({
             </span>
           </span>
         ) : state === "failed" ? (
-          <span className={light ? "text-enzo-forest" : "text-enzo-sand"}>{labels.error ?? "That did not go through. Try again."}</span>
+          <span className={light ? "text-enzo-forest" : "text-enzo-sand"}>{problem || (labels.error ?? "That did not go through. Try again.")}</span>
         ) : null}
       </p>
     </form>

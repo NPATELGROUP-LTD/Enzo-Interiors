@@ -37,5 +37,12 @@ export async function sendEnquiry(enquiry: Enquiry, fallbackError: string): Prom
   } catch {
     throw new Error(fallbackError);
   }
+  if (response.status === 429) throw new Error(await tooMany(response, fallbackError));
   if (!response.ok) throw new Error(fallbackError);
+}
+
+/** The API's own "Too many attempts. Try again in 3 minutes." for a 429. */
+export async function tooMany(response: Response, fallback: string): Promise<string> {
+  const json = (await response.json().catch(() => null)) as { message?: string } | null;
+  return typeof json?.message === "string" ? json.message : fallback;
 }

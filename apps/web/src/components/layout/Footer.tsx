@@ -87,7 +87,8 @@ function NewsletterForm({
   onChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   submittedEmail: string | null;
-  failed: boolean;
+  /** False, or the reason to show ("" = the usual one). */
+  failed: string | false;
   website: string;
   onWebsite: (v: string) => void;
   labels: SiteContent["footer"]["newsletter"];
@@ -141,9 +142,9 @@ function NewsletterForm({
           {thanksAfter}
         </p>
       )}
-      {failed && (
+      {failed !== false && (
         <p className="mt-3 text-[13px] text-enzo-sand" role="alert">
-          {labels.error ?? "That did not go through. Try again."}
+          {failed || (labels.error ?? "That did not go through. Try again.")}
         </p>
       )}
     </form>
@@ -161,7 +162,7 @@ export function Footer({
 }) {
   const [newsletter, setNewsletter] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
-  const [newsletterFailed, setNewsletterFailed] = useState(false);
+  const [newsletterFailed, setNewsletterFailed] = useState<string | false>(false);
   const [website, setWebsite] = useState("");
   const pathname = usePathname();
   const footerRef = useRef<HTMLElement>(null);
@@ -265,9 +266,9 @@ export function Footer({
       await subscribe(newsletter, "footer", website);
       setSubmittedEmail(newsletter.trim());
       setNewsletter("");
-    } catch {
+    } catch (error) {
       setSubmittedEmail(null);
-      setNewsletterFailed(true);
+      setNewsletterFailed(error instanceof Error ? error.message : "");
     }
   };
 
