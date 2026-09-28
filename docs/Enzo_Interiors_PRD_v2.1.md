@@ -129,7 +129,7 @@ This is a **single-tenant** data model — every entity below belongs exclusivel
 - **Multi-tenant support for other businesses beyond Enzo Interiors** — permanently out of scope, not a future phase. No tenant-switching, no reserved tenant fields.
 - Real-time messaging backend uses WebSocket (Socket.IO) as defined in the TRD — this remains in scope and is not affected by the above removals.
 - Native mobile apps (mobile web only, delivered as PWA per TRD v3.1 §11).
-- Automated 3D rendering generation (the platform will price/schedule 3D design work, not generate 3D models itself).
+- AI-generated/photorealistic 3D rendering of a client's actual room (the platform will price/schedule real 3D design work, not generate photorealistic renders itself). This does NOT preclude the catalog-based 3D/2D Component Quote Builder (admin-authored component models + material boards, assembled by the client via drag-and-drop for a labeled estimate) — see `feature/3d-2d-quote-builder`.
 
 ## 11. Success Metrics
 - Quote-to-booking conversion rate (percentage of generated quotes that lead to a booked consultation).

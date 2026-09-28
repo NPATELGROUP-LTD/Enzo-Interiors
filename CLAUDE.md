@@ -153,7 +153,7 @@ These are final product decisions, not temporary shortcuts:
 1. **No Payment Gateway** — Stripe/PayPal/etc. never included. Admin marks invoices "Paid" manually after receiving payment externally (bank transfer, card, etc.).
 2. **Single-Tenant Only** — This platform serves Enzo Interiors exclusively. No `tenant_id` fields, no tenant-scoping logic, no multi-SaaS path anywhere.
 3. **No Native Mobile Apps** — Mobile web only, via PWA (installable manifest + service worker).
-4. **No Automated 3D Rendering** — Platform prices/schedules 3D design work; it does NOT generate 3D models.
+4. **No AI-Generated/Photorealistic 3D Rendering** — The platform never generates photorealistic renders or AI-modeled 3D scenes of a client's actual room. It DOES support a catalog-based 3D/2D quote builder: admin-authored component models (built from simple box/panel definitions in the admin panel) and material boards, assembled by the client via drag-and-drop for a clearly-labeled *estimate* — not a real design/rendering deliverable. See `feature/3d-2d-quote-builder` branch.
 
 ### Key Architectural Patterns
 
