@@ -16,6 +16,8 @@ import {
   Invoice,
   MediaAsset,
   Message,
+  NewsletterCampaign,
+  NewsletterSubscriber,
   Notification,
   NotificationPreference,
   PortfolioItem,
@@ -73,6 +75,8 @@ export class DatabaseService {
   readonly bookingSettings: PrismaRepository<BookingSettingsRow>;
   readonly appointments: PrismaRepository<Appointment>;
   readonly notifications: PrismaRepository<Notification>;
+  readonly newsletterSubscribers: PrismaRepository<NewsletterSubscriber>;
+  readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -156,6 +160,12 @@ export class DatabaseService {
     });
     this.notifications = new PrismaRepository(prisma.notification, 'notifications', {
       dates: ['created_at', 'read_at'],
+    });
+    this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
+      dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
+    });
+    this.newsletterCampaigns = new PrismaRepository(prisma.newsletterCampaign, 'newsletter_campaigns', {
+      dates: [...stamps, 'sent_at'],
     });
   }
 

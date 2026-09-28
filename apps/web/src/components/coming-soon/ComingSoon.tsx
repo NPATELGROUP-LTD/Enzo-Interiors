@@ -1,4 +1,5 @@
 import { Mail, Phone } from "lucide-react";
+import { ComingSoonNewsletter } from "@/components/coming-soon/ComingSoonNewsletter";
 import { Countdown } from "@/components/coming-soon/Countdown";
 import { OpenStatus } from "@/components/coming-soon/OpenStatus";
 import { InstagramIcon } from "@/components/shared/icons";
@@ -21,7 +22,8 @@ const FITTED_ROOM = `${MEDIA_BASE}/site/hero/kitchen/frame_0144.webp`;
  * the ways to reach the studio today.
  */
 export async function ComingSoon({ site }: { site: SiteStatus }) {
-  const [{ comingSoon: copy }, company] = await Promise.all([getPage("site"), getCompany()]);
+  const [page, company] = await Promise.all([getPage("site"), getCompany()]);
+  const copy = page.comingSoon;
   // A date already passed still renders: this page can be a cached copy from
   // before launch, and the countdown shows "opening now" and reloads.
   const upcoming = site.launchAt ? new Date(site.launchAt) : null;
@@ -93,6 +95,12 @@ export async function ComingSoon({ site }: { site: SiteStatus }) {
           ) : (
             <p className="font-title text-[clamp(1.75rem,4vw,3rem)] tracking-[-0.03em] text-enzo-forest">{copy.noDateLabel}</p>
           )}
+        </section>
+
+        {/* Hear when it opens — and, before launch, where the newsletter's
+            confirm and unsubscribe links land. */}
+        <section className="border-t border-enzo-forest/15 pt-4 sm:pt-6">
+          <ComingSoonNewsletter content={page} />
         </section>
 
         <nav aria-label={copy.contactLabel} className="border-t border-enzo-forest/15 pt-4 sm:pt-6">

@@ -9,8 +9,10 @@ import { CookieSettingsButton } from "@/components/legal/CookieSettingsButton";
 import { revealOnScroll, scrollTimeline } from "@/hooks/useGSAP";
 import { FacebookIcon, InstagramIcon } from "@/components/shared/icons";
 import { FooterMap } from "@/components/layout/FooterMap";
+import { Honeypot } from "@/components/shared/Honeypot";
 import { TextRoll } from "@/components/shared/TextRoll";
 import { fill, type Company, type HoursRow, type NavLink, type SiteContent } from "@/lib/content";
+import { subscribe } from "@/lib/newsletter";
 import { cn } from "@/lib/utils";
 
 // Everything printed here is data: the pages come from the navigation, the
@@ -76,12 +78,18 @@ function NewsletterForm({
   onChange,
   onSubmit,
   submittedEmail,
+  failed,
+  website,
+  onWebsite,
   labels,
 }: {
   value: string;
   onChange: (v: string) => void;
   onSubmit: (e: React.FormEvent) => void;
   submittedEmail: string | null;
+  failed: boolean;
+  website: string;
+  onWebsite: (v: string) => void;
   labels: SiteContent["footer"]["newsletter"];
 }) {
   // Split rather than interpolated, so the address keeps its own emphasis
@@ -89,7 +97,8 @@ function NewsletterForm({
   const [thanksBefore, thanksAfter] = labels.thanks.split("{email}");
 
   return (
-    <form onSubmit={onSubmit} className="w-full">
+    <form onSubmit={onSubmit} className="relative w-full">
+      <Honeypot value={website} onChange={onWebsite} />
       <label htmlFor="footer-newsletter" className={cn(LABEL, "mb-3 block")}>
         {labels.label}
       </label>
@@ -132,6 +141,11 @@ function NewsletterForm({
           {thanksAfter}
         </p>
       )}
+      {failed && (
+        <p className="mt-3 text-[13px] text-enzo-sand" role="alert">
+          {labels.error ?? "That did not go through. Try again."}
+        </p>
+      )}
     </form>
   );
 }
@@ -147,6 +161,8 @@ export function Footer({
 }) {
   const [newsletter, setNewsletter] = useState("");
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
+  const [newsletterFailed, setNewsletterFailed] = useState(false);
+  const [website, setWebsite] = useState("");
   const pathname = usePathname();
   const footerRef = useRef<HTMLElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
@@ -241,11 +257,17 @@ export function Footer({
     return () => mm.revert();
   }, []);
 
-  const handleNewsletterSubmit = (e: React.FormEvent) => {
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newsletter) {
-      setSubmittedEmail(newsletter);
+    if (!newsletter) return;
+    setNewsletterFailed(false);
+    try {
+      await subscribe(newsletter, "footer", website);
+      setSubmittedEmail(newsletter.trim());
       setNewsletter("");
+    } catch {
+      setSubmittedEmail(null);
+      setNewsletterFailed(true);
     }
   };
 
@@ -420,8 +442,11 @@ export function Footer({
               <NewsletterForm
                 value={newsletter}
                 onChange={setNewsletter}
-                onSubmit={handleNewsletterSubmit}
+                onSubmit={(e) => void handleNewsletterSubmit(e)}
                 submittedEmail={submittedEmail}
+                failed={newsletterFailed}
+                website={website}
+                onWebsite={setWebsite}
                 labels={content.newsletter}
               />
             </div>

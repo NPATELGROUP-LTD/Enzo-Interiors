@@ -8,6 +8,8 @@ export interface Mail {
   html: string;
   text: string;
   replyTo?: string;
+  /** Extra headers, e.g. List-Unsubscribe on a newsletter. */
+  headers?: Record<string, string>;
 }
 
 /**
@@ -78,7 +80,7 @@ export function escapeHtml(value: string): string {
 }
 
 /** The branded shell: forest header with the white logo, cream body. Tables, because email. */
-function layout(title: string, body: string): string {
+function layout(title: string, body: string, footer = 'Enzo Interiors · Bespoke fitted furniture, Leicester'): string {
   const base = (process.env.S3_PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
   const logo = base
     ? `<img src="${base}/site/logo-white.png" width="120" alt="Enzo Interiors" style="display:block;border:0;height:auto">`
@@ -89,7 +91,7 @@ function layout(title: string, body: string): string {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden">
 <tr><td style="background:${FOREST};padding:28px 32px">${logo}</td></tr>
 <tr><td style="padding:32px;font:16px/1.6 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${CHARCOAL}">${body}</td></tr>
-<tr><td style="padding:20px 32px;border-top:1px solid #ECE9E2;font:12px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${SAGE}">Enzo Interiors · Bespoke fitted furniture, Leicester</td></tr>
+<tr><td style="padding:20px 32px;border-top:1px solid #ECE9E2;font:12px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${SAGE}">${footer}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -334,6 +336,38 @@ ${button(link, 'Review the changes')}`,
 ${note}` : ''}
 
 ${link}`,
+    };
+  },
+
+  newsletterConfirm(link: string): Rendered {
+    const subject = 'Confirm your Enzo Interiors newsletter';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('One more step', 'Confirm your email')}
+${para('Thanks for signing up. Click below to confirm it was you, and we will send the occasional note about new rooms, the workshop and when the new website opens.')}
+${button(link, 'Confirm my email')}
+${para('If this was not you, ignore this email and you will not hear from us again.')}`,
+      ),
+      text: `Thanks for signing up to the Enzo Interiors newsletter. Confirm it was you:
+${link}
+
+If this was not you, ignore this email and you will not hear from us again.`,
+    };
+  },
+
+  /** A campaign: the admin's (already sanitised) HTML in the branded shell, with the way out. */
+  newsletter(subject: string, body: string, text: string, unsubscribe: string): Rendered {
+    const footer = `Enzo Interiors · Bespoke fitted furniture, Leicester<br>You are getting this because you signed up on our website. <a href="${escapeHtml(unsubscribe)}" style="color:${SAGE}">Unsubscribe</a>`;
+    return {
+      subject,
+      html: layout(subject, body, footer),
+      text: `${text}
+
+--
+Enzo Interiors · Bespoke fitted furniture, Leicester
+Unsubscribe: ${unsubscribe}`,
     };
   },
 

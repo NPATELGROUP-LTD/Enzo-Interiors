@@ -510,3 +510,36 @@ export interface Notification extends BaseRecord {
   read_at: string | null;
   created_at: string;
 }
+
+/* -------------------------------------------------------------------------- */
+/* Newsletter                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export type SubscriberStatus = 'pending' | 'confirmed' | 'unsubscribed';
+
+export interface NewsletterSubscriber extends BaseRecord {
+  email: string;
+  status: SubscriberStatus;
+  token: string;
+  source: string | null;
+  created_at: string;
+  confirm_sent_at: string | null;
+  confirmed_at: string | null;
+  unsubscribed_at: string | null;
+}
+
+export type CampaignStatus = 'draft' | 'sending' | 'sent';
+
+export interface NewsletterCampaign extends BaseRecord {
+  subject: string;
+  html: string;
+  status: CampaignStatus;
+  recipients: number;
+  sent_count: number;
+  failed_count: number;
+  cursor: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  sent_at: string | null;
+}

@@ -172,6 +172,9 @@ services:
       CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${WEB_PUBLIC_URL:-http://localhost:3000}
       # Where password-reset links point.
       ADMIN_URL: ${ADMIN_URL:-http://localhost:5174}
+      # Newsletter links: confirm/unsubscribe pages, and the one-click header.
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
+      API_PUBLIC_URL: ${API_PUBLIC_URL:-http://localhost:4000}
       # Proxy hops in front of the API (Coolify + Cloudflare Tunnel = 2), so
       # rate limits see the visitor's IP. 0 when nothing is in front.
       TRUST_PROXY: ${TRUST_PROXY:-0}

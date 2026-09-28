@@ -11,6 +11,7 @@ import { BookingModule } from './modules/booking/booking.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { MediaModule } from './modules/media/media.module';
+import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
 
@@ -24,7 +25,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  *
  * v1 SCOPE: the public site, the CMS that runs it, consultation booking
  * (BookingModule: the site's booking form and the admin's Bookings screen) and
- * the admin's users and notifications. Nothing else. The CRM
+ * the admin's users and notifications, and the newsletter. Nothing else. The CRM
  * modules (clients, projects, quotes, invoices, bookings, conversations,
  * documents, components, content, settings, dashboard) are still in
  * src/modules and their tables are still in the schema, so existing data is
@@ -52,6 +53,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     EnquiriesModule,
     NotificationsModule,
     BookingModule,
+    NewsletterModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.
