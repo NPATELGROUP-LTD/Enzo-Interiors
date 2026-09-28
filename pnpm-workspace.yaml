@@ -1,4 +1,7 @@
 packages:
   - "apps/web"
+  # Local-only prototype. Root scripts never build or start it, so it is
+  # never deployed — see apps/quote-builder/README.md.
+  - "apps/quote-builder"
   # Note: Currently focused on apps/web for public-facing frontend development.
   # Other apps (admin, portal, api) are kept in repo for reference but not actively developed.

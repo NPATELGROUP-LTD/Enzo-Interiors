@@ -1,0 +1,274 @@
+/**
+ * Enzo Interiors design tokens for the quote builder prototype.
+ *
+ * A trimmed copy of apps/web/src/styles/theme.css — the same colours, type
+ * and base rules — so the prototype looks like the site without depending
+ * on the website app. If the site's tokens change, copy them across.
+ */
+
+@import "tailwindcss";
+
+@source "../**/*.{ts,tsx}";
+
+:root {
+  --font-size: 16px;
+  --background: #F2F0EB;
+  --foreground: #2C2C2C;
+  --card: #FAFAF7;
+  --card-foreground: #2C2C2C;
+  --popover: #FFFFFF;
+  --popover-foreground: #2C2C2C;
+  --primary: #102E2D;
+  --primary-foreground: #F2F0EB;
+  --secondary: #8A9E8C;
+  --secondary-foreground: #102E2D;
+  --muted: #EAE7E0;
+  /* #67675F, not #6B6B65. Secondary copy is set in this colour on three
+     different grounds, and against the darkest of them (--muted, #EAE7E0,
+     which carries whole sections) #6B6B65 measured 4.34:1 — under AA for
+     text below 24px. Four points darker clears it on all three: 5.01 on
+     --background, 5.45 on --card, 4.62 on --muted. */
+  --muted-foreground: #67675F;
+  --accent: #D4C9B5;
+  --accent-foreground: #102E2D;
+  --destructive: #D94040;
+  --destructive-foreground: #ffffff;
+  --border: #C4B8A8;
+  --input: transparent;
+  --input-background: #F5F4F0;
+  --font-weight-medium: 500;
+  --font-weight-normal: 400;
+  --ring: #102E2D;
+  --radius: 0.75rem;
+  --sidebar-accent: #1E3E3D;
+
+  /* Enzo custom tokens */
+  --enzo-cream: #F2F0EB;
+  --enzo-forest: #102E2D;
+  --enzo-forest-light: #31473A;
+  --enzo-sage: #8A9E8C;
+  --enzo-charcoal: #2C2C2C;
+  --enzo-sand: #D4C9B5;
+  --enzo-white: #FAFAF7;
+  --enzo-dark: #1E1E1C;
+  --enzo-footer-dark: #0F0F11;
+  --enzo-footer-surface: #1A1A1C;
+  --enzo-footer-border: #2A2A28;
+
+  /* Font stacks — populated by next/font CSS variables set on <html> */
+  --font-heading: var(--font-archivo), "Helvetica Neue", Arial, sans-serif;
+  --font-body: var(--font-inter), sans-serif;
+  --font-display: var(--font-space-grotesk), sans-serif;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-input-background: var(--input-background);
+  --color-ring: var(--ring);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-enzo-cream: var(--enzo-cream);
+  --color-enzo-forest: var(--enzo-forest);
+  --color-enzo-forest-light: var(--enzo-forest-light);
+  --color-enzo-sage: var(--enzo-sage);
+  --color-enzo-charcoal: var(--enzo-charcoal);
+  --color-enzo-sand: var(--enzo-sand);
+  --color-enzo-white: var(--enzo-white);
+  --color-enzo-dark: var(--enzo-dark);
+  --color-enzo-footer-dark: var(--enzo-footer-dark);
+  --color-enzo-footer-surface: var(--enzo-footer-surface);
+  --color-enzo-footer-border: var(--enzo-footer-border);
+
+  --font-sans: var(--font-body);
+  /* The site is sans-only. `font-serif` is kept mapped to the display face
+     so the legacy usages on other marketing pages resolve to Archivo rather
+     than a browser serif; new code should use `font-title`.
+     `font-title` rather than `font-heading` because @theme emits into :root,
+     where --font-heading is already defined — redeclaring it there would be
+     self-referential. */
+  --font-serif: var(--font-heading);
+  --font-title: var(--font-heading);
+  --font-display: var(--font-display);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+
+  html {
+    font-size: var(--font-size);
+    scrollbar-gutter: stable;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: var(--font-heading);
+  }
+
+  h1 {
+    font-size: 3.5rem;
+    font-weight: 600;
+    line-height: 1.04;
+    letter-spacing: -0.035em;
+  }
+
+  h2 {
+    font-size: 2.5rem;
+    font-weight: 600;
+    line-height: 1.08;
+    letter-spacing: -0.03em;
+  }
+
+  h3 {
+    font-size: 1.75rem;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  h4 {
+    font-size: 1.25rem;
+    font-weight: var(--font-weight-medium);
+    line-height: 1.4;
+  }
+
+  label {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  button {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-medium);
+    line-height: 1.5;
+  }
+
+  input {
+    font-size: var(--text-base);
+    font-weight: var(--font-weight-normal);
+    line-height: 1.5;
+  }
+}
+
+@media (min-width: 1440px) {
+  html {
+    font-size: 17px;
+  }
+}
+
+@media (min-width: 1920px) {
+  html {
+    font-size: 18.5px;
+  }
+}
+
+@layer components {
+  /* Hit-area expander for standalone text CTAs.
+
+     The site's call-to-action links are 13px type on a hairline underline —
+     a 24-25px tall box. That is a fine *look* and a poor *target*: WCAG 2.5.8
+     asks for 24x24 CSS px and every mobile guideline asks for 44. Padding the
+     link would drag its underline away from its text, so the target is grown
+     with a transparent pseudo-element instead: the box the finger hits is
+     44px tall, the box the eye sees is unchanged, and nothing in the layout
+     moves. Only for links that stand alone — a link inside a sentence is
+     explicitly exempt from 2.5.8 and must not be padded, because that would
+     overlap the lines above and below it. */
+  .touch-target {
+    position: relative;
+  }
+
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: -10px;
+  }
+
+  .enzo-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: var(--border);
+    border-radius: 999px;
+    outline: none;
+  }
+
+  .enzo-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(16, 46, 45, 0.35);
+    cursor: grab;
+    transition: transform 200ms ease;
+  }
+
+  .enzo-range::-webkit-slider-thumb:active {
+    cursor: grabbing;
+    transform: scale(1.12);
+  }
+
+  .enzo-range::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--enzo-forest);
+    border: 4px solid var(--background);
+    box-shadow: 0 2px 10px rgba(16, 46, 45, 0.35);
+    cursor: grab;
+  }
+
+  .enzo-range:focus-visible::-webkit-slider-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+
+  .enzo-range:focus-visible::-moz-range-thumb {
+    outline: 2px solid var(--enzo-sand);
+    outline-offset: 2px;
+  }
+}
+
+/* ── The page shell ──────────────────────────────────────────────────────
+ *
+ * The one place the page's measure is defined, instead of repeating
+ * `mx-auto max-w-[1500px] px-5 sm:px-6 md:px-12` in fifty sections. The cap
+ * is deliberate: every section is composed against a known measure, and a
+ * fluid full-bleed column pulls split headings away from their own ledes.
+ */
+@layer components {
+  .shell {
+    width: 100%;
+    max-width: 1500px;
+    margin-inline: auto;
+    padding-inline: clamp(1.25rem, 4.5vw, 3rem);
+  }
+}

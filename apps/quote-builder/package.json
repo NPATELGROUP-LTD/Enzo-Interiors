@@ -1,0 +1,37 @@
+{
+  "name": "@enzo-interiors/quote-builder",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Local-only prototype of the 3D/2D component quote builder. Not deployed.",
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@react-three/fiber": "^9.5.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.31.0",
+    "next": "^16.3.0",
+    "react": "~19.2.8",
+    "react-dom": "~19.2.8",
+    "sonner": "^2.0.3",
+    "tailwind-merge": "^3.6.0",
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@types/three": "^0.182.0",
+    "eslint-config-next": "^16.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  }
+}

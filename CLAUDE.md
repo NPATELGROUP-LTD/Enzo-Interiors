@@ -13,6 +13,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Architectural Note:** The repository was originally designed as a full-stack monorepo. Currently, development is focused on the public website. Other apps and packages are kept in the repo for architectural reference:
 - `apps/admin/`, `apps/portal/`, `apps/api/` — Kept untouched, not actively developed
+- `apps/quote-builder/` — Local-only prototype of the 3D/2D component quote builder (localStorage, no API). Never built or deployed by the root scripts; see its README
 - `packages/` folder — Removed (was only used by admin/portal)
 
 For future multi-app development, refer to the full architecture docs below.
@@ -153,7 +154,7 @@ These are final product decisions, not temporary shortcuts:
 1. **No Payment Gateway** — Stripe/PayPal/etc. never included. Admin marks invoices "Paid" manually after receiving payment externally (bank transfer, card, etc.).
 2. **Single-Tenant Only** — This platform serves Enzo Interiors exclusively. No `tenant_id` fields, no tenant-scoping logic, no multi-SaaS path anywhere.
 3. **No Native Mobile Apps** — Mobile web only, via PWA (installable manifest + service worker).
-4. **No AI-Generated/Photorealistic 3D Rendering** — The platform never generates photorealistic renders or AI-modeled 3D scenes of a client's actual room. It DOES support a catalog-based 3D/2D quote builder: admin-authored component models (built from simple box/panel definitions in the admin panel) and material boards, assembled by the client via drag-and-drop for a clearly-labeled *estimate* — not a real design/rendering deliverable. See `feature/3d-2d-quote-builder` branch.
+4. **No AI-Generated/Photorealistic 3D Rendering** — The platform never generates photorealistic renders or AI-modeled 3D scenes of a client's actual room. It DOES support a catalog-based 3D/2D quote builder: admin-authored component models (built from simple box/panel definitions in the admin panel) and material boards, assembled by the client via drag-and-drop for a clearly-labeled *estimate* — not a real design/rendering deliverable. Prototyped in `apps/quote-builder`.
 
 ### Key Architectural Patterns
 
