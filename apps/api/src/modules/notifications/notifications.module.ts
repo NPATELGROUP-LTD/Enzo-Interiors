@@ -41,26 +41,23 @@ export class NotificationsService {
   }
 
   /**
-   * The latest 50 and how many are unread.
-   *
-   * ponytail: findAll + filter in memory like every repository here. Fine for
-   * a handful of staff; give it a WHERE recipient_id query and a cleanup job
-   * if the table ever reaches the tens of thousands.
+   * The latest 50 and how many are unread. The bell polls this every minute
+   * from every open admin, so both are answered by an index
+   * (recipient_id, created_at) and (recipient_id, read_at), not a table read.
    */
   async mine(principal: AuthPrincipal): Promise<{ items: Notification[]; unread: number }> {
-    const rows = (await this.db.notifications.findAll((row) => row.recipient_id === principal.id)).sort((a, b) =>
-      b.created_at.localeCompare(a.created_at),
-    );
-    return { items: rows.slice(0, 50), unread: rows.filter((row) => !row.read_at).length };
+    const [items, unread] = await Promise.all([
+      this.db.notifications.findWhere({ recipient_id: principal.id }, { orderBy: { created_at: 'desc' }, take: 50 }),
+      this.db.notifications.countWhere({ recipient_id: principal.id, read_at: null }),
+    ]);
+    return { items, unread };
   }
 
   async markRead(principal: AuthPrincipal, ids?: string[]): Promise<void> {
-    const wanted = ids ? new Set(ids) : null;
-    const now = new Date().toISOString();
-    const rows = await this.db.notifications.findAll(
-      (row) => row.recipient_id === principal.id && !row.read_at && (!wanted || wanted.has(row.id)),
+    await this.db.notifications.updateWhere(
+      { recipient_id: principal.id, read_at: null, ...(ids ? { id: { in: ids } } : {}) },
+      { read_at: new Date().toISOString() },
     );
-    for (const row of rows) await this.db.notifications.update(row.id, { read_at: now });
   }
 }
 

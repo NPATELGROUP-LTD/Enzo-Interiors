@@ -110,7 +110,7 @@ export class NewsletterService implements OnApplicationBootstrap {
   async subscribe(dto: SubscribeDto): Promise<void> {
     const email = dto.email.trim().toLowerCase();
     const now = new Date();
-    const existing = await this.db.newsletterSubscribers.findOne((row) => row.email === email);
+    const existing = await this.db.newsletterSubscribers.findFirstWhere({ email });
     if (existing?.status === 'confirmed') return;
     if (existing?.confirm_sent_at && now.getTime() - Date.parse(existing.confirm_sent_at) < RESEND_MS) return;
 
@@ -158,7 +158,7 @@ export class NewsletterService implements OnApplicationBootstrap {
   }
 
   private async byToken(token: string): Promise<NewsletterSubscriber> {
-    const row = TOKEN.test(token) ? await this.db.newsletterSubscribers.findOne((r) => r.token === token) : null;
+    const row = TOKEN.test(token) ? await this.db.newsletterSubscribers.findFirstWhere({ token }) : null;
     if (!row) throw new NotFoundException('That link is not valid any more.');
     return row;
   }
@@ -250,7 +250,7 @@ export class NewsletterService implements OnApplicationBootstrap {
   async send(principal: AuthPrincipal, id: string): Promise<NewsletterCampaign> {
     this.assertMail();
     const campaign = await this.draft(id);
-    const recipients = (await this.db.newsletterSubscribers.findAll((row) => row.status === 'confirmed')).length;
+    const recipients = await this.db.newsletterSubscribers.countWhere({ status: 'confirmed' });
     if (!recipients) throw new BadRequestException('Nobody has confirmed their subscription yet.');
     const updated = (await this.db.newsletterCampaigns.update(id, {
       status: 'sending',
@@ -273,7 +273,7 @@ export class NewsletterService implements OnApplicationBootstrap {
   async onApplicationBootstrap(): Promise<void> {
     // Never fatal: a newsletter that cannot resume must not keep the API down.
     try {
-      const unfinished = await this.db.newsletterCampaigns.findAll((row) => row.status === 'sending');
+      const unfinished = await this.db.newsletterCampaigns.findWhere({ status: 'sending' });
       for (const row of unfinished) void this.run(row.id);
     } catch (error) {
       this.logger.error(`Could not resume newsletters: ${error instanceof Error ? error.message : String(error)}`);
@@ -297,15 +297,12 @@ export class NewsletterService implements OnApplicationBootstrap {
       for (;;) {
         const campaign = await this.db.newsletterCampaigns.findById(id);
         if (!campaign || campaign.status !== 'sending') return;
-        // Ordered by id, so "after the cursor" is a stable place to resume from.
-        // ponytail: reads every subscriber per batch; fine to a few thousand.
-        const batch = (
-          await this.db.newsletterSubscribers.findAll(
-            (row) => row.status === 'confirmed' && (!campaign.cursor || row.id > campaign.cursor),
-          )
-        )
-          .sort((a, b) => (a.id < b.id ? -1 : 1))
-          .slice(0, BATCH);
+        // The next batch after the cursor, in id order: a stable place to
+        // resume from, read through the (status, id) index.
+        const batch = await this.db.newsletterSubscribers.findWhere(
+          { status: 'confirmed', ...(campaign.cursor ? { id: { gt: campaign.cursor } } : {}) },
+          { orderBy: { id: 'asc' }, take: BATCH },
+        );
         if (!batch.length) {
           await this.db.newsletterCampaigns.update(id, {
             status: 'sent',

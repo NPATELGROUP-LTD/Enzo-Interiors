@@ -250,8 +250,18 @@ export class BookingService {
 
   /* ---- Availability ---- */
 
-  private async taken(exceptId?: string) {
-    return this.db.appointments.findAll((row) => row.slot !== null && row.id !== exceptId);
+  /**
+   * The bookings that can clash with times from `from` to `to`: holding their
+   * slot, and starting within those dates give or take a day (the studio's
+   * zone is at most an hour off UTC, and a consultation is at most 8 hours).
+   * Answered by the starts_at index rather than every booking ever made.
+   */
+  private async taken(from: string, to: string, exceptId?: string) {
+    return this.db.appointments.findWhere({
+      slot: { not: null },
+      starts_at: { gte: `${addDays(from, -1)}T00:00:00.000Z`, lt: `${addDays(to, 2)}T00:00:00.000Z` },
+      ...(exceptId ? { id: { not: exceptId } } : {}),
+    });
   }
 
   async available(from: string, to: string, staff: boolean, exceptId?: string) {
@@ -259,7 +269,7 @@ export class BookingService {
       throw new BadRequestException('Ask for up to 62 days at a time, as YYYY-MM-DD.');
     }
     const config = await this.config();
-    const days = availability(config, from, to, await this.taken(exceptId), new Date(), staff);
+    const days = availability(config, from, to, await this.taken(from, to, exceptId), new Date(), staff);
     const rules: PublicBookingRules = {
       fields: config.fields,
       services: config.services,
@@ -281,10 +291,8 @@ export class BookingService {
   /** The service as the site publishes it; its name is kept on the booking. */
   private async serviceLabel(slug: string): Promise<string> {
     const config = await this.config();
-    const entry = await this.db.cmsEntries.findOne(
-      (row) => row.collection === 'services' && row.slug === slug && row.published !== null,
-    );
-    if (!entry || (config.services.length > 0 && !config.services.includes(slug))) {
+    const entry = await this.db.cmsEntries.findFirstWhere({ collection: 'services', slug });
+    if (!entry?.published || (config.services.length > 0 && !config.services.includes(slug))) {
       throw new BadRequestException('That service cannot be booked. Choose another.');
     }
     const body = entry.published!;
@@ -363,7 +371,7 @@ export class BookingService {
   }
 
   async list(): Promise<Appointment[]> {
-    return (await this.db.appointments.findAll()).sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    return this.db.appointments.findWhere({}, { orderBy: { starts_at: 'asc' } });
   }
 
   async update(principal: AuthPrincipal, id: string, dto: UpdateAppointmentDto): Promise<Appointment> {
@@ -452,7 +460,7 @@ export class BookingService {
 
   /** "call us on 07777 333052", from the published company details. */
   private async contactLine(): Promise<string> {
-    const company = await this.db.cmsEntries.findOne((row) => row.collection === 'company');
+    const company = await this.db.cmsEntries.findFirstWhere({ collection: 'company' });
     const phone = (company?.published?.phone as { display?: string } | undefined)?.display;
     return phone ? `call us on ${phone}` : 'call the studio';
   }

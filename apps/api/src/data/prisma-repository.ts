@@ -35,7 +35,16 @@ interface Delegate {
   delete(args: unknown): Promise<unknown>;
   deleteMany(args?: unknown): Promise<{ count: number }>;
   createMany(args: unknown): Promise<{ count: number }>;
+  updateMany(args: unknown): Promise<{ count: number }>;
 }
+
+/**
+ * A Prisma `where` over this table's columns: `{ recipient_id: id, read_at: null }`,
+ * `{ starts_at: { gte: iso } }`. Keyed by the row type, so a mistyped column
+ * is a compile error. Timestamps may be given as ISO strings.
+ */
+export type Where<T> = { [K in keyof T]?: unknown } & { OR?: Array<Where<T>>; NOT?: Where<T> };
+export type OrderBy<T> = { [K in keyof T]?: 'asc' | 'desc' };
 
 /** Which columns need converting, per table. Everything else passes through. */
 export interface FieldTypes {
@@ -117,6 +126,32 @@ export class PrismaRepository<T extends BaseRecord> {
   async findAll(predicate?: (row: T) => boolean): Promise<T[]> {
     const rows = (await this.delegate.findMany()).map((row) => this.fromDb(row));
     return predicate ? rows.filter(predicate) : rows;
+  }
+
+  /**
+   * Rows matching `where`, filtered, ordered and cut in PostgreSQL, so an
+   * index can answer it. For the paths that run on every page load or poll;
+   * findAll's predicate stays the simple choice everywhere else.
+   */
+  async findWhere(where: Where<T>, options: { orderBy?: OrderBy<T>; take?: number } = {}): Promise<T[]> {
+    const rows = await this.delegate.findMany({ where, ...options });
+    return rows.map((row) => this.fromDb(row));
+  }
+
+  /** The first row matching `where` (by `orderBy`, if given), or null. */
+  async findFirstWhere(where: Where<T>, orderBy?: OrderBy<T>): Promise<T | null> {
+    const [row] = await this.findWhere(where, { orderBy, take: 1 });
+    return row ?? null;
+  }
+
+  async countWhere(where: Where<T>): Promise<number> {
+    return this.delegate.count({ where });
+  }
+
+  /** One UPDATE for every row matching `where`. Returns how many changed. */
+  async updateWhere(where: Where<T>, patch: Partial<Omit<T, 'id'>>): Promise<number> {
+    const { count } = await this.delegate.updateMany({ where, data: this.toDb(patch as Record<string, unknown>) });
+    return count;
   }
 
   async findById(id: string): Promise<T | null> {

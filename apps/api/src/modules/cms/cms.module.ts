@@ -270,9 +270,7 @@ export class CmsService {
 
   private async require(collection: string, slug: string): Promise<CmsEntry> {
     const key = this.assertCollection(collection);
-    const entry = await this.db.cmsEntries.findOne(
-      (row) => row.collection === key && row.slug === slug,
-    );
+    const entry = await this.db.cmsEntries.findFirstWhere({ collection: key, slug });
     if (!entry) throw new NotFoundException(`No ${collection} entry called "${slug}"`);
     return entry;
   }
@@ -282,7 +280,7 @@ export class CmsService {
   async list(collection: string): Promise<CmsEntrySummary[]> {
     const key = this.assertCollection(collection);
     const schema = schemaFor(key)!;
-    const rows = await this.db.cmsEntries.findAll((row) => row.collection === key);
+    const rows = await this.db.cmsEntries.findWhere({ collection: key });
     const names = await this.names();
 
     return rows
@@ -349,17 +347,15 @@ export class CmsService {
       );
     }
 
-    const clash = await this.db.cmsEntries.findOne(
-      (row) => row.collection === key && row.slug === dto.slug,
-    );
+    const clash = await this.db.cmsEntries.findFirstWhere({ collection: key, slug: dto.slug });
     if (clash) throw new BadRequestException(`A ${schema.singular} called "${dto.slug}" already exists.`);
 
     assertSafeLinks(dto.draft);
-    const existing = await this.db.cmsEntries.findAll((row) => row.collection === key);
+    const existing = await this.db.cmsEntries.countWhere({ collection: key });
     const created = await this.db.cmsEntries.create({
       collection: key,
       slug: dto.slug,
-      sort_order: dto.sort_order ?? existing.length,
+      sort_order: dto.sort_order ?? existing,
       // `id` is carried inside the body too, because apps/web joins rows by it.
       draft: { ...dto.draft, id: dto.slug },
       published: null,
@@ -592,7 +588,7 @@ export class CmsService {
         .map(([key]) => key);
       if (keys.length === 0) continue;
 
-      const rows = await this.db.cmsEntries.findAll((row) => row.collection === schema.collection);
+      const rows = await this.db.cmsEntries.findWhere({ collection: schema.collection });
       for (const row of rows) {
         if (keys.some((key) => row.draft[key] === slug)) {
           holders.push(`${schema.singular} "${columnText(row.draft, schema.titleField) || row.slug}"`);
