@@ -2,28 +2,16 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web",
+      "name": "mock-api",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["apps/web/node_modules/next/dist/bin/next", "dev", "apps/web"],
-      "port": 3000
-    },
-    {
-      "name": "api",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/api", "run", "dev"],
+      "runtimeArgs": ["C:/Users/mrnee/AppData/Local/Temp/claude/D--NPATEL-GROUP-LTD-Projects-Enzo-Codebase/mock-api.js"],
       "port": 4000
     },
     {
-      "name": "admin",
+      "name": "web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/admin", "run", "dev"],
-      "port": 5174
-    },
-    {
-      "name": "portal",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "apps/portal", "run", "dev"],
-      "port": 5175
+      "runtimeArgs": ["--prefix", "apps/web", "run", "dev"],
+      "port": 3000
     }
   ]
 }

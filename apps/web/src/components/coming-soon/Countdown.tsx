@@ -56,7 +56,7 @@ export function Countdown({
 
   if (remaining === 0) {
     return (
-      <p role="status" className="font-display text-lg text-enzo-sand">
+      <p role="status" className="font-title text-2xl tracking-[-0.02em] text-enzo-forest sm:text-3xl">
         {launchingLabel}
       </p>
     );
@@ -73,11 +73,11 @@ export function Countdown({
   return (
     // Not a live region: announcing every second would drown a screen
     // reader. The launch date is stated in words beside this.
-    <dl role="timer" className="grid grid-cols-4 gap-px overflow-hidden rounded-xl bg-enzo-cream/15">
+    <dl role="timer" className="grid grid-cols-4 gap-x-4">
       {cells.map(([value, label]) => (
-        <div key={label} className="flex flex-col-reverse items-center gap-1 bg-enzo-forest px-2 py-4 sm:px-6 sm:py-6">
-          <dt className="text-[11px] uppercase tracking-[0.18em] text-enzo-sage sm:text-xs">{label}</dt>
-          <dd className="font-display text-4xl font-semibold tabular-nums leading-none text-enzo-cream sm:text-6xl">
+        <div key={label} className="flex flex-col-reverse gap-2">
+          <dt className="text-[10px] font-medium uppercase tracking-[0.2em] text-enzo-charcoal/70 sm:text-[11px]">{label}</dt>
+          <dd className="font-title text-[clamp(2rem,min(4.2vw,8dvh),4.25rem)] font-normal leading-none tabular-nums tracking-[-0.04em] text-enzo-forest">
             {value === null ? "--" : String(value).padStart(2, "0")}
           </dd>
         </div>

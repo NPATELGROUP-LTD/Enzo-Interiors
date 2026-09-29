@@ -75,21 +75,30 @@ services:
       retries: 20
 
   minio:
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # MinIO no longer publishes images to quay.io or Docker Hub; the bitnamilegacy
+    # mirror still serves the same 2025-04-22 release. Its entrypoint starts the
+    # server itself (API :9000, console :9001), so there is no `command`.
+    image: bitnamilegacy/minio:2025.4.22
     restart: unless-stopped
-    command: server /data --console-address ":9001"
+    networks: [default, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-media.rule=Host(`media.enzointeriors.co.uk`)
+      - traefik.http.routers.enzo-media.entrypoints=http
+      - traefik.http.services.enzo-media.loadbalancer.server.port=9000
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?set S3_ACCESS_KEY_ID in .env}
       MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?set S3_SECRET_ACCESS_KEY in .env}
     volumes:
-      - minio-data:/data
+      - minio-data:/bitnami/minio/data
     ports:
       # The API port, not only the console: MEDIA_BASE_URL is fetched by the
       # visitor's browser, which cannot resolve "minio".
       - '${MINIO_PORT:-9000}:9000'
       - '127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001'
     healthcheck:
-      test: ['CMD', 'mc', 'ready', 'local']
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/minio/health/ready']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -105,14 +114,16 @@ services:
   # be asked to write to them. `set -e` so a failed `mc mb` fails the service
   # instead of letting the `echo` report success.
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    image: bitnamilegacy/minio-client:2025.4.16
     depends_on:
       minio:
         condition: service_healthy
     entrypoint: >
       /bin/sh -c "
       set -e &&
-      mc alias set enzo http://minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}' &&
+      until mc alias set enzo http://minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}'; do
+        echo 'minio not ready, retrying...'; sleep 2;
+      done &&
       mc mb --ignore-existing enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
       mc mb --ignore-existing enzo/${S3_PRIVATE_BUCKET:-enzo-private} &&
       mc anonymous set download enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
@@ -136,9 +147,21 @@ services:
       retries: 10
 
   api:
+    # Explicit names let `up` reuse the images Coolify builds in its helper
+    # container instead of rebuilding from a folder that has no source.
+    image: enzo-interiors-api:latest
     build:
       context: ./apps/api
     restart: unless-stopped
+    # `coolify` is where Coolify's own Postgres resource lives; default keeps
+    # the api reachable from web/admin/minio.
+    networks: [default, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-api.rule=Host(`api.enzointeriors.co.uk`)
+      - traefik.http.routers.enzo-api.entrypoints=http
+      - traefik.http.services.enzo-api.loadbalancer.server.port=4000
     depends_on:
       # Not required: with an external DATABASE_URL there is no postgres here,
       # and `prisma migrate deploy` simply retries on restart until it answers.
@@ -217,9 +240,11 @@ services:
   # content read-only because the importer only ever reads it.
   seed:
     profiles: ['setup']
+    image: enzo-interiors-seed:latest
     build:
       context: ./apps/api
       target: build
+    networks: [default, coolify]
     depends_on:
       postgres:
         condition: service_healthy
@@ -247,6 +272,7 @@ services:
     restart: 'no'
 
   web:
+    image: enzo-interiors-web:latest
     build:
       context: ./apps/web
       args:
@@ -257,6 +283,13 @@ services:
         NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
         SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     restart: unless-stopped
+    networks: [default, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-web.rule=Host(`www.enzointeriors.co.uk`)
+      - traefik.http.routers.enzo-web.entrypoints=http
+      - traefik.http.services.enzo-web.loadbalancer.server.port=3000
     depends_on:
       api:
         condition: service_healthy
@@ -285,6 +318,7 @@ services:
       <<: *node-health
 
   admin:
+    image: enzo-interiors-admin:latest
     build:
       context: ./apps/admin
       args:
@@ -293,6 +327,13 @@ services:
         VITE_API_BASE_URL: ${API_PUBLIC_URL:?public URL of the API}
         VITE_WEB_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     restart: unless-stopped
+    networks: [default, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-admin.rule=Host(`admin.enzointeriors.co.uk`)
+      - traefik.http.routers.enzo-admin.entrypoints=http
+      - traefik.http.services.enzo-admin.loadbalancer.server.port=80
     depends_on:
       api:
         condition: service_healthy
@@ -320,6 +361,11 @@ services:
     ports:
       - '127.0.0.1:${MAILPIT_PORT:-8025}:8025'
       - '127.0.0.1:${MAILPIT_SMTP_PORT:-1025}:1025'
+
+networks:
+  # Created by Coolify. For a local run, create it once: docker network create coolify
+  coolify:
+    external: true
 
 volumes:
   postgres-data:

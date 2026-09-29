@@ -12,8 +12,8 @@ import type { SiteContent } from "@/lib/content";
 export function ComingSoonNewsletter({ content }: { content: SiteContent }) {
   const link = newsletterLink(usePathname());
   return link ? (
-    <NewsletterLinkAction mode={link} labels={content.newsletter} />
+    <NewsletterLinkAction mode={link} labels={content.newsletter} tone="light" />
   ) : (
-    <NewsletterSignup labels={content.footer.newsletter} source="coming_soon" />
+    <NewsletterSignup labels={content.footer.newsletter} source="coming_soon" tone="light" />
   );
 }

@@ -308,7 +308,18 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
    git push origin feature/your-feature-name
    ```
 
-6. **PR merge to `develop` → staging deploy** → QA → **PR merge to `main` → production deploy**
+6. **PR squash-merged to `develop`** (no staging environment exists yet) → QA → **PR (merge commit) `develop` → `main` → production deploy**
+
+### Git workflow
+
+- `main` = production only. Every push to `main` deploys via Coolify. Changes arrive only by PR from `develop` (merge commit, never squash); tag each release `vX.Y.Z`.
+- `develop` = integration branch (PR required, CI green, no force-push).
+- Work on `feature/`, `fix/`, `chore/`, `docs/` branches cut from `develop`, one concern each, **squash-merged** into `develop`, then deleted. No stacked PRs.
+- `hotfix/` branches are cut from `main`, PR'd to `main`, then PR'd to `develop` the same day.
+- No `release/*` branches; tags do that job.
+- Conventional commits: `feat(api):`, `fix(web):`, `chore:`, `docs:`, imperative and specific.
+- Rollback = `git revert` the PR, never force-push `main`.
+- Local compose needs a one-time `docker network create coolify` (the compose file joins the external network Coolify/Traefik uses in production).
 
 ---
 
@@ -339,7 +350,7 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 
 **Branching & Deploy Strategy:**
 - `main` ← production (always deployable).
-- `develop` ← staging (integration branch).
+- `develop` ← integration branch (no staging environment exists yet; nothing deploys from it).
 - `feature/*` ← short-lived branches off `develop`.
 - `hotfix/*` ← urgent fixes off `main`, merged back to both `main` and `develop`.
 
