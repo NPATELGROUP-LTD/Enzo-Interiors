@@ -1,6 +1,7 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   js.configs.recommended,
@@ -15,6 +16,15 @@ export default tseslint.config(
       '**/.turbo/**',
       '**/storybook-static/**',
     ],
+  },
+  {
+    // admin/portal lint through this root config; web has its own.
+    files: ['apps/admin/**/*.{ts,tsx}', 'apps/portal/**/*.{ts,tsx}'],
+    plugins: { 'react-hooks': reactHooks },
+    rules: {
+      'react-hooks/rules-of-hooks': 'error',
+      'react-hooks/exhaustive-deps': 'warn',
+    },
   },
   {
     rules: {
