@@ -53,4 +53,14 @@ jobs:
         app: [api, web, admin]
     steps:
       - uses: actions/checkout@v4
-      - run: docker build apps/${{ matrix.app }}
+      - if: matrix.app != 'web'
+        run: docker build apps/${{ matrix.app }}
+      # web reads these while prerendering, so it needs the same build args as
+      # docker-compose.yml. Placeholder URLs: this is a build smoke, not a deploy.
+      - if: matrix.app == 'web'
+        run: >
+          docker build apps/web
+          --build-arg NEXT_PUBLIC_API_BASE_URL=http://api:4000
+          --build-arg NEXT_PUBLIC_API_PUBLIC_URL=https://api.example.test
+          --build-arg NEXT_PUBLIC_MEDIA_BASE_URL=https://media.example.test
+          --build-arg SITE_URL=https://www.example.test
