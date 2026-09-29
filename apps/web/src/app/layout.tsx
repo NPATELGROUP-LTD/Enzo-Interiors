@@ -129,8 +129,13 @@ export default async function RootLayout({
             intentionally positions its pieces a couple of px *inside* the
             14px band (rather than exactly at 14px) so the frame's own paint
             (it's a higher z-index) always covers the seam, guaranteeing no
-            gap regardless of sub-pixel rounding. */}
-        <div aria-hidden className="site-frame pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
+            gap regardless of sub-pixel rounding.
+            Not rendered at all before launch: the guard script above runs
+            only once Next's runtime loads, after first paint, so hiding the
+            frame from there flashed it on every coming-soon load. */}
+        {gated ? null : (
+          <div aria-hidden className="site-frame pointer-events-none fixed inset-0 z-[100] hidden border-[14px] border-enzo-sand md:block" />
+        )}
         <SmoothScroll>{gated ? <ComingSoon site={site} /> : children}</SmoothScroll>
         {draft.isEnabled ? (
           <div className="fixed bottom-5 left-1/2 z-[110] flex -translate-x-1/2 items-center gap-4 rounded-full bg-enzo-dark/90 py-2 pl-5 pr-2 text-sm text-enzo-cream shadow-lg backdrop-blur">

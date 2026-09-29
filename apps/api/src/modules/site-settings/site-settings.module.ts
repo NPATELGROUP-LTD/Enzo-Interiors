@@ -175,12 +175,14 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
   }
 
   async update(principal: AuthPrincipal, dto: UpdateSiteSettingsDto): Promise<SiteSettings> {
-    await this.get();
+    const current = await this.get();
     const emails = [...new Set(dto.notification_emails.map((e) => e.trim().toLowerCase()))];
     const brand: Partial<SiteSettings> = {};
     for (const key of BRAND_KEYS) {
       const id = dto[key];
-      if (id === undefined) continue;
+      // The admin resends every slot on each save; only a new choice is checked,
+      // or a default whose media row is missing would block every save.
+      if (id === undefined || id === current[key]) continue;
       if (id !== null && !(await this.db.mediaAssets.findById(id))) {
         throw new BadRequestException('That image is no longer in the media library. Choose another.');
       }
