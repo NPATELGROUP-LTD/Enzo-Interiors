@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [develop, main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Required check names: "app (api)", "app (admin)", "app (web)", "app (portal)".
+  # Each app installs on its own (CLAUDE.md); a script an app does not define is skipped.
+  app:
+    name: app (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, admin, web, portal]
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/${{ matrix.app }}/package-lock.json
+      - run: npm ci
+      # api/admin/portal have no eslint of their own: `eslint src` picks up the
+      # root eslint.config.js and root node_modules/.bin. web's config is self-contained.
+      - if: matrix.app != 'web'
+        working-directory: .
+        run: corepack enable && pnpm install --frozen-lockfile --filter .
+      # Typecheck needs the generated client; do not rely on npm running postinstall.
+      - if: matrix.app == 'api'
+        run: npx prisma generate
+      - run: npm run --if-present typecheck
+      - run: npm run --if-present lint
+      - run: npm run --if-present test
+      - run: npm run --if-present build
+
+  # Image build smoke, PRs into main only. Context is each app's directory, as in docker-compose.yml.
+  docker:
+    name: docker (${{ matrix.app }})
+    if: github.base_ref == 'main'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [api, web, admin]
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.app != 'web'
+        run: docker build apps/${{ matrix.app }}
+      # web reads these while prerendering, so it needs the same build args as
+      # docker-compose.yml. Placeholder URLs: this is a build smoke, not a deploy.
+      - if: matrix.app == 'web'
+        run: >
+          docker build apps/web
+          --build-arg NEXT_PUBLIC_API_BASE_URL=http://api:4000
+          --build-arg NEXT_PUBLIC_API_PUBLIC_URL=https://api.example.test
+          --build-arg NEXT_PUBLIC_MEDIA_BASE_URL=https://media.example.test
+          --build-arg SITE_URL=https://www.example.test

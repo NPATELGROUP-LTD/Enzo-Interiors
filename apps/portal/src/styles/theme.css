@@ -1,0 +1,339 @@
+/**
+ * Enzo Interiors — Client Portal design tokens.
+ *
+ * Implements docs/Enzo_Interiors_UI_UX_Brief_v6.md exactly. That brief calls
+ * itself "a strict implementation contract", so the values below are copied
+ * from it rather than interpreted.
+ *
+ * IMPORTANT: this is NOT the same token set as apps/web. The public site uses
+ * the older PRD brand palette (forest #1C4A3A, multiple type families) and says
+ * in its own theme.css not to reconcile the two. Brief v6 is the newer
+ * direction and architecture.md 9.6 scopes it specifically to the authenticated
+ * products — admin and portal. Do not merge them.
+ *
+ * apps/admin carries a byte-identical copy of this file. Per the build brief
+ * there is no shared package: when a token changes, change it in both.
+ *
+ * DESKTOP REDESIGN (Sep 2026): the shell is now a macOS-style desktop — menu
+ * bar with the pages in it, one full-height window. That deliberately relaxes three
+ * brief rules at the product owner's request: translucent "glass" chrome,
+ * soft wallpaper gradients, and pill-shaped switches/tags. Colour, type and
+ * contrast tokens below are unchanged.
+ *
+ * DARK MODE IS A DERIVED ASSUMPTION. Brief v6 mandates "WCAG AA contrast in
+ * every theme" and a light/dark toggle, but specifies light values only. The
+ * dark ramp below inverts the canvas/surface/ink relationships while keeping
+ * the same green identity, and every pairing was chosen to hold AA (4.5:1 for
+ * body text, 3:1 for large text and UI borders). Flagged for design review.
+ */
+
+@import "tailwindcss";
+
+/* The brief's dark mode is a class on <html>, driven by the theme toggle, so
+   a user's explicit choice beats their OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* --- Brief v6 colour tokens, verbatim --- */
+  --green-900: #173c30; /* Primary action, active nav, key heading */
+  --green-800: #245441; /* Primary button hover/pressed */
+  --green-100: #e4eee8; /* Selected or quiet active surface */
+  --secondary-default: #f2f7f3;
+  --secondary-hover: #d9e9dc;
+  --canvas: #f7f5f0; /* Page background */
+  --surface: #fffefa; /* Cards, inputs, dialogs */
+  --surface-muted: #eeeae1; /* Table headers, quiet grouped areas */
+  --ink: #242723; /* Primary text */
+  --ink-muted: #62665f; /* Supporting text */
+  --border: #d8d2c6;
+  --success: #24613e;
+  --success-bg: #e6f1e9;
+  --warning: #8a5716;
+  --warning-bg: #faeedb;
+  --danger: #a63835;
+  --danger-bg: #f9e7e5;
+  --focus-ring: #5d8a71;
+
+  /* Text that sits on top of a green-900 fill. */
+  --on-primary: #fffefa;
+
+  /* The brief permits exactly one overlay shadow and prefers 1px borders. */
+  --shadow-overlay: 0 8px 24px rgba(30, 38, 31, 0.08);
+
+  /* 8px controls, 12px cards/tiles/modals. */
+  --radius-control: 8px;
+  --radius-card: 14px;
+
+  /* --- Desktop shell --- */
+  --wallpaper:
+    radial-gradient(70rem 50rem at 5% -10%, #cfe0d3 0%, transparent 60%),
+    radial-gradient(60rem 45rem at 105% 0%, #efdcc2 0%, transparent 55%),
+    radial-gradient(70rem 55rem at 55% 120%, #b7cfbf 0%, transparent 60%), #e9e5da;
+  --glass: rgba(255, 254, 250, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.7);
+  --shadow-window: 0 24px 60px -18px rgba(23, 40, 31, 0.35), 0 0 0 0.5px rgba(23, 40, 31, 0.12);
+  --shadow-card: 0 1px 2px rgba(30, 38, 31, 0.05);
+  /* Borderless card lift: a barely-there edge plus a soft falloff. */
+  --shadow-soft: 0 0 0 0.5px rgba(30, 38, 31, 0.07), 0 1px 2px rgba(30, 38, 31, 0.04), 0 6px 20px -8px rgba(30, 38, 31, 0.12);
+  --stripe: rgba(36, 39, 35, 0.035);
+  --row-hover: rgba(23, 60, 48, 0.07);
+  --badge: #d23b35;
+}
+
+.dark {
+  /* Derived — see the file header. Greens lift so they stay legible on a dark
+     ground; the semantic hues keep their meaning but swap fill and text. */
+  --green-900: #7fb99b; /* Primary action on dark: light enough to carry AA text on --canvas */
+  --green-800: #9ccdb2;
+  --green-100: #1e3a30;
+  --secondary-default: #1f2a25;
+  --secondary-hover: #2a3a32;
+  --canvas: #14170f;
+  --surface: #1c201a;
+  --surface-muted: #252a22;
+  --ink: #f0eee7;
+  --ink-muted: #a8ad9f;
+  --border: #333a2e;
+  --success: #7dc79b;
+  --success-bg: #1b3527;
+  --warning: #e0b072;
+  --warning-bg: #3a2c17;
+  --danger: #e59b97;
+  --danger-bg: #3a201f;
+  --focus-ring: #8fc0a3;
+
+  /* On dark, the primary fill is light, so its text must be dark. */
+  --on-primary: #14170f;
+
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+  --wallpaper:
+    radial-gradient(70rem 50rem at 5% -10%, #1f4434 0%, transparent 60%),
+    radial-gradient(60rem 45rem at 105% 0%, #3b2c1d 0%, transparent 55%),
+    radial-gradient(70rem 55rem at 55% 120%, #173c30 0%, transparent 60%), #0d110c;
+  --glass: rgba(30, 35, 28, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-window: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.5);
+  --stripe: rgba(255, 255, 255, 0.03);
+  --row-hover: rgba(127, 185, 155, 0.1);
+}
+
+@theme inline {
+  --color-green-900: var(--green-900);
+  --color-green-800: var(--green-800);
+  --color-green-100: var(--green-100);
+  --color-secondary: var(--secondary-default);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-border: var(--border);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-focus-ring: var(--focus-ring);
+  --color-on-primary: var(--on-primary);
+
+  --radius-control: var(--radius-control);
+  --radius-card: var(--radius-card);
+
+  --shadow-overlay: var(--shadow-overlay);
+  --shadow-window: var(--shadow-window);
+  --shadow-card: var(--shadow-card);
+  --shadow-soft: var(--shadow-soft);
+  --color-glass: var(--glass);
+  --color-glass-border: var(--glass-border);
+  --color-badge: var(--badge);
+
+  /* San Francisco on Apple devices, Inter everywhere else. Still no serif. */
+  --font-sans: -apple-system, BlinkMacSystemFont, "Inter", system-ui, sans-serif;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    border-color: var(--border);
+  }
+
+  html {
+    font-family: var(--font-sans);
+    /*
+     * Root stays at the browser default 16px. It is tempting to set 14px here
+     * to get the brief's "Portal/CRM body 14px" in one line, but rem-based
+     * Tailwind utilities are relative to THIS value: at 14px, `min-h-11`
+     * (2.75rem) computes to 38.5px and every control silently breaks the
+     * brief's hard 44px minimum touch target. The 14px belongs on body text,
+     * which is what the brief's type scale actually specifies.
+     */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--canvas);
+    color: var(--ink);
+    /* Brief type scale: Portal/CRM body 14px / 500 / 1.5. */
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Brief type scale. Desktop / mobile sizes with the stated tracking. */
+  h1 {
+    font-size: 42px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+  h2 {
+    font-size: 32px;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+  h3 {
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  @media (min-width: 768px) {
+    h1 {
+      font-size: 64px;
+    }
+    h2 {
+      font-size: 40px;
+    }
+    h3 {
+      font-size: 24px;
+    }
+  }
+
+  /* Visible focus everywhere, per the accessibility section. */
+  :focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* The brief bans exaggerated movement; honour reduced-motion outright. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* 12px uppercase label, 0.08em tracking — the brief's Labels row. */
+  .label-eyebrow {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+  }
+
+  /**
+   * Text links are "lightweight and stable": colour and underline change only.
+   * No background, box, shadow or movement on hover — the brief calls this out
+   * as an updated rule, so it is expressed once here rather than per-component.
+   */
+  .text-link {
+    color: var(--green-900);
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 3px;
+    transition: color 160ms ease;
+  }
+  .text-link:hover {
+    color: var(--green-800);
+    text-decoration-thickness: 2px;
+  }
+  .text-link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+    text-decoration-line: underline;
+  }
+
+  /*
+   * On touch devices a text link still has to clear the brief's 44px minimum
+   * target. Padding it out is invisible — it adds no background, box, shadow or
+   * movement, so the "lightweight and stable" rule is untouched — and it is
+   * scoped to coarse pointers so a mouse user keeps a pure inline text link
+   * with normal line spacing.
+   */
+  @media (pointer: coarse) {
+    .text-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+    }
+  }
+
+  /* ---- Desktop shell ---------------------------------------------------- */
+
+  .wallpaper {
+    background: var(--wallpaper);
+    background-attachment: fixed;
+  }
+
+  /* Menu bar and menu chrome. */
+  .glass {
+    background: var(--glass);
+    -webkit-backdrop-filter: saturate(180%) blur(24px);
+    backdrop-filter: saturate(180%) blur(24px);
+  }
+
+  /* Tabular figures keep money columns from jittering as values change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/*
+ * No hairline grids. Tables and lists read as Finder-style striped rows: odd
+ * rows take a faint tint and round their ends, hover lifts a table row in
+ * green. Unlayered so it beats padding utilities (first:pt-0 and friends)
+ * that were written for divider lines.
+ */
+.data-table tbody tr:nth-child(even) > td {
+  background: var(--stripe);
+}
+.data-table tbody tr:hover > td {
+  background: var(--row-hover);
+}
+.data-table td:first-child {
+  border-radius: 8px 0 0 8px;
+}
+.data-table td:last-child {
+  border-radius: 0 8px 8px 0;
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.rows > * {
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-inline: -12px;
+}
+.rows > *:nth-child(odd) {
+  background: var(--stripe);
+}

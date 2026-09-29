@@ -1,0 +1,9 @@
+node_modules/
+out/
+
+# Copied in from apps/api/seed-media by scripts/sync-assets.mjs. The
+# platform's media seed is the one source for the logo, photography and room
+# footage; nothing here should drift from it.
+public/brand/
+public/photos/
+public/frames/
