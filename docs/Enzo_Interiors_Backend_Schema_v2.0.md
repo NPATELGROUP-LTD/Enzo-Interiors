@@ -271,6 +271,44 @@ Index: `idx_bookings_date_time`
 | details | jsonb | nullable |
 | created_at | timestamptz | default now() |
 
+### 3.19 site_settings (v1) — additions
+One row, id `site`. Added in migration `3_opening_hours_dark_favicon`, both nullable, no default, so no existing row changed:
+
+| Field | Type | Constraints |
+|---|---|---|
+| favicon_dark_id | text | nullable; media id shown in dark mode; null = favicon_id for both |
+| opening_hours | jsonb | nullable; `{ weekly: {monday: [{open, close}]…}, notes: {day: text}, note }`; null = the company record's hours |
+
+### 3.20 newsletter_subscribers (v1)
+| Field | Type | Constraints |
+|---|---|---|
+| id | text | PK |
+| email | text | unique, stored lower-case |
+| status | text | `pending` \| `confirmed` \| `unsubscribed`, default pending |
+| token | text | unique; in the confirm/unsubscribe links |
+| source | text | nullable; `coming_soon` \| `footer` |
+| created_at, confirm_sent_at, confirmed_at, unsubscribed_at | timestamptz | created_at default now(); others nullable |
+
+Indexes: (status, created_at), (status, id).
+
+### 3.21 newsletter_campaigns (v1)
+| Field | Type | Constraints |
+|---|---|---|
+| id | text | PK |
+| subject | text | not null |
+| html | text | not null; sanitised on save |
+| status | text | `draft` \| `sending` \| `sent`, default draft |
+| recipients, sent_count, failed_count | int | default 0 |
+| cursor | text | nullable; last subscriber id sent, for resuming |
+| created_by | text | nullable |
+| created_at, updated_at, sent_at | timestamptz | sent_at nullable |
+
+Index: (created_at).
+
+### 3.22 Indexes added in `5_indexes` (v1)
+- `notifications (recipient_id, read_at)` — the bell's unread count.
+- `newsletter_subscribers (status, id)` — sending in id order by cursor.
+
 ## 4. RBAC Enforcement Model (NestJS Guards)
 
 | Role | Scope | Notes |
@@ -301,4 +339,5 @@ Index: `idx_bookings_date_time`
 - `quote_line_items.unit_price` is a snapshot copy of `components.unit_price` at quote time so later price changes in the Component Library never retroactively alter historical quotes.
 - Cascading deletes are scoped tightly: deleting a `quote` cascades to its `quote_line_items`, but never to `clients`, `invoices`, or `components`.
 - **No `tenant_id` field exists anywhere in this schema.** This is a single-tenant system by permanent design decision — Enzo Interiors is the only business this platform will ever serve.
+- **Migrations only add.** New tables, nullable or defaulted columns and indexes; no DROP, RENAME, ALTER COLUMN or data UPDATE, and a migration that has run is never edited. A rolled-back image must still run on the newer schema.
 - **No payment gateway integration exists or is planned.** `invoices.status` and `invoices.paid_at` are updated exclusively through the Admin's manual "Mark Paid" action; there is no `/payments` domain in the API.

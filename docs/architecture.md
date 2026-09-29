@@ -129,6 +129,8 @@ Permanent scope exclusions: no payment gateway (Stripe/PayPal/other) at any phas
 | Projects | `/projects/:id/stage` | PATCH | admin |
 | Messages | `/conversations/:id/messages` (WebSocket) | GET/POST | admin, portal |
 | Documents | `/documents/upload` | POST | admin, portal |
+| Site settings (v1) | `/settings`, `/settings/opening-hours` | GET/PUT | admin (Admin only); public status and hours via `/content/site` |
+| Newsletter (v1) | `/newsletter`, `/newsletter/confirm`, `/newsletter/unsubscribe` (public); `/newsletter/subscribers`, `/newsletter/campaigns` (Admin) | GET/POST/PUT/DELETE | web, admin |
 
 **Permanently removed:** `/payments/create-intent` and any Stripe/payment-gateway route — invoice status changes exclusively via manual Admin action.
 
@@ -174,11 +176,15 @@ contact_submissions ──0:1── clients (converted lead)
 | contact_submissions | Public lead capture | name, email, service_interest, status |
 | business_settings | Global business config | business_name, vat_rate, logo_url, brand_primary_color |
 | activity_logs | Audit trail | staff_id, action, target_table, target_id, details (jsonb) |
+| site_settings (v1) | The one settings row | status, launch_at, notification_emails, logo/favicon ids (light + dark), opening_hours (jsonb) |
+| newsletter_subscribers (v1) | Double opt-in list | email (unique), status pending/confirmed/unsubscribed, token (unique), source |
+| newsletter_campaigns (v1) | HTML newsletters | subject, html (sanitised), status draft/sending/sent, recipients, sent/failed counts, cursor |
 
 ### 7.3 Data Integrity Rules
 - All monetary fields use `decimal`, never `float`.
 - `quote_line_items.unit_price` is a point-in-time snapshot so later price changes never retroactively alter historical quotes.
 - Cascading deletes are scoped tightly (e.g. deleting a quote cascades to its line items only, never to clients/invoices/components).
+- Migrations only add (tables, nullable/defaulted columns, indexes) and are never edited once run, so a rolled-back release still runs on the newer schema.
 
 ---
 
@@ -229,6 +235,8 @@ S3 versioning enabled on production bucket; daily cross-bucket/cross-region repl
 
 ### 9.1 Authentication & RBAC
 Separate JWT-issuing login endpoints for Admin and Client (`/auth/admin/login`, `/auth/portal/login`); role scoping enforced centrally via NestJS Guards, not hardcoded checks, across three roles: Client, Designer/Installer, Admin.
+
+Rate limiting is layered: Cloudflare at the edge (WAF, bot fight, per-path rate rules — floods stop before the home server), then `@nestjs/throttler` in the API with counters in Redis (shared across restarts and replicas, fail-open to memory), with tighter limits on every public write and a progressive sign-in lockout. 429s carry `Retry-After` and a human message the frontends show as-is.
 
 ### 9.2 Real-Time Messaging
 A single Socket.IO WebSocket gateway inside `apps/api` powers both the Admin inbox and Client Portal chat, keyed on `conversation_id`, with attachments referencing S3 keys.

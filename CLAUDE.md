@@ -13,8 +13,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
-  booking) and **Settings** (`/settings/:section`, Admin only: website status,
-  logo & favicon, notification emails, booking schedule, users). Your own
+  booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
+  (`/settings/:section`, Admin only: website status, logo & favicon (light +
+  dark), notification emails, opening hours, booking schedule, newsletter,
+  users). CMS, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
   accept an invitation). The CRM screens are still in `src/pages` but unrouted
@@ -24,8 +26,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   media, the CMS (incl. the public `GET /content/site` bundle, which carries
   the site's live/coming-soon status and brand images, and editor review
   requests), site settings, the public `POST /enquiries`, **booking**
-  (`/booking/*` public + settings, `/appointments` for staff) and
-  `/notifications`. The CRM modules and their tables (incl. the CRM's
+  (`/booking/*` public + settings, `/appointments` for staff),
+  `/notifications` and the **newsletter** (`/newsletter` public sign-up,
+  confirm, unsubscribe; admin subscribers, CSV, campaigns). The CRM modules and their tables (incl. the CRM's
   `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
@@ -113,7 +116,11 @@ uploaded under `site/` by `npm run cms:import` (skips objects already there).
 new section in the shipped JSON reaches existing databases on the next import.
 
 **Site status:** `site_settings` (one row, `id='site'`): `live` / `coming_soon`,
-optional `launch_at`, and `notification_emails`. `isLive()` in
+optional `launch_at`, `notification_emails`, and `opening_hours` (JSONB:
+per-day windows, a note per day, one shared note). Null `opening_hours` =
+the company record's hours, which the Company editor no longer shows; the
+site prints them in the footer, on /contact, under the booking calendar and
+in JSON-LD (`apps/web/src/lib/content/hours.ts`). `isLive()` in
 `apps/web/src/lib/content` is the one rule (live, or launch time passed); it
 gates the layout, robots, sitemap and llms.txt. Editors preview a gated site
 through a 10-minute token → Next draft mode.
@@ -132,11 +139,36 @@ its time and null once cancelled, so the database refuses double bookings.
 Staff bookings skip the notice period and horizon. Customers are emailed on
 book / move / cancel; admins get the email (notification_emails) and the bell.
 
-**Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id` (media
-ids) replace `company.logos` on the site; the Company editor hides `logos`
+**Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id /
+favicon_dark_id` (media ids) replace `company.logos` on the site; the dark
+favicon is served with `media="(prefers-color-scheme: dark)"` (shipped ones:
+`apps/web/public/icon-dark.png`, `apps/admin/public/favicon-dark.png`); the Company editor hides `logos`
 (`RETIRED` in `apps/admin/src/components/cms/guide.ts`, which also hides the
 booking page's old `timeSlots` / `wordmark`). The default favicon is
 `apps/web/public/icon.png`.
+
+**Newsletter:** `newsletter_subscribers` (double opt-in: `pending` until the
+emailed link is clicked; only `confirmed` are sent to) and
+`newsletter_campaigns` (HTML body sanitised on save by
+`modules/newsletter/render.ts`, sent in batches with List-Unsubscribe
+headers, resumed after a restart from `cursor`). Sign-up is on the
+coming-soon page and in the footer.
+
+**Rate limits:** `@nestjs/throttler` with counters in Redis (`REDIS_URL`,
+the `redis` compose service); unset or down = in memory, the API keeps
+serving (`core/rate-limit.ts`). 300/min per IP overall, tighter per public
+write; sign-in locks progressively. The edge (Cloudflare) rules are in
+`docs/prelaunch.md` → Rate limits.
+
+**Hot paths query in SQL:** `PrismaRepository.findWhere / countWhere /
+updateWhere` push the filter into PostgreSQL (the bell, availability, CMS
+lookups, newsletter sending); `findAll(predicate)` stays for the rest.
+
+**Migrations only add:** new tables, nullable or defaulted columns, indexes.
+No DROP / RENAME / ALTER COLUMN / data UPDATE in a migration, and one that
+has run is never edited, so the previous image still runs on the new schema
+(`docs/prelaunch.md`). Defaults for new settings are computed on read, not
+written into existing rows.
 
 **Sessions:** JWTs carry `tv` = `staff_users.token_version`; `JwtAuthGuard`
 re-reads the staff row per request, so a password change or reset signs out
@@ -160,7 +192,7 @@ docker compose run --rm seed              # import the site's copy into the CMS
 docker compose down --volumes             # wipe DB + uploads, start from nothing
 
 # Dev: DB + storage in Docker, apps on the host
-docker compose up -d --wait postgres minio minio-init
+docker compose up -d --wait postgres minio minio-init redis   # redis optional
 cd apps/api   && npm ci && npm run db:setup && npm run dev   # :4000
 cd apps/admin && npm ci && npm run dev                       # :5174
 cd apps/web   && npm ci && npm run dev                       # :3000
@@ -170,7 +202,7 @@ cd apps/web   && npm ci && npm run dev                       # :3000
 |---|---|
 | `apps/api` | `npm run typecheck`, `npm test`, `npm run build` |
 | `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
-| `apps/web` | `npm run typecheck`, `npm run lint`, `npm run build` |
+| `apps/web` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` |
 
 Schema changes: edit `apps/api/prisma/schema.prisma`, then
 `npx prisma migrate dev --name <name>` in `apps/api`.

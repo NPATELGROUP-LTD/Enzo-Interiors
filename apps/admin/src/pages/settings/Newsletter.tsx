@@ -387,6 +387,8 @@ function CampaignEditor({
   const subscribers = useQuery<Subscriber[]>(campaign?.status === 'draft' ? '/newsletter/subscribers' : null);
   const assets = useQuery<MediaAsset[]>(picking ? '/cms/media' : null);
   const code = useRef<HTMLTextAreaElement>(null);
+  /** Where the cursor was when the box last lost focus; null = never used, so add at the end. */
+  const caret = useRef<[number, number] | null>(null);
 
   const readOnly = !!campaign && campaign.status !== 'draft';
   const dirty = !campaign || subject !== campaign.subject || html !== campaign.html;
@@ -394,9 +396,9 @@ function CampaignEditor({
 
   const insert = (snippet: string) => {
     const box = code.current;
-    const at = box?.selectionStart ?? html.length;
-    const end = box?.selectionEnd ?? at;
+    const [at, end] = caret.current ?? [html.length, html.length];
     setHtml(html.slice(0, at) + snippet + html.slice(end));
+    caret.current = [at + snippet.length, at + snippet.length];
     requestAnimationFrame(() => {
       box?.focus();
       box?.setSelectionRange(at + snippet.length, at + snippet.length);
@@ -542,7 +544,11 @@ function CampaignEditor({
             readOnly={readOnly}
             spellCheck={false}
             onChange={(event) => setHtml(event.target.value)}
-            className={clsx(FIELD_BASE, 'min-h-[28rem] resize-y py-2 font-mono text-[12.5px] leading-relaxed')}
+            onBlur={(event) => {
+              caret.current = [event.target.selectionStart, event.target.selectionEnd];
+            }}
+            // A fixed height, not min-h: FIELD_BASE's pointer-fine:min-h-9 would win over it.
+            className={clsx(FIELD_BASE, 'h-[28rem] resize-y py-2 font-mono text-[12.5px] leading-relaxed')}
           />
           <p className="text-xs text-ink-muted">
             Style with inline <code>style=&quot;…&quot;</code>, as email needs. Scripts, forms and non-web links are
