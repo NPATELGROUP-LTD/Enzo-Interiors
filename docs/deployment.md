@@ -173,8 +173,8 @@ side (analytics, forms) should read `x-forwarded-for` (first entry) or
 
 ## 6. Updates, backups, rollback
 
-- **Deploy:** push to git, Coolify redeploys the stack. The database is not
-  part of it, so data is untouched.
+- **Deploy:** push to `main`, Coolify redeploys the stack. The database is not
+  part of it, so data is untouched. See "Deploy trigger" below.
 - **Before a migration:** take a manual backup in the Coolify database resource.
 - **Migrations are additive only** (docs/prelaunch.md), so rolling back the app
   to the previous build still works against the new schema. Rename/drop only in
@@ -185,6 +185,23 @@ side (analytics, forms) should read `x-forwarded-for` (first entry) or
   up too (`mc mirror` to S3, or snapshot the volume).
 - **Disaster recovery drill:** every few months restore the latest backup to a
   scratch DB and open the admin against it.
+
+### Deploy trigger (GitHub → Coolify)
+
+The stack uses the GitHub App source `npg-github-source`, so the deploy is
+triggered by that App's webhook, not by a repo webhook and not by
+`/api/v1/deploy` (that endpoint needs a Bearer token, which GitHub cannot send;
+it answers `{"message":"Unauthenticated."}`).
+
+- **GitHub App webhook:** active, content type `application/json`, subscribed to
+  Push, URL and secret exactly as shown on Coolify → Sources → `npg-github-source`.
+  A secret mismatch fails the signature check.
+- **Coolify host is behind Cloudflare Access.** GitHub must reach the webhook
+  path only: keep the UI protected and give `/webhooks/*` a Bypass policy.
+- **Resource:** Auto Deploy on, branch `main`.
+- **Verify after any change:** GitHub App → Advanced → Recent Deliveries →
+  Redeliver a `push`. Expect 200 and a new entry under Coolify → Deployments.
+  A 200 from the site alone proves nothing: the old deployment keeps serving.
 
 ## Launch checklist
 - [ ] DNS on Cloudflare, four tunnel hostnames green
