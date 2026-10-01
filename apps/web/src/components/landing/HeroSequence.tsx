@@ -228,11 +228,10 @@ export function HeroSequence({
 
   const [activeRoomIndex, setActiveRoomIndex] = useState(0);
   const [activeLayer, setActiveLayer] = useState<Layer>("room");
-  // Local loading state for the first room's frames — no cross-component
-  // event needed since the loader now lives inside this component instead
-  // of a separate global overlay.
-  const [framesReady, setFramesReady] = useState(false);
-  const [loadProgress, setLoadProgress] = useState(0);
+  // Decode progress per room, 0–100. The loader covers whichever room is on
+  // screen until that room is at 100 — not just the first one, or scrolling
+  // into a room still decoding shows its caption over a black canvas.
+  const [roomProgress, setRoomProgress] = useState<number[]>(() => rooms.map(() => 0));
 
   // Split out from the main effect below and run as a layout effect (not a
   // plain effect) specifically so it commits before the browser's first
@@ -309,8 +308,8 @@ export function HeroSequence({
     // it hands off to normal scroll-driven rendering with no visible
     // discontinuity, since both already agree on the same state.
     let resumingAtCta = hasSeenCta;
-    // Set once revealIfReady() has made the jump. Before it, the page is still
-    // at the top, and the refreshes that measure the pin hand handleUpdate a
+    // Set once the jump to the CTA is made. Before it, the page is still at
+    // the top, and the refreshes that measure the pin hand handleUpdate a
     // full-progress tick that used to end the resume early: the jump was then
     // skipped, the CTA sat at the top of the page and the first scroll
     // replayed the rooms.
@@ -318,7 +317,6 @@ export function HeroSequence({
 
     const images: HTMLImageElement[][] = rooms.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = rooms.map(() => new Array(FRAME_COUNT).fill(false));
-    let revealed = false;
     let trigger: ScrollTrigger | null = null;
 
     // End-frame hold state — see HOLD_PX. `held` is the hold segment pinned
@@ -379,10 +377,11 @@ export function HeroSequence({
       }
     }
 
-    function preloadRoom(roomIndex: number, onProgress?: () => void): Promise<void> {
+    function preloadRoom(roomIndex: number): Promise<void> {
       const room = rooms[roomIndex]!;
       return new Promise((resolve) => {
         let remaining = FRAME_COUNT;
+        let shown = 0;
         for (let i = 0; i < FRAME_COUNT; i++) {
           const frameIndex = i;
           const img = new Image();
@@ -391,8 +390,17 @@ export function HeroSequence({
             if (disposed) return;
             loaded[roomIndex]![frameIndex] = true;
             remaining--;
-            onProgress?.();
-            if (remaining === 0) resolve();
+            const pct = Math.round(((FRAME_COUNT - remaining) / FRAME_COUNT) * 100);
+            if (pct !== shown) {
+              shown = pct;
+              setRoomProgress((all) => all.map((v, j) => (j === roomIndex ? pct : v)));
+            }
+            if (remaining > 0) return;
+            // The room may already be on screen behind the loader, drawn from
+            // whichever frames had arrived: redraw it now that all have.
+            lastDrawnKey = "";
+            if (trigger) handleUpdate(trigger);
+            resolve();
           };
           // Decode off the main thread now, so the first scrub past a frame
           // draws it rather than stalling on a synchronous decode.
@@ -402,22 +410,6 @@ export function HeroSequence({
           images[roomIndex]![frameIndex] = img;
         }
       });
-    }
-
-    function revealIfReady() {
-      if (disposed || revealed) return;
-      revealed = true;
-      setFramesReady(true);
-      ScrollTrigger.refresh();
-      // Recalculating trigger geometry above can itself reset the scroll
-      // position (GSAP briefly clears pins to remeasure natural layout) —
-      // so the resume-at-CTA jump has to happen AFTER this refresh, not
-      // before it, or refresh() just undoes it.
-      if (resumingAtCta && trigger) {
-        window.scrollTo({ top: trigger.start + CTA_RESUME_RAW_PX, behavior: "auto" });
-        jumpedToCta = true;
-      }
-      void preloadRoom(1).then(() => void preloadRoom(2));
     }
 
     function setActiveRoom(roomIndex: number) {
@@ -664,8 +656,18 @@ export function HeroSequence({
     // sit on its final stage. The hero mounts a frame after the rest of the
     // page (Hero swaps its placeholder for this component only once mounted),
     // so this refresh cannot be folded into the one above.
+    //
+    // A returning visitor jumps to the CTA right here, once the pin is
+    // measured: under the page transition's cover, and without waiting on
+    // frames the CTA does not show. After the refresh, not before it — the
+    // refresh briefly clears the pin to remeasure and would undo the jump.
     requestAnimationFrame(() => {
-      if (!disposed) ScrollTrigger.refresh();
+      if (disposed) return;
+      ScrollTrigger.refresh();
+      if (resumingAtCta && trigger) {
+        window.scrollTo({ top: trigger.start + CTA_RESUME_RAW_PX, behavior: "auto" });
+        jumpedToCta = true;
+      }
     });
 
     resizeCanvas();
@@ -703,13 +705,12 @@ export function HeroSequence({
     window.addEventListener("touchstart", onTouchStart, { passive: true });
     window.addEventListener("touchmove", onTouchMove, { passive: true });
 
-    // Drives the loader below directly with real decode progress instead
-    // of a fixed animation timeline.
-    let firstRoomLoaded = 0;
-    void preloadRoom(0, () => {
-      firstRoomLoaded += 1;
-      setLoadProgress(Math.round((firstRoomLoaded / FRAME_COUNT) * 100));
-    }).then(revealIfReady);
+    // One room at a time, nearest first: from the top that is the first
+    // room; resuming at the CTA it is the last, which is where scrolling
+    // back up goes.
+    const order = rooms.map((_, i) => i);
+    if (resumingAtCta) order.unshift(order.pop()!);
+    void order.reduce((chain, i) => chain.then(() => preloadRoom(i)), Promise.resolve());
 
     return () => {
       disposed = true;
@@ -735,6 +736,8 @@ export function HeroSequence({
 
   const activeRoom = rooms[activeRoomIndex]!;
   const showRoom = activeLayer === "room" || activeLayer === "hold";
+  const loadProgress = roomProgress[activeRoomIndex] ?? 0;
+  const loaderHidden = loadProgress === 100 || !showRoom;
   return (
     <section ref={sectionRef} className="relative w-full">
       <div
@@ -752,8 +755,8 @@ export function HeroSequence({
         style={{ opacity: showRoom ? 1 : 0 }}
       />
 
-      {/* Frame loader — covers the canvas until the first room's 144
-          frames are actually decoded, so there's never a blank/empty
+      {/* Frame loader — covers the canvas until the room on screen has its
+          144 frames actually decoded, so there's never a blank/empty
           canvas before playback can start. Scoped to this section only
           (not a site-wide splash) and driven by the real decode progress
           tracked above, not a fixed timer. Also gated on activeLayer:
@@ -764,11 +767,11 @@ export function HeroSequence({
       <div
         aria-live="polite"
         aria-label={content.loader.label}
-        aria-hidden={framesReady || !showRoom}
+        aria-hidden={loaderHidden}
         className="absolute inset-0 z-[20] grid place-items-center bg-enzo-dark transition-opacity duration-500 ease-out"
         style={{
-          opacity: framesReady || !showRoom ? 0 : 1,
-          pointerEvents: framesReady || !showRoom ? "none" : "auto",
+          opacity: loaderHidden ? 0 : 1,
+          pointerEvents: loaderHidden ? "none" : "auto",
         }}
       >
         <div className="flex w-full max-w-xs flex-col items-center px-6 text-center">
