@@ -1,5 +1,8 @@
-import { ArrowUpRight } from "lucide-react";
-import type { Company } from "@/lib/content";
+"use client";
+
+import { ArrowUpRight, MapPin } from "lucide-react";
+import { setConsent, useConsent } from "@/lib/consent";
+import type { Company, SiteContent } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
 // The actual "Enzo Interiors" Google Business listing embed (provided
@@ -13,17 +16,26 @@ import { cn } from "@/lib/utils";
 // Both URLs, the frame's title and the chip's labels come from the company
 // record in src/data/company.json, so the address the site points at is
 // stated once.
+//
+// The embed sets Google's cookies as soon as it loads, so it loads only with
+// "functional" consent (lib/consent.ts). Until then the same box holds a
+// note and a button; pressing it is the consent, recorded like any other.
 
 // `compact` drives the desktop single-screen panel's small thumbnail
 // (~130px wide) — the default chip's padding/text would overrun a box that
 // small, so compact swaps it for an icon-only pin.
 export function FooterMap({
   map,
+  labels,
   compact = false,
 }: {
   map: Company["map"];
+  labels: SiteContent["footer"]["mapConsent"];
   compact?: boolean;
 }) {
+  const consent = useConsent();
+  const allowed = consent?.functional === true;
+  const size = compact ? "aspect-square" : "aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/6]";
   return (
     <div className="group relative overflow-hidden rounded-2xl border-2 border-enzo-cream/20 bg-black/15 shadow-[0_16px_40px_-12px_rgba(0,0,0,0.5)] transition-colors duration-300 hover:border-enzo-cream/30">
       {/* Kept in its natural colour rather than faked into grayscale/dark
@@ -37,16 +49,43 @@ export function FooterMap({
           renders as a full-width banner row rather than a narrow column —
           a tall 5:4 ratio at full container width would have made it
           enormous. */}
-      <iframe
-        title={map.title}
-        src={map.embedUrl}
-        loading="lazy"
-        referrerPolicy="no-referrer-when-downgrade"
-        className={cn(
-          "w-full brightness-[0.92] contrast-[1.03] saturate-[1.05] transition-[filter] duration-500 group-hover:brightness-100",
-          compact ? "aspect-square" : "aspect-[4/3] sm:aspect-[16/9] md:aspect-[21/6]",
-        )}
-      />
+      {allowed ? (
+        <iframe
+          title={map.title}
+          src={map.embedUrl}
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          className={cn(
+            "w-full brightness-[0.92] contrast-[1.03] saturate-[1.05] transition-[filter] duration-500 group-hover:brightness-100",
+            size,
+          )}
+        />
+      ) : (
+        <div
+          className={cn(
+            "flex w-full flex-col items-center justify-center gap-3 px-6 pb-14 text-center",
+            size,
+          )}
+        >
+          <MapPin className="h-5 w-5 text-enzo-sand" aria-hidden="true" />
+          {!compact && (
+            <p className="max-w-[44ch] text-[12.5px] leading-[1.6] text-enzo-cream/75">{labels.note}</p>
+          )}
+          <button
+            type="button"
+            onClick={() =>
+              setConsent({
+                functional: true,
+                analytics: consent?.analytics ?? false,
+                marketing: consent?.marketing ?? false,
+              })
+            }
+            className="min-h-11 rounded-full border border-enzo-cream/30 px-5 text-[12.5px] font-medium text-enzo-cream transition-colors duration-300 hover:border-enzo-cream hover:bg-enzo-cream/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand"
+          >
+            {labels.buttonLabel}
+          </button>
+        </div>
+      )}
       {/* Scrim so the chip stays legible over whatever's directly under it
           on the map, rather than relying on the chip's own bg alone. */}
       <div

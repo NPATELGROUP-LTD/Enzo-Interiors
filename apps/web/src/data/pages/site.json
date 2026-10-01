@@ -52,6 +52,10 @@
     "hoursLabel": "Opening Hours",
     "contactLabel": "Begin A Conversation",
     "mapLabel": "Where We Work",
+    "mapConsent": {
+      "note": "This map is served by Google, which sets its own cookies when it loads.",
+      "buttonLabel": "Show map"
+    },
     "newsletter": {
       "label": "The Studio Letter",
       "placeholder": "Your email address",
@@ -81,9 +85,11 @@
   "cookieBanner": {
     "regionLabel": "Cookie choices",
     "eyebrow": "Cookies",
-    "body": "This site sets one small item on your device so it remembers this choice, and nothing else. We use no analytics, no advertising and no third-party trackers — if that ever changes, we will ask first.",
+    "body": "We keep one small item on your device to remember this choice. With your permission we also show a Google Map, which sets Google's own cookies. We use no analytics and no advertising — if that ever changes, we will ask first.",
     "policyLinkLabel": "Read the cookie policy",
     "acceptLabel": "Accept all",
+    "recommendedLabel": "Accept recommended",
+    "recommendedNote": "“Accept recommended” turns on maps and embedded content and leaves analytics off. “Accept all” turns on everything listed here. “Reject all” keeps only what is strictly necessary. You can change your mind at any time from “Cookie settings” at the foot of every page.",
     "saveLabel": "Save choices",
     "rejectLabel": "Reject all",
     "showDetailsLabel": "Choose individually",
@@ -99,7 +105,12 @@
         "body": "Not in use today. Turning this on now permits it only if we add it later; leaving it off means we never will for you.",
         "toggleLabel": "Allow"
       }
-    ]
+    ],
+    "functional": {
+      "title": "Maps and embedded content",
+      "body": "Shows where we are on a Google Map at the foot of each page. The map is served by Google, which sets its own cookies and receives your IP address when it loads; Google's privacy policy applies. Leave this off and the map stays hidden until you ask for it — the “View on Google Maps” link works either way.",
+      "toggleLabel": "Allow"
+    }
   },
   "pageTransition": {
     "imprint": "Enzo Interiors — Leicester",

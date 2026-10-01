@@ -464,7 +464,7 @@ export function Footer({
 
         <div className="reveal-map mt-10 md:mt-12">
           <p className={cn(LABEL, "mb-3")}>{content.mapLabel}</p>
-          <FooterMap map={company.map} />
+          <FooterMap map={company.map} labels={content.mapConsent} />
         </div>
       </div>
 
