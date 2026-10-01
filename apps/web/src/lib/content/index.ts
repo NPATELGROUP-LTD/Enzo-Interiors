@@ -61,6 +61,7 @@ import type {
 } from "./types";
 
 import { hoursRows, type OpeningHoursSetting } from "./hours";
+import { withShipped } from "./merge";
 
 export type * from "./types";
 export type { OpeningHoursSetting } from "./hours";
@@ -210,12 +211,12 @@ function merge(raw: Partial<Bundle> | null): Bundle {
     faqs: showcase(raw.faqs, FALLBACK.faqs),
     navigation: nonEmpty(raw.navigation, FALLBACK.navigation),
     publishedAt: raw.publishedAt ?? {},
-    // Section by section, so a section added to src/data renders from the
+    // Key by key, so a section or field added to src/data renders from the
     // shipped copy until the CMS has one (the import adds it on its next run).
     pages: Object.fromEntries(
       Object.entries(FALLBACK.pages).map(([key, shipped]) => [
         key,
-        { ...shipped, ...(raw.pages?.[key as keyof Bundle["pages"]] ?? {}) },
+        withShipped(shipped, raw.pages?.[key as keyof Bundle["pages"]]),
       ]),
     ) as Bundle["pages"],
   };
