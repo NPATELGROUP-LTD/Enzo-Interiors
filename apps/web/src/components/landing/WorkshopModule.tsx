@@ -72,6 +72,8 @@ export function WorkshopModule({
   const [viewIndex, setViewIndex] = useState(0);
   const [doorsOpen, setDoorsOpen] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
+  /** The scene has drawn its first frame; the still holds the box until then. */
+  const [sceneDrawn, setSceneDrawn] = useState(false);
   const [hasOrbited, setHasOrbited] = useState(false);
 
   const isDesktop = useMediaQuery("(min-width: 1024px)");
@@ -100,7 +102,8 @@ export function WorkshopModule({
     const stage = stageRef.current;
     if (!stage) return;
 
-    const MARGIN = 300;
+    // A screen ahead, so the scene is drawing before the visitor gets there.
+    const MARGIN = window.innerHeight;
     let cancelled = false;
     const reveal = () => {
       if (!cancelled) setSceneReady(true);
@@ -133,6 +136,20 @@ export function WorkshopModule({
       window.clearTimeout(timer);
       observer?.disconnect();
     };
+  }, [canRender3D]);
+
+  // Fetch the 3D bundle once the page is idle instead of when the section
+  // comes near: on a slow connection that was seconds of an empty box.
+  useEffect(() => {
+    if (!canRender3D) return;
+    const load = () => void import("./MediaWallScene");
+    // Safari has no requestIdleCallback.
+    if (typeof requestIdleCallback === "undefined") {
+      const timer = setTimeout(load, 2000);
+      return () => clearTimeout(timer);
+    }
+    const id = requestIdleCallback(load, { timeout: 5000 });
+    return () => cancelIdleCallback(id);
   }, [canRender3D]);
 
   const resetOrbit = useCallback(() => {
@@ -330,6 +347,10 @@ export function WorkshopModule({
               onKeyDown={onKeyDown}
               {...(!showcase && canRender3D
                 ? {
+                    // The wheel zooms the model. Lenis listens on the whole
+                    // window and would scroll the page under it regardless
+                    // of the preventDefault below; this is its opt-out.
+                    "data-lenis-prevent": "",
                     tabIndex: 0,
                     role: "application" as const,
                     "aria-label": content.controls.stageAriaLabel,
@@ -341,13 +362,25 @@ export function WorkshopModule({
                 touchAction: showcase ? "auto" : "none",
               }}
             >
-              {canRender3D && sceneReady ? (
+              {/* The still holds the box until the scene's first frame — and
+                  stays, where there is no scene. Under the canvas, which is
+                  transparent until it draws. */}
+              {!(canRender3D && sceneDrawn) && (
+                <ImageWithFallback
+                  src={fallbackImage.src}
+                  alt={content.fallback.alt}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover"
+                />
+              )}
+              {canRender3D && sceneReady && (
                 <>
                   <MediaWallScene
                     view={showcase ? viewpoints[1]! : view}
                     orbitRef={orbitRef}
                     doorsOpen={doorsOpen}
                     showcase={showcase}
+                    onReady={() => setSceneDrawn(true)}
                   />
 
                   {showcase ? (
@@ -470,13 +503,6 @@ export function WorkshopModule({
                     </>
                   )}
                 </>
-              ) : (
-                <ImageWithFallback
-                  src={fallbackImage.src}
-                  alt={content.fallback.alt}
-                  loading="lazy"
-                  className="h-full w-full object-cover"
-                />
               )}
             </div>
 

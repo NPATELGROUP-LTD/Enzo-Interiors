@@ -523,14 +523,18 @@ export default function MediaWallScene({
   orbitRef,
   doorsOpen,
   showcase = false,
+  onReady,
 }: {
   view: Viewpoint;
   orbitRef: RefObject<OrbitState>;
   doorsOpen: boolean;
   showcase?: boolean;
+  /** Called once the first frame is on screen. */
+  onReady?: () => void;
 }) {
   return (
     <Canvas
+      onCreated={() => requestAnimationFrame(() => onReady?.())}
       camera={{ position: [0, 0, 6.2], fov: 36 }}
       dpr={showcase ? [1, 1.2] : [1, 1.75]}
       gl={{ antialias: true, alpha: true }}
