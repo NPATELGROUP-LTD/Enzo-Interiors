@@ -221,7 +221,14 @@ export function Navbar({
     observer.observe(document.body, { attributes: true, attributeFilter: ["data-hero-chrome"] });
     sync();
 
-    return () => observer.disconnect();
+    // Leaving home: hand the three pieces back to their stylesheet. Without
+    // this, whatever the intro last set inline (hidden, or mid-tween) stays
+    // on them on every other page.
+    return () => {
+      observer.disconnect();
+      gsap.killTweensOf([dock, logo, cta]);
+      gsap.set([dock, logo, cta], { clearProps: "opacity,transform" });
+    };
   }, [pathname]);
 
   // Reset mobile menu + hover panel when navigating, per React's "adjusting
