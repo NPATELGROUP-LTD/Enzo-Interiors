@@ -223,14 +223,14 @@
     "index": "L3",
     "eyebrow": "Cookies",
     "title": "One item, and we asked first.",
-    "intro": "Most cookie policies are long because most websites store a lot. This one is short because this website stores almost nothing: a record of the choice you made about cookies, and — while you are filling it in — your progress through the booking form. No analytics, no advertising, no third-party trackers.",
+    "intro": "Most cookie policies are long because most websites store a lot. This one is short because this website stores almost nothing: a record of the choice you made about cookies, and — while you are filling it in — your progress through the booking form. The one third party is the Google Map in the footer, and it loads only if you allow it. No analytics, no advertising.",
     "updated": "5 September 2026",
     "clauses": [
       {
         "id": "what-we-set",
         "heading": "Everything this site stores",
         "body": [
-          "That is the whole list. There is no analytics, no tag manager, no advertising pixel, no social embed, no session recording and no A/B testing on this website.",
+          "That is the whole list for this website itself. There is no analytics, no tag manager, no advertising pixel, no social embed, no session recording and no A/B testing. The Google Map is a third party and is covered below.",
           [
             "enzo.consent — remembers the choice you made in the cookie notice, so you are not asked on every page. Stored in your browser's local storage, not sent to our server, kept until you clear it or change your choice. Strictly necessary: without it we could not honour your decision.",
             "Booking form progress — while you are part-way through the booking wizard, your answers are held in your browser so a refresh does not lose them. Cleared when you submit or leave. Strictly necessary for a service you asked for."
@@ -242,7 +242,7 @@
         "id": "consent",
         "heading": "What we ask permission for",
         "body": [
-          "Under PECR we need your consent before storing or reading anything on your device that is not strictly necessary for a service you have asked for. Today nothing on this site falls into that category, so the notice you saw exists to record a decision rather than to unlock anything.",
+          "Under PECR we need your consent before storing or reading anything on your device that is not strictly necessary for a service you have asked for. Today one thing on this site falls into that category: “Maps and embedded content”, which shows the Google Map. “Accept recommended” allows it and leaves analytics off; “Reject all” keeps the map hidden, and you can still show it later with the button where it would be.",
           "We have still built the mechanism properly, because the moment analytics is added it has to sit behind a real choice rather than be retro-fitted. If you allow analytics now, that permission only takes effect if and when we add it; if you refuse, we will not add it for you."
         ]
       },
@@ -258,7 +258,8 @@
         "id": "third-parties",
         "heading": "Third parties",
         "body": [
-          "There are none embedded in this site. If we later add something that sets its own cookies — an embedded map, a review widget, a booking integration — it will be listed here by name and purpose before it goes live, and it will not load until you have allowed it.",
+          "Google Maps — the map at the foot of each page, showing where we are. It is served by Google, which sets its own cookies and receives your IP address when the map loads; Google's privacy policy applies, and we do not see or control that data. It loads only once you have allowed “Maps and embedded content”, and withdrawing that choice removes it.",
+          "Anything else we add that sets its own cookies — a review widget, a booking integration — will be listed here by name and purpose before it goes live, and it will not load until you have allowed it.",
           "Links from this site to other websites (for example our social profiles) take you to services with their own cookies and their own policies, over which we have no control."
         ]
       },

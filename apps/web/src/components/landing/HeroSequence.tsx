@@ -309,6 +309,12 @@ export function HeroSequence({
     // it hands off to normal scroll-driven rendering with no visible
     // discontinuity, since both already agree on the same state.
     let resumingAtCta = hasSeenCta;
+    // Set once revealIfReady() has made the jump. Before it, the page is still
+    // at the top, and the refreshes that measure the pin hand handleUpdate a
+    // full-progress tick that used to end the resume early: the jump was then
+    // skipped, the CTA sat at the top of the page and the first scroll
+    // replayed the rooms.
+    let jumpedToCta = false;
 
     const images: HTMLImageElement[][] = rooms.map(() => new Array(FRAME_COUNT));
     const loaded: boolean[][] = rooms.map(() => new Array(FRAME_COUNT).fill(false));
@@ -409,6 +415,7 @@ export function HeroSequence({
       // before it, or refresh() just undoes it.
       if (resumingAtCta && trigger) {
         window.scrollTo({ top: trigger.start + CTA_RESUME_RAW_PX, behavior: "auto" });
+        jumpedToCta = true;
       }
       void preloadRoom(1).then(() => void preloadRoom(2));
     }
@@ -556,6 +563,11 @@ export function HeroSequence({
     }
 
     function handleUpdate(self: ScrollTrigger) {
+      // Reverting the pin on unmount, and the scrub still easing out, both
+      // call this after the hero is gone. Its setLayer() would put
+      // data-hero-chrome back on <body>, hiding the header and the frame on
+      // whatever page the visitor just moved to.
+      if (disposed) return;
       const rawPx = self.progress * TOTAL_PX;
 
       // See resumingAtCta's declaration above: while the eased scrub
@@ -567,7 +579,7 @@ export function HeroSequence({
       // rendering — both already agree on the same state at that point,
       // so there's no visible jump.
       if (resumingAtCta) {
-        if (rawPx < CTA_RESUME_RAW_PX) return;
+        if (!jumpedToCta || rawPx < CTA_RESUME_RAW_PX) return;
         resumingAtCta = false;
       }
 

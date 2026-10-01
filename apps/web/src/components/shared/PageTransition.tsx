@@ -80,6 +80,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import gsap from "gsap";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { getLenis } from "@/components/shared/SmoothScroll";
 import type { NavLink, SiteContent } from "@/lib/content";
 
 // Five leaves off the same board, all within the brand's forest. Ordered so
@@ -110,6 +111,21 @@ const ROUTE_TIMEOUT_MS = 2500;
 // still sorts as forward-of-Home but reads as "Bespoke Kitchens". Anything else
 // (booking, a future route) sorts past the end of the list — it always reads
 // as "forward".
+/**
+ * Every page arrives at the top. A page sets its scroll triggers up at
+ * whatever scroll it inherits, and arriving thousands of pixels down — the
+ * previous page's position — fires a run of `once: true` reveals mid-refresh.
+ * Each kills itself inside GSAP's refresh loop, two in a row is more than the
+ * loop can step over, and it throws "Cannot read properties of undefined
+ * (reading 'end')", leaving the page half set up: the home hero without its
+ * pin, sections and the footer never revealed. Called while the run is
+ * closed, so the jump is never seen; Lenis first, or it scrolls straight back.
+ */
+function toTop() {
+  getLenis()?.scrollTo(0, { immediate: true, force: true });
+  window.scrollTo(0, 0);
+}
+
 function locate(
   nav: NavLink[],
   pathname: string,
@@ -147,6 +163,8 @@ export function PageTransition({
   const railRef = useRef<HTMLDivElement>(null);
   const plateRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(false);
+  /** Bumped to re-close a run that is already opening — see the click handler. */
+  const [run, setRun] = useState(0);
   const [plate, setPlate] = useState({ index: "00", label: "" });
   const forwardRef = useRef(true);
   /** Where this navigation is going: `path` to compare, `href` to push. */
@@ -157,6 +175,16 @@ export function PageTransition({
   const landedRef = useRef(false);
   /** Set by the animation effect; called by the pathname watcher below. */
   const openRef = useRef<() => void>(() => {});
+  /** The run is opening onto the page it just covered. */
+  const openingRef = useRef(false);
+
+  // Back and Forward bypass the click handler below, so they get the same
+  // reset here. The browser would not restore a useful position anyway: the
+  // offset it keeps belongs to the page being left.
+  useEffect(() => {
+    window.addEventListener("popstate", toTop);
+    return () => window.removeEventListener("popstate", toTop);
+  }, []);
 
   // ── Take the click before <Link> does ──
   useEffect(() => {
@@ -194,11 +222,18 @@ export function PageTransition({
       if (!active) {
         coveredRef.current = false;
         setActive(true);
+      } else if (openingRef.current) {
+        // Clicked while the run was opening onto the last page: close it
+        // again from wherever the panels are. Pushing now would swap the page
+        // in under half-open panels.
+        coveredRef.current = false;
+        setRun((n) => n + 1);
       } else if (coveredRef.current) {
         // Clicked again while the run was already closed and waiting — just
         // re-aim it. (Nothing is clickable under the overlay, but the mobile
         // menu can still be open above it.) If it is mid-close instead, the
         // close timeline pushes whatever target is current when it lands.
+        toTop();
         router.push(targetRef.current.href);
       }
     };
@@ -220,12 +255,17 @@ export function PageTransition({
     // stagger origins are in DOM order, which is left to right.
     const along = { each: 0.04, from: forwardRef.current ? ("start" as const) : ("end" as const) };
 
-    // 101 rather than 100: a hairline of sub-pixel rounding at the extreme
-    // of a percentage translate is the difference between a clean edge and a
-    // one-pixel seam of the page showing through the closed run.
-    gsap.set(panels, { yPercent: (i: number) => side(i) * 101 });
-    gsap.set(rail, { scaleX: 0, transformOrigin: forwardRef.current ? "left center" : "right center" });
-    gsap.set(plateEl, { opacity: 0, y: 10 });
+    // A re-close starts from wherever the opening left the panels.
+    const reclosing = openingRef.current;
+    openingRef.current = false;
+    if (!reclosing) {
+      // 101 rather than 100: a hairline of sub-pixel rounding at the extreme
+      // of a percentage translate is the difference between a clean edge and a
+      // one-pixel seam of the page showing through the closed run.
+      gsap.set(panels, { yPercent: (i: number) => side(i) * 101 });
+      gsap.set(rail, { scaleX: 0, transformOrigin: forwardRef.current ? "left center" : "right center" });
+      gsap.set(plateEl, { opacity: 0, y: 10 });
+    }
 
     let openTl: gsap.core.Timeline | null = null;
     // The run opens only when both conditions hold: it has finished closing
@@ -233,9 +273,11 @@ export function PageTransition({
     // happens second calls this.
     const openWhenReady = () => {
       if (openTl || !coveredRef.current || !landedRef.current) return;
+      openingRef.current = true;
       openTl = gsap
         .timeline({
           onComplete: () => {
+            openingRef.current = false;
             coveredRef.current = false;
             landedRef.current = false;
             setActive(false);
@@ -260,12 +302,14 @@ export function PageTransition({
       // The rail finishes drawing exactly as the last panel lands, so it
       // reads as one continuous piece of hardware spanning a finished run
       // rather than a line drawn over doors that are still moving.
-      .to(rail, { scaleX: 1, duration: 0.3, ease: "power2.out" }, 0.24)
+      .to(rail, { scaleX: 1, opacity: 1, duration: 0.3, ease: "power2.out" }, 0.24)
       .to(plateEl, { opacity: 1, y: 0, duration: 0.2, ease: "power2.out" }, 0.42)
       // Solid screen: only now is it safe to swap the page underneath.
       .call(
         () => {
-          if (targetRef.current) router.push(targetRef.current.href);
+          if (!targetRef.current) return;
+          toTop();
+          router.push(targetRef.current.href);
         },
         undefined,
         0.56,
@@ -292,7 +336,7 @@ export function PageTransition({
       openTl?.kill();
       clearTimeout(bail);
     };
-  }, [active, router]);
+  }, [active, run, router]);
 
   // The new route has mounted behind the closed run.
   useEffect(() => {

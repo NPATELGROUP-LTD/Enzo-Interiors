@@ -25,21 +25,23 @@
 //      and not just a link to a policy page.
 //
 // ── Why this file is tiny ──
-// Because this site currently sets no non-essential cookies at all. There is
-// no analytics, no tag manager, no embedded map, no pixel. The honest thing
-// is to say so and to keep the mechanism ready rather than to ship a banner
-// that asks permission for nothing — but the mechanism has to exist *before*
-// anyone adds analytics, or it gets added afterwards and never retrofitted.
-// `hasConsent("analytics")` is the gate that new script must sit behind.
+// The site itself sets nothing non-essential. The one third party is the
+// Google Map in the footer, which sets Google's cookies the moment it loads,
+// so it sits behind "functional" (see FooterMap). There is no analytics, no
+// tag manager and no pixel; "analytics" is kept ready so it exists *before*
+// anyone adds them, rather than being retrofitted after.
+// `hasConsent(category)` is the gate any new third party must sit behind.
 import { useSyncExternalStore } from "react";
 
 /**
  * Categories a visitor can decide about. "necessary" is not in the list on
  * purpose: it cannot be refused, so offering it as a choice would be a lie.
  */
-export type ConsentCategory = "analytics" | "marketing";
+export type ConsentCategory = "functional" | "analytics" | "marketing";
 
 export interface ConsentState {
+  /** Embedded third-party features: today, the Google Map. */
+  functional: boolean;
   analytics: boolean;
   marketing: boolean;
   /** ISO timestamp of the decision — consent has to be demonstrable. */
@@ -49,7 +51,7 @@ export interface ConsentState {
 }
 
 /** Raise this when a new category is introduced, to re-ask everyone. */
-const CONSENT_VERSION = 1;
+const CONSENT_VERSION = 2; // 2: "functional" (the map) added
 
 const KEY = "enzo.consent";
 

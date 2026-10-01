@@ -27,7 +27,7 @@
 // at z-[100] would otherwise paint over its bottom edge.
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { REOPEN_EVENT, setConsent, useConsent } from "@/lib/consent";
+import { REOPEN_EVENT, hasConsent, setConsent, useConsent } from "@/lib/consent";
 import type { SiteContent } from "@/lib/content";
 import { cn } from "@/lib/utils";
 
@@ -36,6 +36,7 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
   const [reopened, setReopened] = useState(false);
   const [detail, setDetail] = useState(false);
   const [analytics, setAnalytics] = useState(false);
+  const [functional, setFunctional] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // The footer's permanent "Cookie settings" control — withdrawal has to be
@@ -44,6 +45,9 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
     const open = () => {
       setReopened(true);
       setDetail(false);
+      // Reopened to change a choice, so the switches start from it.
+      setAnalytics(hasConsent("analytics"));
+      setFunctional(hasConsent("functional"));
       // Move the reader to the thing that just appeared. Without this the
       // control is at the very bottom of the page and the panel it opens is
       // announced nowhere.
@@ -69,10 +73,20 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
 
   if (!open) return null;
 
-  const decide = (value: boolean) => {
-    setConsent({ analytics: value, marketing: false });
+  const decide = (choice: { functional: boolean; analytics: boolean }) => {
+    setConsent({ ...choice, marketing: false });
     setReopened(false);
   };
+
+  // The categories a visitor can switch, in the order the details list them.
+  const toggles = [
+    { row: content.functional, checked: functional, set: setFunctional },
+    { row: content.rows[1], checked: analytics, set: setAnalytics },
+  ];
+  const outlined = cn(
+    "rounded-full border border-enzo-forest/30 px-7 py-3 text-[13.5px] font-medium text-enzo-forest transition-colors duration-300",
+    "hover:border-enzo-forest hover:bg-enzo-forest/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-cream",
+  );
 
   return (
     <div
@@ -113,37 +127,46 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
                     {content.rows[0].state}
                   </span>
                 </li>
-                <li className="flex items-start justify-between gap-6 border-t border-enzo-forest/12 py-2">
-                  <span>
-                    <strong className="font-semibold text-enzo-forest">
-                      {content.rows[1].title}
-                    </strong>
-                    <br />
-                    {content.rows[1].body}
-                  </span>
-                  <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-0.5">
-                    <input
-                      type="checkbox"
-                      checked={analytics}
-                      onChange={(event) => setAnalytics(event.target.checked)}
-                      className="h-4 w-4 accent-enzo-forest"
-                    />
-                    <span className="font-display text-[10px] uppercase tracking-[0.16em]">
-                      {content.rows[1].toggleLabel}
+                {toggles.map(({ row, checked, set }) => (
+                  <li
+                    key={row.title}
+                    className="flex items-start justify-between gap-6 border-t border-enzo-forest/12 py-2"
+                  >
+                    <span>
+                      <strong className="font-semibold text-enzo-forest">{row.title}</strong>
+                      <br />
+                      {row.body}
                     </span>
-                  </label>
+                    <label className="flex shrink-0 cursor-pointer items-center gap-2 pt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(event) => set(event.target.checked)}
+                        className="h-4 w-4 accent-enzo-forest"
+                      />
+                      <span className="font-display text-[10px] uppercase tracking-[0.16em]">
+                        {row.toggleLabel}
+                      </span>
+                    </label>
+                  </li>
+                ))}
+                <li className="border-t border-enzo-forest/12 pt-3 text-enzo-forest/70">
+                  {content.recommendedNote}
                 </li>
               </ul>
             )}
           </div>
 
-          {/* Accept and reject are one pair, matched in every respect. The
-              third control changes what is on screen; it does not decide
-              anything, so it is set as a quiet text button. */}
+          {/* Accept and reject are one pair, matched in every respect, with
+              the recommended set between them at the same size. The last
+              control changes what is on screen; it does not decide anything,
+              so it is set as a quiet text button. */}
           <div className="flex shrink-0 flex-col gap-2.5 sm:flex-row lg:flex-col">
             <button
               type="button"
-              onClick={() => decide(detail ? analytics : true)}
+              onClick={() =>
+                decide(detail ? { functional, analytics } : { functional: true, analytics: true })
+              }
               className={cn(
                 // `border-transparent` is not cosmetic: without it the filled
                 // button is 2px shorter than the outlined one beside it, and
@@ -157,11 +180,15 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
             </button>
             <button
               type="button"
-              onClick={() => decide(false)}
-              className={cn(
-                "rounded-full border border-enzo-forest/30 px-7 py-3 text-[13.5px] font-medium text-enzo-forest transition-colors duration-300",
-                "hover:border-enzo-forest hover:bg-enzo-forest/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-enzo-cream",
-              )}
+              onClick={() => decide({ functional: true, analytics: false })}
+              className={outlined}
+            >
+              {content.recommendedLabel}
+            </button>
+            <button
+              type="button"
+              onClick={() => decide({ functional: false, analytics: false })}
+              className={outlined}
             >
               {content.rejectLabel}
             </button>
