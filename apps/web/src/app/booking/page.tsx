@@ -17,7 +17,7 @@
 // Set of three names. Publishing a fifth service, or renaming a tier, would
 // have silently broken the handoff.
 import type { Metadata } from "next";
-import { PageUpdating } from "@/components/shared/PageUpdating";
+import { BookingByContact } from "@/components/booking/BookingByContact";
 import { offMetadata, pageOff } from "@/lib/page-gate";
 import MarketingLayout from "@/app/(marketing)/layout";
 import { pageMetadata } from "@/lib/seo";
@@ -44,7 +44,7 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
-  if (await pageOff("booking")) return <MarketingLayout><PageUpdating page="booking" /></MarketingLayout>;
+  if (await pageOff("booking")) return <MarketingLayout><BookingByContact /></MarketingLayout>;
   const [params, content, services, company] = await Promise.all([
     searchParams,
     getPage("booking"),
