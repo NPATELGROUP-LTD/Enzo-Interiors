@@ -30,6 +30,8 @@
 // promises reference images by id, resolved to sources below — on the server,
 // so the media table never reaches the browser.
 import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
 import { pageMetadata } from "@/lib/seo";
 import { AboutStatement } from "@/components/about/AboutStatement";
 import { AboutNumbers } from "@/components/about/AboutNumbers";
@@ -48,11 +50,13 @@ import {
 } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (await pageOff("about")) return offMetadata("about");
   const metadata = (await getPage("about")).metadata;
   return pageMetadata({ ...metadata, path: "/about", ogKey: "about" });
 }
 
 export default async function AboutPage() {
+  if (await pageOff("about")) return <PageUpdating page="about" />;
   const [services, projects, content, team, company] = await Promise.all([
     getServices(),
     getPortfolioItems(),

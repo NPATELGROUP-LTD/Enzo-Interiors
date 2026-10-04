@@ -6,6 +6,7 @@ import {
   getServiceDetails,
   getSiteStatus,
   isLive,
+  isPageOn,
 } from "@/lib/content";
 import { SITE_URL } from "@/lib/seo";
 
@@ -19,7 +20,9 @@ import { SITE_URL } from "@/lib/seo";
  * crawlers come back when something actually changed, not on every deploy.
  */
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  if (!isLive(await getSiteStatus())) return [];
+  const site = await getSiteStatus();
+  if (!isLive(site)) return [];
+  const on = (key: Parameters<typeof isPageOn>[1]) => isPageOn(site, key);
 
   const [publishedAt, services, portfolio] = await Promise.all([
     getPublishedAt(),
@@ -49,18 +52,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(images.length ? { images: images.filter(Boolean) } : {}),
   });
 
+  // Pages switched off in Settings are left out: they show "updated soon".
   return [
     entry("/", 1, ["pages/home", "services/*", "portfolio/*", "testimonials/*"]),
-    entry("/services", 0.9, ["pages/services", "services/*"]),
-    ...services.map((service) =>
-      entry(`/services/${service.slug}`, 0.9, [`services/${service.slug}`, "pages/service-detail", "faqs/*"], [service.image]),
-    ),
-    entry("/portfolio", 0.8, ["pages/portfolio", "portfolio/*"], portfolio.map((item) => item.image)),
-    entry("/about", 0.7, ["pages/about", "team/*"]),
-    entry("/contact", 0.8, ["pages/contact", "company/*"]),
-    entry("/booking", 0.8, ["pages/booking"]),
-    entry("/privacy", 0.2, ["pages/legal"]),
-    entry("/terms", 0.2, ["pages/legal"]),
-    entry("/cookies", 0.2, ["pages/legal"]),
+    ...(on("services")
+      ? [
+          entry("/services", 0.9, ["pages/services", "services/*"]),
+          ...services.map((service) =>
+            entry(`/services/${service.slug}`, 0.9, [`services/${service.slug}`, "pages/service-detail", "faqs/*"], [service.image]),
+          ),
+        ]
+      : []),
+    ...(on("portfolio") ? [entry("/portfolio", 0.8, ["pages/portfolio", "portfolio/*"], portfolio.map((item) => item.image))] : []),
+    ...(on("about") ? [entry("/about", 0.7, ["pages/about", "team/*"])] : []),
+    ...(on("contact") ? [entry("/contact", 0.8, ["pages/contact", "company/*"])] : []),
+    ...(on("booking") ? [entry("/booking", 0.8, ["pages/booking"])] : []),
+    ...(on("privacy") ? [entry("/privacy", 0.2, ["pages/legal"])] : []),
+    ...(on("terms") ? [entry("/terms", 0.2, ["pages/legal"])] : []),
+    ...(on("cookies") ? [entry("/cookies", 0.2, ["pages/legal"])] : []),
   ];
 }

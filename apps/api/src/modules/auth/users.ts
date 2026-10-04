@@ -14,7 +14,7 @@ import {
   Put,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsEmail, IsIn, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { ADMIN_ROLES, StaffUser } from '../../common/types/domain';
@@ -23,11 +23,12 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
 import { digest, looksHashed } from './auth.service';
+import { NOT_IMPORTER } from './dto';
 
 type AdminRole = (typeof ADMIN_ROLES)[number];
 
 export class InviteDto {
-  @IsString() @MinLength(2, { message: 'Enter their name.' }) @MaxLength(120) name!: string;
+  @IsString() @MinLength(2, { message: 'Enter their name.' }) @MaxLength(120) @Matches(NOT_IMPORTER, { message: 'Choose a different name.' }) name!: string;
   @IsEmail({}, { message: 'Enter a valid email address.' }) @MaxLength(254) email!: string;
   @IsIn(ADMIN_ROLES, { message: 'Choose Admin or Editor.' }) role!: AdminRole;
 }

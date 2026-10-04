@@ -11,9 +11,11 @@
  * it, which means the site keeps rendering exactly what it rendered before and
  * the CMS opens onto real copy from the first login.
  *
- * It is idempotent by default: an entry that already exists is left alone, so
- * running this after the client has started editing cannot overwrite their
- * work. --force is the deliberate escape hatch for a rebuild, and says so.
+ * It is idempotent by default and runs on every deploy (the compose `seed`
+ * service). An entry nobody has touched in the admin is brought up to date
+ * with the shipped copy; one a person has saved, published or reverted is
+ * theirs and only ever gains missing keys (pages and company). --force is the
+ * deliberate escape hatch for a rebuild, and says so.
  *
  * Once this has run, apps/web/src/data is no longer the source of truth. It is
  * kept in the repo as the seed for a fresh environment and as the fallback the
@@ -22,10 +24,11 @@
 
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-import { CmsCollection } from '../src/common/types/domain';
+import { CmsCollection, CmsEntry } from '../src/common/types/domain';
 import { DatabaseService } from '../src/data/database.service';
 import { PrismaService } from '../src/data/prisma.service';
 
@@ -36,6 +39,9 @@ const DATA_DIR = path.resolve(__dirname, '..', '..', 'web', 'src', 'data');
 const SEED_MEDIA_DIR = path.resolve(__dirname, '..', 'seed-media');
 
 const FORCE = process.argv.includes('--force');
+
+/** `updated_by` on what this script writes. Every admin write stamps a person's name instead. */
+const IMPORTER = 'content import';
 
 const CONTENT_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -132,7 +138,7 @@ const isObject = (value: unknown): value is Json =>
  * imported before it existed. It only ever adds: a key the client has, even
  * one set to "", is theirs and is left alone.
  */
-function addMissing(target: Json, source: Json): Json | null {
+export function addMissing(target: Json, source: Json): Json | null {
   let changed = false;
   const out: Json = { ...target };
   for (const [key, value] of Object.entries(source)) {
@@ -148,6 +154,19 @@ function addMissing(target: Json, source: Json): Json | null {
     }
   }
   return changed ? out : null;
+}
+
+/**
+ * Imported and never touched since. Every admin write to an entry (save,
+ * publish, publish all, revert, create) sets updated_by to the person, and
+ * this script never does, so `updated_by` still being the importer means no
+ * person has changed it. The other two checks are belt and braces: unsaved
+ * differences or a pending review both mean someone is mid-edit.
+ * isDeepStrictEqual, not JSON.stringify: JSONB comes back with its keys
+ * reordered.
+ */
+export function untouched(entry: Pick<CmsEntry, 'updated_by' | 'draft' | 'published' | 'review_at'>): boolean {
+  return entry.updated_by === IMPORTER && entry.review_at === null && isDeepStrictEqual(entry.draft, entry.published);
 }
 
 interface Row {
@@ -184,8 +203,18 @@ async function main(): Promise<void> {
   >('media.json');
 
   let mediaAdded = 0;
+  let mediaMoved = 0;
   for (const row of mediaRows) {
-    if (await db.mediaAssets.findById(row.id)) continue;
+    const existing = await db.mediaAssets.findById(row.id);
+    // A shipped image re-pointed to a new file. Keys under site/ only ever come
+    // from here (uploads live under media/, and the admin cannot change a
+    // key); the words follow too unless someone has edited them.
+    if (existing && existing.storage_key !== row.key && existing.storage_key.startsWith('site/')) {
+      const words = existing.updated_at === existing.created_at ? { alt: row.alt, title: row.title ?? null, source: row.source } : {};
+      await db.mediaAssets.update(row.id, { storage_key: row.key, ...words });
+      mediaMoved += 1;
+    }
+    if (existing) continue;
     const now = new Date().toISOString();
     await db.mediaAssets.create({
       id: row.id,
@@ -244,6 +273,16 @@ async function main(): Promise<void> {
   const now = new Date().toISOString();
   const summary: Array<[string, number, number]> = [];
   let backfilled = 0;
+  let refreshed = 0;
+
+  // Entries a person deleted in the CMS stay deleted: this runs on every
+  // deploy, so without this they would be re-created from the shipped copy.
+  const deleted = new Set(
+    (await db.activityLogs.findWhere({ action: 'cms_delete' })).map((log) => {
+      const { collection, slug } = (log.details ?? {}) as { collection?: string; slug?: string };
+      return `${collection}/${slug}`;
+    }),
+  );
 
   for (const { collection, rows } of collections) {
     let added = 0;
@@ -255,6 +294,15 @@ async function main(): Promise<void> {
       );
       if (existing) {
         skipped += 1;
+        // Never touched by a person: follow the shipped copy, so new photos and
+        // copy reach production on deploy without anyone re-publishing.
+        if (untouched(existing)) {
+          if (!isDeepStrictEqual(existing.published, row.body)) {
+            await db.cmsEntries.update(existing.id, { draft: row.body, published: row.body, published_at: now, updated_at: now });
+            refreshed += 1;
+          }
+          continue;
+        }
         // Pages and company are fixed documents, so new sections in the shipped
         // copy are added to them. Collections of rows are left as they are.
         if (collection === 'pages' || collection === 'company') {
@@ -270,6 +318,10 @@ async function main(): Promise<void> {
         }
         continue;
       }
+      if (!FORCE && deleted.has(`${collection}/${row.slug}`)) {
+        skipped += 1;
+        continue;
+      }
       await db.cmsEntries.create({
         collection,
         slug: row.slug,
@@ -281,7 +333,7 @@ async function main(): Promise<void> {
         published: row.body,
         published_at: now,
         updated_at: now,
-        updated_by: 'content import',
+        updated_by: IMPORTER,
         review_by: null,
         review_at: null,
         review_note: null,
@@ -297,6 +349,8 @@ async function main(): Promise<void> {
     console.log(`  ${collection.padEnd(16)} ${String(added).padStart(6)} ${String(skipped).padStart(6)}`);
   }
   console.log(`  ${'media'.padEnd(16)} ${String(mediaAdded).padStart(6)} ${String(mediaRows.length - mediaAdded).padStart(6)}`);
+  if (mediaMoved > 0) console.log(`\nPointed ${mediaMoved} shipped images at their new files.`);
+  if (refreshed > 0) console.log(`\nUpdated ${refreshed} entries nobody had edited to the shipped copy.`);
   if (backfilled > 0) {
     console.log(`\nAdded new fields from src/data to ${backfilled} existing entries (nothing overwritten).`);
   }
@@ -304,14 +358,17 @@ async function main(): Promise<void> {
   const kept = summary.reduce((total, [, , skipped]) => total + skipped, 0);
   if (kept > 0 && !FORCE) {
     console.log(
-      `\n${kept} entries already existed and were left untouched. Re-run with --force to replace them.`,
+      `\n${kept} entries already existed; edited ones were kept. Re-run with --force to replace them all.`,
     );
   }
 
   await prisma.$disconnect();
 }
 
-main().catch(async (error) => {
-  console.error('\nContent import failed:\n', error);
-  process.exit(1);
-});
+// Only when run, not when a test imports the helpers above.
+if (require.main === module) {
+  main().catch(async (error) => {
+    console.error('\nContent import failed:\n', error);
+    process.exit(1);
+  });
+}
