@@ -29,6 +29,7 @@ import { MediaAsset } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
+import { BRAND_KEYS } from '../site-settings/site-settings.module';
 
 /* -------------------------------------------------------------------------- */
 /* DTOs                                                                       */
@@ -226,12 +227,19 @@ export class MediaService {
     };
   }
 
+  /** The logos and favicons chosen in Settings › Logo & icon. Live once saved. */
+  private async brandIds(): Promise<string[]> {
+    const site = await this.db.siteSettings.findById('site');
+    return site ? BRAND_KEYS.map((key) => site[key]).filter((id): id is string => !!id) : [];
+  }
+
   /**
-   * The media apps/web consumes: only images some PUBLISHED content points at,
-   * so an upload that has not gone live yet is not listed to the world.
+   * The media apps/web consumes: only images some PUBLISHED content or the
+   * brand settings point at, so an upload that has not gone live yet is not
+   * listed to the world.
    */
   async publicList(): Promise<ResolvedMedia[]> {
-    const referenced = new Set<string>();
+    const referenced = new Set<string>(await this.brandIds());
     const collect = (value: unknown): void => {
       if (typeof value === 'string') referenced.add(value);
       else if (Array.isArray(value)) value.forEach(collect);
@@ -447,6 +455,7 @@ export class MediaService {
         holders.push(`${entry.collection}/${entry.slug}`);
       }
     }
+    if ((await this.brandIds()).includes(mediaId)) holders.push('Settings › Logo & icon');
     return holders;
   }
 }

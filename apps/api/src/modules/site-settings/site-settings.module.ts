@@ -86,7 +86,7 @@ export interface PublicSiteStatus {
   openingHours: OpeningHours | null;
 }
 
-const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id', 'favicon_dark_id'] as const;
+export const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id', 'favicon_dark_id'] as const;
 
 /**
  * General site settings: whether the public site is live or showing its
