@@ -4,8 +4,9 @@
 // to back on one master ScrollTrigger pin + scrub, ending in a parallax CTA.
 // Every segment is scroll-position-driven and so exactly reversible. The one
 // exception is the end-frame hold (see HOLD_PX), which pins each room on its
-// last frame and, on the next push down, glides into the next room by itself.
-// Rooms cut straight into each other: no chapters between them.
+// last frame twice — bare, then under its caption — and, on the next push
+// down, glides into the next room by itself. Rooms cut straight into each
+// other: no chapters between them.
 //
 // The intro reads as an unbranded cinematic teaser: no Navbar, no site frame,
 // just a "scroll to begin" cue — see the data-hero-chrome toggling below and
@@ -42,11 +43,14 @@ function roomFrameUrl(room: { framesDir: string }, frameIndex1: number): string 
 // still gets several screen-heights of scrub rather than flicking past.
 const PX_PER_FRAME = 14;
 const CTA_PX = 1100;
-// End-frame hold: each room's last frame stays put under a caption and a
-// "scroll to continue" cue. Arriving from above stops Lenis and settles onto
-// HOLD_REST, so a hard flick can't carry through the pin. After MIN_HOLD_MS
-// the next deliberate push down (see isPush) glides on its own into the next
-// room — one notch or swipe, not a long scroll out.
+// End-frame hold, in two stops. First the room's last frame alone (STILL_PX),
+// so the whole room is seen; the next push slides the caption and its black
+// fade up over it and stops again (HOLD_PX), with a "scroll to continue" cue.
+// Arriving from above stops Lenis and settles onto HOLD_REST, so a hard flick
+// can't carry through the pin. After MIN_HOLD_MS the next deliberate push
+// down (see isPush) glides on by itself — one notch or swipe per stop, not a
+// long scroll out.
+const STILL_PX = 400;
 const HOLD_PX = 500;
 /** Short of 1: the exact boundary already belongs to the next segment. */
 const HOLD_REST = 0.8;
@@ -100,6 +104,7 @@ type Layer = "room" | "hold" | "cta";
 
 type Segment =
   | { type: "room"; roomIndex: number; px: number }
+  | { type: "still"; roomIndex: number; px: number }
   | { type: "hold"; roomIndex: number; px: number }
   | { type: "cta"; px: number };
 
@@ -130,6 +135,7 @@ function buildTimeline(rooms: HeroRoomContent[]): TimelineModel {
 
   rooms.forEach((_, roomIndex) => {
     segments.push({ type: "room", roomIndex, px: frameCount * PX_PER_FRAME });
+    segments.push({ type: "still", roomIndex, px: STILL_PX });
     segments.push({ type: "hold", roomIndex, px: HOLD_PX });
   });
   segments.push({ type: "cta", px: CTA_PX });
@@ -149,7 +155,7 @@ function buildTimeline(rooms: HeroRoomContent[]): TimelineModel {
       const landing = next.type === "cta" ? CTA_RESUME_FRACTION : NEXT_ROOM_LEAD;
       return {
         start: starts[i]!,
-        rest: starts[i]! + HOLD_PX * HOLD_REST,
+        rest: starts[i]! + segments[i]!.px * HOLD_REST,
         next: starts[i + 1]! + next.px * landing,
       };
     },
@@ -503,14 +509,14 @@ export function HeroSequence({
       });
     }
 
-    function settle(index: number) {
+    function settle(index: number, duration = SETTLE_S) {
       const lenis = getLenis();
       if (!lenis || !trigger) return;
       snapping = true;
       stoppedLenis = true;
       lenis.stop();
       lenis.scrollTo(trigger.start + holdStops(index).rest, {
-        duration: SETTLE_S,
+        duration,
         easing: settleEase,
         force: true,
         onComplete: () => {
@@ -535,9 +541,18 @@ export function HeroSequence({
       if (by) lenis?.scrollTo(window.scrollY + by);
     }
 
-    /** Glide out of the hold into the next room (or the CTA after the last). */
+    /**
+     * Glide from the bare end frame up into its caption and stop there, or
+     * out of the caption into the next room (or the CTA after the last).
+     */
     function advance() {
       if (held < 0 || performance.now() - heldSince < MIN_HOLD_MS) return;
+      if (SEGMENTS[held]!.type === "still") {
+        const caption = held + 1;
+        held = -1;
+        settle(caption, ADVANCE_S);
+        return;
+      }
       const lenis = getLenis();
       if (!lenis || !trigger) return;
       const target = holdStops(held).next;
@@ -577,23 +592,24 @@ export function HeroSequence({
 
       const { seg, index, localProgress } = findSegmentAt(rawPx);
 
-      if (seg.type === "room") {
-        setActiveRoom(seg.roomIndex);
-        setLayer("room");
-        renderRoomFrame(seg.roomIndex, 1 + localProgress * (FRAME_COUNT - 1));
-      } else if (seg.type === "hold") {
-        setActiveRoom(seg.roomIndex);
-        setLayer("hold");
-        renderRoomFrame(seg.roomIndex, FRAME_COUNT);
-      } else {
+      if (seg.type === "cta") {
         renderCta(localProgress);
+      } else {
+        setActiveRoom(seg.roomIndex);
+        setLayer(seg.type === "hold" ? "hold" : "room");
+        renderRoomFrame(
+          seg.roomIndex,
+          seg.type === "room" ? 1 + localProgress * (FRAME_COUNT - 1) : FRAME_COUNT,
+        );
       }
 
-      const holdReveal = seg.type === "hold" ? windowed(localProgress, 0, 0.35, HOLD_REST, 1) : 0;
+      // The caption rises across the whole glide up from the bare frame, so
+      // it moves for as long as the scroll does.
+      const holdReveal = seg.type === "hold" ? windowed(localProgress, 0, HOLD_REST, HOLD_REST, 1) : 0;
       if (holdRef.current) holdRef.current.style.opacity = String(holdReveal);
       if (holdCopyRef.current) holdCopyRef.current.style.transform = `translateY(${(1 - holdReveal) * 24}px)`;
 
-      if (!snapping && held < 0 && seg.type === "hold" && self.direction === 1) {
+      if (!snapping && held < 0 && (seg.type === "still" || seg.type === "hold") && self.direction === 1) {
         settle(index);
       }
 
