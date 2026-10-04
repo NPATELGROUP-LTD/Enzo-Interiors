@@ -7,22 +7,22 @@
 #
 #   docker compose up -d --wait postgres minio minio-init
 #
-# The full stack is two commands, in this order:
+# The full stack is one command:
 #
-#   docker compose up -d --build --wait  # the stack; migrations run on api boot
-#   docker compose run --rm seed         # the site's copy, imported into the CMS
+#   docker compose up -d --build --wait
 #
-# and `docker compose down --volumes` deletes the database and every upload,
-# for starting again from nothing.
+# which runs `seed` (migrations, then the site's images and copy imported into
+# the CMS) before the API starts, on every `up` — so a deploy brings new
+# shipped content with it. `docker compose down --volumes` deletes the
+# database and every upload, for starting again from nothing.
 #
 # The first admin account is created by the API itself on first boot, from
 # ADMIN_EMAIL / ADMIN_PASSWORD in .env. There is no demo data in this stack.
 #
-# The second is a one-shot in the `setup` profile, so `up` never re-runs it.
-# It exists as a service rather than a host command because the runtime image
-# drops tsx with the dev dependencies, and the content import reads
-# apps/web/src/data, which is not in the API's build context — the `build`
-# stage has the first and a read-only mount supplies the second.
+# `seed` is a service rather than a host command because the runtime image
+# drops tsx with the dev dependencies, and the import reads apps/web/src/data,
+# which is outside the API's build context — the Dockerfile's `seed` stage has
+# the first and bakes in the second.
 #
 # Startup order is enforced with conditions, not with `depends_on` alone:
 # the API waits for a database that answers AND for the buckets to exist, and
@@ -172,6 +172,9 @@ services:
       # would fail with NoSuchBucket.
       minio-init:
         condition: service_completed_successfully
+      # Always exits 0 (see seed), so a failed import never keeps the API down.
+      seed:
+        condition: service_completed_successfully
     environment:
       NODE_ENV: production
       PORT: 4000
@@ -229,21 +232,25 @@ services:
         ]
       <<: *node-health
 
-  # One-shot: schema, then the site's copy imported into the CMS and published.
-  # In the `setup` profile, so `docker compose up` does not run it.
+  # One-shot on every `up`, before the API: schema, then seed-media uploaded
+  # (objects already there are skipped) and the site's copy imported into the
+  # CMS. Safe on a live database: it adds what is missing, brings entries
+  # nobody has edited up to the shipped copy, and never overwrites an edit
+  # (scripts/import-content.ts). Also runnable by hand: docker compose run --rm seed
   #
-  #   docker compose run --rm seed
-  #
-  # Safe on a live database: the import only adds entries that are missing and
-  # never overwrites an edit. Uses the
-  # API's `build` stage because the runtime image has no tsx, and mounts the
-  # content read-only because the importer only ever reads it.
+  # Bounded: each try is cut off by `timeout`, three tries, then it gives up
+  # and exits 0 anyway, so a slow MinIO delays a deploy by minutes at most and
+  # never keeps the site down. The API also migrates on boot, and the next
+  # deploy retries the import. A failure is in this container's log.
   seed:
-    profiles: ['setup']
     image: enzo-interiors-seed:latest
     build:
       context: ./apps/api
-      target: build
+      target: seed
+      # The shipped content, baked into the image (see the Dockerfile).
+      additional_contexts:
+        webdata: ./apps/web/src/data
+        seedmedia: ./apps/api/seed-media
     networks: [default, coolify]
     depends_on:
       postgres:
@@ -259,16 +266,16 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
-    volumes:
-      # import-content.ts resolves apps/web/src/data relative to its own file,
-      # which lands at /web/src/data from /app/scripts. Matching that here is
-      # what lets the script run unmodified in the container.
-      - ./apps/web/src/data:/web/src/data:ro
-      - ./apps/api/seed-media:/app/seed-media:ro
     command:
       - sh
       - -c
-      - npx prisma migrate deploy && npx tsx scripts/import-content.ts
+      - |
+        for try in 1 2 3; do
+          timeout 300 npx prisma migrate deploy && timeout 900 npx tsx scripts/import-content.ts && exit 0
+          echo "Content import: try $$try failed."; sleep 10
+        done
+        echo 'Content import FAILED three times. The API starts anyway; fix and redeploy, or: docker compose run --rm seed'
+        exit 0
     restart: 'no'
 
   web:

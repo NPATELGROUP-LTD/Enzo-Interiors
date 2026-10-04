@@ -30,13 +30,14 @@ import {
 } from 'class-validator';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
-import { OpeningHours, SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
+import { OpeningHours, PageKey, SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
 import { RevalidateService } from '../../core/revalidate.service';
 import { DatabaseService } from '../../data/database.service';
 import { fromCompany, parseOpeningHours } from './opening-hours';
+import { parsePages, resolvePages } from './pages';
 
 const ID = 'site';
 const PREVIEW_AUDIENCE = 'preview';
@@ -62,6 +63,9 @@ export class UpdateSiteSettingsDto {
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) logo_dark_id?: string | null;
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) favicon_id?: string | null;
   @IsOptional() @ValidateIf((_, value) => value !== null) @IsString() @MaxLength(120) favicon_dark_id?: string | null;
+
+  /** Page switches to change; omitted = unchanged. Checked key by key in parsePages. */
+  @IsOptional() @IsObject() pages?: Record<string, unknown>;
 }
 
 export class OpeningHoursDto {
@@ -84,7 +88,14 @@ export interface PublicSiteStatus {
   brand: { logoLight: string | null; logoDark: string | null; favicon: string | null; faviconDark: string | null };
   /** Null = the company record's hours (nothing saved in Settings yet). */
   openingHours: OpeningHours | null;
+  /** Which public pages are on. Home is always on, so it is not here. */
+  pages: Record<PageKey, boolean>;
 }
+
+/** The row as the admin sees it: every page switch filled in. */
+export type SiteSettingsView = Omit<SiteSettings, 'pages'> & { pages: Record<PageKey, boolean> };
+
+const withPages = (row: SiteSettings): SiteSettingsView => ({ ...row, pages: resolvePages(row.pages) });
 
 export const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id', 'favicon_dark_id'] as const;
 
@@ -119,6 +130,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       favicon_id: null,
       favicon_dark_id: null,
       opening_hours: null,
+      pages: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
     });
@@ -136,7 +148,17 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
         faviconDark: row.favicon_dark_id,
       },
       openingHours: row.opening_hours,
+      pages: resolvePages(row.pages),
     };
+  }
+
+  /** What GET /settings returns. */
+  async view(): Promise<SiteSettingsView> {
+    return withPages(await this.get());
+  }
+
+  async pageOn(key: PageKey): Promise<boolean> {
+    return resolvePages((await this.get()).pages)[key];
   }
 
   /** The hours Settings edits: what was saved, else the company record's. */
@@ -174,8 +196,9 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     return fallback ? [fallback] : [];
   }
 
-  async update(principal: AuthPrincipal, dto: UpdateSiteSettingsDto): Promise<SiteSettings> {
+  async update(principal: AuthPrincipal, dto: UpdateSiteSettingsDto): Promise<SiteSettingsView> {
     const current = await this.get();
+    const pages = dto.pages === undefined ? {} : { pages: { ...current.pages, ...parsePages(dto.pages) } };
     const emails = [...new Set(dto.notification_emails.map((e) => e.trim().toLowerCase()))];
     const brand: Partial<SiteSettings> = {};
     for (const key of BRAND_KEYS) {
@@ -193,6 +216,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       launch_at: dto.launch_at ? new Date(dto.launch_at).toISOString() : null,
       notification_emails: emails,
       ...brand,
+      ...pages,
       updated_at: new Date().toISOString(),
       updated_by: principal.name,
     }))!;
@@ -201,11 +225,11 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       action: 'site_settings_update',
       targetTable: 'site_settings',
       targetId: ID,
-      details: { status: saved.status, launch_at: saved.launch_at },
+      details: { status: saved.status, launch_at: saved.launch_at, pages: saved.pages },
     });
     await this.revalidate.ping('site settings');
     this.armLaunchTimer(saved.launch_at);
-    return saved;
+    return withPages(saved);
   }
 
   async sendTest(principal: AuthPrincipal): Promise<{ sent: boolean; to: string[] }> {
@@ -278,7 +302,7 @@ export class SiteSettingsController {
   @Get('settings')
   @Roles('Admin')
   get() {
-    return this.settings.get();
+    return this.settings.view();
   }
 
   @Put('settings')

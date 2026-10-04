@@ -1,46 +1,31 @@
 "use client";
 
-// The page's 3D element — a media wall, in a furnished room.
+// The page's 3D element — Enzo's finished media wall, modelled on the render
+// the client approved (01) and the job's dimensioned drawing. Where the two
+// disagree, the render wins: 3406 wide overall, chunky ~45 mm tower frames, a
+// plain wood back panel, and a tall walnut TV panel standing clear of the
+// worktop with an even border round the 75" screen.
 //
-// Three things were wrong with the previous pass and are fixed here:
+//   L to R: 400 tower | 678 base | 1250 centre bay | 678 base | 400 tower.
+//   Base 480 on an 18 plinth, 18 worktop at 516. Centre bay: soundbar shelf
+//   over a linear fire behind black glass. Towers: four lit compartments.
 //
-//  1. The flanking shelves ran across the TV recess. The unit is now zoned:
-//     the recess owns the centre (x -1.05..1.05) and the display shelves sit
-//     entirely on the flanks beyond it, so nothing overlaps the screen.
-//  2. Opening the base doors revealed a solid block. The base run is now a
-//     real carcass — back, deck, ends, three dividers and a shelf per bay —
-//     so the void behind the doors is genuinely empty and you can see into it.
-//  3. The wall floated in an empty room. There is now furniture: a rug, a
-//     sofa read from behind, a coffee table, an armchair, a floor lamp and a
-//     plant. All of it static — it exists to give the joinery a scale and a
-//     context, not to animate.
-//
-// The unit is also larger (4.0m x 2.6m rather than 3.24 x 2.36) and carries
-// styled shelves — books, a vase, a bowl, a leaning frame, candles — because
-// an empty media wall reads as a rendering and a dressed one reads as a room.
+// Finishes are procedural (canvas-drawn elm grain), so nothing is downloaded.
+// Static joinery is merged into one mesh per material, and every glow (LED
+// halo, bulkhead wash, tower downlights) is an additive gradient plane rather
+// than a light — the scene runs a handful of draw calls and four point lights,
+// with no shadow maps.
 //
 // Raw @react-three/fiber + three primitives (no drei) keeps the dependency
 // surface small.
-import { useMemo, useRef, type RefObject } from "react";
+import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Group } from "three";
+import type { Group, PointLight, ShaderMaterial } from "three";
+import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import {
   AZIMUTH_LIMIT,
-  BRASS,
-  CHARCOAL,
-  CLAY,
-  FOREST,
-  FOREST_DEEP,
-  LINEN,
-  LINEN_DEEP,
   neutralOrbit,
-  OAK,
-  PLASTER,
-  PLASTER_DEEP,
-  SAGE,
-  SAND,
-  SCREEN,
   ZOOM_MAX,
   ZOOM_MIN,
   type OrbitState,
@@ -48,271 +33,567 @@ import {
 } from "@/lib/scene-common";
 
 // The named camera positions this scene is driven to are authored beside the
-// section's other copy, in src/data/pages/home.json — a viewpoint is a label
-// and a note as much as it is four numbers. This file owns the geometry only.
+// section's other copy, in src/data/pages/home.json. This file owns geometry.
 
-/** Rounded, chamfered flat panel — reads as solid material under raking light. */
-function usePanelGeometry(width: number, height: number, depth: number, radius: number) {
-  return useMemo(() => {
-    const w = width / 2 - radius;
-    const h = height / 2 - radius;
-    const shape = new THREE.Shape();
-    shape.moveTo(-w - radius, -h);
-    shape.lineTo(-w - radius, h);
-    shape.quadraticCurveTo(-w - radius, h + radius, -w, h + radius);
-    shape.lineTo(w, h + radius);
-    shape.quadraticCurveTo(w + radius, h + radius, w + radius, h);
-    shape.lineTo(w + radius, -h);
-    shape.quadraticCurveTo(w + radius, -h - radius, w, -h - radius);
-    shape.lineTo(-w, -h - radius);
-    shape.quadraticCurveTo(-w - radius, -h - radius, -w - radius, -h);
-
-    const geometry = new THREE.ExtrudeGeometry(shape, {
-      depth,
-      bevelEnabled: true,
-      bevelThickness: 0.008,
-      bevelSize: 0.008,
-      bevelSegments: 2,
-      curveSegments: 5,
-    });
-    geometry.translate(0, 0, -depth / 2);
-    return geometry;
-  }, [width, height, depth, radius]);
-}
-
-// ── Unit geometry, all in metres ────────────────────────────────────────────
+// ── World placement ─────────────────────────────────────────────────────────
+// The unit is modelled in its own frame (x across from the centre line, y up
+// from the floor, z out from the wall) and dropped into the world here, where
+// the viewpoints in home.json expect it.
 const FLOOR_Y = -1.3;
-const UNIT_W = 4.0;
 const WALL_Z = -0.62;
+const ROOM_W = 9.2;
 
-/** Base run: a real box, so the doors have something empty to open onto. */
-const BASE = { top: -0.52, bottom: -1.18, front: -0.06, back: -0.62 };
-const BASE_MID = (BASE.top + BASE.bottom) / 2;
-const BASE_H = BASE.top - BASE.bottom;
-const BASE_D = BASE.front - BASE.back;
-const BASE_Z = (BASE.front + BASE.back) / 2;
+// ── The wall, in metres ─────────────────────────────────────────────────────
+const T = 0.018; // board
+const FR = 0.045; // tower frame, as it reads from the front
+const TOP = 2.2; // underside of the bulkhead
+const CEIL = 2.3;
+const BULK_D = 0.45;
+const BASE_D = 0.28;
+const TOWER_D = 0.33;
+const WT = 0.516; // worktop surface
+const HALF = 1.703; // half the 3406 run
+const TW = 0.31; // open tower, inside the frames
+const SB = HALF - (2 * FR + TW); // outer edge of each base run
+const CB = 0.625; // half the 1250 centre bay
+const BAY = SB - CB; // each side base
+const TX = SB + FR + TW / 2; // tower centre line
+const SH = 0.025; // tower shelf
+const TOWER_SHELVES = [0.098, WT, 1.07, 1.625]; // shelf tops: four compartments
+const TV = { w: 1.67, h: 0.965 }; // 75", bezel included
+const BORDER = 0.13; // even walnut border round the screen
+// Stood off the back panel and clear of the worktop.
+const PANEL = { w: TV.w + 2 * BORDER, h: TV.h + 2 * BORDER, y: 0.66, z: 0.06 };
+const FIRE = { w: 1.19, h: 0.33, y: 0.012 };
+const SHELF_Y = FIRE.y + FIRE.h; // soundbar shelf underside
+const DOOR = { w: (BAY - 0.008) / 2, h: 0.474, y: 0.022, split: 0.158 };
 
-/** Four bays, four doors. Each pair meets in the middle and hinges outward. */
-const BAY_X = [-1.5, -0.5, 0.5, 1.5];
-const DIVIDER_X = [-1.0, 0, 1.0];
-const DOOR_W = 0.97;
-const DOOR_H = 0.6;
+// ── Palette ─────────────────────────────────────────────────────────────────
+const LED = "#FFD9A8"; // 2700-3000K strip, seen head on
+const LED_WARM = "#FFB46B";
 
-/**
- * Hinge lines for the four doors. Two pairs: doors 0/1 meet at x = -1.0 and
- * doors 2/3 meet at x = 1.0, each leaf hinged on the side away from that
- * meeting point so both open outward into free air rather than through a
- * neighbouring leaf or a divider.
- */
-const DOOR_X_HINGES = [
-  { hingeX: -1.985, offset: DOOR_W / 2, dir: 1 },
-  { hingeX: -0.015, offset: -DOOR_W / 2, dir: -1 },
-  { hingeX: 0.015, offset: DOOR_W / 2, dir: 1 },
-  { hingeX: 1.985, offset: -DOOR_W / 2, dir: -1 },
-];
-
-/** Decorative objects, kept off the centre so they never cross the screen. */
-function ShelfStyling() {
-  return (
-    <group>
-      {/* Left flank — stacked books and a vase */}
-      <group position={[-1.62, 0.98, -0.36]}>
-        {[0, 0.055, 0.11].map((y, i) => (
-          <mesh key={y} position={[i * 0.012, y, 0]} rotation={[0, i * 0.06, 0]}>
-            <boxGeometry args={[0.24, 0.05, 0.17]} />
-            <meshStandardMaterial color={i === 1 ? CLAY : SAND} roughness={0.85} />
-          </mesh>
-        ))}
-      </group>
-      <mesh position={[-1.28, 1.06, -0.36]}>
-        <cylinderGeometry args={[0.055, 0.085, 0.24, 18]} />
-        <meshStandardMaterial color={FOREST_DEEP} roughness={0.35} />
-      </mesh>
-
-      {/* Left flank, middle shelf — a low bowl */}
-      <mesh position={[-1.5, 0.5, -0.36]} scale={[1, 0.45, 1]}>
-        <sphereGeometry args={[0.12, 20, 14]} />
-        <meshStandardMaterial color={BRASS} roughness={0.3} metalness={0.6} />
-      </mesh>
-
-      {/* Right flank — a leaning frame and candles */}
-      <mesh position={[1.42, 1.05, -0.4]} rotation={[0, 0, 0.04]}>
-        <boxGeometry args={[0.3, 0.38, 0.02]} />
-        <meshStandardMaterial color={CHARCOAL} roughness={0.6} />
-      </mesh>
-      <mesh position={[1.42, 1.05, -0.385]} rotation={[0, 0, 0.04]}>
-        <boxGeometry args={[0.25, 0.32, 0.005]} />
-        <meshStandardMaterial color={PLASTER_DEEP} roughness={0.9} />
-      </mesh>
-      {[1.72, 1.83].map((x, i) => (
-        <mesh key={x} position={[x, 0.96 + i * 0.035, -0.36]}>
-          <cylinderGeometry args={[0.035, 0.035, 0.14 + i * 0.07, 14]} />
-          <meshStandardMaterial color={SAND} roughness={0.75} />
-        </mesh>
-      ))}
-
-      {/* Right flank, middle shelf — a small trailing plant */}
-      <mesh position={[1.55, 0.5, -0.36]}>
-        <cylinderGeometry args={[0.08, 0.06, 0.14, 16]} />
-        <meshStandardMaterial color={CLAY} roughness={0.8} />
-      </mesh>
-      {[-0.1, 0, 0.1].map((dx, i) => (
-        <mesh key={dx} position={[1.55 + dx, 0.63 + (i === 1 ? 0.06 : 0), -0.36]} rotation={[0, 0, dx * 3]}>
-          <sphereGeometry args={[0.07, 12, 10]} />
-          <meshStandardMaterial color={SAGE} roughness={0.85} />
-        </mesh>
-      ))}
-    </group>
-  );
+/** Deterministic PRNG, so the grain is the same on every load. */
+function rng(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
-/** Static room dressing. None of it moves — it exists to give the unit scale. */
-function RoomFurniture() {
-  return (
-    <group>
-      {/* Rug */}
-      <mesh position={[0, FLOOR_Y + 0.006, 1.5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[4.4, 3.0]} />
-        <meshStandardMaterial color={LINEN_DEEP} roughness={1} />
-      </mesh>
-      <mesh position={[0, FLOOR_Y + 0.008, 1.5]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[3.9, 2.5]} />
-        <meshStandardMaterial color={LINEN} roughness={1} />
-      </mesh>
+// ── Procedural textures ────────────────────────────────────────────────────
+/** One texture tile = this much board, in metres (width × height). */
+const GRAIN_TILE = { u: 0.5, v: 1.0 };
 
-      {/* Sofa, read from behind — the classic living-room framing device, and
-          low enough that it never crosses the base run from any viewpoint. */}
-      <group position={[0, 0, 2.95]}>
-        <mesh position={[0, FLOOR_Y + 0.34, 0]}>
-          <boxGeometry args={[2.5, 0.28, 0.95]} />
-          <meshStandardMaterial color={LINEN} roughness={0.95} />
-        </mesh>
-        <mesh position={[0, FLOOR_Y + 0.52, 0.4]}>
-          <boxGeometry args={[2.5, 0.66, 0.2]} />
-          <meshStandardMaterial color={LINEN} roughness={0.95} />
-        </mesh>
-        {[-1.15, 1.15].map((x) => (
-          <mesh key={x} position={[x, FLOOR_Y + 0.44, 0]}>
-            <boxGeometry args={[0.2, 0.5, 0.95]} />
-            <meshStandardMaterial color={LINEN} roughness={0.95} />
-          </mesh>
-        ))}
-        {[-0.62, 0.62].map((x) => (
-          <mesh key={x} position={[x, FLOOR_Y + 0.5, 0.12]} rotation={[0.12, 0, 0]}>
-            <boxGeometry args={[0.85, 0.2, 0.6]} />
-            <meshStandardMaterial color={LINEN_DEEP} roughness={0.95} />
-          </mesh>
-        ))}
-        {[-0.95, 0.95].map((x) => (
-          <mesh key={x} position={[x, FLOOR_Y + 0.62, 0.28]} rotation={[0, 0, x > 0 ? -0.2 : 0.2]}>
-            <boxGeometry args={[0.34, 0.34, 0.12]} />
-            <meshStandardMaterial color={CLAY} roughness={0.9} />
-          </mesh>
-        ))}
-        {[-0.9, 0.9].map((x) => (
-          <mesh key={x} position={[x, FLOOR_Y + 0.1, -0.3]}>
-            <cylinderGeometry args={[0.035, 0.03, 0.2, 10]} />
-            <meshStandardMaterial color={OAK} roughness={0.6} />
-          </mesh>
-        ))}
-      </group>
+function woodTexture(base: string, dark: string, light: string, seed: number) {
+  const W = 512;
+  const H = 1024;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const g = canvas.getContext("2d")!;
+  const r = rng(seed);
+  g.fillStyle = base;
+  g.fillRect(0, 0, W, H);
 
-      {/* Coffee table — oak top on a slim frame */}
-      <group position={[0, 0, 1.45]}>
-        <mesh position={[0, FLOOR_Y + 0.4, 0]}>
-          <boxGeometry args={[1.25, 0.05, 0.62]} />
-          <meshStandardMaterial color={OAK} roughness={0.55} />
-        </mesh>
-        {[
-          [-0.55, -0.24],
-          [0.55, -0.24],
-          [-0.55, 0.24],
-          [0.55, 0.24],
-        ].map(([x, z]) => (
-          <mesh key={`${x}-${z}`} position={[x!, FLOOR_Y + 0.19, z!]}>
-            <cylinderGeometry args={[0.022, 0.022, 0.38, 10]} />
-            <meshStandardMaterial color={CHARCOAL} roughness={0.45} metalness={0.3} />
-          </mesh>
-        ))}
-        <mesh position={[-0.2, FLOOR_Y + 0.45, 0]}>
-          <boxGeometry args={[0.26, 0.05, 0.18]} />
-          <meshStandardMaterial color={SAND} roughness={0.85} />
-        </mesh>
-        <mesh position={[0.28, FLOOR_Y + 0.48, 0.04]}>
-          <cylinderGeometry args={[0.06, 0.075, 0.12, 16]} />
-          <meshStandardMaterial color={SAGE} roughness={0.7} />
-        </mesh>
-      </group>
+  // Drawn three times across so every stroke wraps the tile seamlessly.
+  const wrapped = (draw: (dx: number) => void) => [-W, 0, W].forEach(draw);
 
-      {/* Armchair, angled in from the right */}
-      <group position={[2.35, 0, 1.55]} rotation={[0, -0.62, 0]}>
-        <mesh position={[0, FLOOR_Y + 0.36, 0]}>
-          <boxGeometry args={[0.82, 0.26, 0.8]} />
-          <meshStandardMaterial color={LINEN_DEEP} roughness={0.95} />
-        </mesh>
-        <mesh position={[0, FLOOR_Y + 0.58, -0.32]}>
-          <boxGeometry args={[0.82, 0.62, 0.18]} />
-          <meshStandardMaterial color={LINEN_DEEP} roughness={0.95} />
-        </mesh>
-        {[-0.32, 0.32].map((x) => (
-          <mesh key={x} position={[x, FLOOR_Y + 0.46, 0]}>
-            <boxGeometry args={[0.16, 0.44, 0.8]} />
-            <meshStandardMaterial color={LINEN_DEEP} roughness={0.95} />
-          </mesh>
-        ))}
-      </group>
+  // Broad tonal bands — the boards a veneer is laid up from.
+  for (let i = 0; i < 26; i++) {
+    const x = r() * W;
+    const w = 12 + r() * 70;
+    g.globalAlpha = 0.05 + r() * 0.09;
+    g.fillStyle = r() > 0.5 ? dark : light;
+    wrapped((dx) => g.fillRect(x + dx, 0, w, H));
+  }
 
-      {/* Floor lamp, left */}
-      <group position={[-2.5, 0, 0.65]}>
-        <mesh position={[0, FLOOR_Y + 0.02, 0]}>
-          <cylinderGeometry args={[0.16, 0.18, 0.04, 20]} />
-          <meshStandardMaterial color={CHARCOAL} roughness={0.4} metalness={0.4} />
-        </mesh>
-        <mesh position={[0, FLOOR_Y + 0.72, 0]}>
-          <cylinderGeometry args={[0.018, 0.018, 1.4, 10]} />
-          <meshStandardMaterial color={CHARCOAL} roughness={0.4} metalness={0.4} />
-        </mesh>
-        <mesh position={[0, FLOOR_Y + 1.52, 0]}>
-          <cylinderGeometry args={[0.17, 0.22, 0.28, 20, 1, true]} />
-          <meshStandardMaterial color={SAND} roughness={0.9} side={THREE.DoubleSide} />
-        </mesh>
-        <pointLight position={[0, FLOOR_Y + 1.45, 0]} intensity={1.6} distance={3} color="#F3E3C4" />
-      </group>
+  // Grain lines. Periods are whole fractions of the tile height, so the
+  // waves meet themselves at the top and bottom edges.
+  for (let i = 0; i < 260; i++) {
+    const x0 = r() * W;
+    const amp = 2 + r() * (r() > 0.85 ? 26 : 9);
+    const k1 = 1 + Math.floor(r() * 3);
+    const k2 = 3 + Math.floor(r() * 5);
+    const p1 = r() * Math.PI * 2;
+    const p2 = r() * Math.PI * 2;
+    const darkLine = r() > 0.28;
+    g.globalAlpha = darkLine ? 0.06 + r() * 0.22 : 0.05 + r() * 0.12;
+    g.strokeStyle = darkLine ? dark : light;
+    g.lineWidth = 0.5 + r() * (darkLine ? 2.4 : 1.6);
+    wrapped((dx) => {
+      g.beginPath();
+      for (let y = 0; y <= H; y += 8) {
+        const t = (y / H) * Math.PI * 2;
+        const x = x0 + dx + Math.sin(t * k1 + p1) * amp + Math.sin(t * k2 + p2) * amp * 0.25;
+        if (y === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      }
+      g.stroke();
+    });
+  }
 
-      {/* Tall plant, right */}
-      <group position={[2.72, 0, 0.15]}>
-        <mesh position={[0, FLOOR_Y + 0.22, 0]}>
-          <cylinderGeometry args={[0.19, 0.15, 0.44, 18]} />
-          <meshStandardMaterial color={PLASTER_DEEP} roughness={0.9} />
-        </mesh>
-        {[
-          [0, 0.62, 0.16],
-          [0.16, 0.5, -0.1],
-          [-0.15, 0.44, 0.06],
-        ].map(([dx, h, dz], i) => (
-          <mesh
-            key={i}
-            position={[dx!, FLOOR_Y + 0.44 + h! / 2, dz!]}
-            rotation={[0, 0, dx! * 0.9]}
-          >
-            <cylinderGeometry args={[0.012, 0.02, h!, 8]} />
-            <meshStandardMaterial color={SAGE} roughness={0.85} />
-          </mesh>
-        ))}
-        {[
-          [0, 0.78, 0.16],
-          [0.22, 0.66, -0.1],
-          [-0.2, 0.6, 0.06],
-          [0.08, 0.86, -0.02],
-        ].map(([dx, y, dz], i) => (
-          <mesh key={`leaf-${i}`} position={[dx!, FLOOR_Y + 0.44 + y!, dz!]} scale={[1, 0.55, 0.7]}>
-            <sphereGeometry args={[0.19, 12, 10]} />
-            <meshStandardMaterial color={SAGE} roughness={0.88} />
-          </mesh>
-        ))}
-      </group>
-    </group>
-  );
+  // Pores and flecks — elm's open grain.
+  g.fillStyle = dark;
+  for (let i = 0; i < 5200; i++) {
+    g.globalAlpha = 0.12 + r() * 0.28;
+    g.fillRect(r() * W, r() * H, 0.8 + r() * 0.9, 3 + r() * 12);
+  }
+  g.globalAlpha = 1;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  return texture;
+}
+
+function carpetTexture() {
+  const S = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const g = canvas.getContext("2d")!;
+  const r = rng(7);
+  g.fillStyle = "#ABA9A5";
+  g.fillRect(0, 0, S, S);
+  for (let i = 0; i < 9000; i++) {
+    const v = r();
+    g.fillStyle = v > 0.5 ? "#CDCBC6" : "#7A7874";
+    g.globalAlpha = 0.18 + r() * 0.3;
+    g.fillRect(r() * S, r() * S, 1 + r() * 2, 1 + r() * 2);
+  }
+  g.globalAlpha = 1;
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.repeat.set(40, 26);
+  texture.anisotropy = 8;
+  return texture;
+}
+
+/** Glow around a rectangle — the TV panel's halo strip. */
+function haloTexture(planeW: number, planeH: number) {
+  const W = 512;
+  const H = Math.round((W * planeH) / planeW);
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const g = canvas.getContext("2d")!;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, W, H);
+  const px = W / planeW;
+  const x = ((planeW - PANEL.w) / 2) * px;
+  const y = ((planeH - PANEL.h) / 2) * px;
+  g.fillStyle = "#fff";
+  g.shadowColor = "#fff";
+  // Two passes: a tight hot edge and a wide soft spill.
+  g.shadowBlur = 0.22 * px;
+  g.fillRect(x, y, PANEL.w * px, PANEL.h * px);
+  g.shadowBlur = 0.06 * px;
+  g.fillRect(x, y, PANEL.w * px, PANEL.h * px);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** Vertical fade, bright at the top. Bulkhead wash. */
+function washTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 4;
+  canvas.height = 256;
+  const g = canvas.getContext("2d")!;
+  const grad = g.createLinearGradient(0, 0, 0, 256);
+  grad.addColorStop(0, "#fff");
+  grad.addColorStop(0.08, "rgba(255,255,255,0.75)");
+  grad.addColorStop(0.4, "rgba(255,255,255,0.22)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, 4, 256);
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 256);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** A downlight's cone on the board behind it. */
+function coneTexture() {
+  const S = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = canvas.height = S;
+  const g = canvas.getContext("2d")!;
+  g.fillStyle = "#000";
+  g.fillRect(0, 0, S, S);
+  g.save();
+  g.scale(1, 1.7);
+  const grad = g.createRadialGradient(S / 2, 0, 4, S / 2, 0, S * 0.62);
+  grad.addColorStop(0, "#fff");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.55)");
+  grad.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, S, S);
+  g.restore();
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** The TV's dead screen: near black, with a soft sheen from the room. */
+function screenTexture() {
+  const W = 512;
+  const H = 296;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const g = canvas.getContext("2d")!;
+  const base = g.createLinearGradient(0, 0, 0, H);
+  base.addColorStop(0, "#0E0F10");
+  base.addColorStop(1, "#060606");
+  g.fillStyle = base;
+  g.fillRect(0, 0, W, H);
+  const sheen = g.createLinearGradient(0, 0, W * 0.7, H);
+  sheen.addColorStop(0, "rgba(255,255,255,0.10)");
+  sheen.addColorStop(0.32, "rgba(255,255,255,0.035)");
+  sheen.addColorStop(0.55, "rgba(255,255,255,0)");
+  g.fillStyle = sheen;
+  g.fillRect(0, 0, W, H);
+  // The fire, caught low in the glass.
+  const fire = g.createRadialGradient(W / 2, H * 1.25, 10, W / 2, H * 1.25, H * 0.75);
+  fire.addColorStop(0, "rgba(255,120,40,0.10)");
+  fire.addColorStop(1, "rgba(255,120,40,0)");
+  g.fillStyle = fire;
+  g.fillRect(0, 0, W, H);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+// ── Geometry builders ──────────────────────────────────────────────────────
+/**
+ * A board, centred at (x, y, z), with UVs in real metres so the grain keeps
+ * one scale across every part. Faces that lie flat get their grain turned to
+ * run along the width — a worktop's grain runs its length.
+ */
+function board(w: number, h: number, d: number, x: number, y: number, z: number, seed = 0) {
+  const geometry = new THREE.BoxGeometry(w, h, d);
+  const uv = geometry.attributes.uv as THREE.BufferAttribute;
+  // BoxGeometry face order: +x, -x, +y, -y, +z, -z; four vertices each.
+  const spans: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  const r = rng(seed * 977 + 13);
+  const ou = r() * 4;
+  const ov = r() * 4;
+  for (let face = 0; face < 6; face++) {
+    const [su, sv] = spans[face]!;
+    for (let k = 0; k < 4; k++) {
+      const i = face * 4 + k;
+      let u = uv.getX(i) * su;
+      let v = uv.getY(i) * sv;
+      if (face === 2 || face === 3) [u, v] = [v, u];
+      uv.setXY(i, u / GRAIN_TILE.u + ou, v / GRAIN_TILE.v + ov);
+    }
+  }
+  geometry.translate(x, y, z);
+  return geometry;
+}
+
+/** A flat plane facing +z, as a box-compatible indexed geometry. */
+function plane(w: number, h: number, x: number, y: number, z: number) {
+  const geometry = new THREE.PlaneGeometry(w, h);
+  geometry.translate(x, y, z);
+  return geometry;
+}
+
+/** Vertex-coloured, non-indexed — so props of any shape merge into one mesh. */
+function tinted(geometry: THREE.BufferGeometry, color: string) {
+  const flat = geometry.index ? geometry.toNonIndexed() : geometry;
+  const c = new THREE.Color(color);
+  const count = flat.attributes.position!.count;
+  const colors = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) colors.set([c.r, c.g, c.b], i * 3);
+  flat.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  return flat;
+}
+
+function merge(parts: THREE.BufferGeometry[]) {
+  const merged = mergeGeometries(parts, false)!;
+  parts.forEach((part) => part.dispose());
+  return merged;
+}
+
+function plant(x: number, y: number, z: number, seed: number, scale = 1) {
+  const r = rng(seed);
+  const parts: THREE.BufferGeometry[] = [];
+  const pot = new THREE.CylinderGeometry(0.062 * scale, 0.048 * scale, 0.12 * scale, 20);
+  pot.translate(x, y + 0.06 * scale, z);
+  parts.push(tinted(pot, "#E9E4DA"));
+  for (let i = 0; i < 14; i++) {
+    const leaf = new THREE.IcosahedronGeometry((0.032 + r() * 0.02) * scale, 0);
+    const a = r() * Math.PI * 2;
+    const rad = r() * 0.07 * scale;
+    leaf.scale(1, 0.6, 1);
+    leaf.rotateZ(r() * Math.PI);
+    leaf.translate(
+      x + Math.cos(a) * rad,
+      y + (0.15 + r() * 0.1) * scale,
+      z + Math.sin(a) * rad,
+    );
+    parts.push(tinted(leaf, r() > 0.5 ? "#4F6E3B" : "#6A8A48"));
+  }
+  return parts;
+}
+
+function bookStack(x: number, y: number, z: number, colors: string[], seed: number) {
+  const r = rng(seed);
+  let top = y;
+  return colors.map((color) => {
+    const h = 0.026 + r() * 0.012;
+    const w = 0.17 + r() * 0.05;
+    const book = new THREE.BoxGeometry(w, h, 0.13 + r() * 0.03);
+    book.rotateY((r() - 0.5) * 0.12);
+    book.translate(x + (r() - 0.5) * 0.015, top + h / 2, z);
+    top += h;
+    return tinted(book, color);
+  });
+}
+
+function bookRow(x: number, y: number, z: number, colors: string[], seed: number) {
+  const r = rng(seed);
+  let left = x;
+  return colors.map((color) => {
+    const w = 0.022 + r() * 0.016;
+    const h = 0.19 + r() * 0.05;
+    const book = new THREE.BoxGeometry(w, h, 0.15);
+    book.translate(left + w / 2, y + h / 2, z);
+    left += w + 0.002;
+    return tinted(book, color);
+  });
+}
+
+// ── The fire ───────────────────────────────────────────────────────────────
+const FIRE_VERTEX = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const FIRE_FRAGMENT = /* glsl */ `
+uniform float uTime;
+varying vec2 vUv;
+// No sin(): its precision varies by GPU and shows up as blocky noise cells.
+float hash(vec2 p) {
+  vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+  p3 += dot(p3, p3.yzx + 33.33);
+  return fract((p3.x + p3.y) * p3.z);
+}
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+float fbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for (int i = 0; i < 4; i++) { v += a * noise(p); p *= 2.03; a *= 0.5; }
+  return v;
+}
+// One row of flame tongues, "count" across the box, each with its own height,
+// sway and flicker. Returns (mask, how far up its own tongue this pixel is).
+vec2 tongues(vec2 uv, float count, float seed) {
+  float x = uv.x * count + seed;
+  float id = floor(x);
+  float r = hash(vec2(id, seed));
+  float base = 0.4;
+  float lick = noise(vec2(id * 0.71 + seed, uTime * (0.7 + r * 0.6)));
+  float tip = base + 0.05 + 0.26 * lick * lick;
+  float t = (uv.y - base) / (tip - base);
+  float tc = clamp(t, 0.0, 1.0);
+  float fx = fract(x) - 0.5 + 0.08 * sin(uTime * (2.2 + r * 2.0) + uv.y * 10.0 + r * 6.28) * tc;
+  float w = max(0.4 * pow(1.0 - tc, 0.75), 0.001);
+  float m = smoothstep(w, w * 0.15, abs(fx)) * smoothstep(base - 0.14, base - 0.02, uv.y) * (1.0 - step(1.0, t));
+  return vec2(m * (1.0 - tc * 0.45), tc);
+}
+
+void main() {
+  vec2 uv = vUv;
+  float h = uv.y;
+  float ends = smoothstep(0.0, 0.04, uv.x) * smoothstep(1.0, 0.96, uv.x);
+
+  // Ember bed: crushed red coals along the bottom, breathing slowly.
+  float bed = smoothstep(0.55, 0.36, h);
+  float coal = fbm(vec2(uv.x * 70.0, h * 16.0));
+  float breathe = 0.65 + 0.35 * noise(vec2(uv.x * 14.0, uTime * 0.7));
+  vec3 bedCol = mix(vec3(0.42, 0.04, 0.0), vec3(1.0, 0.30, 0.05), smoothstep(0.34, 0.66, coal));
+  bedCol += vec3(1.0, 0.62, 0.2) * smoothstep(0.68, 0.84, coal) * 0.6;
+  // Logs: dark lozenges lying in the bed.
+  float logBand = smoothstep(0.5, 0.4, h) * smoothstep(0.12, 0.22, h);
+  float logN = noise(vec2(uv.x * 8.0 + 2.0, h * 4.0));
+  float logs = smoothstep(0.6, 0.66, logN) * logBand;
+  // Charred logs glow along the edges where they meet the coals.
+  float rim = smoothstep(0.42, 0.6, logN) * (1.0 - logs) * logBand;
+
+  // Flames: two rows of tongues, broken up by a fast flicker.
+  vec2 a = tongues(uv, 28.0, 0.0);
+  vec2 b = tongues(uv, 17.0, 3.7);
+  float flame = min(a.x + b.x * 0.8, 1.0);
+  float up = (a.x * a.y + b.x * b.y) / max(a.x + b.x, 0.001);
+  flame *= (0.7 + 0.4 * noise(vec2(uv.x * 34.0, h * 7.0 - uTime * 4.0))) * ends;
+
+  vec3 col = vec3(0.012, 0.006, 0.004);
+  col += bedCol * bed * breathe * ends;
+  col += vec3(1.0, 0.36, 0.06) * rim * 0.45 * ends;
+  col = mix(col, vec3(0.05, 0.022, 0.014), logs * 0.9);
+  vec3 flameCol = mix(vec3(1.0, 0.74, 0.32), vec3(1.0, 0.4, 0.04), smoothstep(0.0, 0.55, up));
+  flameCol = mix(flameCol, vec3(0.85, 0.16, 0.02), smoothstep(0.6, 1.0, up));
+  col += flameCol * clamp(flame, 0.0, 1.0) * 1.0;
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ── The unit ───────────────────────────────────────────────────────────────
+function useWall() {
+  return useMemo(() => {
+    const textures = {
+      // Fox Grey Tossini Elm — the carcass, back panel and tower backs.
+      fox: woodTexture("#7C6858", "#4A3A2E", "#A58F7A", 11),
+      // Grain Carbon Frozen Wood — TV panel, tower frames, worktop, slats.
+      carbon: woodTexture("#4A3B30", "#251B15", "#6E5948", 23),
+      // The lighter grey elm on the doors.
+      door: woodTexture("#B5A897", "#7F7263", "#D3C8B9", 37),
+      carpet: carpetTexture(),
+      halo: haloTexture(PANEL.w + 0.7, PANEL.h + 0.7),
+      wash: washTexture(),
+      cone: coneTexture(),
+      screen: screenTexture(),
+    };
+
+    const carbon: THREE.BufferGeometry[] = [];
+    const fox: THREE.BufferGeometry[] = [];
+    const black: THREE.BufferGeometry[] = [];
+    let seed = 1;
+
+    for (const s of [-1, 1]) {
+      // ── Tower: chunky inner side and end frame, top, shelves, recessed kick.
+      carbon.push(board(FR, TOP, TOWER_D, s * (SB + FR / 2), TOP / 2, TOWER_D / 2, seed++));
+      carbon.push(board(FR, TOP, TOWER_D, s * (SB + FR + TW + FR / 2), TOP / 2, TOWER_D / 2, seed++));
+      carbon.push(board(TW, FR, TOWER_D, s * TX, TOP - FR / 2, TOWER_D / 2, seed++));
+      for (const y of TOWER_SHELVES) {
+        carbon.push(board(TW, SH, TOWER_D - 0.012, s * TX, y - SH / 2, (TOWER_D - 0.012) / 2 + 0.012, seed++));
+      }
+      black.push(board(TW, 0.08, T, s * TX, 0.04, TOWER_D - 0.03));
+      fox.push(board(TW, TOP, T, s * TX, TOP / 2, T / 2, seed++));
+
+      // ── Side base carcass: back, bottom, a shelf; the divider to the fire bay.
+      const bx = s * (CB + BAY / 2);
+      fox.push(board(BAY, 0.48, T, bx, T + 0.24, T / 2, seed++));
+      fox.push(board(BAY, T, BASE_D - T, bx, T * 1.5, BASE_D / 2, seed++));
+      fox.push(board(BAY - 2 * T, T, BASE_D - 0.06, bx, 0.255, (BASE_D - 0.06) / 2 + T, seed++));
+      fox.push(board(T, 0.48, BASE_D - T, s * (CB - T / 2), T + 0.24, BASE_D / 2 - T / 2, seed++));
+      black.push(board(BAY, T, T, bx, T / 2, BASE_D - 0.03));
+
+      // ── Worktop, in two lengths meeting on the centre line.
+      carbon.push(board(SB - 0.001, T, BASE_D + 0.01, s * (SB / 2 + 0.0005), WT - T / 2, (BASE_D + 0.01) / 2, seed++));
+    }
+
+    // ── Back panel and the stood-off TV panel.
+    fox.push(board(2 * SB, TOP - WT, T, 0, (TOP + WT) / 2, T / 2, seed++));
+    carbon.push(board(PANEL.w, PANEL.h, T, 0, PANEL.y + PANEL.h / 2, PANEL.z + T / 2, seed++));
+    // The stand-off frame behind it, visible from an angle.
+    black.push(board(PANEL.w - 0.12, PANEL.h - 0.12, PANEL.z - T, 0, PANEL.y + PANEL.h / 2, T + (PANEL.z - T) / 2));
+
+    // ── Centre bay: soundbar shelf, the open slot behind it, the fire box.
+    fox.push(board(2 * CB, 0.5, T, 0, 0.25, T / 2, seed++));
+    fox.push(board(2 * CB, T, BASE_D - T, 0, SHELF_Y + T / 2, BASE_D / 2 + T / 2, seed++));
+    const fz = BASE_D - T / 2;
+    const fy = FIRE.y + FIRE.h / 2;
+    black.push(board(FIRE.w, 0.022, T, 0, FIRE.y + FIRE.h - 0.011, fz));
+    black.push(board(FIRE.w, 0.022, T, 0, FIRE.y + 0.011, fz));
+    black.push(board(0.022, FIRE.h, T, -FIRE.w / 2 + 0.011, fy, fz));
+    black.push(board(0.022, FIRE.h, T, FIRE.w / 2 - 0.011, fy, fz));
+    black.push(board(FIRE.w, FIRE.h, T, 0, fy, 0.09)); // firebox back
+    black.push(board(2 * CB, T, BASE_D - 0.03, 0, T / 2, (BASE_D - 0.03) / 2)); // plinth
+
+    // ── TV: bezel and wall bracket.
+    black.push(board(TV.w, TV.h, 0.03, 0, PANEL.y + PANEL.h / 2, PANEL.z + T + 0.015));
+
+    // ── LEDs: tower edge strips, pucks, bulkhead strip, the halo strip.
+    const leds: THREE.BufferGeometry[] = [];
+    for (const s of [-1, 1]) {
+      for (const x of [SB + FR + 0.003, SB + FR + TW - 0.003]) {
+        leds.push(board(0.005, TOP - 0.12, 0.007, s * x, TOP / 2 + 0.02, TOWER_D - 0.02));
+      }
+      for (const y of [...TOWER_SHELVES.slice(1).map((top) => top - SH), TOP - FR]) {
+        const puck = new THREE.CylinderGeometry(0.024, 0.024, 0.004, 18);
+        puck.translate(s * TX, y - 0.002, TOWER_D * 0.55);
+        leds.push(puck);
+      }
+    }
+    leds.push(board(2 * SB, 0.008, 0.012, 0, TOP - 0.006, 0.035));
+
+    // ── Additive glows. All share material settings; one mesh per texture.
+    const cones: THREE.BufferGeometry[] = [];
+    for (const s of [-1, 1]) {
+      const roofs = [...TOWER_SHELVES.slice(1).map((top) => top - SH), TOP - FR];
+      TOWER_SHELVES.forEach((shelf, i) => {
+        const roof = roofs[i]!;
+        const h = roof - shelf;
+        cones.push(plane(TW, h, s * TX, shelf + h / 2, T + 0.001));
+      });
+    }
+
+    // ── Props: sparse, and only what the finished job carried.
+    const props = [
+      ...plant(-1.13, WT, 0.15, 3),
+      ...plant(1.13, WT, 0.15, 5),
+      // Left tower, top down: plant, books, a slim stack, books.
+      ...plant(-TX, TOWER_SHELVES[3]!, 0.17, 9, 1.05),
+      ...bookStack(-TX, TOWER_SHELVES[2]!, 0.16, ["#E6DFD2", "#3A3634", "#B9A88E"], 21),
+      ...bookStack(-TX, TOWER_SHELVES[1]!, 0.16, ["#2B2B2A", "#D9D0BF"], 24),
+      ...bookStack(-TX, TOWER_SHELVES[0]!, 0.16, ["#C9B79B", "#2E3A37", "#E6DFD2", "#8E7B62"], 22),
+      // Right tower: plant, upright books, the glass bauble (below), plant.
+      ...plant(TX, TOWER_SHELVES[3]!, 0.17, 12, 1.05),
+      ...bookRow(TX - 0.08, TOWER_SHELVES[2]!, 0.15, ["#1E2426", "#2B2B2A", "#1F2A33", "#3B3B39", "#2A2622", "#20262B"], 23),
+      ...plant(TX, TOWER_SHELVES[0]!, 0.17, 15, 0.9),
+      tinted(board(0.22, 0.05, 0.2, 0, WT + 0.025, 0.13), "#B8B6B1"), // AV box
+      tinted(board(0.98, 0.07, 0.1, 0, SHELF_Y + T + 0.035, 0.12), "#141414"), // soundbar
+    ];
+
+    const room = [
+      tinted(board(ROOM_W, 0.1, BULK_D, 0, TOP + 0.05, BULK_D / 2), "#E2DCD0"),
+      tinted(board(ROOM_W, 0.11, 0.016, 0, 0.055, 0.008), "#E4DED2"),
+    ];
+
+    const geometries = {
+      carbon: merge(carbon),
+      fox: merge(fox),
+      black: merge(black),
+      leds: merge(leds.map((g) => (g.index ? g.toNonIndexed() : g))),
+      cones: merge(cones),
+      props: merge(props),
+      room: merge(room),
+    };
+
+    // ── Doors: four, push-to-open, each two slabs with the split line between.
+    const doors = [-1, 1].flatMap((s) =>
+      [0, 1].map((leaf) => {
+        // Each pair meets in the middle of its bay and hinges outward.
+        const outer = leaf === 0 ? s * (SB - 0.002) : s * (CB + 0.002);
+        const dir = leaf === 0 ? -s : s;
+        const cx = dir * (DOOR.w / 2);
+        const lower = DOOR.h - DOOR.split - 0.004;
+        const geometry = merge([
+          board(DOOR.w, lower, T, cx, DOOR.y + lower / 2, T / 2, seed++),
+          board(DOOR.w, DOOR.split, T, cx, DOOR.y + DOOR.h - DOOR.split / 2, T / 2, seed++),
+        ]);
+        // dir = +1 means the leaf extends to the right of its hinge.
+        return { hingeX: outer, geometry, swing: dir > 0 ? -1 : 1 };
+      }),
+    );
+
+    return { textures, geometries, doors };
+  }, []);
 }
 
 function MediaWall({
@@ -326,11 +607,21 @@ function MediaWall({
   doorsOpen: boolean;
   showcase: boolean;
 }) {
+  const { textures, geometries, doors } = useWall();
   const doorRefs = useRef<(Group | null)[]>([]);
   const openRef = useRef(0);
+  const fireRef = useRef<ShaderMaterial>(null);
+  const fireLightRef = useRef<PointLight>(null);
+  const fireUniforms = useMemo(() => ({ uTime: { value: 0 } }), []);
 
-  const doorGeometry = usePanelGeometry(DOOR_W, DOOR_H, 0.035, 0.012);
-  const shelfGeometry = usePanelGeometry(0.8, 0.05, 0.3, 0.008);
+  useEffect(
+    () => () => {
+      Object.values(textures).forEach((texture) => texture.dispose());
+      Object.values(geometries).forEach((geometry) => geometry.dispose());
+      doors.forEach((door) => door.geometry.dispose());
+    },
+    [textures, geometries, doors],
+  );
 
   useFrame((state, delta) => {
     const ease = 1 - Math.pow(0.0025, delta);
@@ -350,170 +641,167 @@ function MediaWall({
       THREE.MathUtils.clamp(orbit.azimuth, -AZIMUTH_LIMIT, AZIMUTH_LIMIT);
     const polar = THREE.MathUtils.clamp(view.polar + orbit.polar, 1.05, 1.72);
     const r = view.radius * THREE.MathUtils.clamp(orbit.zoom, ZOOM_MIN, ZOOM_MAX);
+    const targetX = view.targetX ?? 0;
 
     const targetPosition = new THREE.Vector3(
-      r * Math.sin(polar) * Math.sin(azimuth),
+      targetX + r * Math.sin(polar) * Math.sin(azimuth),
       r * Math.cos(polar) + view.targetY,
       r * Math.sin(polar) * Math.cos(azimuth),
     );
     state.camera.position.lerp(targetPosition, ease);
-    state.camera.lookAt(0, view.targetY, 0);
+    state.camera.lookAt(targetX, view.targetY, 0);
 
     openRef.current += (target - openRef.current) * (showcase ? ease * 0.3 : ease);
     doorRefs.current.forEach((door, index) => {
-      if (!door) return;
-      // Two pairs: each pair meets in its own middle and swings outward, so no
-      // leaf ever passes through a neighbour or through a divider.
-      const dir = index % 2 === 0 ? -1 : 1;
-      door.rotation.y = dir * openRef.current * 1.3;
+      if (door) door.rotation.y = doors[index]!.swing * openRef.current * 1.3;
     });
+
+    if (fireRef.current) fireRef.current.uniforms.uTime!.value = time;
+    if (fireLightRef.current) {
+      const flicker = Math.sin(time * 7.3) * 0.5 + Math.sin(time * 13.1 + 1.7) * 0.3 + Math.sin(time * 3.1) * 0.4;
+      fireLightRef.current.intensity = 1.1 + flicker * 0.12;
+    }
   });
 
   return (
     <group>
-      {/* ── Room shell ── warm plaster and oak. The light ground is the whole
-          point: forest joinery needs something to read against. */}
-      <mesh position={[0, 0.6, WALL_Z - 0.02]}>
-        <planeGeometry args={[16, 8]} />
-        <meshStandardMaterial color={PLASTER} roughness={0.97} />
+      {/* ── Room shell ── a 9m room, so no turn of the camera finds its edge.
+          Single-sided planes facing in: from outside the room they vanish. */}
+      <mesh position={[0, 1.4, WALL_Z - 0.002]}>
+        <planeGeometry args={[ROOM_W, 9]} />
+        <meshStandardMaterial color="#B1ACA4" roughness={0.96} />
       </mesh>
-      <mesh position={[0, FLOOR_Y, 1.6]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[16, 9]} />
-        <meshStandardMaterial color={OAK} roughness={0.7} />
-      </mesh>
-      <mesh position={[0, FLOOR_Y + 0.06, WALL_Z + 0.01]}>
-        <boxGeometry args={[16, 0.12, 0.02]} />
-        <meshStandardMaterial color={PLASTER_DEEP} roughness={0.9} />
-      </mesh>
-
-      <RoomFurniture />
-
-      {/* ── Backboard ── the panelled field the unit hangs off */}
-      <mesh position={[0, 0.05, WALL_Z + 0.04]}>
-        <boxGeometry args={[UNIT_W, 2.6, 0.08]} />
-        <meshStandardMaterial color={FOREST} roughness={0.72} />
-      </mesh>
-      {/* Slatted grooves on the flanks only — never across the screen */}
-      {[-1.9, -1.78, -1.66, 1.66, 1.78, 1.9].map((x) => (
-        <mesh key={x} position={[x, 0.05, WALL_Z + 0.085]}>
-          <boxGeometry args={[0.018, 2.5, 0.014]} />
-          <meshStandardMaterial color={FOREST_DEEP} roughness={0.85} />
+      {[-1, 1].map((s) => (
+        <mesh key={s} position={[s * (ROOM_W / 2), 1.4, WALL_Z + 5]} rotation={[0, -s * (Math.PI / 2), 0]}>
+          <planeGeometry args={[10, 9]} />
+          <meshStandardMaterial color="#A6A19A" roughness={0.96} />
         </mesh>
       ))}
+      <mesh position={[0, FLOOR_Y, WALL_Z + 5]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[ROOM_W, 10]} />
+        <meshStandardMaterial map={textures.carpet} roughness={1} />
+      </mesh>
+      <mesh position={[0, FLOOR_Y + CEIL, WALL_Z + 5]} rotation={[Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[ROOM_W, 10]} />
+        <meshStandardMaterial color="#D9D3C7" emissive="#5E554A" roughness={0.97} />
+      </mesh>
 
-      {/* ── TV recess ── owns the centre outright: x -1.05..1.05 */}
-      <mesh position={[0, 0.6, WALL_Z + 0.09]}>
-        <boxGeometry args={[2.1, 1.02, 0.03]} />
-        <meshStandardMaterial color={FOREST_DEEP} roughness={0.92} />
-      </mesh>
-      <mesh position={[0, 0.6, WALL_Z + 0.115]}>
-        <boxGeometry args={[1.98, 0.92, 0.025]} />
-        <meshStandardMaterial color={SCREEN} roughness={0.26} metalness={0.4} />
-      </mesh>
-      <mesh position={[0, 0.6, WALL_Z + 0.131]}>
-        <planeGeometry args={[1.92, 0.86]} />
-        <meshStandardMaterial
-          color={SCREEN}
-          emissive="#1D2C34"
-          emissiveIntensity={0.5}
-          roughness={0.18}
+      <group position={[0, FLOOR_Y, WALL_Z]}>
+        <mesh geometry={geometries.room}>
+          <meshStandardMaterial vertexColors roughness={0.95} />
+        </mesh>
+
+        <mesh geometry={geometries.carbon}>
+          <meshStandardMaterial map={textures.carbon} roughness={0.62} />
+        </mesh>
+        <mesh geometry={geometries.fox}>
+          <meshStandardMaterial map={textures.fox} roughness={0.66} />
+        </mesh>
+        <mesh geometry={geometries.black}>
+          <meshStandardMaterial color="#0C0C0C" roughness={0.45} />
+        </mesh>
+
+        {/* Screen, dead and glossy */}
+        <mesh position={[0, PANEL.y + PANEL.h / 2, PANEL.z + T + 0.0305]}>
+          <planeGeometry args={[TV.w - 0.016, TV.h - 0.016]} />
+          <meshBasicMaterial map={textures.screen} />
+        </mesh>
+
+        {/* Linear fire */}
+        {/* Close behind the glass, so the ember bed reads over the frame */}
+        <mesh position={[0, FIRE.y + FIRE.h / 2, BASE_D - 0.05]}>
+          <planeGeometry args={[FIRE.w - 0.04, FIRE.h - 0.04]} />
+          <shaderMaterial
+            ref={fireRef}
+            vertexShader={FIRE_VERTEX}
+            fragmentShader={FIRE_FRAGMENT}
+            uniforms={fireUniforms}
+          />
+        </mesh>
+        {/* Black glass in front of the fire: darkens it and catches the room */}
+        <mesh position={[0, FIRE.y + FIRE.h / 2, BASE_D - 0.006]}>
+          <planeGeometry args={[FIRE.w - 0.044, FIRE.h - 0.044]} />
+          <meshBasicMaterial map={textures.screen} transparent opacity={0.38} depthWrite={false} />
+        </mesh>
+        <pointLight
+          ref={fireLightRef}
+          position={[0, 0.2, 0.55]}
+          intensity={1.1}
+          distance={2.6}
+          color="#FF8A3D"
         />
-      </mesh>
 
-      {/* ── Fire slot ── the warm line that anchors the wall */}
-      <mesh position={[0, -0.06, WALL_Z + 0.09]}>
-        <boxGeometry args={[1.86, 0.22, 0.035]} />
-        <meshStandardMaterial color={FOREST_DEEP} roughness={0.92} />
-      </mesh>
-      <mesh position={[0, -0.06, WALL_Z + 0.112]}>
-        <boxGeometry args={[1.76, 0.14, 0.02]} />
-        <meshStandardMaterial color="#E8A25C" emissive="#EA8438" emissiveIntensity={2.6} />
-      </mesh>
-      <pointLight position={[0, -0.06, 0.25]} intensity={3} distance={3} color="#F2A868" />
-
-      {/* ── Display shelves ── flanks only, clear of the recess by 0.15m */}
-      {[-1.55, 1.55].map((x) =>
-        [1.02, 0.46, -0.1].map((y) => (
-          <mesh key={`${x}-${y}`} geometry={shelfGeometry} position={[x, y, WALL_Z + 0.2]}>
-            <meshStandardMaterial color={SAND} roughness={0.62} />
-          </mesh>
-        )),
-      )}
-      <ShelfStyling />
-
-      {/* ── LED cove ── washing the plaster above */}
-      <mesh position={[0, 1.33, WALL_Z + 0.14]}>
-        <boxGeometry args={[3.7, 0.022, 0.03]} />
-        <meshStandardMaterial color={SAND} emissive={SAND} emissiveIntensity={1.5} />
-      </mesh>
-      <pointLight position={[0, 1.45, -0.2]} intensity={1.7} distance={3} color="#F5EAD2" />
-
-      {/* ── Base run ── a genuine carcass. Back, deck, top, ends, dividers and
-          a shelf per bay: the volume behind each door is actually empty, which
-          is the entire point of being able to open them. */}
-      <mesh position={[0, BASE_MID, BASE.back + 0.015]}>
-        <boxGeometry args={[UNIT_W, BASE_H, 0.03]} />
-        <meshStandardMaterial color={FOREST_DEEP} roughness={0.9} />
-      </mesh>
-      <mesh position={[0, BASE.bottom + 0.015, BASE_Z]}>
-        <boxGeometry args={[UNIT_W, 0.03, BASE_D]} />
-        <meshStandardMaterial color="#E6E0D2" roughness={0.94} />
-      </mesh>
-      <mesh position={[0, BASE.top - 0.02, BASE_Z]}>
-        <boxGeometry args={[UNIT_W, 0.04, BASE_D]} />
-        <meshStandardMaterial color={FOREST} roughness={0.7} />
-      </mesh>
-      {[-1.985, 1.985].map((x) => (
-        <mesh key={x} position={[x, BASE_MID, BASE_Z]}>
-          <boxGeometry args={[0.03, BASE_H, BASE_D]} />
-          <meshStandardMaterial color={FOREST} roughness={0.75} />
+        {/* LEDs and their glow */}
+        <mesh geometry={geometries.leds}>
+          <meshBasicMaterial color={LED} toneMapped={false} />
         </mesh>
-      ))}
-      {DIVIDER_X.map((x) => (
-        <mesh key={x} position={[x, BASE_MID, BASE_Z - 0.01]}>
-          <boxGeometry args={[0.025, BASE_H - 0.06, BASE_D - 0.04]} />
-          <meshStandardMaterial color="#E6E0D2" roughness={0.94} />
+        <mesh position={[0, PANEL.y + PANEL.h / 2, PANEL.z - 0.012]}>
+          <planeGeometry args={[PANEL.w + 0.7, PANEL.h + 0.7]} />
+          <meshBasicMaterial
+            map={textures.halo}
+            color={LED_WARM}
+            blending={THREE.AdditiveBlending}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+          />
         </mesh>
-      ))}
-      {BAY_X.map((x) => (
-        <mesh key={`shelf-${x}`} position={[x, BASE_MID - 0.02, BASE_Z - 0.02]}>
-          <boxGeometry args={[0.94, 0.022, BASE_D - 0.08]} />
-          <meshStandardMaterial color="#E6E0D2" roughness={0.94} />
+        <mesh position={[0, TOP - 0.4, 0.032]}>
+          <planeGeometry args={[2 * SB, 0.8]} />
+          <meshBasicMaterial
+            map={textures.wash}
+            color={LED_WARM}
+            opacity={0.6}
+            blending={THREE.AdditiveBlending}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+          />
         </mesh>
-      ))}
-      {/* A little kit in two of the bays, so the void reads as usable storage */}
-      <mesh position={[-1.5, BASE.bottom + 0.09, BASE_Z - 0.04]}>
-        <boxGeometry args={[0.6, 0.11, 0.34]} />
-        <meshStandardMaterial color={CHARCOAL} roughness={0.42} metalness={0.3} />
-      </mesh>
-      <mesh position={[1.5, BASE.bottom + 0.11, BASE_Z - 0.04]}>
-        <boxGeometry args={[0.44, 0.15, 0.3] } />
-        <meshStandardMaterial color={CLAY} roughness={0.85} />
-      </mesh>
+        <mesh geometry={geometries.cones}>
+          <meshBasicMaterial
+            map={textures.cone}
+            color={LED_WARM}
+            opacity={0.9}
+            blending={THREE.AdditiveBlending}
+            transparent
+            depthWrite={false}
+            toneMapped={false}
+          />
+        </mesh>
+        {[-1, 1].map((s) => (
+          <pointLight
+            key={s}
+            position={[s * TX, 1.5, 0.22]}
+            intensity={0.55}
+            distance={1.8}
+            color={LED_WARM}
+          />
+        ))}
 
-      {DOOR_X_HINGES.map((hinge, index) => (
-        <group
-          key={hinge.hingeX}
-          ref={(node) => {
-            doorRefs.current[index] = node;
-          }}
-          position={[hinge.hingeX, BASE_MID, BASE.front + 0.03]}
-        >
-          <mesh geometry={doorGeometry} position={[hinge.offset, 0, 0]}>
-            <meshStandardMaterial color={SAGE} roughness={0.5} metalness={0.05} />
-          </mesh>
-          <mesh position={[hinge.offset - hinge.dir * 0.36, 0.2, 0.03]}>
-            <boxGeometry args={[0.2, 0.016, 0.022]} />
-            <meshStandardMaterial color={BRASS} roughness={0.24} metalness={0.75} />
-          </mesh>
-        </group>
-      ))}
+        <mesh geometry={geometries.props}>
+          <meshStandardMaterial vertexColors roughness={0.72} />
+        </mesh>
+        <mesh position={[TX, TOWER_SHELVES[1]! + 0.075, 0.16]}>
+          <sphereGeometry args={[0.075, 24, 16]} />
+          <meshStandardMaterial color="#E9B979" roughness={0.12} transparent opacity={0.55} />
+        </mesh>
 
-      {/* ── Plinth ── recessed, so the run reads as built-in */}
-      <mesh position={[0, BASE.bottom - 0.06, BASE_Z - 0.06]}>
-        <boxGeometry args={[UNIT_W - 0.12, 0.12, BASE_D - 0.14]} />
-        <meshStandardMaterial color={FOREST_DEEP} roughness={0.9} />
-      </mesh>
+        {/* Doors */}
+        {doors.map((door, index) => (
+          <group
+            key={door.hingeX}
+            ref={(node) => {
+              doorRefs.current[index] = node;
+            }}
+            position={[door.hingeX, 0, BASE_D - T]}
+          >
+            <mesh geometry={door.geometry}>
+              <meshStandardMaterial map={textures.door} roughness={0.58} />
+            </mesh>
+          </group>
+        ))}
+      </group>
     </group>
   );
 }
@@ -539,10 +827,9 @@ export default function MediaWallScene({
       dpr={showcase ? [1, 1.2] : [1, 1.75]}
       gl={{ antialias: true, alpha: true }}
     >
-      <ambientLight intensity={0.66} />
-      <directionalLight position={[3.5, 5, 6]} intensity={1.45} />
-      <directionalLight position={[-5, 2, 4]} intensity={0.55} color={SAND} />
-      <directionalLight position={[0, -1.5, 4]} intensity={0.22} color={SAGE} />
+      <hemisphereLight args={["#F4E6D2", "#3E362F", 0.75]} />
+      <directionalLight position={[2.5, 3.5, 6]} intensity={0.9} color="#FFF1DE" />
+      <directionalLight position={[-4, 1, 3]} intensity={0.2} color="#FFE2BF" />
       <MediaWall view={view} orbitRef={orbitRef} doorsOpen={doorsOpen} showcase={showcase} />
     </Canvas>
   );

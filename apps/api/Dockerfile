@@ -14,6 +14,17 @@ COPY src ./src
 COPY scripts ./scripts
 RUN npm run build
 
+# The content import, run by the compose `seed` service on every deploy. Has
+# tsx (a dev dependency) from `build`, and bakes in the shipped content rather
+# than bind-mounting it, because a deploy host may not have the repo on disk.
+# `webdata` and `seedmedia` are named contexts from docker-compose.yml
+# (additional_contexts); the API image never builds this stage, so a plain
+# `docker build` of apps/api does not need them.
+FROM build AS seed
+COPY --from=webdata . /web/src/data
+COPY --from=seedmedia . ./seed-media
+USER node
+
 FROM node:22-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production

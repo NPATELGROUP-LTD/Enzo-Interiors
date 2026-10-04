@@ -52,6 +52,8 @@
 // rather than written here; they used to be placeholder constants in this file,
 // which is why three pages disagreed about the studio's number.
 import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
 import { pageMetadata } from "@/lib/seo";
 import { ContactMasthead } from "@/components/contact/ContactMasthead";
 import { ContactDocket, type RoomOption } from "@/components/contact/ContactDocket";
@@ -61,11 +63,13 @@ import { getCompany, getPage, getServiceDetails } from "@/lib/content";
 import { getServiceMetrics } from "@/lib/service-metrics";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (await pageOff("contact")) return offMetadata("contact");
   const metadata = (await getPage("contact")).metadata;
   return pageMetadata({ ...metadata, path: "/contact", ogKey: "contact" });
 }
 
 export default async function ContactPage() {
+  if (await pageOff("contact")) return <PageUpdating page="contact" />;
   const [services, content, company] = await Promise.all([
     getServiceDetails(),
     getPage("contact"),

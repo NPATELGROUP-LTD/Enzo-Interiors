@@ -17,6 +17,9 @@
 // Set of three names. Publishing a fifth service, or renaming a tier, would
 // have silently broken the handoff.
 import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
+import MarketingLayout from "@/app/(marketing)/layout";
 import { pageMetadata } from "@/lib/seo";
 import { BookingWizard } from "./BookingWizard";
 import {
@@ -31,6 +34,7 @@ import {
 // inherited the root layout's bare "Enzo Interiors", so a tab parked
 // mid-booking was indistinguishable from the homepage.
 export async function generateMetadata(): Promise<Metadata> {
+  if (await pageOff("booking")) return offMetadata("booking");
   const metadata = (await getPage("booking")).metadata;
   return pageMetadata({ ...metadata, path: "/booking", ogKey: "booking" });
 }
@@ -40,6 +44,7 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  if (await pageOff("booking")) return <MarketingLayout><PageUpdating page="booking" /></MarketingLayout>;
   const [params, content, services, company] = await Promise.all([
     searchParams,
     getPage("booking"),
