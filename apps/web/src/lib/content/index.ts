@@ -62,9 +62,11 @@ import type {
 
 import { hoursRows, type OpeningHoursSetting } from "./hours";
 import { withShipped } from "./merge";
+import type { PagesSetting } from "./pages";
 
 export type * from "./types";
 export type { OpeningHoursSetting } from "./hours";
+export { isPageOn, PAGE_KEYS, type PagesKey } from "./pages";
 
 /**
  * Fills `{token}` placeholders. Copy that has to carry a number or a name is
@@ -101,6 +103,8 @@ export interface SiteStatus {
   };
   /** Settings › Opening hours; missing or null = the company record's hours. */
   openingHours?: OpeningHoursSetting | null;
+  /** Settings › Pages; missing = the defaults in ./pages. */
+  pages?: PagesSetting | null;
 }
 
 

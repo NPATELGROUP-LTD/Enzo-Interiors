@@ -40,6 +40,8 @@ export interface Viewpoint {
   /** Radians from +Y. Below PI/2 looks down at the unit, above looks up. */
   polar: number;
   radius: number;
+  /** What the camera looks at. Optional sideways target; centre when unset. */
+  targetX?: number;
   targetY: number;
 }
 

@@ -1,4 +1,8 @@
-import { IsEmail, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsEmail, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+
+/** The content importer stamps entries with this name and only refreshes
+ *  entries still carrying it on deploy, so no person may use it. */
+export const NOT_IMPORTER = /^(?!\s*content import\s*$)/i;
 
 export class LoginDto {
   @IsEmail({}, { message: 'Enter a valid email address' })
@@ -43,5 +47,6 @@ export class ProfileDto {
   @IsString()
   @MinLength(2, { message: 'Enter your name.' })
   @MaxLength(120)
+  @Matches(NOT_IMPORTER, { message: 'Choose a different name.' })
   name!: string;
 }

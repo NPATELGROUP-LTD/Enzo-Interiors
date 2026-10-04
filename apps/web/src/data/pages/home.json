@@ -57,12 +57,12 @@
       "buttonLabel": "Book Free Consultation",
       "buttonHref": "/booking",
       "card": {
-        "imageId": "local-wardrobes",
+        "imageId": "wardrobe-cream-gold-trim",
         "title": "Wardrobe Suite",
         "sub": "Bespoke. Handcrafted."
       },
       "badge": { "label": "View Portfolio", "href": "/portfolio" },
-      "imageIds": ["local-bedroom", "local-kitchen", "local-media-wall"]
+      "imageIds": ["bedroom-cream-walnut-overbed", "kitchen-dark-walnut-island", "mediawall-walnut-fire-shelves"]
     }
   },
   "heroStatic": {
@@ -71,7 +71,7 @@
     "body": "Kitchens, wardrobes and media walls, built in our workshop and fitted by the same team.",
     "primaryCta": { "label": "Book Consultation", "href": "/booking" },
     "secondaryCta": { "label": "Our Work", "href": "/portfolio" },
-    "imageIds": ["local-media-wall", "local-kitchen", "local-bedroom"],
+    "imageIds": ["mediawall-alcove-shelving-fire", "kitchen-walnut-black-marble", "bedroom-oak-cashmere-bed-wall"],
     "trust": [
       { "value": "Leicester", "label": "Own workshop" },
       { "value": "Free", "label": "Consultation" }
@@ -159,7 +159,7 @@
         "note": "Back far enough to read the wall as part of a living room.",
         "azimuth": 0,
         "polar": 1.5,
-        "radius": 6.2,
+        "radius": 4.9,
         "targetY": -0.1
       },
       {
@@ -183,11 +183,12 @@
       {
         "id": "shelf",
         "label": "Display shelves",
-        "note": "In close on the flank shelving, clear of the screen.",
-        "azimuth": -0.42,
+        "note": "In close on a lit tower — three fixed shelves, LED on both edges.",
+        "azimuth": 0.24,
         "polar": 1.5,
         "radius": 2.5,
-        "targetY": 0.42
+        "targetX": -1.5,
+        "targetY": 0.12
       }
     ],
     "controls": {
@@ -200,7 +201,7 @@
       "stageAriaLabel": "Interactive media wall model — arrow keys turn it, plus and minus zoom, zero recentres, Enter opens the doors."
     },
     "disclaimer": "Illustrative 3D render only — not the actual finished piece. Your final design is built to the exact specification, materials and measurements agreed with you.",
-    "fallback": { "imageId": "local-media-wall", "alt": "Bespoke media wall built by Enzo Interiors" }
+    "fallback": { "imageId": "mediawall-walnut-fire-shelves", "alt": "Bespoke media wall built by Enzo Interiors" }
   },
   "work": {
     "srHeading": "Recent work",

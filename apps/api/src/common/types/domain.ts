@@ -95,6 +95,10 @@ export type EnquiryKind = (typeof ENQUIRY_KINDS)[number];
 export const SITE_STATUSES = ['live', 'coming_soon'] as const;
 export type SiteStatus = (typeof SITE_STATUSES)[number];
 
+/** Settings › Pages: the public pages that can be switched off. Home is always on. */
+export const PAGE_KEYS = ['about', 'services', 'portfolio', 'booking', 'contact', 'privacy', 'terms', 'cookies'] as const;
+export type PageKey = (typeof PAGE_KEYS)[number];
+
 /* -------------------------------------------------------------------------- */
 /* Tables                                                                     */
 /* -------------------------------------------------------------------------- */
@@ -449,6 +453,8 @@ export interface SiteSettings extends BaseRecord {
   favicon_dark_id: string | null;
   /** Null until saved in Settings; the company record's hours until then. */
   opening_hours: OpeningHours | null;
+  /** Saved page switches; keys left out take PAGE_DEFAULTS (site-settings/pages.ts). */
+  pages: Partial<Record<PageKey, boolean>> | null;
   updated_at: string;
   updated_by: string | null;
 }

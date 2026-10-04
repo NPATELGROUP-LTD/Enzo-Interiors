@@ -38,6 +38,8 @@
 // service starts the cycle again with no authoring; `heroVariant` on the
 // record pins a page to one design set when someone wants to choose.
 import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { pageMetadata } from "@/lib/seo";
 import { breadcrumbLd, faqLd, serviceLd } from "@/lib/structured-data";
@@ -73,6 +75,7 @@ export async function generateMetadata({
 }: {
   params: Promise<{ category: string }>;
 }): Promise<Metadata> {
+  if (await pageOff("services")) return offMetadata("services");
   const { category } = await params;
   const [service, content] = await Promise.all([
     getService(category),
@@ -108,6 +111,7 @@ export default async function ServiceDetailPage({
 }: {
   params: Promise<{ category: string }>;
 }) {
+  if (await pageOff("services")) return <PageUpdating page="services" />;
   const { category } = await params;
   const service = await getService(category);
 

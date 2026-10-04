@@ -30,6 +30,8 @@
 // way. They used to be a second hand-written copy in this file, which is a
 // duplicate waiting to drift the first time one of the answers is corrected.
 import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { pageMetadata } from "@/lib/seo";
 import { faqLd } from "@/lib/structured-data";
@@ -41,11 +43,13 @@ import { IndexClosing } from "@/components/services/services-index/IndexClosing"
 import { getCompany, getGeneralFaqs, getPage, getServiceDetails } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
+  if (await pageOff("services")) return offMetadata("services");
   const metadata = (await getPage("services")).metadata;
   return pageMetadata({ ...metadata, path: "/services", ogKey: "services" });
 }
 
 export default async function ServicesPage() {
+  if (await pageOff("services")) return <PageUpdating page="services" />;
   const [services, content, shared, faqs, company] = await Promise.all([
     getServiceDetails(),
     getPage("services"),

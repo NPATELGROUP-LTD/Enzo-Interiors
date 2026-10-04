@@ -5,6 +5,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   Injectable,
@@ -320,6 +321,10 @@ export class BookingService {
 
   async create(dto: CreateBookingDto, principal: AuthPrincipal | null): Promise<Appointment> {
     const staff = principal !== null;
+    // Settings › Pages: with the booking page off, its form cannot be used by posting to it directly.
+    if (!staff && !(await this.siteSettings.pageOn('booking'))) {
+      throw new ForbiddenException('Online booking is not open at the moment. Please call or email us instead.');
+    }
     const service_label = await this.serviceLabel(dto.service);
     const contact = await this.contactFields(dto);
     await this.assertFree(dto.date, dto.time, staff);

@@ -4,6 +4,7 @@ import {
   CalendarBlank,
   Clock,
   EnvelopeSimple,
+  Files,
   Globe,
   Newspaper,
   PaintBrush,
@@ -16,7 +17,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 
 import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, ErrorState, FIELD_BASE, Input, LoadingState } from '@/components/ui';
+import { Button, ErrorState, FIELD_BASE, Input, LoadingState, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -35,13 +36,30 @@ interface SiteSettings {
   logo_dark_id: string | null;
   favicon_id: string | null;
   favicon_dark_id: string | null;
+  /** Every switchable page, filled in by the API (home is always on). */
+  pages: Record<PageKey, boolean>;
   updated_at: string;
   updated_by: string | null;
 }
 
+type PageKey = 'about' | 'services' | 'portfolio' | 'booking' | 'contact' | 'privacy' | 'terms' | 'cookies';
+
+/** Settings › Pages, in the order the site's menu has them. */
+const PAGES: Array<[PageKey, string]> = [
+  ['about', 'About'],
+  ['services', 'Services'],
+  ['portfolio', 'Portfolio'],
+  ['booking', 'Booking'],
+  ['contact', 'Contact'],
+  ['privacy', 'Privacy policy'],
+  ['terms', 'Terms'],
+  ['cookies', 'Cookie policy'],
+];
+
 /** The settings panes, in the sidebar's order. */
 export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = [
   { id: 'website', label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
+  { id: 'pages', label: 'Pages', detail: 'Switch pages of the website on or off', Icon: Files },
   { id: 'brand', label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
   { id: 'hours', label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
   { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
@@ -93,7 +111,7 @@ export function SiteSettingsPage() {
   else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
-  else pane = <GeneralPane section={section as 'website' | 'brand' | 'emails'} />;
+  else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (
     <div className="flex h-full min-h-0">
@@ -138,8 +156,8 @@ export function SiteSettingsPage() {
   );
 }
 
-/** Website, Logo & icon and Emails: three views of the one site_settings row. */
-function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
+/** Website, Pages, Logo & icon and Emails: four views of the one site_settings row. */
+function GeneralPane({ section }: { section: 'website' | 'pages' | 'brand' | 'emails' }) {
   const toast = useToast();
   const settings = useQuery<SiteSettings>('/settings');
   const assets = useQuery<MediaAsset[]>(section === 'brand' ? '/cms/media' : null);
@@ -154,6 +172,7 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
     favicon_id: null,
     favicon_dark_id: null,
   });
+  const [pages, setPages] = useState<SiteSettings['pages'] | null>(null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
@@ -170,6 +189,7 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
       favicon_id: settings.data.favicon_id,
       favicon_dark_id: settings.data.favicon_dark_id,
     });
+    setPages(settings.data.pages);
   }, [settings.data]);
 
   const saved = settings.data;
@@ -183,7 +203,8 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
       brand.logo_light_id !== saved.logo_light_id ||
       brand.logo_dark_id !== saved.logo_dark_id ||
       brand.favicon_id !== saved.favicon_id ||
-      brand.favicon_dark_id !== saved.favicon_dark_id);
+      brand.favicon_dark_id !== saved.favicon_dark_id ||
+      PAGES.some(([key]) => pages?.[key] !== saved.pages[key]));
 
   if (settings.error) return <ErrorState message={settings.error} onRetry={settings.refetch} />;
   if (!saved) return <LoadingState label="Loading settings…" />;
@@ -210,6 +231,7 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
         launch_at: launchIso,
         notification_emails: cleanEmails,
         ...brand,
+        ...(pages ? { pages } : {}),
       });
       settings.setData(next);
       toast.success('Settings saved. The website updates in a few seconds.');
@@ -317,6 +339,23 @@ function GeneralPane({ section }: { section: 'website' | 'brand' | 'emails' }) {
             </Button>
             <p className={HELP}>Opens the full site in a new tab for this browser only, even while it is not public.</p>
           </div>
+        </>
+      ) : null}
+
+      {section === 'pages' && pages ? (
+        <>
+          <PaneHeader
+            title="Pages"
+            help="The home page is always on. A page that is off shows an “updated soon” page with the newsletter sign-up instead."
+            action={saveButton}
+          />
+          <ul className="mt-6 flex flex-col">
+            {PAGES.map(([key, label], index) => (
+              <li key={key} className={clsx('py-3', index > 0 && 'border-t border-border/70')}>
+                <Toggle label={label} checked={pages[key]} onChange={(on) => setPages({ ...pages, [key]: on })} />
+              </li>
+            ))}
+          </ul>
         </>
       ) : null}
 

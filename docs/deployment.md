@@ -23,8 +23,7 @@ Never share secrets between the two: generate separate `JWT_SECRET`,
 cp .env.example .env
 # fill in: POSTGRES_PASSWORD, JWT_SECRET, ADMIN_*, REVALIDATE_SECRET, S3_*
 # keep COMPOSE_PROFILES=dev,db and DATABASE_URL empty
-docker compose up -d --build --wait
-docker compose run --rm seed
+docker compose up -d --build --wait   # also imports the site's content (seed)
 ```
 
 Admin at http://localhost:5174, site at http://localhost:3000. For hot reload,
@@ -77,12 +76,14 @@ SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... MAIL_FROM="Enzo Interior
 
    The admin and web images bake the public URLs in at build time, so set
    them **before** the first deploy, and rebuild if they change.
-3. Deploy. Migrations run when the API boots.
-4. First-time content import (once): `docker compose run --rm seed` (Coolify
-   terminal on the stack, or SSH).
-5. Log in to admin, change the admin password, set logos in Settings, fill the
+3. Deploy. The one-shot `seed` service runs first on every deploy: migrations,
+   then new files in `apps/api/seed-media` uploaded to the bucket and
+   `apps/web/src/data` imported into the CMS (see 6, "Shipped content").
+4. Check the `seed` container's log after the first deploy; it ends with an
+   import summary, or with `Content import FAILED` (the API starts anyway).
+6. Log in to admin, change the admin password, set logos in Settings, fill the
    booking rules, and update "Confirmation message" in CMS › Book a consultation.
-6. Mail DNS: add SPF, DKIM, DMARC for the `MAIL_FROM` domain (docs/prelaunch.md).
+7. Mail DNS: add SPF, DKIM, DMARC for the `MAIL_FROM` domain (docs/prelaunch.md).
 
 ### 3.4 Four public hostnames
 | Hostname | Points to |
@@ -175,6 +176,16 @@ side (analytics, forms) should read `x-forwarded-for` (first entry) or
 
 - **Deploy:** push to `main`, Coolify redeploys the stack. The database is not
   part of it, so data is untouched. See "Deploy trigger" below.
+- **Shipped content:** every deploy re-runs the import (`seed`, before the
+  API). It uploads seed-media objects not yet in the bucket, adds missing media
+  rows and CMS entries, and brings every entry **nobody has edited in the
+  admin** (`updated_by` still `content import`, no unpublished changes, no
+  pending review) up to the shipped copy. Anything a person saved, published or
+  reverted is left alone (pages/company only gain new keys). Entries removed
+  from `src/data` are not deleted. It gives up after three tries (each capped
+  by `timeout`) and exits 0, so it never holds the API down; the next deploy,
+  or `docker compose run --rm seed`, retries. A rollback re-imports the older
+  copy into un-edited entries, which is what a rollback should do.
 - **Before a migration:** take a manual backup in the Coolify database resource.
 - **Migrations are additive only** (docs/prelaunch.md), so rolling back the app
   to the previous build still works against the new schema. Rename/drop only in

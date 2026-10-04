@@ -47,7 +47,7 @@ There is no host database to install. Everything else can run either way.
 ```bash
 cp .env.example .env            # fill in the secrets it asks for
 docker compose up -d --build --wait
-docker compose run --rm seed    # the site's copy, imported into the CMS
+docker compose run --rm seed    # re-run the content import (up runs it too)
 ```
 
 That brings up PostgreSQL, MinIO, the API, the admin (CMS) and the public site,

@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
-  (`/settings/:section`, Admin only: website status, logo & favicon (light +
+  (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
   users). CMS, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
@@ -111,9 +111,12 @@ included. `media_assets.storage_key` is required; the URL is
 uploaded under `site/` by `npm run cms:import` (skips objects already there).
 `apps/web/public` holds no content images — only the app's own icons.
 
-**Content import:** `cms:import` never overwrites an edited entry, but it
-*adds* keys that `apps/web/src/data` has and a page/company entry lacks. So a
-new section in the shipped JSON reaches existing databases on the next import.
+**Content import:** `cms:import` runs on every deploy (compose `seed`, before
+the API; bounded retries, always exits 0). Entries nobody has edited
+(`updated_by = 'content import'`, draft = published, no review) follow the
+shipped JSON; edited ones are never overwritten, and pages/company only gain
+keys they lack. New seed-media files are uploaded; a shipped media id whose
+`site/` key changed is re-pointed. Removed entries are not deleted.
 
 **Site status:** `site_settings` (one row, `id='site'`): `live` / `coming_soon`,
 optional `launch_at`, `notification_emails`, and `opening_hours` (JSONB:
@@ -122,7 +125,11 @@ the company record's hours, which the Company editor no longer shows; the
 site prints them in the footer, on /contact, under the booking calendar and
 in JSON-LD (`apps/web/src/lib/content/hours.ts`). `isLive()` in
 `apps/web/src/lib/content` is the one rule (live, or launch time passed); it
-gates the layout, robots, sitemap and llms.txt. Editors preview a gated site
+gates the layout, robots, sitemap and llms.txt. `pages` (JSONB, null) holds the
+Settings › Pages switches (about, services, portfolio, booking, contact,
+privacy, terms, cookies; home always on); defaults are computed on read
+(`modules/site-settings/pages.ts`) and sent as `site.pages`. Booking off =
+public `POST /booking` refused (403). Editors preview a gated site
 through a 10-minute token → Next draft mode.
 
 **Email:** `MailService` (core) over SMTP; unset `SMTP_HOST` = logged, not sent.
@@ -188,7 +195,7 @@ MinIO only ever run in Docker (`docker-compose.yml`); there is no host database.
 ```bash
 # Everything, built as deployed (reads the root .env)
 docker compose up -d --build --wait
-docker compose run --rm seed              # import the site's copy into the CMS
+docker compose run --rm seed              # re-run the content import (up runs it too)
 docker compose down --volumes             # wipe DB + uploads, start from nothing
 
 # Dev: DB + storage in Docker, apps on the host
