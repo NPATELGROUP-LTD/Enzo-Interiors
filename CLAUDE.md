@@ -346,15 +346,15 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
    git push origin feature/your-feature-name
    ```
 
-6. **PR squash-merged to `develop`** (no staging environment exists yet) → QA → **PR (merge commit) `develop` → `main` → production deploy**
+6. **PR squash-merged to `develop`** (no staging environment exists yet) → QA → **`release/vX.Y.Z` cut from `develop`, stripped, PR (merge commit) → `main` → production deploy**
 
 ### Git workflow
 
-- `main` = production only. Every push to `main` deploys via Coolify. Changes arrive only by PR from `develop` (merge commit, never squash); tag each release `vX.Y.Z`.
+- `main` = production only. Every push to `main` deploys via Coolify. Changes arrive only by PR from a `release/vX.Y.Z` branch (merge commit, never squash); tag each release `vX.Y.Z`. `main` holds only what production needs: the release branch runs `.github/strip-for-release.sh` (removes docs, AI/design tooling, promo-video, apps/portal, readmes) before its PR. Never merge `develop` into `main` directly.
 - `develop` = integration branch (PR required, CI green, no force-push).
 - Work on `feature/`, `fix/`, `chore/`, `docs/` branches cut from `develop`, one concern each, **squash-merged** into `develop`, then deleted. No stacked PRs.
 - `hotfix/` branches are cut from `main`, PR'd to `main`, then PR'd to `develop` the same day.
-- No `release/*` branches; tags do that job.
+- `release/vX.Y.Z` branches: cut from `develop`, run `sh .github/strip-for-release.sh`, commit, PR to `main`, tag after merge, then delete the branch. Nothing else is committed on them.
 - Conventional commits: `feat(api):`, `fix(web):`, `chore:`, `docs:`, imperative and specific.
 - Rollback = `git revert` the PR, never force-push `main`.
 - Local compose needs a one-time `docker network create coolify` (the compose file joins the external network Coolify/Traefik uses in production).
