@@ -159,7 +159,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.docker.network=coolify
-      - traefik.http.routers.enzo-api.rule=Host(`api.enzointeriors.co.uk`)
+      - traefik.http.routers.enzo-api.rule=Host(`api.enzointeriors.co.uk`) || Host(`auth.enzo.client.npatelgroup.ltd`)
       - traefik.http.routers.enzo-api.entrypoints=http
       - traefik.http.services.enzo-api.loadbalancer.server.port=4000
     depends_on:
@@ -197,6 +197,16 @@ services:
       # Proxy hops in front of the API (Coolify + Cloudflare Tunnel = 2), so
       # rate limits see the visitor's IP. 0 when nothing is in front.
       TRUST_PROXY: ${TRUST_PROXY:-0}
+      # true behind Cloudflare Tunnel: CF-Connecting-IP is the visitor.
+      TRUST_CLOUDFLARE: ${TRUST_CLOUDFLARE:-}
+      # Two-step sign-in and Google (sign-in, calendar sync). All optional;
+      # see .env.example.
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      DISABLE_2FA: ${DISABLE_2FA:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI:-http://localhost:4000/auth/google/callback}
+      GOOGLE_CALENDAR_REDIRECT_URI: ${GOOGLE_CALENDAR_REDIRECT_URI:-http://localhost:4000/calendar/callback}
       # Outgoing email. Unset SMTP_HOST = nothing is sent (logged instead).
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}

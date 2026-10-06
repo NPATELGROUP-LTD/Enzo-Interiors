@@ -43,3 +43,15 @@ test('taken, too-soon, too-far and full days are not offered', () => {
   assert.ok(staff['2026-10-27']);
   assert.ok(!staff['2026-10-07']?.includes('10:00'));
 });
+
+test('calendar busy time blocks a slot but does not count toward the day limit', () => {
+  const config = { ...DEFAULT_CONFIG, maxPerDay: 1, noticeHours: 0 };
+  const now = new Date('2026-10-05T09:00:00Z');
+  // Wed 7 Oct: busy 10:30-11:30 BST overlaps the 10:00 slot (to 11:00) and the 11:30 one does not start until 11:30.
+  const busy = [{ starts_at: '2026-10-07T09:30:00.000Z', ends_at: '2026-10-07T10:30:00.000Z' }];
+  const days = availability(config, '2026-10-07', '2026-10-07', [], now, false, busy);
+  assert.ok(days['2026-10-07'], 'busy time alone does not use up maxPerDay');
+  assert.ok(!days['2026-10-07']?.includes('10:00'), 'overlapping slot is gone');
+  assert.ok(days['2026-10-07']?.includes('11:30'), 'a slot after the busy time is still offered');
+  assert.deepEqual(availability(config, '2026-10-07', '2026-10-07', [], now)['2026-10-07']?.[0], '10:00', 'no busy, no change');
+});

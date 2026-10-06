@@ -162,7 +162,8 @@ export interface Taken {
  *
  * Staff booking on a client's behalf skip the visitor-only rules: the notice
  * period and how far ahead. Nobody can book the past, a taken time, or past
- * the day's limit.
+ * the day's limit. `busy` is time the studio's own calendar has taken: it
+ * blocks times like a booking does but does not count toward the day's limit.
  */
 export function availability(
   config: BookingConfig,
@@ -171,6 +172,7 @@ export function availability(
   taken: Taken[],
   now: Date,
   staff = false,
+  busy: Taken[] = [],
 ): Record<string, string[]> {
   const today = studioParts(now).date;
   const earliest = now.getTime() + (staff ? 0 : config.noticeHours * 3_600_000);
@@ -182,13 +184,15 @@ export function availability(
     date: studioParts(new Date(row.starts_at)).date,
   }));
 
+  const away = busy.map((row) => ({ start: Date.parse(row.starts_at), end: Date.parse(row.ends_at) }));
+
   const out: Record<string, string[]> = {};
   for (let date = from < today ? today : from; date <= to && date <= horizon; date = addDays(date, 1)) {
     if (config.maxPerDay > 0 && booked.filter((row) => row.date === date).length >= config.maxPerDay) continue;
     const times = daySlots(config.week[weekdayOf(date)], config.slotMinutes, config.gapMinutes).filter((time) => {
       const start = studioInstant(date, time).getTime();
       const end = start + config.slotMinutes * 60_000;
-      return start >= earliest && !booked.some((row) => start < row.end && end > row.start);
+      return start >= earliest && ![...booked, ...away].some((row) => start < row.end && end > row.start);
     });
     if (times.length) out[date] = times;
   }

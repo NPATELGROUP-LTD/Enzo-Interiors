@@ -238,6 +238,12 @@ Separate JWT-issuing login endpoints for Admin and Client (`/auth/admin/login`, 
 
 Rate limiting is layered: Cloudflare at the edge (WAF, bot fight, per-path rate rules — floods stop before the home server), then `@nestjs/throttler` in the API with counters in Redis (shared across restarts and replicas, fail-open to memory), with tighter limits on every public write and a progressive sign-in lockout. 429s carry `Retry-After` and a human message the frontends show as-is.
 
+#### Two-step sign-in, Google sign-in and Calendar
+
+Staff password logins return a 10-minute `challenge` instead of a session; `POST /auth/admin/verify-code` (or the `enrol/email/*` / `enrol/totp/*` steps on first sign-in) trades it for the JWT. Each user is fixed to one method, emailed code or authenticator app (secret sealed with `APP_ENCRYPTION_KEY`, 10 recovery codes), and may "remember this device" for 30 days (token in the admin's localStorage, hashed row server-side, listed at `/auth/devices`). Wrong-code and code-email limits sit on the same Redis-backed `RateLimitStore` as the sign-in lockout. Only an Admin (`POST /users/:id/reset-2fa`) or the `auth:reset-2fa` script can reset a user. `DISABLE_2FA=true` is the emergency off switch.
+
+"Sign in with Google" (`/auth/google/*`) is optional and only for staff who linked their Google `sub` in Account; it never creates accounts and skips the second step. The studio Google Calendar (`/calendar/*`, Admin) is read through `CacheService` (Redis, memory fallback) once a minute: busy timed events block booking times, a fresh check runs for the booked day at booking time, and a Google outage fails open. Bookings create, move and delete events. The OAuth callbacks are served on a second host on the API (`auth.enzo.client.npatelgroup.ltd`) because the client's domain is on Wix. With `TRUST_CLOUDFLARE=true` the client IP comes from `CF-Connecting-IP`, so the API must have no route that bypasses Cloudflare.
+
 ### 9.2 Real-Time Messaging
 A single Socket.IO WebSocket gateway inside `apps/api` powers both the Admin inbox and Client Portal chat, keyed on `conversation_id`, with attachments referencing S3 keys.
 

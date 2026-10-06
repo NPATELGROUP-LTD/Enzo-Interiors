@@ -38,6 +38,24 @@ model StaffUser {
   reset_expires_at DateTime? @db.Timestamptz(6)
   created_at       DateTime  @default(now()) @db.Timestamptz(6)
   updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  // Two-step sign-in, chosen once at the first sign-in: "email" | "totp".
+  // Null = not chosen yet.
+  two_factor_method String?
+  // The authenticator app's secret, sealed with APP_ENCRYPTION_KEY (core/crypto.ts).
+  totp_secret_enc   String?
+  // Set once the first code from the app has been accepted.
+  totp_confirmed_at DateTime? @db.Timestamptz(6)
+  // The last 30-second step accepted, so one code cannot be used twice.
+  totp_last_step    Int?
+  // sha256 hex of each unused one-time recovery code.
+  recovery_hashes   Json?
+  // sha256 of the emailed sign-in code, its expiry and wrong guesses so far.
+  login_code_hash       String?
+  login_code_expires_at DateTime? @db.Timestamptz(6)
+  login_code_attempts   Int       @default(0)
+  // The linked Google account ("Sign in with Google"): its stable id and address.
+  google_sub        String?   @unique
+  google_email      String?
 
   @@map("staff_users")
 }
@@ -441,6 +459,13 @@ model Appointment {
   cancelled_at  DateTime? @db.Timestamptz(6)
   created_at    DateTime  @default(now()) @db.Timestamptz(6)
   updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  // The Google Calendar event mirroring this booking, and the calendar it is
+  // in. Null = not synced (no calendar connected, or the sync failed).
+  google_event_id        String?
+  calendar_connection_id String?
+  // Which of the connection's calendars the event is in, so a calendar change
+  // can still find (and move) events made before it.
+  google_calendar_id     String?
 
   @@index([starts_at])
   @@map("appointments")
@@ -515,4 +540,44 @@ model NewsletterCampaign {
 
   @@index([created_at])
   @@map("newsletter_campaigns")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Two-step sign-in and Google Calendar                                       */
+/* -------------------------------------------------------------------------- */
+
+// A browser that ticked "remember this device": two-step sign-in is skipped
+// there until expires_at. The token lives in the browser; only its sha256 here.
+model TrustedDevice {
+  id            String   @id
+  staff_user_id String
+  token_hash    String   @unique
+  // A short summary of the user agent, for the account page ("Chrome on Windows").
+  label         String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  last_used_at  DateTime @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime @db.Timestamptz(6)
+
+  @@index([staff_user_id])
+  @@map("trusted_devices")
+}
+
+// A Google Calendar bookings are copied into. v1 has one, the studio's, with
+// the fixed id "studio"; staff_user_id leaves room for per-staff calendars.
+model CalendarConnection {
+  id                String   @id
+  // Null = the studio calendar.
+  staff_user_id     String?
+  google_email      String
+  calendar_id       String   @default("primary")
+  calendar_name     String?
+  // Google's refresh token, sealed with APP_ENCRYPTION_KEY (core/crypto.ts).
+  refresh_token_enc String
+  // "connected" | "needs_reconnect" (Google refused the token).
+  status            String   @default("connected")
+  connected_by      String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("calendar_connections")
 }

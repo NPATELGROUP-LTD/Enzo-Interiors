@@ -10,6 +10,7 @@ import { CoreModule } from './core/core.module';
 import { RateLimitStore } from './core/rate-limit';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { MediaModule } from './modules/media/media.module';
@@ -59,6 +60,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     EnquiriesModule,
     NotificationsModule,
     BookingModule,
+    CalendarModule,
     NewsletterModule,
   ],
   providers: [

@@ -94,6 +94,49 @@ export interface Principal {
 export interface LoginResponse {
   access_token: string;
   user: Principal;
+  /** Present when "remember this device" was ticked. Persist it; send it with every sign-in. */
+  deviceToken?: string;
+  /** Present once, when an authenticator app has just been set up. */
+  recoveryCodes?: string[];
+}
+
+export type TwoFactorMethod = 'email' | 'totp';
+
+/** What password sign-in answers: a session, or the next step. */
+export type LoginStart =
+  | LoginResponse
+  | { twoFactor: 'enrol'; challenge: string }
+  | { twoFactor: 'email'; challenge: string; emailHint: string }
+  | { twoFactor: 'totp'; challenge: string };
+
+/** GET /auth/me: the principal plus how this person signs in. */
+export interface Me extends Principal {
+  twoFactorMethod: TwoFactorMethod | null;
+  googleLinked: boolean;
+  googleEmail: string | null;
+}
+
+export interface TrustedDevice {
+  id: string;
+  label: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string;
+}
+
+export interface CalendarStatus {
+  configured: boolean;
+  connected: boolean;
+  email?: string;
+  calendarId?: string;
+  calendarName?: string;
+  status?: 'connected' | 'needs_reconnect';
+}
+
+export interface CalendarChoice {
+  id: string;
+  name: string;
+  primary: boolean;
 }
 
 export interface Client {

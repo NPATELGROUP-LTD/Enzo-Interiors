@@ -33,6 +33,8 @@ export interface JwtPayload {
   email: string;
   /** staff_users.token_version at signing. A mismatch means signed out. */
   tv?: number;
+  /** Only on single-use tokens (a 2FA challenge, Google's state); never on a session. */
+  purpose?: string;
 }
 
 /** Every role value that can appear on a principal. */

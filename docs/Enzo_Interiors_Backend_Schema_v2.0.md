@@ -309,6 +309,49 @@ Index: (created_at).
 - `notifications (recipient_id, read_at)` — the bell's unread count.
 - `newsletter_subscribers (status, id)` — sending in id order by cursor.
 
+### 3.23 Two-step sign-in, Google and the calendar (v1, `7_two_factor_google_calendar`)
+Additive only. Secrets marked *sealed* are AES-256-GCM with `APP_ENCRYPTION_KEY` (`apps/api/src/core/crypto.ts`).
+
+`staff_users` additions (all nullable unless shown):
+
+| Field | Type | Constraints |
+|---|---|---|
+| two_factor_method | text | `email` \| `totp`; null = not chosen yet |
+| totp_secret_enc | text | sealed authenticator secret |
+| totp_confirmed_at | timestamptz | first code accepted |
+| totp_last_step | int | last 30 s step accepted (replay protection) |
+| recovery_hashes | jsonb | array of sha256 hex of unused recovery codes |
+| login_code_hash, login_code_expires_at | text, timestamptz | the emailed sign-in code (sha256) |
+| login_code_attempts | int | default 0 |
+| google_sub | text | unique; linked Google account id |
+| google_email | text | the linked Google address |
+
+`appointments` additions: `google_event_id` text, `calendar_connection_id` text, `google_calendar_id` text (all nullable; the calendar copy and which Google calendar holds it).
+
+`trusted_devices` ("remember this device", 30 days):
+
+| Field | Type | Constraints |
+|---|---|---|
+| id | text | PK |
+| staff_user_id | text | not null; index |
+| token_hash | text | unique; sha256 of the browser's token (never stored) |
+| label | text | nullable; user agent summary |
+| created_at, last_used_at, expires_at | timestamptz | first two default now() |
+
+`calendar_connections` (v1: one row, id `studio`):
+
+| Field | Type | Constraints |
+|---|---|---|
+| id | text | PK |
+| staff_user_id | text | nullable; null = the studio calendar |
+| google_email | text | not null |
+| calendar_id | text | default `primary` |
+| calendar_name | text | nullable |
+| refresh_token_enc | text | not null; sealed |
+| status | text | `connected` \| `needs_reconnect`, default connected |
+| connected_by | text | nullable |
+| created_at, updated_at | timestamptz | default now() |
+
 ## 4. RBAC Enforcement Model (NestJS Guards)
 
 | Role | Scope | Notes |

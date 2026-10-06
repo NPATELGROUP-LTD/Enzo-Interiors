@@ -181,6 +181,37 @@ written into existing rows.
 re-reads the staff row per request, so a password change or reset signs out
 every other session immediately.
 
+**Two-step sign-in:** staff password logins (not Google, not the CRM portal) end
+in a second step. Each user picks **Email code** or **Authenticator app** once,
+at first sign-in (the app path first proves the mailbox with an emailed code),
+then only that method (`staff_users.two_factor_*`); app users get 10 recovery
+codes. Logic in `modules/auth/two-factor.ts` + `totp.ts`; secrets sealed by
+`core/crypto.ts` (AES-256-GCM, `APP_ENCRYPTION_KEY`). "Remember this device" =
+30-day token kept in the admin's localStorage (survives logout; revoked on
+password change/reset and admin reset; listed under Account). Wrong codes: 5
+per emailed code, 20 per account per 24 h; code emails 3 per 15 min. Only an
+Admin can reset it (Settings › Users → Reset two-step sign-in, which also clears
+devices and the Google link) or `npm run auth:reset-2fa -- <email>` (Docker:
+`docker compose run --rm seed npm run auth:reset-2fa -- <email>`).
+`DISABLE_2FA=true` is the emergency switch (warns at boot). The server clock
+must be NTP-synced for authenticator codes.
+
+**Google:** `GOOGLE_CLIENT_ID/SECRET`, `GOOGLE_AUTH_REDIRECT_URI`,
+`GOOGLE_CALENDAR_REDIRECT_URI` (unset = no Google UI). *Sign in with Google*
+(`modules/auth/google.ts`): staff link it under Account (needs current
+password); matched by Google `sub`, never creates accounts, skips 2FA, emails the
+owner on link; password change/reset and admin reset unlink it. *Calendar*
+(`modules/calendar`): an Admin connects the studio calendar in Settings ›
+Booking schedule; busy timed events (not all-day, transparent or our own) block
+booking times, bookings create/move/delete events. Google is read once a minute
+for a fixed window through `CacheService` (Redis, memory fallback), the booked
+day is re-checked at booking time, and a Google outage fails open. Read/write
+call budgets are separate; a revoked token = `needs_reconnect` + bell. OAuth
+callbacks are served on `auth.enzo.client.npatelgroup.ltd` (second Traefik host
+on the API). `TRUST_CLOUDFLARE=true` takes the client IP from
+`CF-Connecting-IP` (`core/client-ip.ts`) — only safe if the API is reachable
+only through Cloudflare. Migration `7_two_factor_google_calendar`.
+
 **Critical rule:** `quote_line_items.unit_price` is a point-in-time snapshot — price changes never retroactively alter historical quotes.
 
 For the full schema, see `docs/Enzo_Interiors_Backend_Schema_v2.0.md`.

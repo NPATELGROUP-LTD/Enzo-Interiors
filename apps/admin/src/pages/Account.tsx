@@ -1,12 +1,19 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 
-import { AppearancePicker, Button, Input } from '@/components/ui';
+import { AppearancePicker, Button, Input, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { initials } from '@/lib/format';
+import { dateTime, initials } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
-import type { LoginResponse, Principal } from '@/types/api';
+import type { LoginResponse, Me, Principal, TrustedDevice } from '@/types/api';
+
+const GOOGLE_ERRORS: Record<string, string> = {
+  taken: 'That Google account is already linked to another person.',
+  expired: 'That Google sign-in took too long. Try again.',
+  cancelled: 'Linking Google was cancelled.',
+};
 
 export const SECTION = 'max-w-2xl border-t border-border pt-7';
 export const HEADING = 'text-lg font-semibold tracking-tight text-ink';
@@ -24,6 +31,30 @@ export function AccountPage() {
   const [again, setAgain] = useState('');
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
+
+  const me = useQuery<Me>('/auth/me');
+  const devices = useQuery<TrustedDevice[]>('/auth/devices');
+  const [googleOn, setGoogleOn] = useState(false);
+  const [linking, setLinking] = useState(false);
+  const [linkPassword, setLinkPassword] = useState('');
+  const [linkError, setLinkError] = useState<string | null>(null);
+  const [linkPending, setLinkPending] = useState(false);
+
+  useEffect(() => {
+    api.get<{ enabled: boolean }>('/auth/google/enabled').then((r) => setGoogleOn(r.enabled), () => undefined);
+    // Back from Google: say how it went, then drop the query.
+    const query = new URLSearchParams(window.location.search);
+    const result = query.get('google');
+    if (!result) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (result === 'linked') {
+      toast.success('Google account linked.');
+      void me.refetch();
+    } else {
+      toast.error(GOOGLE_ERRORS[query.get('reason') ?? ''] ?? 'Could not link Google. Try again.');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!user) return null;
   const role = user.role === 'Admin' ? 'Admin' : 'Editor';
@@ -59,6 +90,38 @@ export function AccountPage() {
       setPasswordError(caught instanceof ApiError ? caught.message : 'That did not work. Try again.');
     } finally {
       setSavingPassword(false);
+    }
+  };
+
+  const revoke = async (id: string) => {
+    try {
+      await api.delete(`/auth/devices/${id}`);
+      devices.setData((list) => (list ?? []).filter((row) => row.id !== id));
+      toast.success('That device will ask for a code next time.');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not forget that device.');
+    }
+  };
+
+  const googleLink = async (event: FormEvent) => {
+    event.preventDefault();
+    setLinkError(null);
+    setLinkPending(true);
+    try {
+      window.location.assign((await api.post<{ url: string }>('/auth/google/link', { password: linkPassword })).url);
+    } catch (caught) {
+      setLinkError(caught instanceof ApiError ? caught.message : 'Could not start linking Google.');
+      setLinkPending(false);
+    }
+  };
+
+  const googleUnlink = async () => {
+    try {
+      await api.delete('/auth/google');
+      void me.refetch();
+      toast.success('Google account unlinked.');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not unlink Google.');
     }
   };
 
@@ -117,7 +180,94 @@ export function AccountPage() {
         </form>
       </section>
 
-      <section aria-labelledby="account-look" className={`${SECTION} mt-10`}>
+      <section aria-labelledby="account-2fa" className={`${SECTION} mt-10`}>
+        <h2 id="account-2fa" className={HEADING}>
+          Two-step sign-in
+        </h2>
+        <p className={HELP}>
+          {me.data?.twoFactorMethod === 'email'
+            ? `A code is emailed to ${user.email} each time you sign in.`
+            : me.data?.twoFactorMethod === 'totp'
+              ? 'You enter a code from your authenticator app each time you sign in.'
+              : 'Not set up yet. You will choose a method the next time you sign in.'}{' '}
+          Only an admin can reset it.
+        </p>
+
+        <h3 className="mt-6 text-[15px] font-semibold text-ink">Remembered devices</h3>
+        <p className={HELP}>These skip the code until they expire. A password change forgets them all.</p>
+        {devices.data?.length === 0 ? <p className="mt-3 text-sm text-ink-muted">No devices are remembered.</p> : null}
+        <ul className="mt-2 flex max-w-md flex-col">
+          {(devices.data ?? []).map((row, index) => (
+            <li key={row.id} className={`flex items-center gap-3 py-3 ${index > 0 ? 'border-t border-border/70' : ''}`}>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium text-ink">{row.label}</span>
+                <span className="block text-[13px] text-ink-muted">
+                  {row.last_used_at ? `Last used ${dateTime(row.last_used_at)}` : 'Not used since'} · expires {dateTime(row.expires_at)}
+                </span>
+              </span>
+              <Button variant="ghost" className="text-danger" onClick={() => void revoke(row.id)}>
+                Revoke
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {googleOn || me.data?.googleLinked ? (
+        <section aria-labelledby="account-google" className={`${SECTION} mt-10`}>
+          <h2 id="account-google" className={HEADING}>
+            Google
+          </h2>
+          <p className={HELP}>
+            {me.data?.googleLinked
+              ? `Linked to ${me.data.googleEmail}. You can sign in with Google instead of a password.`
+              : 'Link your Google account to sign in with it instead of a password.'}{' '}
+            Changing your password also removes the linked Google account.
+          </p>
+          <Modal
+            open={linking}
+            onClose={() => {
+              setLinking(false);
+              setLinkPassword('');
+              setLinkError(null);
+            }}
+            title="Link your Google account"
+            width="sm"
+          >
+            <form onSubmit={googleLink} className="flex flex-col gap-4" noValidate>
+              <input type="text" name="username" autoComplete="username" value={user.email} hidden readOnly />
+              <Input
+                label="Your password"
+                type="password"
+                autoComplete="current-password"
+                autoFocus
+                hint="Confirm it's you before linking."
+                value={linkPassword}
+                onChange={(event) => setLinkPassword(event.target.value)}
+              />
+              {linkError ? (
+                <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {linkError}
+                </p>
+              ) : null}
+              <div className="flex justify-end">
+                <Button type="submit" variant="primary" loading={linkPending} disabled={!linkPassword}>
+                  Continue to Google
+                </Button>
+              </div>
+            </form>
+          </Modal>
+          <div className="mt-4">
+            {me.data?.googleLinked ? (
+              <Button onClick={() => void googleUnlink()}>Unlink</Button>
+            ) : (
+              <Button onClick={() => setLinking(true)}>Link Google account</Button>
+            )}
+          </div>
+        </section>
+      ) : null}
+
+      <section aria-labelledby="account-look"className={`${SECTION} mt-10`}>
         <h2 id="account-look" className={HEADING}>
           Appearance
         </h2>

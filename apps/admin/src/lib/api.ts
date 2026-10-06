@@ -36,6 +36,27 @@ export const tokenStore = {
 };
 
 /**
+ * The "remember this device" token. Kept apart from the session on purpose:
+ * logout clears the session, never this, so the device stays remembered.
+ */
+export const deviceStore = {
+  get: (): string | null => {
+    try {
+      return localStorage.getItem('enzo.deviceToken');
+    } catch {
+      return null;
+    }
+  },
+  set: (token: string): void => {
+    try {
+      localStorage.setItem('enzo.deviceToken', token);
+    } catch {
+      /* The device just is not remembered. */
+    }
+  },
+};
+
+/**
  * An error carrying the API's own message, so forms can show the server's
  * plain-English text ("A client with that email address already exists")
  * instead of a generic failure string.
