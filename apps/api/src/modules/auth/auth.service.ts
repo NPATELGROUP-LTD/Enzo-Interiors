@@ -12,7 +12,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
-import { StaffUser } from '../../common/types/domain';
+import { StaffUser, TwoFactorMethod } from '../../common/types/domain';
 import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
 import { waitFor } from '../../common/guards/throttle.guard';
 import { MailService, templates } from '../../core/mail.service';
@@ -22,6 +22,16 @@ import { DatabaseService } from '../../data/database.service';
 export interface LoginResult {
   access_token: string;
   user: AuthPrincipal;
+  /** Set when "remember this device" was ticked: send it back as deviceToken on the next sign-in. */
+  deviceToken?: string;
+  /** Set once, when an authenticator app is enrolled. */
+  recoveryCodes?: string[];
+}
+
+export interface Me extends AuthPrincipal {
+  twoFactorMethod: TwoFactorMethod | null;
+  googleLinked: boolean;
+  googleEmail: string | null;
 }
 
 /** Work factor for new hashes. 12 is ~250ms on commodity hardware in 2026. */
@@ -60,6 +70,12 @@ export async function verify(plain: string, stored: string | undefined): Promise
   return bcrypt.compare(plain, stored);
 }
 
+/** n***@outlook.com: enough to recognise your own inbox, not enough to learn someone's. Also for logs. */
+export function maskEmail(email: string): string {
+  const [local = '', domain = ''] = email.split('@');
+  return `${local.slice(0, 1)}***@${domain}`;
+}
+
 /** The reset token is emailed; only this digest of it is stored. */
 export function digest(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -80,7 +96,8 @@ const ACCOUNT_LOCK = 15 * 60_000;
 const RESET_TTL_MS = 30 * 60 * 1000;
 
 /**
- * Staff authentication: sign-in, password change, and reset by email.
+ * Staff authentication: sign-in, password change, and reset by email. The
+ * second step of sign-in is two-factor.ts; Google is google.ts.
  *
  * Every token carries the account's `token_version`, and JwtAuthGuard refuses
  * one that no longer matches. Changing or resetting a password bumps it, which
@@ -138,7 +155,8 @@ export class AuthService implements OnApplicationBootstrap {
   // address, anyone could lock the owner out by typing their email wrong five
   // times from anywhere. The address-wide ceiling is ten times higher.
 
-  private async assertNotLocked(email: string, ip: string): Promise<void> {
+  /** Also before a two-step code: guessing those locks the account the same way. */
+  async assertNotLocked(email: string, ip: string): Promise<void> {
     const wait = Math.max(
       await this.limits.remaining(`login:lock:${ip}|${email}`),
       await this.limits.remaining(`login:lock:${email}`),
@@ -148,7 +166,7 @@ export class AuthService implements OnApplicationBootstrap {
     }
   }
 
-  private async recordFailure(email: string, ip: string): Promise<void> {
+  async recordFailure(email: string, ip: string): Promise<void> {
     const pair = await this.limits.hit(`login:fail:${ip}|${email}`, FAILURE_WINDOW);
     if (pair % FAILURES_PER_STEP === 0) {
       const step = Math.min(pair / FAILURES_PER_STEP, LOCK_STEPS.length) - 1;
@@ -177,9 +195,15 @@ export class AuthService implements OnApplicationBootstrap {
 
   /* ---- Endpoints ---- */
 
-  /** POST /auth/admin/login */
-  async loginStaff(email: string, password: string, ip: string): Promise<LoginResult> {
+  /**
+   * POST /auth/admin/login, the password half. The pair's failure count is
+   * only cleared once the second step passes too (complete()), so a known
+   * password cannot be used to reset the count between code guesses.
+   */
+  async checkPassword(email: string, password: string, ip: string): Promise<StaffUser> {
     const address = email.trim().toLowerCase();
+    // So ops can check, behind Cloudflare, that lockouts key on the visitor.
+    this.logger.debug(`Sign-in attempt for ${maskEmail(address)} from ${ip}`);
     await this.assertNotLocked(address, ip);
 
     const staff = await this.findByEmail(address);
@@ -189,8 +213,49 @@ export class AuthService implements OnApplicationBootstrap {
       // endpoint cannot be used to find out which addresses are registered.
       throw new UnauthorizedException('Incorrect email or password');
     }
-    await this.limits.clear(`login:fail:${ip}|${address}`);
+    return staff;
+  }
+
+  /**
+   * Re-entering your password while signed in (linking Google). A wrong one
+   * counts toward the lockout like a wrong sign-in. 400, not 401: a 401 would
+   * end the session the admin is using.
+   */
+  async confirmPassword(principal: AuthPrincipal, password: string, ip: string): Promise<StaffUser> {
+    const email = principal.email.toLowerCase();
+    await this.assertNotLocked(email, ip);
+    const staff = await this.db.staffUsers.findById(principal.id);
+    if (!staff || !(await verify(password, staff.password_hash))) {
+      await this.recordFailure(email, ip);
+      throw new BadRequestException('Your password is not correct.');
+    }
+    return staff;
+  }
+
+  /** Signed in, by whichever route: password (+ code), a remembered device, or Google. */
+  async complete(staff: StaffUser, ip: string): Promise<LoginResult> {
+    await this.limits.clear(`login:fail:${ip}|${staff.email.toLowerCase()}`);
     return this.issue(staff);
+  }
+
+  /** Tells the account's owner that how it signs in changed, with the way back if it wasn't them. */
+  async notify(staff: StaffUser, subject: string, message: string): Promise<void> {
+    const sent = await this.mail.send({
+      to: staff.email,
+      ...templates.securityNotice(staff.name, subject, message, `${this.adminUrl}/forgot-password`),
+    });
+    if (!sent) this.logger.warn(`Could not send "${subject}" to ${maskEmail(staff.email)}.`);
+  }
+
+  /** GET /auth/me: who I am, and how I sign in. Never a secret or a hash. */
+  async me(principal: AuthPrincipal): Promise<Me> {
+    const staff = await this.db.staffUsers.findById(principal.id);
+    return {
+      ...principal,
+      twoFactorMethod: staff?.two_factor_method ?? null,
+      googleLinked: Boolean(staff?.google_sub),
+      googleEmail: staff?.google_email ?? null,
+    };
   }
 
   /** PUT /auth/password — signs out every other session and returns a fresh token for this one. */
@@ -250,8 +315,14 @@ export class AuthService implements OnApplicationBootstrap {
       token_version: staff.token_version + 1,
       reset_token_hash: null,
       reset_expires_at: null,
+      // A reset is how someone recovers a taken-over account: whatever the
+      // intruder linked goes with the old password.
+      google_sub: null,
+      google_email: null,
       updated_at: new Date().toISOString(),
     });
+    // Remembered devices go with the old password: they skip two-step sign-in.
+    await this.db.trustedDevices.deleteMany((row) => row.staff_user_id === staff.id);
     // Accepting an invitation sets the first password; nothing was "changed".
     if (looksHashed(staff.password_hash)) {
       await this.mail.send({

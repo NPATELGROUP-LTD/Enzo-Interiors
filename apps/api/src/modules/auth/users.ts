@@ -17,13 +17,15 @@ import { Throttle } from '@nestjs/throttler';
 import { IsEmail, IsIn, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
-import { ADMIN_ROLES, StaffUser } from '../../common/types/domain';
+import { ADMIN_ROLES, StaffUser, TwoFactorMethod } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
+import { RateLimitStore } from '../../core/rate-limit';
 import { DatabaseService } from '../../data/database.service';
 import { digest, looksHashed } from './auth.service';
 import { NOT_IMPORTER } from './dto';
+import { NO_TWO_FACTOR, codeFailuresKey } from './two-factor';
 
 type AdminRole = (typeof ADMIN_ROLES)[number];
 
@@ -46,6 +48,8 @@ export interface UserView {
   /** Invited = has not chosen a password yet. */
   status: 'Active' | 'Invited';
   inviteExpired: boolean;
+  /** How they get sign-in codes; null = not chosen yet (or reset). */
+  twoFactorMethod: TwoFactorMethod | null;
   created_at: string;
 }
 
@@ -63,6 +67,7 @@ function view(staff: StaffUser): UserView {
     role: roleOf(staff),
     status: invited ? 'Invited' : 'Active',
     inviteExpired: invited && (!staff.reset_expires_at || Date.parse(staff.reset_expires_at) < Date.now()),
+    twoFactorMethod: staff.two_factor_method ?? null,
     created_at: staff.created_at,
   };
 }
@@ -80,6 +85,7 @@ export class UsersService {
     private readonly db: DatabaseService,
     private readonly mail: MailService,
     private readonly activity: ActivityLogService,
+    private readonly limits: RateLimitStore,
   ) {}
 
   async list(): Promise<UserView[]> {
@@ -162,12 +168,32 @@ export class UsersService {
     return view(updated);
   }
 
+  /**
+   * For a lost phone or inbox, or a taken-over account: they choose a method
+   * again at their next sign-in, every remembered browser has to pass it
+   * again, the Google link is gone and the wrong-code pause is lifted.
+   */
+  async resetTwoFactor(principal: AuthPrincipal, id: string): Promise<void> {
+    const staff = await this.require(id);
+    await this.db.staffUsers.update(id, { ...NO_TWO_FACTOR, updated_at: new Date().toISOString() });
+    await this.db.trustedDevices.deleteMany((row) => row.staff_user_id === id);
+    await this.limits.clear(codeFailuresKey(id));
+    await this.activity.record({
+      principal,
+      action: 'staff_reset_2fa',
+      targetTable: 'staff_users',
+      targetId: id,
+      details: { name: staff.name, email: staff.email, method: staff.two_factor_method ?? null },
+    });
+  }
+
   /** Signs them out at once: the guard re-reads the account on every request. */
   async remove(principal: AuthPrincipal, id: string): Promise<void> {
     const staff = await this.require(id);
     if (staff.id === principal.id) throw new BadRequestException('You cannot remove your own account.');
     await this.assertNotLastAdmin(staff, 'remove them');
     await this.db.staffUsers.delete(id);
+    await this.db.trustedDevices.deleteMany((row) => row.staff_user_id === id);
     await this.db.notifications.deleteMany((row) => row.recipient_id === id);
     await this.activity.record({
       principal,
@@ -200,6 +226,13 @@ export class UsersController {
   @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
   resend(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.users.resendInvite(principal, id);
+  }
+
+  @Post(':id/reset-2fa')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 20, ttl: 60 * 60_000 } })
+  async resetTwoFactor(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    await this.users.resetTwoFactor(principal, id);
   }
 
   @Put(':id')

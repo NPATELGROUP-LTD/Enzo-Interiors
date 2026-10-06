@@ -122,6 +122,51 @@ export interface StaffUser extends BaseRecord {
   reset_expires_at: string | null;
   created_at: string;
   updated_at: string;
+  // Two-step sign-in and Google. Optional so a create may leave them out (the
+  // columns are nullable/defaulted); a row read back always has them.
+  /** "email" | "totp"; null until chosen at the first sign-in. */
+  two_factor_method?: TwoFactorMethod | null;
+  /** Sealed by core/crypto.ts. */
+  totp_secret_enc?: string | null;
+  totp_confirmed_at?: string | null;
+  /** The last TOTP step accepted (replay protection). */
+  totp_last_step?: number | null;
+  /** sha256 hex of each unused recovery code. */
+  recovery_hashes?: string[] | null;
+  /** sha256 of the emailed sign-in code. */
+  login_code_hash?: string | null;
+  login_code_expires_at?: string | null;
+  login_code_attempts?: number;
+  /** Google's stable account id, once linked. Unique. */
+  google_sub?: string | null;
+  google_email?: string | null;
+}
+
+export type TwoFactorMethod = 'email' | 'totp';
+
+/** A browser remembered for 30 days; only the token's sha256 is stored. */
+export interface TrustedDevice extends BaseRecord {
+  staff_user_id: string;
+  token_hash: string;
+  label: string | null;
+  created_at: string;
+  last_used_at: string;
+  expires_at: string;
+}
+
+/** A Google Calendar bookings are copied into. v1: one row, id "studio". */
+export interface CalendarConnection extends BaseRecord {
+  /** Null = the studio calendar. */
+  staff_user_id: string | null;
+  google_email: string;
+  calendar_id: string;
+  calendar_name: string | null;
+  /** Sealed by core/crypto.ts. */
+  refresh_token_enc: string;
+  status: 'connected' | 'needs_reconnect';
+  connected_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 /** Schema 3.2 */
@@ -504,6 +549,11 @@ export interface Appointment extends BaseRecord {
   cancelled_at: string | null;
   created_at: string;
   updated_at: string;
+  /** The Google Calendar copy, once synced. Optional so a create may leave them out. */
+  google_event_id?: string | null;
+  calendar_connection_id?: string | null;
+  /** The calendar that event is in; null reads as the connection's current one. */
+  google_calendar_id?: string | null;
 }
 
 /** One line in a staff member's notification bell. */

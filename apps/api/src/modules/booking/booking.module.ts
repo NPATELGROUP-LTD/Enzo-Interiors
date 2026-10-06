@@ -36,7 +36,9 @@ import { APPOINTMENT_STATUSES, Appointment, AppointmentStatus } from '../../comm
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { BookingMail, MailService, templates } from '../../core/mail.service';
+import { CacheService } from '../../core/cache';
 import { DatabaseService } from '../../data/database.service';
+import { CalendarModule, CalendarService } from '../calendar/calendar.module';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
 import {
@@ -218,15 +220,20 @@ export class BookingService {
     private readonly activity: ActivityLogService,
     private readonly siteSettings: SiteSettingsService,
     private readonly notifications: NotificationsService,
+    private readonly cache: CacheService,
+    private readonly calendar: CalendarService,
   ) {}
 
   /* ---- Settings ---- */
 
-  async config(): Promise<BookingConfig> {
-    const row = await this.db.bookingSettings.findById(ID);
-    if (!row) return DEFAULT_CONFIG;
-    // Stored configs from an older release get any rule added since.
-    return { ...DEFAULT_CONFIG, ...(row.config as Partial<BookingConfig>) };
+  /** Read on every availability, booking and form load, so kept for 30 seconds (and dropped on save). */
+  config(): Promise<BookingConfig> {
+    return this.cache.wrap('booking:config', 30_000, async () => {
+      const row = await this.db.bookingSettings.findById(ID);
+      if (!row) return DEFAULT_CONFIG;
+      // Stored configs from an older release get any rule added since.
+      return { ...DEFAULT_CONFIG, ...(row.config as Partial<BookingConfig>) };
+    });
   }
 
   async settings(): Promise<{ config: BookingConfig; updated_at: string | null; updated_by: string | null }> {
@@ -246,6 +253,8 @@ export class BookingService {
       targetId: ID,
       details: { slotMinutes: config.slotMinutes, maxPerDay: config.maxPerDay },
     });
+    await this.cache.del('booking:config');
+    await this.cache.incr('booking:v');
     return this.settings();
   }
 
@@ -265,12 +274,25 @@ export class BookingService {
     });
   }
 
-  async available(from: string, to: string, staff: boolean, exceptId?: string) {
+  /**
+   * The public answer is kept for 15 seconds, under a version number that
+   * every booking, move, schedule change and calendar change raises, so it is
+   * never older than the last change. `fresh` (a booking being made) skips it
+   * and the calendar's own minute of caching.
+   */
+  async available(from: string, to: string, staff: boolean, exceptId?: string, fresh = false) {
     if (!DATE.test(from) || !DATE.test(to) || to < from || addDays(from, 62) < to) {
       throw new BadRequestException('Ask for up to 62 days at a time, as YYYY-MM-DD.');
     }
+    if (staff || fresh) return this.compute(from, to, staff, exceptId, fresh);
+    const version = (await this.cache.get<number>('booking:v')) ?? 0;
+    return this.cache.wrap(`booking:availability:${version}:${from}:${to}`, 15_000, () => this.compute(from, to, false));
+  }
+
+  private async compute(from: string, to: string, staff: boolean, exceptId?: string, fresh = false) {
     const config = await this.config();
-    const days = availability(config, from, to, await this.taken(from, to, exceptId), new Date(), staff);
+    const [taken, busy] = await Promise.all([this.taken(from, to, exceptId), this.calendar.busy(from, to, config.horizonDays, fresh, staff)]);
+    const days = availability(config, from, to, taken, new Date(), staff, busy);
     const rules: PublicBookingRules = {
       fields: config.fields,
       services: config.services,
@@ -281,7 +303,7 @@ export class BookingService {
   }
 
   private async assertFree(date: string, time: string, staff: boolean, exceptId?: string): Promise<void> {
-    const { days } = await this.available(date, date, staff, exceptId);
+    const { days } = await this.available(date, date, staff, exceptId, true);
     if (!days[date]?.includes(time)) {
       throw new ConflictException('That time is no longer free. Choose another.');
     }
@@ -362,6 +384,9 @@ export class BookingService {
       throw error;
     }
 
+    await this.cache.incr('booking:v');
+    void this.calendar.sync(created.id);
+
     if (principal) {
       await this.activity.record({
         principal,
@@ -420,6 +445,8 @@ export class BookingService {
       throw error;
     }
     if (!updated) throw new NotFoundException('That booking no longer exists.');
+    await this.cache.incr('booking:v');
+    void this.calendar.sync(id);
 
     await this.activity.record({
       principal,
@@ -502,7 +529,10 @@ export class PublicBookingController {
 
   @Public()
   @Get('availability')
-  availability(@Query('from') from = '', @Query('to') to = '') {
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  availability(@Query('from') from = '', @Query('to') to = '', @Res({ passthrough: true }) res: Response) {
+    // Shared caches (Cloudflare) may keep it 15 seconds, as the API does; browsers not at all.
+    res.setHeader('Cache-Control', 'public, s-maxage=15, max-age=0');
     return this.booking.available(from, to, false);
   }
 
@@ -545,7 +575,8 @@ export class AppointmentsController {
 
   /** Staff rules: no notice period or horizon. `except` frees a booking's own time while moving it. */
   @Get('availability')
-  availability(@Query('from') from = '', @Query('to') to = '', @Query('except') except?: string) {
+  availability(@Query('from') from = '', @Query('to') to = '', @Res({ passthrough: true }) res: Response, @Query('except') except?: string) {
+    res.setHeader('Cache-Control', 'no-store');
     return this.booking.available(from, to, true, except);
   }
 
@@ -561,7 +592,7 @@ export class AppointmentsController {
 }
 
 @Module({
-  imports: [SiteSettingsModule, NotificationsModule],
+  imports: [SiteSettingsModule, NotificationsModule, CalendarModule],
   controllers: [PublicBookingController, AppointmentsController],
   providers: [BookingService],
 })

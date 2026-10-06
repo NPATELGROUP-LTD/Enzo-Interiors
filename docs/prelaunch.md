@@ -107,6 +107,47 @@ Keeping upgrades backward compatible is a rule for migrations, not for Docker:
 - [ ] Settings → Logo & icon: confirm both logos, and choose a favicon if the
       built-in one is not wanted.
 
+## Google sign-in & Calendar
+
+Optional: with no `GOOGLE_CLIENT_ID` the admin shows no Google sign-in and no
+calendar card. Two-step sign-in needs only the first and last items.
+
+- [ ] Migration `7_two_factor_google_calendar` is deployed (the API's
+      `prisma migrate deploy` runs it; it only adds).
+- [ ] `APP_ENCRYPTION_KEY` set: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`.
+      Keep a copy outside the server; losing it means everyone re-enrols their
+      authenticator app and the calendar is reconnected.
+- [ ] Google Cloud project owned by NPATEL GROUP LTD (keep two NPATEL owners).
+      APIs & Services → enable **Google Calendar API**; OAuth consent screen →
+      **External**, scopes `openid`, `email`, `calendar.events`,
+      `calendar.calendarlist.readonly`; Credentials → OAuth client, **Web
+      application**, with both redirect URIs:
+      `https://auth.enzo.client.npatelgroup.ltd/auth/google/callback` and
+      `https://auth.enzo.client.npatelgroup.ltd/calendar/callback`.
+- [ ] **Publish** the consent screen to production (Testing mode expires
+      refresh tokens after 7 days and the calendar disconnects). The
+      "unverified app" warning shown once is acceptable under 100 users.
+      Verify `npatelgroup.ltd` in Search Console.
+- [ ] `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_AUTH_REDIRECT_URI`,
+      `GOOGLE_CALENDAR_REDIRECT_URI` set to the production values above.
+- [ ] Cloudflare Tunnel: public hostname `auth.enzo.client.npatelgroup.ltd` →
+      Coolify's Traefik (same service as the API host). The compose file already
+      adds the Host rule to the API router. If the hostname shows a certificate
+      error, Universal SSL does not cover that depth: needs Advanced
+      Certificate Manager.
+- [ ] Server clock synced (authenticator codes fail otherwise):
+      `timedatectl` shows "System clock synchronized: yes"; else
+      `sudo timedatectl set-ntp true`.
+- [ ] `TRUST_CLOUDFLARE=true`, **and** the API is reachable only through
+      Cloudflare: no Coolify sslip.io or direct domain for the API (the header
+      is otherwise forgeable and rate limits can be dodged).
+- [ ] Settings › Booking schedule → connect the studio calendar and pick it;
+      Account → link your own Google.
+- Locked out of two-step sign-in: an Admin uses Settings › Users → Reset
+  two-step sign-in; with no Admin, `docker compose run --rm seed npm run
+  auth:reset-2fa -- <email>`. `DISABLE_2FA=true` turns it off for everyone (the
+  API warns at boot); remove it afterwards.
+
 ## Rate limits
 
 Three layers; each catches what the one below cannot.
@@ -116,10 +157,13 @@ Three layers; each catches what the one below cannot.
    - [ ] Security → WAF → turn on the **Cloudflare Managed Ruleset** (free plans get the free managed rules).
    - [ ] Security → Bots → **Bot Fight Mode** on.
    - [ ] Security → WAF → **Rate limiting rules**: one rule, for requests whose
-         path starts with `/auth/`, `/booking`, `/enquiries` or `/newsletter`
+         path starts with `/auth/`, `/calendar`, `/booking`, `/enquiries` or `/newsletter`
          and method is `POST` — 20 requests per 10 seconds per IP → Block for
          10 minutes (as many rules as the plan allows; this one matters most).
    - [ ] Caching → Cache Rules: cache `/og/*` and `/_next/static/*` at the edge.
+   - [ ] Cache Rule on the API host: cache `GET /booking/availability`,
+         honouring the origin `Cache-Control` (`s-maxage=15`). Never cache
+         `/auth`, `/appointments` or `/calendar`.
    - [ ] Keep **Under Attack Mode** in mind for a live attack (Overview page).
 2. **The API** (`@nestjs/throttler`, counters in Redis): 300 requests a
    minute per IP overall, and tighter per route on every public write
