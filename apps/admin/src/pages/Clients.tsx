@@ -165,7 +165,7 @@ export function ClientsPage() {
       setDeleting(null);
       await clients.refetch();
     } catch (caught) {
-      // The API refuses while projects/quotes/invoices still reference the
+      // The API refuses while projects/invoices still reference the
       // client, and its message names them — surface it verbatim.
       toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this client.');
       setDeleting(null);
@@ -313,7 +313,7 @@ export function ClientsPage() {
             message={
               clients.data?.length
                 ? 'Try a different search term or clear the status filter.'
-                : 'Add your first client to start tracking projects, quotes and invoices.'
+                : 'Add your first client to start tracking projects and invoices.'
             }
             action={
               clients.data?.length ? (
@@ -431,7 +431,7 @@ export function ClientsPage() {
               documents and bookings.
             </p>
             <p className="mt-2 text-ink-muted">
-              If they have projects, quotes or invoices, the deletion will be refused —
+              If they have projects or invoices, the deletion will be refused —
               set them to Inactive instead.
             </p>
           </>

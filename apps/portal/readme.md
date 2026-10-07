@@ -67,7 +67,7 @@ uses the password `client123`.**
 | David Okafor | `david.okafor@example.com` | **Media wall awaiting your approval**, invoice due |
 | Raj Patel | `raj.patel@example.com` | Wardrobe nearly complete (one project deliberately hidden — see below) |
 | Amelia Hart | `amelia.hart@example.com` | Completed project, everything paid |
-| Eleanor Shaw | `eleanor.shaw@example.com` | Bedroom in design, **a quote to accept or query** |
+| Eleanor Shaw | `eleanor.shaw@example.com` | Bedroom in design |
 
 Staff accounts do not work here — they belong to the Admin CRM on 5174.
 
@@ -91,7 +91,6 @@ an unread message and an outstanding invoice are all live on that account.
 | `/dashboard` | Bento: decisions awaiting you, next appointment, unread, documents, invoices, timeline |
 | `/projects` | Card grid with progress and plain-English stage descriptions |
 | `/projects/:id` | Timeline, designs, documents, invoices, **Approve / Request changes** |
-| `/quotes` | Full breakdown with accept, decline and request-a-revision |
 | `/messages` | Live chat with the Enzo team, attachments |
 | `/documents` | Searchable, filterable by type |
 | `/invoices` | Summary tiles and table — **view and status only** |

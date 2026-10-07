@@ -1,6 +1,5 @@
 import {
   Armchair,
-  Calculator,
   ChatsCircle,
   Files,
   GearSix,
@@ -19,7 +18,6 @@ const APPS: DesktopApp[] = [
   { to: '/projects', label: 'Projects', Icon: Armchair },
   { to: '/messages', label: 'Messages', Icon: ChatsCircle, badge: true },
   { to: '/invoices', label: 'Invoices', Icon: Invoice },
-  { to: '/quotes', label: 'My Quotes', Icon: Calculator },
   { to: '/documents', label: 'Documents', Icon: Files },
   { to: '/settings', label: 'Settings', Icon: GearSix },
 ];

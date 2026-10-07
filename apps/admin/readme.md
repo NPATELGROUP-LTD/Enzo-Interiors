@@ -1,7 +1,7 @@
 # apps/admin — Enzo Interiors Staff & Admin CRM
 
 React + Vite SPA (installable PWA) for Enzo Interiors staff: clients, bookings,
-quotes, projects, invoices, messages and content.
+projects, invoices, messages and content.
 
 It is a **thin client**. Every read and write goes through `apps/api` over HTTP
 and WebSocket — this app never touches a datastore, and it shares no code with
@@ -87,7 +87,6 @@ Client accounts do not work here — they belong to the Client Portal on 5175.
 | `/clients` | Searchable table, add/edit/delete |
 | `/clients/:id` | Detail with Overview / Projects / Invoices / Documents / Notes / Activity tabs |
 | `/bookings` | Calendar with density, upcoming list, working-hours editor |
-| `/quotes` | Quote builder (Simple + Detailed, live total) and Component Pricing Library |
 | `/projects` | 5-stage Kanban with drag-and-drop, list view, assign designer, client-visible toggle |
 | `/projects/:id` | Timeline, documents, invoices, activity log, stage controls |
 | `/invoices` | Builder with VAT preview, status filters, **manual mark-paid** |

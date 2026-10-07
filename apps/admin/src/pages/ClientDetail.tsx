@@ -19,7 +19,7 @@ import {
 } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
 import { date, dateTime, fileSize, humanise, money, relative } from '@/lib/format';
-import { clientTone, invoiceTone, projectTone, quoteTone } from '@/lib/status';
+import { clientTone, invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
@@ -47,7 +47,7 @@ export function ClientDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Client not found." />;
 
-  const { client, assigned_staff, projects, invoices, documents, quotes, bookings, activity, stats } =
+  const { client, assigned_staff, projects, invoices, documents, bookings, activity, stats } =
     data;
 
   const tabsWithCounts = TABS.map((entry) => ({
@@ -131,30 +131,6 @@ export function ClientDetailPage() {
           </Card>
 
           <Card>
-            <p className="label-eyebrow">Quotes</p>
-            {quotes.length === 0 ? (
-              <p className="py-6 text-center text-ink-muted">No quotes raised yet.</p>
-            ) : (
-              <ul className="mt-3 rows">
-                {quotes.slice(0, 5).map((quote) => (
-                  <li key={quote.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
-                    <div className="min-w-0">
-                      <p className="truncate text-ink">
-                        {SERVICE_LABELS[quote.service_id]} · {quote.type}
-                      </p>
-                      <p className="text-xs text-ink-muted">{date(quote.created_at)}</p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <span className="tabular font-semibold text-ink">{money(quote.total)}</span>
-                      <StatusTag tone={quoteTone(quote.status)}>{quote.status}</StatusTag>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          <Card className="lg:col-span-2">
             <p className="label-eyebrow">Bookings</p>
             {bookings.length === 0 ? (
               <p className="py-6 text-center text-ink-muted">No consultations booked.</p>

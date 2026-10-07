@@ -76,7 +76,7 @@ enzo-interiors/
 | App | Framework | Rendering | Auth | PWA | Purpose |
 |---|---|---|---|---|---|
 | `apps/web` | Next.js (App Router) | SSR/SSG | Public + optional booking capture | ✗ | Marketing site, lead gen, quote calculator |
-| `apps/admin` | React + Vite | CSR SPA | `/auth/admin/login` JWT | ✓ | Staff CRM, projects, quotes, invoices |
+| `apps/admin` | React + Vite | CSR SPA | `/auth/admin/login` JWT | ✓ | Staff CRM, projects, invoices |
 | `apps/portal` | React + Vite | CSR SPA | `/auth/portal/login` JWT | ✓ | Client dashboard, project approval, messages |
 | `apps/api` | NestJS | N/A | JWT + RBAC Guards | N/A | RBAC-enforced API; no frontend accesses DB/S3 directly |
 
@@ -93,7 +93,7 @@ buckets: a **public** one for marketing images (stable URLs, embedded in cached
 pages) and a **private** one for client documents (signed per request). The
 "never return an unsigned URL" rule applies to the private bucket; see the
 header of `apps/api/src/modules/media/media.module.ts` for why.  
-**Key tables:** `staff_users`, `clients`, `projects`, `components`, `quotes`, `quote_line_items`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`, plus the CMS tables `cms_entries` and `media_assets`.
+**Key tables:** `staff_users`, `clients`, `projects`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`, plus the CMS tables `cms_entries` and `media_assets`.
 
 **The CMS:** every editable thing on the public site is one row in `cms_entries`
 (`collection` + `slug`, with a `draft` and a `published` JSONB body). One table
@@ -212,7 +212,7 @@ on the API). `TRUST_CLOUDFLARE=true` takes the client IP from
 `CF-Connecting-IP` (`core/client-ip.ts`) — only safe if the API is reachable
 only through Cloudflare. Migration `7_two_factor_google_calendar`.
 
-**Critical rule:** `quote_line_items.unit_price` is a point-in-time snapshot — price changes never retroactively alter historical quotes.
+**Retired:** quotes and the part library are gone from the code (the quote builder is its own project). The tables `quotes`, `quote_line_items`, `components` and the columns `invoices.quote_id` / `bookings.linked_quote_id` stay in the schema because migrations only add; nothing reads or writes them. The old `unit_price` snapshot rule went with them.
 
 For the full schema, see `docs/Enzo_Interiors_Backend_Schema_v2.0.md`.
 
@@ -279,7 +279,7 @@ These are final product decisions, not temporary shortcuts:
 - `Enzo_Interiors_Backend_Schema_v2.0.md` — PostgreSQL/Prisma schema, entity relationships, data integrity rules.
 - `Enzo_Interiors_Storage_Schema_v1.md` — S3 bucket structure, folder layout, signed URL TTLs, retention policies.
 - `Enzo_Interiors_UI_UX_Brief_v6.md` — Design tokens, brand colors, typography, component specs, accessibility.
-- `Enzo_Interiors_App_Flow_v4.md` — End-to-end user flows (e.g. quote → booking → project → approval).
+- `Enzo_Interiors_App_Flow_v4.md` — End-to-end user flows (e.g. booking → project → approval).
 - `websitemap.md` — All routes for web, admin, portal.
 - `Boilerplate Codebase.md` — Packed repo snapshot (reference only; don't edit).
 
@@ -287,10 +287,10 @@ These are final product decisions, not temporary shortcuts:
 Next.js marketing site. Pages: Homepage, Services, Service Detail, Portfolio (gallery), About, Contact, Booking Wizard (5 steps), 404. Quote Calculator (must respond <200ms) calls `/quotes/estimate` on the API.
 
 ### apps/admin/
-React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Quotes & Pricing, Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
+React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
 
 ### apps/portal/
-React/Vite client portal. Modules: Dashboard, My Projects (with approval workflow), My Quotes, Messages (WebSocket real-time), Documents, Invoices (view-only), Settings. RBAC: Client (own records only).
+React/Vite client portal. Modules: Dashboard, My Projects (with approval workflow), Messages (WebSocket real-time), Documents, Invoices (view-only), Settings. RBAC: Client (own records only).
 
 ### apps/api/
 NestJS backend. All CRUD, auth (JWT + RBAC Guards), WebSocket gateway (messages), S3 signed URL generation. No frontend talks to DB or S3 directly.
@@ -306,7 +306,7 @@ NestJS backend. All CRUD, auth (JWT + RBAC Guards), WebSocket gateway (messages)
 - **Client Login** → `POST /auth/portal/login` → JWT → Client Portal access
 
 **Scope Enforcement:**
-- Clients see only their own records (projects, quotes, invoices, messages).
+- Clients see only their own records (projects, invoices, messages).
 - Designer/Installer see assigned projects/clients only.
 - Admin sees all records.
 

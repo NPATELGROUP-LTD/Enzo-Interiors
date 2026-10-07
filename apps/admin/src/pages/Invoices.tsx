@@ -247,7 +247,7 @@ export function InvoicesPage() {
             message={
               invoices.data?.length
                 ? 'Try a different status filter.'
-                : 'Create an invoice directly, or convert an accepted quote from Quotes & Pricing.'
+                : 'Create an invoice directly.'
             }
             action={
               invoices.data?.length ? (
@@ -479,7 +479,7 @@ export function InvoicesPage() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting?.number ?? 'invoice'}?`}
-        message="If this invoice came from a quote, that quote is released so it can be converted again."
+        message="A deleted invoice cannot be restored."
         confirmLabel="Delete invoice"
         onConfirm={doDelete}
         onCancel={() => setDeleting(null)}

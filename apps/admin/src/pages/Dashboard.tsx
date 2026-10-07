@@ -165,18 +165,6 @@ export function DashboardPage() {
                 </Link>
               }
             />
-
-            <MetricCard
-              eyebrow="Quotes"
-              value={padCount(data.quotes.sent)}
-              accent="primary"
-              context={`${data.quotes.draft} in draft; ${data.quotes.accepted_awaiting_invoice} accepted and ready to invoice.`}
-              bottom={
-                <Link to="/quotes" className="text-link">
-                  Open quote builder
-                </Link>
-              }
-            />
           </div>
 
           <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">

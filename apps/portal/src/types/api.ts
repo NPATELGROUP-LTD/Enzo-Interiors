@@ -17,11 +17,9 @@ export type ProjectStage =
   | 'Approval'
   | 'Installation'
   | 'Completed';
-export type QuoteType = 'Simple' | 'Detailed';
-export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Expired';
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Quote' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
 export type SenderType = 'Client' | 'Staff';
 
 export const PROJECT_STAGES: ProjectStage[] = [
@@ -34,7 +32,6 @@ export const PROJECT_STAGES: ProjectStage[] = [
 
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
-  'Quote',
   'Invoice',
   'Plan',
   'MoodBoard',
@@ -49,7 +46,6 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   Contract: 'Contract',
-  Quote: 'Quote',
   Invoice: 'Invoice',
   Plan: 'Plan',
   MoodBoard: 'Mood board',
@@ -93,39 +89,11 @@ export interface Project {
   assigned_designer_name: string | null;
 }
 
-export interface QuoteLineItem {
-  id: string;
-  quote_id: string;
-  component_id: string;
-  component_name: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-}
-
-export interface Quote {
-  id: string;
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-  lines: QuoteLineItem[];
-  client_name: string;
-}
-
 export interface Invoice {
   id: string;
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
@@ -146,7 +114,6 @@ export interface Booking {
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
   client_name: string;
   client_email: string;
@@ -255,7 +222,6 @@ export interface PortalDashboard {
     active: number;
     awaiting_your_approval: Array<{ id: string; name: string; type: ServiceType }>;
   };
-  quotes: { awaiting_your_decision: number };
   timeline: Array<{
     id: string;
     name: string;

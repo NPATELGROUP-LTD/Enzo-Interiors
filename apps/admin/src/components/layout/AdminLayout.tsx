@@ -51,7 +51,7 @@ import { SearchPalette } from './SearchPalette';
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * The CRM screens (clients, quotes, projects...) are still in src/pages but
+ * The CRM screens (clients, projects...) are still in src/pages but
  * are not routed, because the v1 API does not serve them. See App.tsx.
  */
 export const SECTIONS: Array<{

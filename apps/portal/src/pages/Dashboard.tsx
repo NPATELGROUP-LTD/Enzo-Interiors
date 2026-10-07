@@ -70,22 +70,6 @@ export function DashboardPage() {
             </Card>
           ) : null}
 
-          {data.quotes.awaiting_your_decision > 0 ? (
-            <Card accent="warning" className="mb-4 pl-5">
-              <p className="label-eyebrow">Waiting for you</p>
-              <p className="mt-2 text-base font-semibold text-ink">
-                {data.quotes.awaiting_your_decision === 1
-                  ? 'You have a quote to review'
-                  : `You have ${data.quotes.awaiting_your_decision} quotes to review`}
-              </p>
-              <div className="mt-2">
-                <Link to="/quotes" className="text-link">
-                  View quotes
-                </Link>
-              </div>
-            </Card>
-          ) : null}
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <MetricCard
               eyebrow="Next appointment"

@@ -279,7 +279,7 @@ export function SettingsPage() {
                     setBusiness({ ...business, vat_rate: Number(event.target.value) })
                   }
                   disabled={!isAdmin}
-                  hint="Applied to new quotes and invoices."
+                  hint="Applied to new invoices."
                 />
                 <Input
                   label="Brand colour"
