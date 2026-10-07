@@ -74,6 +74,8 @@ model Client {
   password_hash     String
   created_at        DateTime @default(now()) @db.Timestamptz(6)
   updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  /// Portal sessions carry it; bumping it signs every one of them out.
+  token_version     Int      @default(0)
 
   @@index([assigned_staff_id])
   @@map("clients")

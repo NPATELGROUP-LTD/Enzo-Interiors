@@ -180,10 +180,12 @@ export interface Client extends BaseRecord {
   joined_date: string;
   total_spent: number;
   notes: string | null;
-  /** MOCK ONLY. Plaintext, exactly as StaffUser.password_hash above. */
+  /** bcrypt hash; anything else never matches (auth.service verify()). */
   password_hash: string;
   created_at: string;
   updated_at: string;
+  /** As StaffUser.token_version. Optional so a create may leave it out (defaulted column). */
+  token_version?: number;
 }
 
 /** Schema 3.3 */

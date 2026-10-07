@@ -157,7 +157,13 @@ export class UsersService {
     const staff = await this.require(id);
     if (staff.id === principal.id) throw new BadRequestException('Ask another Admin to change your own role.');
     if (role !== 'Admin') await this.assertNotLastAdmin(staff, 'change their role');
-    const updated = (await this.db.staffUsers.update(id, { role, updated_at: new Date().toISOString() }))!;
+    // A new role signs them out everywhere, so no token (or open socket that
+    // read the role once) carries the old one.
+    const updated = (await this.db.staffUsers.update(id, {
+      role,
+      ...(role !== staff.role && { token_version: staff.token_version + 1 }),
+      updated_at: new Date().toISOString(),
+    }))!;
     await this.activity.record({
       principal,
       action: 'staff_role_change',

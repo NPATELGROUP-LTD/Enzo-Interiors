@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } fr
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
+import { STAFF_ROLES } from '../../common/types/domain';
 import { ClientIp } from '../../core/client-ip';
 import { AuthPrincipal } from '../../common/types/principal';
 import { AuthService, LoginResult, Me } from './auth.service';
@@ -17,10 +18,18 @@ export class AuthController {
     private readonly twoFactor: TwoFactorService,
   ) {}
 
+  /** Client portal login: `{ access_token, user }`. No second step for clients yet. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('portal/login')
+  @HttpCode(200)
+  loginPortal(@Body() dto: LoginDto, @ClientIp() ip: string): Promise<LoginResult> {
+    return this.auth.portalLogin(dto.email, dto.password, ip);
+  }
+
   /**
    * Staff login: a session, or `{ twoFactor, challenge }` when a code is
-   * needed next (two-factor.ts). The client portal's /auth/portal/login
-   * returns with the portal.
+   * needed next (two-factor.ts).
    */
   @Public()
   @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
@@ -109,9 +118,10 @@ export class AuthController {
 
   /**
    * Who the bearer token says I am. Fresh from the database: the guard
-   * re-reads the account on every request.
+   * re-reads the account on every request. Staff and portal clients alike.
    */
   @Get('me')
+  @Roles(...STAFF_ROLES, 'Client')
   me(@CurrentUser() principal: AuthPrincipal): Promise<Me> {
     return this.auth.me(principal);
   }

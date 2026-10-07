@@ -31,7 +31,7 @@ export interface JwtPayload {
   role: StaffRole | 'Client';
   name: string;
   email: string;
-  /** staff_users.token_version at signing. A mismatch means signed out. */
+  /** staff_users / clients .token_version at signing. A mismatch means signed out. */
   tv?: number;
   /** Only on single-use tokens (a 2FA challenge, Google's state); never on a session. */
   purpose?: string;

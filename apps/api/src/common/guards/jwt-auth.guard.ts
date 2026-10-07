@@ -16,15 +16,8 @@ import { AuthPrincipal, AuthenticatedRequest, JwtPayload } from '../types/princi
  * marked @Public().
  *
  * Registered globally in AppModule (APP_GUARD), so a new controller is
- * authenticated by default and has to opt out deliberately. The principal is
- * built from the database row the verified token names, never from a request
- * header or body, which is what stops a frontend claiming a role it does not
- * hold.
- *
- * The row is re-read on every request so a token dies with its account: a
- * deleted user, a changed role or a password change (which bumps
- * token_version) all take effect immediately instead of when the JWT expires.
- * One primary-key lookup per request is cheap at staff scale.
+ * authenticated by default and has to opt out deliberately. HTTP only: a
+ * socket gateway authenticates its own connections with authenticate().
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
@@ -35,6 +28,7 @@ export class JwtAuthGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') return true;
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -46,39 +40,51 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       throw new UnauthorizedException('Missing bearer token');
     }
-
-    let payload: JwtPayload;
-    try {
-      payload = await this.jwt.verifyAsync<JwtPayload>(token);
-    } catch {
-      // Deliberately opaque: distinguishing "expired" from "bad signature"
-      // tells an attacker which half of the token to keep working on.
-      throw new UnauthorizedException('Invalid or expired session token');
-    }
-
-    // Same key signs the 2FA challenge and Google's state. Neither is a session.
-    if (payload.purpose !== undefined) {
-      throw new UnauthorizedException('Invalid or expired session token');
-    }
-
-    // Staff only: v1 has no client portal. When it returns, look up
-    // db.clients here the same way (and give clients a token_version).
-    const staff =
-      payload.kind === 'Staff' && payload.sub ? await this.db.staffUsers.findById(payload.sub) : null;
-    if (!staff || (payload.tv ?? 0) !== staff.token_version) {
-      throw new UnauthorizedException('Invalid or expired session token');
-    }
-
-    const principal: AuthPrincipal = {
-      id: staff.id,
-      kind: 'Staff',
-      role: staff.role,
-      name: staff.name,
-      email: staff.email,
-    };
-    request.principal = principal;
+    request.principal = await authenticate(this.jwt, this.db, token);
     return true;
   }
+}
+
+/**
+ * A session token -> the principal it belongs to, or 401.
+ *
+ * The principal is built from the database row the verified token names, never
+ * from its claims, which is what stops a frontend claiming a role it does not
+ * hold. The row is re-read every time so a token dies with its account: a
+ * deleted user, a changed role, a deactivated client or a bumped token_version
+ * (password change/reset, role change) take effect immediately instead of when
+ * the JWT expires. One primary-key lookup per call is cheap at this scale.
+ *
+ * Shared by JwtAuthGuard and any socket gateway, so both apply the same rules.
+ */
+export async function authenticate(jwt: JwtService, db: DatabaseService, token: string): Promise<AuthPrincipal> {
+  // Deliberately one opaque message: distinguishing "expired" from "bad
+  // signature" or "signed out" tells an attacker what to keep working on.
+  const refuse = () => new UnauthorizedException('Invalid or expired session token');
+
+  let payload: JwtPayload;
+  try {
+    payload = await jwt.verifyAsync<JwtPayload>(token);
+  } catch {
+    throw refuse();
+  }
+
+  // Same key signs the 2FA challenge and Google's state. Neither is a session.
+  if (payload.purpose !== undefined || !payload.sub) throw refuse();
+
+  if (payload.kind === 'Staff') {
+    const staff = await db.staffUsers.findById(payload.sub);
+    if (!staff || (payload.tv ?? 0) !== staff.token_version) throw refuse();
+    return { id: staff.id, kind: 'Staff', role: staff.role, name: staff.name, email: staff.email };
+  }
+
+  if (payload.kind === 'Client') {
+    const client = await db.clients.findById(payload.sub);
+    if (!client || client.status !== 'Active' || (payload.tv ?? 0) !== (client.token_version ?? 0)) throw refuse();
+    return { id: client.id, kind: 'Client', role: 'Client', name: client.name, email: client.email };
+  }
+
+  throw refuse();
 }
 
 /** Pull the raw token out of an `Authorization: Bearer <token>` header. */

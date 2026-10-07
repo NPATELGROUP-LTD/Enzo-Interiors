@@ -178,8 +178,13 @@ has run is never edited, so the previous image still runs on the new schema
 written into existing rows.
 
 **Sessions:** JWTs carry `tv` = `staff_users.token_version`; `JwtAuthGuard`
-re-reads the staff row per request, so a password change or reset signs out
-every other session immediately.
+re-reads the staff row per request, so a password change or reset (or a role
+change) signs out every other session immediately. Portal clients
+(`POST /auth/portal/login`, no 2FA yet) carry `clients.token_version` and must
+be `Active`; both go through `authenticate()` in `common/guards/jwt-auth.guard.ts`
+(for a socket gateway too). `RolesGuard` denies client tokens by default: a
+route is open to clients only if its `@Roles` names `'Client'`. The three
+global guards skip non-HTTP contexts.
 
 **Two-step sign-in:** staff password logins (not Google, not the CRM portal) end
 in a second step. Each user picks **Email code** or **Authenticator app** once,

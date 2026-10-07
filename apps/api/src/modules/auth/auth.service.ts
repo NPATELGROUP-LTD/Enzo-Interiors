@@ -217,6 +217,39 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   /**
+   * POST /auth/portal/login. Same lockout and same single message as staff
+   * sign-in, keyed apart (`client:` prefix) so a client's mistyped password
+   * never locks a staff account with the same address, or the reverse. An
+   * inactive client gets the same answer as a wrong password. No second step
+   * for clients yet.
+   */
+  async portalLogin(email: string, password: string, ip: string): Promise<LoginResult> {
+    const address = email.trim().toLowerCase();
+    const key = `client:${address}`;
+    await this.assertNotLocked(key, ip);
+
+    const client = await this.db.clients.findFirstWhere({ email: { equals: address, mode: 'insensitive' } });
+    // verify() runs bcrypt even with no row, so a missing account is not faster.
+    const ok = await verify(password, client?.password_hash);
+    if (!client || !ok || client.status !== 'Active') {
+      await this.recordFailure(key, ip);
+      throw new UnauthorizedException('Incorrect email or password');
+    }
+    await this.limits.clear(`login:fail:${ip}|${key}`);
+
+    const user: AuthPrincipal = { id: client.id, kind: 'Client', role: 'Client', name: client.name, email: client.email };
+    const payload: JwtPayload = {
+      sub: client.id,
+      kind: 'Client',
+      role: 'Client',
+      name: client.name,
+      email: client.email,
+      tv: client.token_version ?? 0,
+    };
+    return { access_token: await this.jwt.signAsync(payload), user };
+  }
+
+  /**
    * Re-entering your password while signed in (linking Google). A wrong one
    * counts toward the lockout like a wrong sign-in. 400, not 401: a 401 would
    * end the session the admin is using.
@@ -249,6 +282,9 @@ export class AuthService implements OnApplicationBootstrap {
 
   /** GET /auth/me: who I am, and how I sign in. Never a secret or a hash. */
   async me(principal: AuthPrincipal): Promise<Me> {
+    if (principal.kind === 'Client') {
+      return { ...principal, twoFactorMethod: null, googleLinked: false, googleEmail: null };
+    }
     const staff = await this.db.staffUsers.findById(principal.id);
     return {
       ...principal,
