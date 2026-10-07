@@ -11,6 +11,8 @@ import { AccountPage } from './pages/Account';
 import { AppointmentsPage } from './pages/Appointments';
 import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
+import { ProjectDetailPage } from './pages/ProjectDetail';
+import { ProjectsPage } from './pages/Projects';
 import { SiteSettingsPage } from './pages/SiteSettings';
 import type { CmsCollection } from './types/cms';
 
@@ -21,9 +23,10 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 }
 
 /**
- * v1 routes: the CMS, clients, bookings, settings, your account and sign-in.
+ * v1 routes: the CMS, clients, projects, bookings, settings, your account and
+ * sign-in.
  *
- * The other CRM screens in src/pages (Dashboard, Bookings, Projects, Invoices,
+ * The other CRM screens in src/pages (Dashboard, Bookings, Invoices,
  * Messages, Enquiries, Settings) are kept but not routed: the v1 API does not
  * mount their modules, so every one of them would open on a 404. Routing them
  * again goes hand in hand with re-importing the modules in
@@ -54,7 +57,7 @@ export function App() {
   }
 
   // The API refuses these accounts anyway; saying so beats a screen of errors.
-  if (user.kind !== 'Staff' || !['Admin', 'Editor', 'Designer'].includes(user.role)) {
+  if (user.kind !== 'Staff' || !['Admin', 'Editor', 'Designer', 'Installer'].includes(user.role)) {
     return (
       <div className="wallpaper flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="max-w-sm text-ink">
@@ -85,6 +88,12 @@ export function App() {
         <Route
           path="/clients/:id"
           element={canSeeClients ? <ClientDetailPage /> : <Navigate to="/cms" replace />}
+        />
+        {/* Same people: Admin, and Designers for the projects assigned to them. */}
+        <Route path="/projects" element={canSeeClients ? <ProjectsPage /> : <Navigate to="/cms" replace />} />
+        <Route
+          path="/projects/:id"
+          element={canSeeClients ? <ProjectDetailPage /> : <Navigate to="/cms" replace />}
         />
         <Route
           path="/bookings"

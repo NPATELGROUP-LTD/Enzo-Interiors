@@ -13,12 +13,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
   **Clients** (`/clients`, `/clients/:id`, Admin + Designer; `?view=` /
-  `?new=1`; a client's page has Invite to portal / Resend invite),
+  `?new=1`; a client's page has Invite to portal / Resend invite and, for an
+  Admin, New project), **Projects** (`/projects` board/`?view=list`/`?new=1`,
+  `/projects/:id`, Admin + Designer),
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
-  users). CMS, Clients, Bookings and Settings each drop a menu on hover. Your own
+  users). CMS, Clients, Projects, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
   accept an invitation). The other CRM screens are still in `src/pages` but unrouted
@@ -32,19 +34,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   `/notifications` and the **newsletter** (`/newsletter` public sign-up,
   confirm, unsubscribe; admin subscribers, CSV, campaigns) and **clients**
   (`/clients`, `POST /clients/:id/invite`; portal `POST /auth/portal/forgot` /
-  `reset`). The other CRM modules and their tables (incl. the CRM's
+  `reset`) and **projects** (`/projects`; the portal's list, detail, approve,
+  request-changes are the only `'Client'` routes). The other CRM modules and their tables (incl. the CRM's
   `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
-**Roles (v1):** `Admin` does everything. `Editor` (and the CRM's `Designer`,
-treated the same) edits the CMS and sends changes for review; cannot publish,
-add or delete entries, or see Bookings/Settings. Reviews live on the entry
+**Roles (v1):** Settings › Users assigns `Admin`, `Editor` or `Designer`
+(`Installer` is a legacy value shown and treated as Designer). `Admin` does
+everything. `Editor` (and `Designer`, the same in the CMS) edits the CMS and
+sends changes for review; cannot publish, add or delete entries, or see
+Bookings/Settings. Reviews live on the entry
 (`cms_entries.review_*`) and clear on publish or send-back; both ends are told
 through `notifications` (the bell) and admins by email too. **Clients:** Admin
 all; `Designer` (and `Installer`) only clients with a project where
-`projects.assigned_designer_id` is them (`common/access/access.service.ts`;
-`clients.assigned_staff_id` grants nothing), editing only phone/address/notes;
-Editors none. Every `/clients` route names its `@Roles`.
+`projects.assigned_designer_id` or `assigned_installer_id` is them
+(`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
+editing only phone/address/notes; Editors none. **Projects:** Admin all
+(create, delete, assignment, `client_visible`, default off); a Designer only
+projects they design or install (others 404), changing stage, `progress_pct`
+and `current_stage` only; stage moves are direct (no approval step). Being
+assigned rings the bell. A client sees their own `client_visible` projects;
+project detail lists documents/invoices with that project_id AND its
+client_id, and for clients no Draft invoices, no internal documents, no
+activity; `storage_url` is never sent. Every `/clients` and `/projects` route
+names its `@Roles`. Deferred: projects from appointments/enquiries; the
+documents and invoices routes; a Designer's client detail still lists all of
+that client's invoices/documents.
 
 **Client portal access** is by invitation only: nobody types a client's
 password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,

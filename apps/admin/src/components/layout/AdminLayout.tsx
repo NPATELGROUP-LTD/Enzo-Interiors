@@ -8,6 +8,7 @@ import {
   Check,
   CloudCheck,
   ImagesSquare,
+  Kanban,
   ListBullets,
   Question,
   Star,
@@ -46,14 +47,15 @@ import { SearchPalette } from './SearchPalette';
 /**
  * The Enzo Interiors admin. In this version it manages the public website:
  * its content (the CMS menu below), consultation bookings, and its settings;
- * and the client book (Admin, and Designers for their projects' clients).
+ * and the CRM: the client book and the projects board (Admin, and Designers
+ * for the projects assigned to them and those projects' clients).
  *
  * Each section is one kind of content. Pages hold the words of each page; the
  * rest are the things several pages share — a service appears on the home
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * The other CRM screens (projects, invoices...) are still in src/pages but
+ * The other CRM screens (invoices, messages...) are still in src/pages but
  * are not routed, because the v1 API does not serve them. See App.tsx.
  */
 export const SECTIONS: Array<{
@@ -272,7 +274,7 @@ function BookingsMenu() {
   );
 }
 
-/** Who reaches the client book: Admin, and Designers (their projects' clients). Never Editors. */
+/** Who reaches the CRM (clients, projects): Admin, and Designers for their assigned work. Never Editors. */
 export const CLIENT_ROLES = ['Admin', 'Designer', 'Installer'] as const;
 
 /** The lists on the Clients screen, addressed as /clients?view=inactive. */
@@ -303,6 +305,41 @@ function ClientsMenu({ canAdd }: { canAdd: boolean }) {
             <>
               <Separator />
               <MenuItem to="/clients?new=1" label="Add client…" Icon={UserPlus} active={false} onChoose={close} />
+            </>
+          ) : null}
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** The views of the Projects screen, addressed as /projects?view=list. */
+export const PROJECT_VIEWS = [
+  { id: 'board', label: 'Board' },
+  { id: 'list', label: 'List' },
+] as const;
+
+/** Projects: the board, the list, and (Admin) a new project. */
+function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/projects' ? (new URLSearchParams(search).get('view') ?? 'board') : null;
+  return (
+    <MenuBarMenu id="projects-menu" label="Projects" to="/projects">
+      {(close) => (
+        <>
+          {PROJECT_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'board' ? '/projects' : `/projects?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          {canAdd ? (
+            <>
+              <Separator />
+              <MenuItem to="/projects?new=1" label="New project…" Icon={Kanban} active={false} onChoose={close} />
             </>
           ) : null}
         </>
@@ -402,6 +439,14 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
     };
   }
   if (pathname.startsWith('/clients/')) return { title: 'Client', back: { to: '/clients', label: 'Clients' } };
+  if (pathname === '/projects') {
+    const view = PROJECT_VIEWS.find(({ id }) => id !== 'board' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Projects', to: '/projects' }, { label: view.label }]} /> : 'Projects',
+      back: null,
+    };
+  }
+  if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
   if (pathname === '/account') return { title: 'Account', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
@@ -480,6 +525,7 @@ export function AdminLayout() {
         <>
           <CmsMenu counts={counts} />
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
+          {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {isAdmin ? <SettingsMenu /> : null}
         </>

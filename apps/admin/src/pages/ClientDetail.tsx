@@ -1,6 +1,6 @@
-import { EnvelopeSimple } from '@phosphor-icons/react';
+import { EnvelopeSimple, Plus } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 
 import {
   Button,
@@ -25,6 +25,8 @@ import { invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
+import { NewProjectDialog, useDesigners } from './Projects';
+
 /**
  * Client Detail with the six tabs named in websitemap.md 3.4:
  * Overview, Projects, Invoices, Documents, Notes, Activity Log.
@@ -47,6 +49,8 @@ export function ClientDetailPage() {
   const { isAdmin } = useAuth();
   const toast = useToast();
   const [inviting, setInviting] = useState(false);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const designers = useDesigners(isAdmin);
 
   if (loading) return <LoadingState label="Loading client…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -92,6 +96,11 @@ export function ClientDetailPage() {
         actions={
           <>
             {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+            {isAdmin ? (
+              <Button variant="secondary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setCreatingProject(true)}>
+                New project
+              </Button>
+            ) : null}
             {isAdmin && client.status === 'Active' && !client.has_portal_access ? (
               <Button
                 variant={invited ? 'secondary' : 'primary'}
@@ -167,7 +176,17 @@ export function ClientDetailPage() {
       {tab === 'projects' ? (
         projects.length === 0 ? (
           <Card className="p-0">
-            <EmptyState title="No projects" message="This client has no projects yet." />
+            <EmptyState
+              title="No projects"
+              message="This client has no projects yet."
+              action={
+                isAdmin ? (
+                  <Button variant="primary" onClick={() => setCreatingProject(true)}>
+                    New project
+                  </Button>
+                ) : null
+              }
+            />
           </Card>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
@@ -175,7 +194,9 @@ export function ClientDetailPage() {
               <Card key={project.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-ink">{project.name}</p>
+                    <Link to={`/projects/${project.id}`} className="text-link block truncate font-medium">
+                      {project.name}
+                    </Link>
                     <p className="mt-0.5 text-xs text-ink-muted">
                       {SERVICE_LABELS[project.type]}
                       {project.assigned_designer_name ? ` · ${project.assigned_designer_name}` : ''}
@@ -320,6 +341,13 @@ export function ClientDetailPage() {
           </Card>
         )
       ) : null}
+
+      <NewProjectDialog
+        open={creatingProject}
+        onClose={() => setCreatingProject(false)}
+        client={client}
+        designers={designers}
+      />
     </div>
   );
 }

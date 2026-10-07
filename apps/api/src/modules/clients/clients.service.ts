@@ -204,11 +204,10 @@ export class ClientsService {
    */
   async detail(principal: AuthPrincipal, id: string) {
     const client = await this.require(principal, id);
-    const isAdmin = this.access.isAdmin(principal);
 
     const [projects, invoices, documents, activity] = await Promise.all([
       this.db.projects.findWhere(
-        isAdmin ? { client_id: id } : { client_id: id, assigned_designer_id: principal.id },
+        { client_id: id, ...this.access.projectScope(principal) },
         { orderBy: { created_at: 'desc' } },
       ),
       this.db.invoices.findWhere({ client_id: id }, { orderBy: { created_at: 'desc' } }),

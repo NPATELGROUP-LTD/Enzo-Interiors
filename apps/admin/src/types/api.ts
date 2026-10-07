@@ -138,11 +138,14 @@ export interface Project {
   progress_pct: number;
   current_stage: string | null;
   assigned_designer_id: string | null;
+  assigned_installer_id: string | null;
   client_visible: boolean;
   created_at: string;
   updated_at: string;
-  client_name: string;
-  assigned_designer_name: string | null;
+  /** On /projects responses; not on the rows inside a client's detail. */
+  client_name?: string;
+  assigned_designer_name?: string | null;
+  assigned_installer_name?: string | null;
 }
 
 export interface Invoice {
@@ -329,7 +332,8 @@ export interface ClientDetail {
 export interface ProjectDetail {
   project: Project;
   client: { id: string; name: string; email: string } | null;
-  documents: DocumentRecord[];
+  /** This project's and this client's only; never where the file is stored. */
+  documents: Array<Omit<DocumentRecord, 'storage_url' | 'download_url' | 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
   timeline: Array<{

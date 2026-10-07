@@ -1,19 +1,16 @@
 import clsx from 'clsx';
-import {
-  ArrowLeft,
-  UploadSimple,
-} from '@phosphor-icons/react';
+import { Trash } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
   Button,
   Card,
+  ConfirmDialog,
   EmptyState,
   ErrorState,
   Input,
   LoadingState,
-  Modal,
   PageHeader,
   Progress,
   Select,
@@ -27,28 +24,31 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { date, dateTime, fileSize, humanise, money } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
-import type { DocumentType, ProjectDetail, ProjectStage, StaffUser } from '@/types/api';
-import { DOCUMENT_TYPES, PROJECT_STAGES, SERVICE_LABELS } from '@/types/api';
+import type { ProjectDetail, ProjectStage } from '@/types/api';
+import { PROJECT_STAGES, SERVICE_LABELS } from '@/types/api';
 
+import { useDesigners } from './Projects';
+
+/**
+ * One project. Everyone who can open it moves its stage and keeps its
+ * progress and status line up to date; only an Admin assigns the designer
+ * and installer, sends it to the client, or deletes it (the API enforces it).
+ */
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const { data, loading, error, refetch } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
-  const staff = useQuery<StaffUser[]>('/staff');
+  const designers = useDesigners(isAdmin);
   const [tab, setTab] = useState('timeline');
-  const [uploading, setUploading] = useState(false);
-  const [uploadPending, setUploadPending] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadForm, setUploadForm] = useState({
-    name: '',
-    type: 'Plan' as DocumentType,
-    size_bytes: 250_000,
-    client_visible: true,
-  });
+  const [savingProgress, setSavingProgress] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (loading) return <LoadingState label="Loading project…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -76,44 +76,68 @@ export function ProjectDetailPage() {
     }
   };
 
-  const submitUpload = async (event: FormEvent) => {
+  const saveProgress = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setUploadError(null);
-    if (uploadForm.name.trim().length < 1) return setUploadError('Enter a file name.');
-    if (!client) return setUploadError('This project has no client attached.');
+    const form = new FormData(event.currentTarget);
+    const progress = Number(form.get('progress_pct'));
+    if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
+      toast.error('Progress is a whole number from 0 to 100.');
+      return;
+    }
+    setSavingProgress(true);
+    const note = String(form.get('current_stage') ?? '').trim();
+    await patch({ progress_pct: progress, current_stage: note || null }, 'Progress saved.');
+    setSavingProgress(false);
+  };
 
-    setUploadPending(true);
+  const remove = async () => {
+    setDeleting(false);
     try {
-      await api.post('/documents/upload', {
-        client_id: client.id,
-        project_id: project.id,
-        name: uploadForm.name.trim(),
-        type: uploadForm.type,
-        size_bytes: uploadForm.size_bytes,
-        client_visible: uploadForm.client_visible,
-      });
-      toast.success(`${uploadForm.name.trim()} added.`);
-      setUploading(false);
-      setUploadForm({ name: '', type: 'Plan', size_bytes: 250_000, client_visible: true });
-      await refetch();
+      await api.delete(`/projects/${project.id}`);
+      toast.success(`${project.name} deleted.`);
+      navigate('/projects', { replace: true });
     } catch (caught) {
-      setUploadError(caught instanceof ApiError ? caught.message : 'Could not add this document.');
-    } finally {
-      setUploadPending(false);
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this project.');
     }
   };
 
-  return (
-    <>
-      <Link to="/projects" className="text-link mb-4 inline-flex items-center gap-1.5">
-        <ArrowLeft size={14} aria-hidden="true" />
-        All projects
-      </Link>
+  const assign = (field: 'assigned_designer_id' | 'assigned_installer_id', label: string) => (
+    <Select
+      label={label}
+      value={project[field] ?? ''}
+      onChange={(event) => void patch({ [field]: event.target.value || null }, `${label} updated.`)}
+    >
+      <option value="">Unassigned</option>
+      {/* Someone assigned before they stopped being a Designer still shows. */}
+      {project[field] && !designers.some((member) => member.id === project[field]) ? (
+        <option value={project[field] ?? ''}>
+          {(field === 'assigned_designer_id' ? project.assigned_designer_name : project.assigned_installer_name) ??
+            'Someone else'}
+        </option>
+      ) : null}
+      {designers.map((member) => (
+        <option key={member.id} value={member.id}>
+          {member.name}
+        </option>
+      ))}
+    </Select>
+  );
 
+  return (
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={project.name}
-        description={`${client?.name ?? 'Unknown client'} · ${SERVICE_LABELS[project.type]}`}
-        actions={<StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>}
+        description={`${project.client_name ?? client?.name ?? 'Unknown client'} · ${SERVICE_LABELS[project.type]}`}
+        actions={
+          <>
+            <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+            {isAdmin ? (
+              <Button variant="ghost" className="text-danger" icon={<Trash size={15} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+                Delete
+              </Button>
+            ) : null}
+          </>
+        }
       />
 
       {awaiting_client_decision ? (
@@ -172,9 +196,33 @@ export function ProjectDetailPage() {
           <div className="mt-5">
             <Progress value={project.progress_pct} label="Project progress" />
           </div>
-          {project.current_stage ? (
-            <p className="mt-2 text-ink-muted">{project.current_stage}</p>
-          ) : null}
+
+          {/* Keyed on the saved values, so a stage move's new defaults show up. */}
+          <form
+            key={`${project.progress_pct}-${project.current_stage ?? ''}`}
+            onSubmit={saveProgress}
+            className="mt-4 grid items-end gap-3 sm:grid-cols-[7rem_1fr_auto]"
+          >
+            <Input
+              label="Progress (%)"
+              name="progress_pct"
+              type="number"
+              min={0}
+              max={100}
+              step={1}
+              defaultValue={project.progress_pct}
+            />
+            <Input
+              label="Where it’s at"
+              name="current_stage"
+              maxLength={80}
+              defaultValue={project.current_stage ?? ''}
+              placeholder="Drawings with the client"
+            />
+            <Button type="submit" variant="secondary" loading={savingProgress}>
+              Save
+            </Button>
+          </form>
         </Card>
 
         <Card>
@@ -192,35 +240,23 @@ export function ProjectDetailPage() {
               ))}
             </Select>
 
-            <Select
-              label="Assigned designer"
-              value={project.assigned_designer_id ?? ''}
-              onChange={(event) =>
-                void patch(
-                  { assigned_designer_id: event.target.value || null },
-                  'Designer updated.',
-                )
-              }
-            >
-              <option value="">Unassigned</option>
-              {(staff.data ?? []).map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name} · {member.role}
-                </option>
-              ))}
-            </Select>
-
-            <Toggle
-              label="Send to client"
-              description="When off, this project is hidden from the client portal entirely."
-              checked={project.client_visible}
-              onChange={(next) =>
-                void patch(
-                  { client_visible: next },
-                  next ? 'Now visible to the client.' : 'Hidden from the client.',
-                )
-              }
-            />
+            {isAdmin ? (
+              <>
+                {assign('assigned_designer_id', 'Designer')}
+                {assign('assigned_installer_id', 'Installer')}
+                <Toggle
+                  label="Send to client"
+                  description="When off, this project is hidden from the client portal entirely."
+                  checked={project.client_visible}
+                  onChange={(next) =>
+                    void patch(
+                      { client_visible: next },
+                      next ? 'Now visible to the client.' : 'Hidden from the client.',
+                    )
+                  }
+                />
+              </>
+            ) : null}
           </div>
         </Card>
       </div>
@@ -242,16 +278,17 @@ export function ProjectDetailPage() {
             <p className="label-eyebrow">Project details</p>
             <dl className="mt-3 rows">
               {[
-                ['Client', client?.name ?? '—'],
+                ['Client', client ? <Link key="client" to={`/clients/${client.id}`} className="text-link">{client.name}</Link> : '—'],
                 ['Service', SERVICE_LABELS[project.type]],
                 ['Stage', project.status],
                 ['Progress', `${project.progress_pct}%`],
                 ['Designer', project.assigned_designer_name ?? 'Unassigned'],
+                ['Installer', project.assigned_installer_name ?? 'Unassigned'],
                 ['Visible to client', project.client_visible ? 'Yes' : 'No'],
                 ['Created', date(project.created_at)],
                 ['Last updated', dateTime(project.updated_at)],
               ].map(([label, value]) => (
-                <div key={label} className="flex justify-between gap-3">
+                <div key={String(label)} className="flex justify-between gap-3">
                   <dt className="text-ink-muted">{label}</dt>
                   <dd className="text-right font-medium text-ink">{value}</dd>
                 </div>
@@ -280,61 +317,42 @@ export function ProjectDetailPage() {
       ) : null}
 
       {tab === 'documents' ? (
-        <>
-          <div className="mb-3 flex justify-end">
-            <Button
-              variant="primary"
-              icon={<UploadSimple size={16} aria-hidden="true" />}
-              onClick={() => setUploading(true)}
-            >
-              Add document
-            </Button>
-          </div>
-          {documents.length === 0 ? (
-            <Card className="p-0">
-              <EmptyState
-                title="No documents"
-                message="Add plans, contracts or mood boards for this project."
-                action={
-                  <Button variant="primary" onClick={() => setUploading(true)}>
-                    Add document
-                  </Button>
-                }
-              />
-            </Card>
-          ) : (
-            <TableWrap>
-              <thead>
-                <tr>
-                  <Th>Name</Th>
-                  <Th>Type</Th>
-                  <Th>Uploaded</Th>
-                  <Th>Size</Th>
-                  <Th>Client can see</Th>
+        documents.length === 0 ? (
+          <Card className="p-0">
+            <EmptyState title="No documents" message="Plans, contracts and mood boards for this project appear here." />
+          </Card>
+        ) : (
+          <TableWrap>
+            <thead>
+              <tr>
+                <Th>Name</Th>
+                <Th>Type</Th>
+                <Th>Uploaded</Th>
+                <Th>Size</Th>
+                <Th>Client can see</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {documents.map((document) => (
+                <tr key={document.id}>
+                  <Td className="font-medium text-ink">{document.name}</Td>
+                  <Td>
+                    <StatusTag tone="info">{document.type}</StatusTag>
+                  </Td>
+                  <Td className="whitespace-nowrap text-ink-muted">{date(document.upload_date)}</Td>
+                  <Td className="tabular whitespace-nowrap text-ink-muted">
+                    {fileSize(document.size_bytes)}
+                  </Td>
+                  <Td>
+                    <StatusTag tone={document.client_visible ? 'success' : 'neutral'}>
+                      {document.client_visible ? 'Visible' : 'Internal only'}
+                    </StatusTag>
+                  </Td>
                 </tr>
-              </thead>
-              <tbody>
-                {documents.map((document) => (
-                  <tr key={document.id}>
-                    <Td className="font-medium text-ink">{document.name}</Td>
-                    <Td>
-                      <StatusTag tone="info">{document.type}</StatusTag>
-                    </Td>
-                    <Td className="whitespace-nowrap text-ink-muted">{date(document.upload_date)}</Td>
-                    <Td className="tabular whitespace-nowrap text-ink-muted">
-                      {fileSize(document.size_bytes)}
-                    </Td>
-                    <Td>
-                      <StatusTag tone={document.client_visible ? 'success' : 'neutral'}>
-                        {document.client_visible ? 'Visible' : 'Internal only'}
-                      </StatusTag>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </TableWrap>
-          )}
-        </>
+              ))}
+            </tbody>
+          </TableWrap>
+        )
       ) : null}
 
       {tab === 'invoices' ? (
@@ -403,67 +421,14 @@ export function ProjectDetailPage() {
         )
       ) : null}
 
-      <Modal
-        open={uploading}
-        onClose={() => setUploading(false)}
-        title="Add document"
-        description="Prototype phase: file metadata is recorded, no file is transferred."
-        footer={
-          <>
-            <Button variant="secondary" onClick={() => setUploading(false)} disabled={uploadPending}>
-              Cancel
-            </Button>
-            <Button type="submit" form="upload-form" variant="primary" loading={uploadPending}>
-              Add document
-            </Button>
-          </>
-        }
-      >
-        <form id="upload-form" onSubmit={submitUpload} className="flex flex-col gap-4" noValidate>
-          <Input
-            label="File name"
-            value={uploadForm.name}
-            onChange={(event) => setUploadForm({ ...uploadForm, name: event.target.value })}
-            placeholder="Kitchen Plan — Rev D.pdf"
-            required
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Select
-              label="Type"
-              value={uploadForm.type}
-              onChange={(event) =>
-                setUploadForm({ ...uploadForm, type: event.target.value as DocumentType })
-              }
-            >
-              {DOCUMENT_TYPES.map((type) => (
-                <option key={type} value={type}>
-                  {type}
-                </option>
-              ))}
-            </Select>
-            <Input
-              label="Size (bytes)"
-              type="number"
-              min={0}
-              value={uploadForm.size_bytes}
-              onChange={(event) =>
-                setUploadForm({ ...uploadForm, size_bytes: Number(event.target.value) })
-              }
-            />
-          </div>
-          <Toggle
-            label="Visible to the client"
-            description="Internal documents stay out of the client portal."
-            checked={uploadForm.client_visible}
-            onChange={(next) => setUploadForm({ ...uploadForm, client_visible: next })}
-          />
-          {uploadError ? (
-            <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
-              {uploadError}
-            </p>
-          ) : null}
-        </form>
-      </Modal>
-    </>
+      <ConfirmDialog
+        open={deleting}
+        title={`Delete ${project.name}?`}
+        message="Its documents stay on the client’s record. A project with invoices cannot be deleted."
+        confirmLabel="Delete"
+        onConfirm={() => void remove()}
+        onCancel={() => setDeleting(false)}
+      />
+    </div>
   );
 }

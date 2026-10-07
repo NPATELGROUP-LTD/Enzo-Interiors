@@ -30,14 +30,16 @@
 /* -------------------------------------------------------------------------- */
 
 /**
- * v1's admin has two roles: Admin, and Editor (writes content, cannot publish).
- * Designer and Installer are the CRM's; a Designer is treated as an Editor.
+ * Admin does everything. Editor writes website content (cannot publish) and
+ * never reaches the CRM. Designer works the CRM projects assigned to them (as
+ * designer or installer) and may also write content like an Editor. Installer
+ * is a legacy value treated exactly as Designer.
  */
 export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-/** The roles the v1 admin invites and assigns. */
-export const ADMIN_ROLES = ['Admin', 'Editor'] as const;
+/** The roles the admin invites and assigns (Installer shows as Designer). */
+export const ADMIN_ROLES = ['Admin', 'Editor', 'Designer'] as const;
 
 export const CLIENT_STATUSES = ['Active', 'Inactive'] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -182,6 +184,11 @@ export interface Project extends BaseRecord {
   progress_pct: number;
   current_stage: string | null;
   assigned_designer_id: string | null;
+  /**
+   * Who fits it (a Designer-role user). Either assignment gives access.
+   * Optional so a create may leave it out; a row read back always has it.
+   */
+  assigned_installer_id?: string | null;
   client_visible: boolean;
   created_at: string;
   updated_at: string;
@@ -497,7 +504,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply';
+  kind: 'booking' | 'review' | 'review_reply' | 'project';
   title: string;
   body: string | null;
   link: string | null;

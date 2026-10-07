@@ -1,4 +1,4 @@
-import { Bell, CalendarCheck, ChatCircleText, CheckCircle } from '@phosphor-icons/react';
+import { Bell, CalendarCheck, ChatCircleText, CheckCircle, Kanban } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Badge } from './Desktop';
 
 interface Note {
   id: string;
-  kind: 'booking' | 'review' | 'review_reply';
+  kind: 'booking' | 'review' | 'review_reply' | 'project';
   title: string;
   body: string | null;
   link: string | null;
@@ -18,14 +18,15 @@ interface Note {
   created_at: string;
 }
 
-const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle };
+const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban };
 
 /** How often the bell asks. It also asks whenever the window comes back into focus. */
 const POLL_MS = 60_000;
 
 /**
- * The bell in the menu bar: new bookings, pages sent for review, and replies
- * to your own review requests. Opening one marks it read and goes to it.
+ * The bell in the menu bar: new bookings, pages sent for review, replies
+ * to your own review requests, and projects you were put on. Opening one marks
+ * it read and goes to it.
  *
  * ponytail: polls once a minute rather than holding a socket open. Plenty for
  * a handful of staff; push over the existing socket.io gateway if it ever

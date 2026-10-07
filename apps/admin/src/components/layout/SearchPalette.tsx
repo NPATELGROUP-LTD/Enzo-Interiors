@@ -7,6 +7,7 @@ import {
   CloudCheck,
   UserCircle,
   Image as ImageIcon,
+  Kanban,
   MagnifyingGlass,
   Moon,
   SignOut,
@@ -44,7 +45,7 @@ interface Result {
 
 export interface PaletteActions {
   isAdmin: boolean;
-  /** May open the client book (Admin, Designer). */
+  /** May open the CRM: clients and projects (Admin, Designer). */
   clients: boolean;
   unpublished: number;
   publishAll: () => void;
@@ -170,7 +171,10 @@ export function SearchPalette({ open, onClose, actions }: {
         run: go(row.to),
       })),
       ...(actions.clients
-        ? [{ id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') }]
+        ? [
+            { id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') },
+            { id: 'projects', group: 'Go to', label: 'Projects', detail: 'The five-stage board, from consultation to completed', Icon: Kanban, run: go('/projects') },
+          ]
         : []),
       ...(actions.isAdmin
         ? [

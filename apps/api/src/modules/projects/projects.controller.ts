@@ -13,6 +13,7 @@ import {
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
+import { NotificationsModule } from '../notifications/notifications.module';
 import {
   CreateProjectDto,
   ProjectDecisionDto,
@@ -21,33 +22,45 @@ import {
 } from './dto';
 import { ProjectsService } from './projects.service';
 
+/**
+ * The CRM's projects.
+ *
+ * Every route names its roles. Admin: everything. Designer (and Installer,
+ * treated the same): the projects assigned to them, stage and progress only.
+ * Client: their own shared projects, through the four routes the portal
+ * calls (list, detail, approve, request changes). Editors never get in.
+ */
 @Controller('projects')
 export class ProjectsController {
   constructor(private readonly projects: ProjectsService) {}
 
   /** Admin Kanban/list, and the portal's My Projects, both read from here. */
   @Get()
+  @Roles('Admin', 'Designer', 'Installer', 'Client')
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.projects.list(principal);
   }
 
   @Get(':id')
+  @Roles('Admin', 'Designer', 'Installer')
   findOne(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.projects.findOne(principal, id);
   }
 
-  /** Aggregate feed for Project Detail (timeline, documents, activity). */
+  /** Aggregate feed for Project Detail (timeline, documents, invoices, activity). */
   @Get(':id/detail')
+  @Roles('Admin', 'Designer', 'Installer', 'Client')
   detail(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.projects.detail(principal, id);
   }
 
   @Post()
-  @Roles('Admin', 'Designer')
+  @Roles('Admin')
   create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateProjectDto) {
     return this.projects.create(principal, dto);
   }
 
+  /** A Designer may send progress_pct and current_stage only (ProjectsService). */
   @Put(':id')
   @Roles('Admin', 'Designer', 'Installer')
   update(
@@ -93,6 +106,7 @@ export class ProjectsController {
     return this.projects.requestChanges(principal, id, dto);
   }
 
+  /** Refuses while invoices reference it; documents are detached, not deleted. */
   @Delete(':id')
   @Roles('Admin')
   remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
@@ -101,8 +115,8 @@ export class ProjectsController {
 }
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [ProjectsController],
   providers: [ProjectsService],
-  exports: [ProjectsService],
 })
 export class ProjectsModule {}

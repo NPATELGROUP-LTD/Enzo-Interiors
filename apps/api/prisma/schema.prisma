@@ -82,20 +82,23 @@ model Client {
 }
 
 model Project {
-  id                   String   @id
-  client_id            String
-  name                 String
-  type                 String
-  status               String
-  progress_pct         Int      @default(0)
-  current_stage        String?
-  assigned_designer_id String?
-  client_visible       Boolean  @default(true)
-  created_at           DateTime @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime @default(now()) @db.Timestamptz(6)
+  id                    String   @id
+  client_id             String
+  name                  String
+  type                  String
+  status                String
+  progress_pct          Int      @default(0)
+  current_stage         String?
+  assigned_designer_id  String?
+  /// Who fits it: a Designer-role user. Either assignment gives access.
+  assigned_installer_id String?
+  client_visible        Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([client_id])
   @@index([assigned_designer_id])
+  @@index([assigned_installer_id])
   @@map("projects")
 }
 
@@ -477,7 +480,7 @@ model Appointment {
 model Notification {
   id           String    @id
   recipient_id String
-  // "booking" | "review" | "review_reply"
+  // "booking" | "review" | "review_reply" | "project"
   kind         String
   title        String
   body         String?

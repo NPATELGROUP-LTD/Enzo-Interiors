@@ -80,6 +80,7 @@ Index: `idx_clients_status`, `idx_clients_assigned_staff_id`
 | progress_pct | smallint | default 0, check 0–100 |
 | current_stage | varchar(80) | nullable |
 | assigned_designer_id | uuid | FK → staff_users.id, nullable |
+| assigned_installer_id | uuid | FK → staff_users.id, nullable, indexed (migration 9); a Designer-role user. Either assignment gives access |
 | client_visible | boolean | default true |
 | created_at | timestamptz | default now() |
 | updated_at | timestamptz | default now() |

@@ -3,27 +3,37 @@ import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinL
 
 import { PROJECT_STAGES, ProjectStage, SERVICE_TYPES, ServiceType } from '../../common/types/domain';
 
+/** POST /projects — Admin only. */
 export class CreateProjectDto {
-  @IsString() client_id!: string;
+  @IsString() @MaxLength(64) client_id!: string;
 
   @IsString() @MinLength(2, { message: 'Enter a project name' }) @MaxLength(160) name!: string;
 
   @IsIn(SERVICE_TYPES, { message: `Type must be one of: ${SERVICE_TYPES.join(', ')}` })
   type!: ServiceType;
 
-  @IsOptional() @IsIn(PROJECT_STAGES) status?: ProjectStage;
+  @IsOptional() @IsIn(PROJECT_STAGES, { message: `Stage must be one of: ${PROJECT_STAGES.join(', ')}` })
+  status?: ProjectStage;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
-  @IsOptional() @IsString() assigned_designer_id?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
+  /** Off unless the Admin sends it to the client. */
   @IsOptional() @IsBoolean() client_visible?: boolean;
 }
 
+/**
+ * PUT /projects/:id. A Designer may send only progress_pct and current_stage
+ * (ProjectsService); the rest is the Admin's. The client is fixed at creation:
+ * moving a project would strand its documents and invoices.
+ */
 export class UpdateProjectDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(160) name?: string;
   @IsOptional() @IsIn(SERVICE_TYPES) type?: ServiceType;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
-  @IsOptional() @IsString() assigned_designer_id?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
   /** The admin's "send to client" toggle. */
   @IsOptional() @IsBoolean() client_visible?: boolean;
 }

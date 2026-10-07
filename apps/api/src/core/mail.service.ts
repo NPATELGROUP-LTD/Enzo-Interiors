@@ -341,7 +341,7 @@ To book another time, reply to this email or ${contact}.`,
       html: layout(
         subject,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
-${para(`${inviter} has invited you to the Enzo Interiors admin as ${role === 'Admin' ? 'an Admin' : 'an Editor'}. Choose a password to get started. The link works once and expires in 7 days.`)}
+${para(`${inviter} has invited you to the Enzo Interiors admin as ${role === 'Designer' ? 'a Designer' : role === 'Admin' ? 'an Admin' : 'an Editor'}. Choose a password to get started. The link works once and expires in 7 days.`)}
 ${button(link, 'Choose your password')}`,
       ),
       text: `Hi ${name},
