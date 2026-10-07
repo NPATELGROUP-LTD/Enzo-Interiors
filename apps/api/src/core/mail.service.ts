@@ -351,6 +351,23 @@ ${link}`,
     };
   },
 
+  portalInvite(name: string, inviter: string, link: string): Rendered {
+    const subject = 'Your Enzo Interiors client portal';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Choose a password to get started. The link works once and expires in 7 days.`)}
+${button(link, 'Choose your password')}`,
+      ),
+      text: `Hi ${name},
+
+${inviter} has set up your Enzo Interiors client portal. Choose a password here (works once, expires in 7 days):
+${link}`,
+    };
+  },
+
   reviewRequested(editor: string, page: string, note: string | null, link: string): Rendered {
     const subject = `${editor} sent ${page} for review`;
     return {

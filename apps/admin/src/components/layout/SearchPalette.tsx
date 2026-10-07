@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import {
+  AddressBook,
   ArrowSquareOut,
   Browsers,
   CalendarCheck,
@@ -43,6 +44,8 @@ interface Result {
 
 export interface PaletteActions {
   isAdmin: boolean;
+  /** May open the client book (Admin, Designer). */
+  clients: boolean;
   unpublished: number;
   publishAll: () => void;
   toggleTheme: () => void;
@@ -166,6 +169,9 @@ export function SearchPalette({ open, onClose, actions }: {
         Icon: row.Icon,
         run: go(row.to),
       })),
+      ...(actions.clients
+        ? [{ id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') }]
+        : []),
       ...(actions.isAdmin
         ? [
             { id: 'bookings', group: 'Go to', label: 'Bookings', detail: 'Consultations, new booking', Icon: CalendarCheck, run: go('/bookings') },

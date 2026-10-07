@@ -17,7 +17,7 @@ export const ADMIN = { email: 'admin@test.enzo.local', password: 'test-admin-pas
  * anything. Locally it is `enzo_test` on the same server as `.env`'s DATABASE_URL
  * (created on first use); in CI set DATABASE_URL to the service container.
  */
-export async function startTestApp(): Promise<{ url: string; close: () => Promise<void> }> {
+export async function startTestApp(): Promise<{ url: string; nest: NestExpressApplication; close: () => Promise<void> }> {
   if (existsSync('.env')) process.loadEnvFile('.env'); // never overrides what is already set
   const base = new URL(process.env.DATABASE_URL ?? '');
   if (!base.pathname.endsWith('_test')) base.pathname = '/enzo_test';
@@ -51,5 +51,6 @@ export async function startTestApp(): Promise<{ url: string; close: () => Promis
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
   await app.listen(0, '127.0.0.1');
   const { port } = app.getHttpServer().address() as AddressInfo;
-  return { url: `http://127.0.0.1:${port}`, close: () => app.close() };
+  // `nest` lets a test reach a provider, e.g. to read the email it would have sent.
+  return { url: `http://127.0.0.1:${port}`, nest: app, close: () => app.close() };
 }

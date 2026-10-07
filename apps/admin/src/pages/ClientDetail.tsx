@@ -1,10 +1,9 @@
-import {
-  ArrowLeft,
-} from '@phosphor-icons/react';
+import { EnvelopeSimple } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 import {
+  Button,
   Card,
   EmptyState,
   ErrorState,
@@ -17,9 +16,12 @@ import {
   Td,
   Th,
 } from '@/components/ui';
+import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
-import { date, dateTime, fileSize, humanise, money, relative } from '@/lib/format';
-import { clientTone, invoiceTone, projectTone } from '@/lib/status';
+import { ApiError, api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { date, dateTime, fileSize, humanise, money } from '@/lib/format';
+import { invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
@@ -42,13 +44,31 @@ export function ClientDetailPage() {
     id ? `/clients/${id}/detail` : null,
   );
   const [tab, setTab] = useState('overview');
+  const { isAdmin } = useAuth();
+  const toast = useToast();
+  const [inviting, setInviting] = useState(false);
 
   if (loading) return <LoadingState label="Loading client…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Client not found." />;
 
-  const { client, assigned_staff, projects, invoices, documents, bookings, activity, stats } =
-    data;
+  const { client, assigned_staff, projects, invoices, documents, activity, stats } = data;
+  // No invitation table: the activity log already records every one sent.
+  const invited = activity.some((entry) => entry.action === 'client_portal_invite');
+
+  const invite = async () => {
+    setInviting(true);
+    try {
+      const { emailed } = await api.post<{ emailed: boolean }>(`/clients/${client.id}/invite`);
+      if (emailed) toast.success(`Invitation sent to ${client.email}. The link lasts 7 days.`);
+      else toast.error('The invitation could not be emailed. Check Settings › Emails, then send it again.');
+      await refetch();
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not send the invitation.');
+    } finally {
+      setInviting(false);
+    }
+  };
 
   const tabsWithCounts = TABS.map((entry) => ({
     ...entry,
@@ -65,16 +85,25 @@ export function ClientDetailPage() {
   }));
 
   return (
-    <>
-      <Link to="/clients" className="text-link mb-4 inline-flex items-center gap-1.5">
-        <ArrowLeft size={14} aria-hidden="true" />
-        All clients
-      </Link>
-
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={client.name}
         description={[client.email, client.phone].filter(Boolean).join(' · ')}
-        actions={<StatusTag tone={clientTone(client.status)}>{client.status}</StatusTag>}
+        actions={
+          <>
+            {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+            {isAdmin && client.status === 'Active' && !client.has_portal_access ? (
+              <Button
+                variant={invited ? 'secondary' : 'primary'}
+                icon={<EnvelopeSimple size={16} aria-hidden="true" />}
+                loading={inviting}
+                onClick={invite}
+              >
+                {invited ? 'Resend invite' : 'Invite to portal'}
+              </Button>
+            ) : null}
+          </>
+        }
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -103,7 +132,7 @@ export function ClientDetailPage() {
           <p className="label-eyebrow">Client since</p>
           <p className="mt-1.5 text-lg font-bold text-green-900">{date(client.joined_date)}</p>
           <p className="mt-1 text-xs text-ink-muted">
-            {assigned_staff ? `Looked after by ${assigned_staff.name}` : 'Unassigned'}
+            {assigned_staff ? `Looked after by ${assigned_staff.name}` : ''}
           </p>
         </Card>
       </div>
@@ -111,7 +140,7 @@ export function ClientDetailPage() {
       <Tabs tabs={tabsWithCounts} active={tab} onChange={setTab} />
 
       {tab === 'overview' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid max-w-2xl gap-4">
           <Card>
             <p className="label-eyebrow">Contact details</p>
             <dl className="mt-3 rows">
@@ -119,8 +148,11 @@ export function ClientDetailPage() {
                 ['Email', client.email],
                 ['Phone', client.phone ?? '—'],
                 ['Address', client.address ?? '—'],
-                ['Portal access', client.has_portal_access ? 'Enabled' : 'Not set up'],
-                ['Assigned to', assigned_staff ? `${assigned_staff.name} (${assigned_staff.role})` : 'Unassigned'],
+                [
+                  'Portal access',
+                  client.has_portal_access ? 'Signed up' : invited ? 'Invited, not signed up yet' : 'Not invited',
+                ],
+                ['Looked after by', assigned_staff ? assigned_staff.name : 'Nobody in particular'],
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-wrap justify-between gap-2">
                   <dt className="text-ink-muted">{label}</dt>
@@ -128,29 +160,6 @@ export function ClientDetailPage() {
                 </div>
               ))}
             </dl>
-          </Card>
-
-          <Card>
-            <p className="label-eyebrow">Bookings</p>
-            {bookings.length === 0 ? (
-              <p className="py-6 text-center text-ink-muted">No consultations booked.</p>
-            ) : (
-              <ul className="mt-3 rows">
-                {bookings.slice(-6).reverse().map((booking) => (
-                  <li key={booking.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 first:pt-0">
-                    <div>
-                      <p className="text-ink">{SERVICE_LABELS[booking.service_type]} consultation</p>
-                      <p className="text-xs text-ink-muted">
-                        {dateTime(booking.date_time)} · {relative(booking.date_time)}
-                      </p>
-                    </div>
-                    <StatusTag tone={booking.status === 'Confirmed' ? 'success' : booking.status === 'Pending' ? 'warning' : 'neutral'}>
-                      {booking.status}
-                    </StatusTag>
-                  </li>
-                ))}
-              </ul>
-            )}
           </Card>
         </div>
       ) : null}
@@ -166,9 +175,7 @@ export function ClientDetailPage() {
               <Card key={project.id}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <Link to={`/projects/${project.id}`} className="text-link block truncate">
-                      {project.name}
-                    </Link>
+                    <p className="truncate font-medium text-ink">{project.name}</p>
                     <p className="mt-0.5 text-xs text-ink-muted">
                       {SERVICE_LABELS[project.type]}
                       {project.assigned_designer_name ? ` · ${project.assigned_designer_name}` : ''}
@@ -274,7 +281,7 @@ export function ClientDetailPage() {
             <p className="mt-3 whitespace-pre-wrap leading-relaxed text-ink">{client.notes}</p>
           ) : (
             <p className="py-6 text-center text-ink-muted">
-              No notes recorded. Edit the client from the Clients list to add some.
+              No notes yet. Add some with the pencil beside them in the client list.
             </p>
           )}
         </Card>
@@ -313,6 +320,6 @@ export function ClientDetailPage() {
           </Card>
         )
       ) : null}
-    </>
+    </div>
   );
 }

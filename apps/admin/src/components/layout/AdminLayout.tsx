@@ -11,6 +11,7 @@ import {
   ListBullets,
   Question,
   Star,
+  UserPlus,
   UsersThree,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
@@ -44,14 +45,15 @@ import { SearchPalette } from './SearchPalette';
 
 /**
  * The Enzo Interiors admin. In this version it manages the public website:
- * its content (the CMS menu below), consultation bookings, and its settings.
+ * its content (the CMS menu below), consultation bookings, and its settings;
+ * and the client book (Admin, and Designers for their projects' clients).
  *
  * Each section is one kind of content. Pages hold the words of each page; the
  * rest are the things several pages share — a service appears on the home
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * The CRM screens (clients, projects...) are still in src/pages but
+ * The other CRM screens (projects, invoices...) are still in src/pages but
  * are not routed, because the v1 API does not serve them. See App.tsx.
  */
 export const SECTIONS: Array<{
@@ -270,6 +272,45 @@ function BookingsMenu() {
   );
 }
 
+/** Who reaches the client book: Admin, and Designers (their projects' clients). Never Editors. */
+export const CLIENT_ROLES = ['Admin', 'Designer', 'Installer'] as const;
+
+/** The lists on the Clients screen, addressed as /clients?view=inactive. */
+export const CLIENT_VIEWS = [
+  { id: 'all', label: 'All clients' },
+  { id: 'active', label: 'Active' },
+  { id: 'inactive', label: 'Inactive' },
+] as const;
+
+/** Clients: its lists, and (Admin) a new client. */
+function ClientsMenu({ canAdd }: { canAdd: boolean }) {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/clients' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
+  return (
+    <MenuBarMenu id="clients-menu" label="Clients" to="/clients">
+      {(close) => (
+        <>
+          {CLIENT_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'all' ? '/clients' : `/clients?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          {canAdd ? (
+            <>
+              <Separator />
+              <MenuItem to="/clients?new=1" label="Add client…" Icon={UserPlus} active={false} onChoose={close} />
+            </>
+          ) : null}
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
 /** Settings: each pane, as in its sidebar. */
 function SettingsMenu() {
   return (
@@ -353,6 +394,14 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
       back: null,
     };
   }
+  if (pathname === '/clients') {
+    const view = CLIENT_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Clients', to: '/clients' }, { label: view.label }]} /> : 'Clients',
+      back: null,
+    };
+  }
+  if (pathname.startsWith('/clients/')) return { title: 'Client', back: { to: '/clients', label: 'Clients' } };
   if (pathname === '/account') return { title: 'Account', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
@@ -365,7 +414,8 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
 
 export function AdminLayout() {
   const toast = useToast();
-  const { isAdmin, logout } = useAuth();
+  const { isAdmin, logout, can } = useAuth();
+  const canSeeClients = can(...CLIENT_ROLES);
   const { toggle: toggleTheme } = useTheme();
   const overview = useQuery<CmsOverview>('/cms/overview');
   const [publishing, setPublishing] = useState(false);
@@ -420,7 +470,7 @@ export function AdminLayout() {
     <SearchPalette
       open={searching}
       onClose={() => setSearching(false)}
-      actions={{ isAdmin, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
+      actions={{ isAdmin, clients: canSeeClients, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
     />
     <Desktop
       appName="Enzo Interiors"
@@ -429,6 +479,7 @@ export function AdminLayout() {
       menus={
         <>
           <CmsMenu counts={counts} />
+          {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {isAdmin ? <SettingsMenu /> : null}
         </>

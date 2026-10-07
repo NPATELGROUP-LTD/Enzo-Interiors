@@ -6,20 +6,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Development Phase
 
-**v1 scope: the public website, the Admin CMS that runs it, and consultation booking.**
+**v1 scope: the public website, the Admin CMS that runs it, consultation booking, and the CRM's client book.**
 
 - `apps/web` — Next.js marketing site. Reads all of its content from the API.
   `/booking` asks the API for free days/times and books through it.
 - `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
+  **Clients** (`/clients`, `/clients/:id`, Admin + Designer; `?view=` /
+  `?new=1`; a client's page has Invite to portal / Resend invite),
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
-  users). CMS, Bookings and Settings each drop a menu on hover. Your own
+  users). CMS, Clients, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
-  accept an invitation). The CRM screens are still in `src/pages` but unrouted
+  accept an invitation). The other CRM screens are still in `src/pages` but unrouted
   (see `src/App.tsx`; the CRM's `Bookings.tsx` is not the new `Appointments.tsx`).
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
   (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
@@ -28,7 +30,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   requests), site settings, the public `POST /enquiries`, **booking**
   (`/booking/*` public + settings, `/appointments` for staff),
   `/notifications` and the **newsletter** (`/newsletter` public sign-up,
-  confirm, unsubscribe; admin subscribers, CSV, campaigns). The CRM modules and their tables (incl. the CRM's
+  confirm, unsubscribe; admin subscribers, CSV, campaigns) and **clients**
+  (`/clients`, `POST /clients/:id/invite`; portal `POST /auth/portal/forgot` /
+  `reset`). The other CRM modules and their tables (incl. the CRM's
   `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
@@ -36,8 +40,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 treated the same) edits the CMS and sends changes for review; cannot publish,
 add or delete entries, or see Bookings/Settings. Reviews live on the entry
 (`cms_entries.review_*`) and clear on publish or send-back; both ends are told
-through `notifications` (the bell) and admins by email too.
-- `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up.
+through `notifications` (the bell) and admins by email too. **Clients:** Admin
+all; `Designer` (and `Installer`) only clients with a project where
+`projects.assigned_designer_id` is them (`common/access/access.service.ts`;
+`clients.assigned_staff_id` grants nothing), editing only phone/address/notes;
+Editors none. Every `/clients` route names its `@Roles`.
+
+**Client portal access** is by invitation only: nobody types a client's
+password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,
+a JWT with purpose `portal-password` bound to `clients.token_version` (7 days;
+forgot = 30 min); `POST /auth/portal/reset` sets the bcrypt hash and bumps
+`token_version` in one conditional UPDATE, so a link works once and old portal
+sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt
+hash is stored. Changing a client's email bumps `token_version` too.
+- `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up
+  (it has no `/reset-password` page yet for the invitation link).
 
 `packages/` was removed. Each app keeps a local copy of the types it consumes,
 which is deliberate — see the header of `apps/api/src/common/types/domain.ts`.

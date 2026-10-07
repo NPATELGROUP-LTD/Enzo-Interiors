@@ -11,6 +11,7 @@ import { RateLimitStore } from './core/rate-limit';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { ClientsModule } from './modules/clients/clients.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { MediaModule } from './modules/media/media.module';
@@ -27,17 +28,18 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * requires an explicit, greppable @Public().
  *
  * v1 SCOPE: the public site, the CMS that runs it, consultation booking
- * (BookingModule: the site's booking form and the admin's Bookings screen) and
- * the admin's users and notifications, and the newsletter. Nothing else. The CRM
- * modules (clients, projects, invoices, bookings, conversations,
- * documents, content, settings, dashboard) are still in
- * src/modules and their tables are still in the schema, so existing data is
- * untouched — they are simply not mounted, which means none of their routes
- * exist on a v1 server. To bring the CRM back, import them here again:
+ * (BookingModule: the site's booking form and the admin's Bookings screen),
+ * the admin's users and notifications, the newsletter, and the CRM's client
+ * book (ClientsModule: Admin, and Designers for the clients of their projects;
+ * portal invitations). Nothing else. The other CRM modules (projects,
+ * invoices, bookings, conversations, documents, content, settings, dashboard)
+ * are still in src/modules and their tables are still in the schema, so
+ * existing data is untouched — they are simply not mounted, which means none
+ * of their routes exist on a v1 server. To bring them back, import them here
+ * again, each with an explicit @Roles on every route:
  *
- *   ClientsModule, ProjectsModule,
- *   InvoicesModule, BookingsModule, ConversationsModule, DocumentsModule,
- *   ContentModule, SettingsModule, DashboardModule
+ *   ProjectsModule, InvoicesModule, BookingsModule, ConversationsModule,
+ *   DocumentsModule, ContentModule, SettingsModule, DashboardModule
  */
 @Module({
   imports: [
@@ -62,6 +64,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     BookingModule,
     CalendarModule,
     NewsletterModule,
+    ClientsModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.

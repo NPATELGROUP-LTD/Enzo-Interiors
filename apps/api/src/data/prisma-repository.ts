@@ -154,6 +154,12 @@ export class PrismaRepository<T extends BaseRecord> {
     return count;
   }
 
+  /** One DELETE for every row matching `where`. Returns how many went. */
+  async deleteWhere(where: Where<T>): Promise<number> {
+    const { count } = await this.delegate.deleteMany({ where });
+    return count;
+  }
+
   async findById(id: string): Promise<T | null> {
     const row = await this.delegate.findUnique({ where: { id } });
     return row ? this.fromDb(row) : null;

@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom';
 
-import { AdminLayout, SECTIONS } from './components/layout/AdminLayout';
+import { AdminLayout, CLIENT_ROLES, SECTIONS } from './components/layout/AdminLayout';
 import { Button, LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
 import { CmsHome, CollectionPage, EntryPage } from './pages/Cms';
@@ -9,6 +9,8 @@ import { NotFoundPage } from './pages/NotFound';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
 import { AccountPage } from './pages/Account';
 import { AppointmentsPage } from './pages/Appointments';
+import { ClientDetailPage } from './pages/ClientDetail';
+import { ClientsPage } from './pages/Clients';
 import { SiteSettingsPage } from './pages/SiteSettings';
 import type { CmsCollection } from './types/cms';
 
@@ -19,16 +21,16 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 }
 
 /**
- * v1 routes: the CMS, bookings, settings, your account and sign-in.
+ * v1 routes: the CMS, clients, bookings, settings, your account and sign-in.
  *
- * The CRM screens in src/pages (Dashboard, Clients, Bookings,
- * Projects, Invoices, Messages, Enquiries, Settings) are kept but not routed:
- * the v1 API does not mount their modules, so every one of them would open on
- * a 404. Routing them again goes hand in hand with re-importing the modules in
+ * The other CRM screens in src/pages (Dashboard, Bookings, Projects, Invoices,
+ * Messages, Enquiries, Settings) are kept but not routed: the v1 API does not
+ * mount their modules, so every one of them would open on a 404. Routing them
+ * again goes hand in hand with re-importing the modules in
  * apps/api/src/app.module.ts.
  */
 export function App() {
-  const { user, loading, logout } = useAuth();
+  const { user, loading, logout, can } = useAuth();
 
   // Wait for /auth/me before deciding — otherwise a refresh on a deep link
   // flashes the login screen before bouncing back.
@@ -65,6 +67,8 @@ export function App() {
     );
   }
 
+  const canSeeClients = can(...CLIENT_ROLES);
+
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/cms" replace />} />
@@ -75,6 +79,12 @@ export function App() {
         <Route
           path="/settings/:section?"
           element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to="/cms" replace />}
+        />
+        {/* Admin, and Designers for the clients of their projects; never Editors. */}
+        <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to="/cms" replace />} />
+        <Route
+          path="/clients/:id"
+          element={canSeeClients ? <ClientDetailPage /> : <Navigate to="/cms" replace />}
         />
         <Route
           path="/bookings"

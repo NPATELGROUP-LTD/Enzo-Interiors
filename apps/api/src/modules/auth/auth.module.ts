@@ -45,5 +45,7 @@ function mustHaveSecret(config: ConfigService): string {
   ],
   controllers: [AuthController, GoogleAuthController, UsersController],
   providers: [AuthService, TwoFactorService, GoogleAuthService, UsersService],
+  // For ClientsModule's portal invitations.
+  exports: [AuthService],
 })
 export class AuthModule {}

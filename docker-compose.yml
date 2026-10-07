@@ -190,6 +190,7 @@ services:
       CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${WEB_PUBLIC_URL:-http://localhost:3000}
       # Where password-reset links point.
       ADMIN_URL: ${ADMIN_URL:-http://localhost:5174}
+      PORTAL_URL: ${PORTAL_URL:-http://localhost:5175}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       # Newsletter links: confirm/unsubscribe pages, and the one-click header.
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}

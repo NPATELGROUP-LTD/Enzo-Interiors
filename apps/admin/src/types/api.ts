@@ -123,6 +123,7 @@ export interface Client {
   joined_date: string;
   total_spent: number;
   notes: string | null;
+  /** A portal password has been set (an invitation was accepted). */
   has_portal_access: boolean;
   created_at: string;
   updated_at: string;
@@ -313,8 +314,8 @@ export interface ClientDetail {
   assigned_staff: { id: string; name: string; role: StaffRole } | null;
   projects: Project[];
   invoices: Invoice[];
-  documents: DocumentRecord[];
-  bookings: Booking[];
+  /** Without storage_url: where a file is kept is the API's business. */
+  documents: Array<Omit<DocumentRecord, 'storage_url'>>;
   activity: ActivityLog[];
   stats: {
     lifetime_value: number;
