@@ -239,6 +239,12 @@ cd apps/web   && npm ci && npm run dev                       # :3000
 | App | Check |
 |---|---|
 | `apps/api` | `npm run typecheck`, `npm test`, `npm run build` |
+| `apps/api` (DB) | `npm run test:db` — boots the real app on a random port against a real PostgreSQL |
+
+`test:db` needs the compose `postgres` service up. It uses a separate `enzo_test` database
+(created on first run, migrated with `prisma migrate deploy`; refuses any name not ending
+`_test`, so the dev `enzo` data is never touched), 2FA off, no Redis/SMTP. Helper:
+`apps/api/src/test-support/app.ts` (`startTestApp()`); add `*.db.test.ts` files and list them in the script. CI runs it as `api (database tests)`.
 | `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
 | `apps/web` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` |
 
