@@ -15,7 +15,7 @@ const DEMO_ACCOUNTS = [
   { name: 'David Okafor', email: 'david.okafor@example.com', note: 'Media wall awaiting your approval' },
   { name: 'Raj Patel', email: 'raj.patel@example.com', note: 'Wardrobe nearly complete' },
   { name: 'Amelia Hart', email: 'amelia.hart@example.com', note: 'Completed project, invoice paid' },
-  { name: 'Eleanor Shaw', email: 'eleanor.shaw@example.com', note: 'Bedroom in design, quote to review' },
+  { name: 'Eleanor Shaw', email: 'eleanor.shaw@example.com', note: 'Bedroom in design' },
 ];
 
 export function LoginPage() {

@@ -35,7 +35,6 @@ export class DashboardService {
       allMessages,
       submissions,
       clients,
-      quotes,
     ] = await Promise.all([
       this.db.projects.findAll(),
       this.db.invoices.findAll(),
@@ -44,20 +43,18 @@ export class DashboardService {
       this.db.messages.findAll(),
       this.db.contactSubmissions.findAll(),
       this.db.clients.findAll(),
-      this.db.quotes.findAll(),
     ]);
 
     const scope = <T>(rows: T[], clientIdOf: (row: T) => string) =>
       this.access.scopeToVisibleClients(principal, rows, clientIdOf);
 
-    const [projects, invoices, bookings, conversations, scopedClients, scopedQuotes] =
+    const [projects, invoices, bookings, conversations, scopedClients] =
       await Promise.all([
         scope(allProjects, (r) => r.client_id),
         scope(allInvoices, (r) => r.client_id),
         scope(allBookings, (r) => r.client_id),
         scope(allConversations, (r) => r.client_id),
         scope(clients, (r) => r.id),
-        scope(quotes, (r) => r.client_id),
       ]);
 
     const now = new Date();
@@ -152,13 +149,6 @@ export class DashboardService {
         total: scopedClients.length,
         active: scopedClients.filter((client) => client.status === 'Active').length,
       },
-      quotes: {
-        draft: scopedQuotes.filter((quote) => quote.status === 'Draft').length,
-        sent: scopedQuotes.filter((quote) => quote.status === 'Sent').length,
-        accepted_awaiting_invoice: scopedQuotes.filter(
-          (quote) => quote.status === 'Accepted' && quote.invoice_id === null,
-        ).length,
-      },
       /** Monthly bookings chart — the trailing 12 months, oldest first. */
       bookings_chart: this.monthlySeries(bookings.map((booking) => booking.date_time), 12),
       /** Monthly revenue from invoices actually marked Paid. */
@@ -174,7 +164,7 @@ export class DashboardService {
   /** The portal bento: next appointment, unread, documents, invoices, timeline. */
   async portal(principal: AuthPrincipal) {
     const clientId = principal.id;
-    const [projects, invoices, bookings, documents, conversations, messages, quotes] =
+    const [projects, invoices, bookings, documents, conversations, messages] =
       await Promise.all([
         this.db.projects.findAll((row) => row.client_id === clientId && row.client_visible),
         this.db.invoices.findAll((row) => row.client_id === clientId),
@@ -182,7 +172,6 @@ export class DashboardService {
         this.db.documents.findAll((row) => row.client_id === clientId && row.client_visible),
         this.db.conversations.findAll((row) => row.client_id === clientId),
         this.db.messages.findAll(),
-        this.db.quotes.findAll((row) => row.client_id === clientId),
       ]);
 
     const nowIso = new Date().toISOString();
@@ -232,9 +221,6 @@ export class DashboardService {
         awaiting_your_approval: projects
           .filter((project) => project.status === 'Approval')
           .map((project) => ({ id: project.id, name: project.name, type: project.type })),
-      },
-      quotes: {
-        awaiting_your_decision: quotes.filter((quote) => quote.status === 'Sent').length,
       },
       /** Progress bars for the dashboard timeline widget. */
       timeline: projects

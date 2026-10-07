@@ -55,22 +55,6 @@ export const PROJECT_STAGES = [
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
-export const COMPONENT_CATEGORIES = [
-  'Worktop',
-  'DoorFinish',
-  'Lighting',
-  'Appliance',
-  'StorageAccessory',
-  'Electrical',
-] as const;
-export type ComponentCategory = (typeof COMPONENT_CATEGORIES)[number];
-
-export const QUOTE_TYPES = ['Simple', 'Detailed'] as const;
-export type QuoteType = (typeof QUOTE_TYPES)[number];
-
-export const QUOTE_STATUSES = ['Draft', 'Sent', 'Accepted', 'Expired'] as const;
-export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
-
 export const INVOICE_STATUSES = ['Draft', 'Sent', 'Outstanding', 'Paid', 'Overdue'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
@@ -83,7 +67,7 @@ export type SenderType = (typeof SENDER_TYPES)[number];
 export const OWNER_TYPES = ['Client', 'Staff'] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
-export const DOCUMENT_TYPES = ['Contract', 'Quote', 'Invoice', 'Plan', 'MoodBoard'] as const;
+export const DOCUMENT_TYPES = ['Contract', 'Invoice', 'Plan', 'MoodBoard'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const SUBMISSION_STATUSES = ['New', 'Contacted', 'Converted', 'Archived'] as const;
@@ -203,58 +187,12 @@ export interface Project extends BaseRecord {
   updated_at: string;
 }
 
-/** Schema 3.4 — the Component Pricing Library. */
-export interface ComponentItem extends BaseRecord {
-  name: string;
-  category: ComponentCategory;
-  unit_price: number;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Schema 3.5 */
-export interface Quote extends BaseRecord {
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * Schema 3.6.
- *
- * `unit_price` is a POINT-IN-TIME SNAPSHOT of ComponentItem.unit_price taken
- * when the line was created. Editing a component's price later must never
- * rewrite this value. That rule is enforced in quotes.service.ts and is the
- * single most important data-integrity rule in this schema
- * (Backend Schema section 6, and the "Critical rule" in CLAUDE.md).
- */
-export interface QuoteLineItem extends BaseRecord {
-  quote_id: string;
-  component_id: string;
-  /** Denormalised at creation so a renamed or deactivated component still reads correctly. */
-  component_name: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-}
-
 /** Schema 3.7 */
 export interface Invoice extends BaseRecord {
   /** e.g. INV-2026-0041 */
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
@@ -270,7 +208,6 @@ export interface Booking extends BaseRecord {
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
 }
 
@@ -402,8 +339,7 @@ export interface BusinessSettings extends BaseRecord {
  * Schema 3.18.
  *
  * `staff_id` is documented as not-null, but the design-approval loop means a
- * CLIENT can also cause an audited state change (Approve, Request Changes,
- * Accept quote). Rather than drop those from the audit trail — which would
+ * CLIENT can also cause an audited state change (Approve, Request Changes). Rather than drop those from the audit trail — which would
  * leave gaps in exactly the flow the docs call the critical path — the column
  * holds either principal and `actor_type` disambiguates it. Flagged here as a
  * deliberate deviation from Backend Schema v2.0 section 3.18.

@@ -51,7 +51,7 @@ export class ClientsController {
     return this.clients.update(principal, id, dto);
   }
 
-  /** Destructive, and refuses while projects/quotes/invoices still reference the client. */
+  /** Destructive, and refuses while projects/invoices still reference the client. */
   @Delete(':id')
   @Roles('Admin')
   remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {

@@ -13,7 +13,6 @@ import { MessagesPage } from './pages/Messages';
 import { NotFoundPage } from './pages/NotFound';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
-import { QuotesPage } from './pages/Quotes';
 import { SettingsPage } from './pages/Settings';
 
 export function App() {
@@ -54,7 +53,6 @@ export function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:id" element={<ProjectDetailPage />} />
-        <Route path="/quotes" element={<QuotesPage />} />
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />

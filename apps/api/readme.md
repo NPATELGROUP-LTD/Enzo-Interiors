@@ -93,7 +93,7 @@ src/
 └── modules/                       One per domain
 ```
 
-**Module layout:** modules with substantial domain logic (`clients`, `quotes`,
+**Module layout:** modules with substantial domain logic (`clients`,
 `invoices`, `projects`, `conversations`) split service / controller / dto into
 separate files. Simpler resources keep everything in one module file, where
 splitting would add navigation cost without adding clarity.
@@ -134,17 +134,11 @@ header or request body.
 These come from Backend Schema v2.0 §6 and are enforced in code, not just
 documented:
 
-- **`quote_line_items.unit_price` is a point-in-time snapshot.** Editing a
-  component's price in the library never rewrites historical quote lines. See
-  `quotes.service.ts` (`buildLines`) and `components.service` — the price change
-  is audited as its own `price_change` action.
 - **Money is never a float in spirit.** Every monetary value passes through
   `money()` and is held at exactly 2dp. `money.ts` explains why this is adequate
   for a prototype and not for production.
-- **Cascades are tightly scoped.** Deleting a quote removes its own line items
-  and nothing else. Deleting a client is *refused* while projects, quotes or
-  invoices reference it. Deleting a component used by any quote is refused —
-  deactivate it instead.
+- **Cascades are tightly scoped.** Deleting a client is *refused* while
+  projects or invoices reference it.
 - **`Paid` has exactly one writer.** Only `PUT /invoices/:id/mark-paid`, only
   Admin, always manual. The generic invoice edit route rejects `status: 'Paid'`.
   There is no payment gateway and there never will be.
@@ -158,16 +152,11 @@ documented:
 | POST | `/auth/admin/login`, `/auth/portal/login` | Public |
 | GET | `/auth/me` | Any session |
 | GET | `/content/services`, `/content/portfolio`, `/content/testimonials` | Public |
-| POST | `/quotes/estimate` | Public — the website calculator |
 | GET | `/availability`, `/availability/slots?date=` | Public — booking wizard |
 | POST | `/contact-submissions` | Public — contact form |
 | GET/POST/PUT/DELETE | `/clients`, `/clients/:id`, `/clients/:id/detail` | Staff (scoped); create/delete Admin |
 | GET/POST/PUT/PATCH/DELETE | `/projects`, `/projects/:id/stage`, `/projects/:id/detail` | Staff (scoped) |
 | POST | `/projects/:id/approve`, `/projects/:id/request-changes` | Client |
-| GET/POST/PUT/DELETE | `/components` | Read: staff. Write: Admin |
-| GET/POST/PUT/DELETE | `/quotes`, `/quotes/:id/send` | Staff (Admin/Designer write) |
-| POST | `/quotes/:id/accept`, `/decline`, `/request-revision` | Client |
-| POST | `/quotes/:id/convert-to-invoice` | Admin |
 | GET/POST/PUT/DELETE | `/invoices`, `/invoices/summary` | Read scoped; write Admin |
 | PUT | `/invoices/:id/mark-paid` | **Admin only, manual** |
 | GET/POST/PUT/DELETE | `/bookings`, `/bookings/upcoming` | Staff (scoped) |
@@ -203,10 +192,8 @@ All deliberate, all flagged in code:
 | S3 keys + signed URLs | `placeholder://…` strings | No object storage this phase; uploads store metadata only. |
 | `activity_logs.staff_id` not-null, staff only | Also holds a client id, with `actor_type` | The approval loop means clients cause audited changes. Dropping those would leave gaps in the flow the docs call the critical path. |
 | Email / SMS notifications | Stored toggles, nothing sends | Out of scope. Nothing calls a mail or SMS provider. |
-| PRD "invoice line items" | `amount` + `vat_rate`, breakdown via `quote_id` | Backend Schema has no `invoice_line_items` table, and §7 says implement the documented tables exactly. |
+| PRD "invoice line items" | `amount` + `vat_rate` | Backend Schema has no `invoice_line_items` table, and §7 says implement the documented tables exactly. |
 
-**Open question carried from the docs:** PRD §12 and TRD §10 both leave the
-Component Library pricing formula (fixed vs £/m²) pending client sign-off. The
-calculator implements a per-m² rate table in `quotes.service.ts`
-(`ESTIMATE_RATES`), clearly marked, returning an indicative range. Replace that
-table once the formula is agreed; nothing else needs to change.
+Quotes and the part library are retired. Their tables (`quotes`,
+`quote_line_items`, `components`) and `invoices.quote_id` stay in the schema
+(migrations only add) but no code reads or writes them.

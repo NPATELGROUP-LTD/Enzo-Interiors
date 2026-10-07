@@ -84,8 +84,8 @@ Permanent scope exclusions: no payment gateway (Stripe/PayPal/other) at any phas
 | Framework | React + TypeScript (Vite) or Next.js CSR mode + Tailwind, reusing `packages/ui` |
 | Rendering | Client-side rendered SPA — authenticated, never indexed, no SEO need |
 | PWA | Required — installable manifest, service worker (Workbox), standalone display, offline shell fallback, Web Push notifications |
-| Core modules | Dashboard (bento: bookings, active projects, enquiries, invoices, messages, chart), Clients (CRM table + detail view), Bookings & Availability, Quotes & Pricing (builder + Component Pricing Library), Projects (5-stage Kanban: Consultation→Design→Approval→Installation→Completed), Invoices (builder, manual mark-paid), Messages (inbox + saved reply templates), Content Manager (testimonials/portfolio/contact submissions), Settings (business profile, team roles, audit log) |
-| Navigation | Persistent sidebar (Dashboard, Clients, Bookings, Quotes & Pricing, Projects, Invoices, Messages, Content, Settings) |
+| Core modules | Dashboard (bento: bookings, active projects, enquiries, invoices, messages, chart), Clients (CRM table + detail view), Bookings & Availability, Projects (5-stage Kanban: Consultation→Design→Approval→Installation→Completed), Invoices (builder, manual mark-paid), Messages (inbox + saved reply templates), Content Manager (testimonials/portfolio/contact submissions), Settings (business profile, team roles, audit log) |
+| Navigation | Persistent sidebar (Dashboard, Clients, Bookings, Projects, Invoices, Messages, Content, Settings) |
 | RBAC | Full access for Admin (Founder); Designer/Installer scoped to assigned projects/clients only |
 | Auth | `/auth/admin/login`, JWT-based, NestJS Guards |
 
@@ -98,7 +98,7 @@ Permanent scope exclusions: no payment gateway (Stripe/PayPal/other) at any phas
 | Framework | React + TypeScript (Vite) or Next.js CSR mode + Tailwind, reusing `packages/ui` |
 | Rendering | Client-side rendered SPA, authenticated, no SEO need |
 | PWA | Required — same manifest/service-worker/push requirements as Admin Portal |
-| Core modules | Dashboard (next appointment, unread messages, documents count, invoice status, project timeline), My Projects, Project Detail (timeline, mood boards, Approve/Request Changes), My Quotes (accept/decline/revise), Messages (real-time chat via WebSocket), Documents (filter/download), Invoices (view/status only — no in-app payment), Settings (profile, notifications, security, theme) |
+| Core modules | Dashboard (next appointment, unread messages, documents count, invoice status, project timeline), My Projects, Project Detail (timeline, mood boards, Approve/Request Changes), Messages (real-time chat via WebSocket), Documents (filter/download), Invoices (view/status only — no in-app payment), Settings (profile, notifications, security, theme) |
 | Mobile nav | Dashboard, Projects, Messages, Invoices, More |
 | Critical path | Design-approval loop — "Request Changes" restarts the project stage |
 | Auth | `/auth/portal/login`, JWT-based, RBAC scoped strictly to own `client_id` |
@@ -122,8 +122,6 @@ Permanent scope exclusions: no payment gateway (Stripe/PayPal/other) at any phas
 | Public Content | `/content/services`, `/content/portfolio`, `/content/testimonials` | GET | web |
 | Quote Calculator | `/quotes/estimate` | POST | web (public, real-time <200ms) |
 | Clients | `/clients`, `/clients/:id` | GET/POST/PUT/DELETE | admin |
-| Quotes | `/quotes`, `/quotes/:id/convert-to-invoice` | POST/GET | admin, portal |
-| Components | `/components` | GET/POST/PUT/DELETE | admin |
 | Invoices | `/invoices`, `/invoices/:id/mark-paid` | GET/POST/PUT | admin, portal |
 | Bookings | `/bookings`, `/availability` | GET/POST | web, admin |
 | Projects | `/projects/:id/stage` | PATCH | admin |
@@ -145,12 +143,9 @@ Single-tenant relational schema — no `tenants` table, no `tenant_id` column an
 ```
 staff_users ──< projects
 staff_users ──< clients (assigned_staff_id)
-clients ──< projects, quotes, invoices, bookings, documents, conversations ──< messages
+clients ──< projects, invoices, bookings, documents, conversations ──< messages
 projects ──< documents, testimonials, portfolio_items
-quotes ──< quote_line_items >── components
-quotes ──1:1── invoices (nullable)
 projects ──1:1── invoices (nullable)
-bookings ──0:1── quotes (linked_quote_id)
 contact_submissions ──0:1── clients (converted lead)
 ```
 
@@ -161,11 +156,8 @@ contact_submissions ──0:1── clients (converted lead)
 | staff_users | Admin/Designer/Installer accounts | name, email, password_hash, role |
 | clients | Client records + portal auth | name, email, phone, address, status, assigned_staff_id, total_spent, password_hash |
 | projects | Project pipeline tracking | client_id, type, status, progress_pct, current_stage, assigned_designer_id, client_visible |
-| components | Pricing library | name, category, unit_price, is_active |
-| quotes | Quote lifecycle | client_id, service_id, type (Simple/Detailed), subtotal, total, status, invoice_id |
-| quote_line_items | Quote breakdown | quote_id, component_id, quantity, unit_price (snapshot), line_total |
-| invoices | Billing (manual status only) | number, client_id, project_id, quote_id, amount, status, due_date, paid_at |
-| bookings | Consultation scheduling | client_id, service_type, date_time, status, linked_quote_id |
+| invoices | Billing (manual status only) | number, client_id, project_id, amount, status, due_date, paid_at |
+| bookings | Consultation scheduling | client_id, service_type, date_time, status |
 | availability_settings | Booking slot config | day_of_week, start_time, end_time, slot_duration_mins |
 | conversations / messages | Chat system | conversation_id, sender_id/type, body, attachments (jsonb), read_at |
 | saved_reply_templates | Admin quick replies | staff_id (nullable = global), title, body |
@@ -182,8 +174,8 @@ contact_submissions ──0:1── clients (converted lead)
 
 ### 7.3 Data Integrity Rules
 - All monetary fields use `decimal`, never `float`.
-- `quote_line_items.unit_price` is a point-in-time snapshot so later price changes never retroactively alter historical quotes.
-- Cascading deletes are scoped tightly (e.g. deleting a quote cascades to its line items only, never to clients/invoices/components).
+- Cascading deletes are scoped tightly: a client delete is refused while projects or invoices reference it.
+- Quotes are retired: the `quotes`, `quote_line_items` and `components` tables and `invoices.quote_id` / `bookings.linked_quote_id` stay in the schema (migrations only add) but no code uses them.
 - Migrations only add (tables, nullable/defaulted columns, indexes) and are never edited once run, so a rolled-back release still runs on the newer schema.
 
 ---

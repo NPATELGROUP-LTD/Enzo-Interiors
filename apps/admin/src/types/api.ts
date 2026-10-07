@@ -20,18 +20,9 @@ export type ProjectStage =
   | 'Approval'
   | 'Installation'
   | 'Completed';
-export type ComponentCategory =
-  | 'Worktop'
-  | 'DoorFinish'
-  | 'Lighting'
-  | 'Appliance'
-  | 'StorageAccessory'
-  | 'Electrical';
-export type QuoteType = 'Simple' | 'Detailed';
-export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Expired';
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Quote' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
 export type SubmissionStatus = 'New' | 'Contacted' | 'Converted' | 'Archived';
 export type SenderType = 'Client' | 'Staff';
 
@@ -43,18 +34,9 @@ export const PROJECT_STAGES: ProjectStage[] = [
   'Installation',
   'Completed',
 ];
-export const COMPONENT_CATEGORIES: ComponentCategory[] = [
-  'Worktop',
-  'DoorFinish',
-  'Lighting',
-  'Appliance',
-  'StorageAccessory',
-  'Electrical',
-];
 export const STAFF_ROLES: StaffRole[] = ['Admin', 'Designer', 'Installer'];
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
-  'Quote',
   'Invoice',
   'Plan',
   'MoodBoard',
@@ -72,15 +54,6 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
   Bedroom: 'Bedroom',
   MediaWall: 'Media Wall',
   Wardrobe: 'Wardrobe',
-};
-
-export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
-  Worktop: 'Worktop',
-  DoorFinish: 'Door Finish',
-  Lighting: 'Lighting',
-  Appliance: 'Appliance',
-  StorageAccessory: 'Storage Accessory',
-  Electrical: 'Electrical',
 };
 
 export interface Principal {
@@ -171,50 +144,11 @@ export interface Project {
   assigned_designer_name: string | null;
 }
 
-export interface ComponentItem {
-  id: string;
-  name: string;
-  category: ComponentCategory;
-  unit_price: number;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QuoteLineItem {
-  id: string;
-  quote_id: string;
-  component_id: string;
-  component_name: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
-}
-
-export interface Quote {
-  id: string;
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-  lines: QuoteLineItem[];
-  client_name: string;
-}
-
 export interface Invoice {
   id: string;
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
@@ -235,7 +169,6 @@ export interface Booking {
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
   client_name: string;
   client_email: string;
@@ -381,7 +314,6 @@ export interface ClientDetail {
   projects: Project[];
   invoices: Invoice[];
   documents: DocumentRecord[];
-  quotes: Quote[];
   bookings: Booking[];
   activity: ActivityLog[];
   stats: {
@@ -431,7 +363,6 @@ export interface AdminDashboard {
   };
   messages: { unread: number; conversations_needing_reply: number };
   clients: { total: number; active: number };
-  quotes: { draft: number; sent: number; accepted_awaiting_invoice: number };
   bookings_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
 }

@@ -12,10 +12,6 @@
  *   files can be cross-referenced by eye and so re-seeding does not churn the
  *   diff. Real records created through the API get generated ids instead.
  *
- * - Quote totals are COMPUTED here, never hand-typed, so subtotal / VAT / total
- *   and every line_total are arithmetically correct by construction. Hand-typed
- *   money in a seed drifts the moment anyone edits a line.
- *
  * - Historical dates (joined_date, created_at) are fixed absolute dates in the
  *   July–September 2026 window the brief asks for. Forward-looking dates
  *   (bookings, invoice due dates) are computed relative to the real current
@@ -30,14 +26,13 @@
 import { hashPassword } from '../src/modules/auth/auth.service';
 import { DatabaseService } from '../src/data/database.service';
 import { PrismaService } from '../src/data/prisma.service';
-import { grossTotal, money, sum } from '../src/common/util/money';
+import { sum } from '../src/common/util/money';
 import {
   ActivityLog,
   AvailabilitySetting,
   Booking,
   BusinessSettings,
   Client,
-  ComponentItem,
   ContactSubmission,
   Conversation,
   DocumentRecord,
@@ -46,10 +41,7 @@ import {
   NotificationPreference,
   PortfolioItem,
   Project,
-  Quote,
-  QuoteLineItem,
   SavedReplyTemplate,
-  ServiceType,
   StaffUser,
   Testimonial,
 } from '../src/common/types/domain';
@@ -379,265 +371,7 @@ const projects: Project[] = [
 ];
 
 /* -------------------------------------------------------------------------- */
-/* components — the Component Pricing Library, all six categories              */
-/* -------------------------------------------------------------------------- */
-
-const componentSeed: Array<Omit<ComponentItem, 'created_at' | 'updated_at'>> = [
-  // Worktop — priced per m2.
-  { id: 'cmp_worktop_quartz', name: 'Silestone Quartz Worktop', category: 'Worktop', unit_price: 420, description: 'Engineered quartz, 20mm, per m². Includes template and polished edges.', is_active: true },
-  { id: 'cmp_worktop_granite', name: 'Granite Worktop', category: 'Worktop', unit_price: 380, description: 'Natural granite, 30mm, per m². Sealed on installation.', is_active: true },
-  { id: 'cmp_worktop_oak', name: 'Solid Oak Worktop', category: 'Worktop', unit_price: 260, description: 'Staved solid oak, 40mm, per m². Requires annual oiling.', is_active: true },
-  { id: 'cmp_worktop_dekton', name: 'Dekton Ultracompact Worktop', category: 'Worktop', unit_price: 520, description: 'Ultracompact surface, 12mm, per m². Heat and scratch resistant.', is_active: true },
-  { id: 'cmp_worktop_laminate', name: 'Laminate Worktop', category: 'Worktop', unit_price: 95, description: 'Budget laminate, per m². Withdrawn from the current range.', is_active: false },
-
-  // DoorFinish — priced per door/unit front.
-  { id: 'cmp_door_shaker_matt', name: 'Matt Painted Shaker Door', category: 'DoorFinish', unit_price: 185, description: 'Hand-painted five-piece shaker front, per door.', is_active: true },
-  { id: 'cmp_door_handleless', name: 'Handleless Gloss Door', category: 'DoorFinish', unit_price: 215, description: 'J-pull handleless slab front, high gloss, per door.', is_active: true },
-  { id: 'cmp_door_walnut', name: 'Walnut Veneer Door', category: 'DoorFinish', unit_price: 290, description: 'Book-matched American walnut veneer, lacquered, per door.', is_active: true },
-  { id: 'cmp_door_fenix', name: 'Fenix NTM Door', category: 'DoorFinish', unit_price: 245, description: 'Soft-touch anti-fingerprint nanotech surface, per door.', is_active: true },
-
-  // Lighting.
-  { id: 'cmp_light_undercab', name: 'Under-Cabinet LED Strip', category: 'Lighting', unit_price: 95, description: 'Warm white 3000K strip with diffuser, per run.', is_active: true },
-  { id: 'cmp_light_plinth', name: 'Plinth LED Kit', category: 'Lighting', unit_price: 120, description: 'Recessed plinth downlights, set of six with driver.', is_active: true },
-  { id: 'cmp_light_pendant', name: 'Feature Pendant', category: 'Lighting', unit_price: 180, description: 'Brushed brass pendant over island, per fitting.', is_active: true },
-
-  // Appliance.
-  { id: 'cmp_appl_oven', name: 'Integrated Single Oven', category: 'Appliance', unit_price: 680, description: 'Built-in pyrolytic single oven, A+ rated.', is_active: true },
-  { id: 'cmp_appl_hob', name: 'Induction Hob', category: 'Appliance', unit_price: 540, description: '4-zone induction hob with bridging, 60cm.', is_active: true },
-  { id: 'cmp_appl_extractor', name: 'Ceiling Extractor Unit', category: 'Appliance', unit_price: 320, description: 'Recirculating ceiling extractor with remote.', is_active: true },
-
-  // StorageAccessory.
-  { id: 'cmp_stor_drawer', name: 'Soft-Close Drawer Box', category: 'StorageAccessory', unit_price: 68, description: 'Blum tandembox with soft-close runners, per drawer.', is_active: true },
-  { id: 'cmp_stor_carousel', name: 'Corner Carousel', category: 'StorageAccessory', unit_price: 145, description: '270° corner carousel for a blind corner unit.', is_active: true },
-  { id: 'cmp_stor_larder', name: 'Pull-Out Larder', category: 'StorageAccessory', unit_price: 310, description: 'Full-height soft-close pull-out larder, 300mm.', is_active: true },
-  { id: 'cmp_stor_rail', name: 'Soft-Close Wardrobe Rail', category: 'StorageAccessory', unit_price: 55, description: 'Anodised hanging rail with soft-close lift, per metre.', is_active: true },
-
-  // Electrical.
-  { id: 'cmp_elec_socket', name: 'Socket & Spur Installation', category: 'Electrical', unit_price: 85, description: 'Qualified electrician, per socket or fused spur.', is_active: true },
-];
-
-const components: ComponentItem[] = componentSeed.map((component) => ({
-  ...component,
-  created_at: at('2026-02-20'),
-  updated_at: at('2026-06-30'),
-}));
-
-const priceOf = (componentId: string): number => {
-  const found = components.find((component) => component.id === componentId);
-  if (!found) throw new Error(`Seed references unknown component: ${componentId}`);
-  return found.unit_price;
-};
-
-const nameOf = (componentId: string): string => {
-  const found = components.find((component) => component.id === componentId);
-  if (!found) throw new Error(`Seed references unknown component: ${componentId}`);
-  return found.name;
-};
-
-/* -------------------------------------------------------------------------- */
-/* quotes + quote_line_items                                                  */
-/* -------------------------------------------------------------------------- */
-
-interface QuoteSpec {
-  id: string;
-  client_id: string;
-  service_id: ServiceType;
-  status: Quote['status'];
-  design_fee: number;
-  created_at: string;
-  /** Detailed quotes only. A Simple quote carries no line items. */
-  lines?: Array<{ component_id: string; quantity: number }>;
-  /** Simple quotes only: the indicative net figure the calculator produced. */
-  simple_subtotal?: number;
-}
-
-const quoteSpecs: QuoteSpec[] = [
-  {
-    id: 'qte_jones_kitchen',
-    client_id: 'cli_sarah_jones',
-    service_id: 'Kitchen',
-    status: 'Accepted',
-    design_fee: 850,
-    created_at: at('2026-05-22'),
-    lines: [
-      { component_id: 'cmp_worktop_quartz', quantity: 8.5 },
-      { component_id: 'cmp_door_shaker_matt', quantity: 18 },
-      { component_id: 'cmp_light_undercab', quantity: 4 },
-      { component_id: 'cmp_light_pendant', quantity: 3 },
-      { component_id: 'cmp_appl_oven', quantity: 1 },
-      { component_id: 'cmp_appl_hob', quantity: 1 },
-      { component_id: 'cmp_stor_drawer', quantity: 12 },
-      { component_id: 'cmp_stor_larder', quantity: 1 },
-      { component_id: 'cmp_elec_socket', quantity: 6 },
-    ],
-  },
-  {
-    id: 'qte_jones_wardrobe',
-    client_id: 'cli_sarah_jones',
-    service_id: 'Wardrobe',
-    status: 'Sent',
-    design_fee: 0,
-    created_at: at('2026-07-16'),
-    simple_subtotal: 4200,
-  },
-  {
-    id: 'qte_okafor_mediawall',
-    client_id: 'cli_david_okafor',
-    service_id: 'MediaWall',
-    status: 'Accepted',
-    design_fee: 650,
-    created_at: at('2026-06-08'),
-    lines: [
-      { component_id: 'cmp_door_walnut', quantity: 6 },
-      { component_id: 'cmp_light_undercab', quantity: 3 },
-      { component_id: 'cmp_stor_drawer', quantity: 4 },
-      { component_id: 'cmp_elec_socket', quantity: 4 },
-    ],
-  },
-  {
-    id: 'qte_okafor_bedroom',
-    client_id: 'cli_david_okafor',
-    service_id: 'Bedroom',
-    status: 'Draft',
-    design_fee: 0,
-    created_at: at('2026-08-20'),
-    simple_subtotal: 6800,
-  },
-  {
-    id: 'qte_hart_kitchen',
-    client_id: 'cli_amelia_hart',
-    service_id: 'Kitchen',
-    status: 'Accepted',
-    design_fee: 950,
-    created_at: at('2026-04-26'),
-    lines: [
-      { component_id: 'cmp_worktop_granite', quantity: 7.2 },
-      { component_id: 'cmp_door_shaker_matt', quantity: 22 },
-      { component_id: 'cmp_light_undercab', quantity: 5 },
-      { component_id: 'cmp_light_plinth', quantity: 1 },
-      { component_id: 'cmp_appl_oven', quantity: 2 },
-      { component_id: 'cmp_appl_extractor', quantity: 1 },
-      { component_id: 'cmp_stor_carousel', quantity: 2 },
-      { component_id: 'cmp_stor_drawer', quantity: 14 },
-    ],
-  },
-  {
-    id: 'qte_patel_wardrobe',
-    client_id: 'cli_raj_patel',
-    service_id: 'Wardrobe',
-    status: 'Accepted',
-    design_fee: 600,
-    created_at: at('2026-06-20'),
-    lines: [
-      { component_id: 'cmp_door_fenix', quantity: 8 },
-      { component_id: 'cmp_stor_rail', quantity: 6 },
-      { component_id: 'cmp_stor_drawer', quantity: 10 },
-      { component_id: 'cmp_light_undercab', quantity: 2 },
-    ],
-  },
-  {
-    id: 'qte_patel_kitchen',
-    client_id: 'cli_raj_patel',
-    service_id: 'Kitchen',
-    status: 'Sent',
-    design_fee: 0,
-    created_at: at('2026-08-23'),
-    simple_subtotal: 15500,
-  },
-  {
-    id: 'qte_shaw_bedroom',
-    client_id: 'cli_eleanor_shaw',
-    service_id: 'Bedroom',
-    status: 'Sent',
-    design_fee: 700,
-    created_at: at('2026-07-18'),
-    lines: [
-      { component_id: 'cmp_door_walnut', quantity: 5 },
-      { component_id: 'cmp_stor_rail', quantity: 4 },
-      { component_id: 'cmp_stor_drawer', quantity: 8 },
-    ],
-  },
-  {
-    id: 'qte_bradley_mediawall',
-    client_id: 'cli_tom_bradley',
-    service_id: 'MediaWall',
-    status: 'Expired',
-    design_fee: 0,
-    created_at: at('2026-03-16'),
-    simple_subtotal: 5400,
-  },
-  {
-    id: 'qte_mensah_kitchen',
-    client_id: 'cli_grace_mensah',
-    service_id: 'Kitchen',
-    status: 'Draft',
-    design_fee: 800,
-    created_at: at('2026-08-02'),
-    lines: [
-      { component_id: 'cmp_worktop_dekton', quantity: 6.4 },
-      { component_id: 'cmp_door_handleless', quantity: 16 },
-      { component_id: 'cmp_appl_hob', quantity: 1 },
-      { component_id: 'cmp_light_plinth', quantity: 1 },
-      { component_id: 'cmp_stor_drawer', quantity: 9 },
-    ],
-  },
-];
-
-const quotes: Quote[] = [];
-const quoteLineItems: QuoteLineItem[] = [];
-
-for (const spec of quoteSpecs) {
-  let netLines = 0;
-
-  if (spec.lines) {
-    spec.lines.forEach((line, index) => {
-      // unit_price is snapshotted from the library at quote time. This is the
-      // one place the seed copies it; nothing may rewrite it afterwards.
-      const unitPrice = priceOf(line.component_id);
-      const total = money(line.quantity * unitPrice);
-      netLines += total;
-      quoteLineItems.push({
-        id: `${spec.id}_line_${index + 1}`,
-        quote_id: spec.id,
-        component_id: line.component_id,
-        component_name: nameOf(line.component_id),
-        quantity: line.quantity,
-        unit_price: unitPrice,
-        line_total: total,
-      });
-    });
-  } else {
-    netLines = spec.simple_subtotal ?? 0;
-  }
-
-  // subtotal is net of VAT and INCLUDES the design fee; total applies VAT to
-  // the whole subtotal. Consistent with the invoice builder and the portal.
-  const subtotal = sum([netLines, spec.design_fee]);
-
-  quotes.push({
-    id: spec.id,
-    client_id: spec.client_id,
-    service_id: spec.service_id,
-    type: spec.lines ? 'Detailed' : 'Simple',
-    design_fee: money(spec.design_fee),
-    subtotal,
-    vat_rate: VAT,
-    total: grossTotal(subtotal, VAT),
-    status: spec.status,
-    invoice_id: null, // linked below, from the invoice side
-    created_at: spec.created_at,
-    updated_at: spec.created_at,
-  });
-}
-
-const quoteById = (id: string): Quote => {
-  const found = quotes.find((quote) => quote.id === id);
-  if (!found) throw new Error(`Seed references unknown quote: ${id}`);
-  return found;
-};
-
-/* -------------------------------------------------------------------------- */
-/* invoices — linked to accepted quotes/projects, mixed statuses               */
+/* invoices — linked to projects, mixed statuses                           */
 /* -------------------------------------------------------------------------- */
 
 const invoices: Invoice[] = [
@@ -646,8 +380,7 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0001',
     client_id: 'cli_sarah_jones',
     project_id: 'prj_jones_kitchen',
-    quote_id: 'qte_jones_kitchen',
-    amount: quoteById('qte_jones_kitchen').total,
+    amount: 13831.2,
     vat_rate: VAT,
     status: 'Paid',
     due_date: '2026-06-21',
@@ -659,8 +392,7 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0002',
     client_id: 'cli_amelia_hart',
     project_id: 'prj_hart_kitchen',
-    quote_id: 'qte_hart_kitchen',
-    amount: quoteById('qte_hart_kitchen').total,
+    amount: 13527.6,
     vat_rate: VAT,
     status: 'Paid',
     due_date: '2026-05-28',
@@ -672,8 +404,7 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0003',
     client_id: 'cli_david_okafor',
     project_id: 'prj_okafor_mediawall',
-    quote_id: 'qte_okafor_mediawall',
-    amount: quoteById('qte_okafor_mediawall').total,
+    amount: 3944.4,
     vat_rate: VAT,
     status: 'Outstanding',
     due_date: dateFromNow(9),
@@ -685,8 +416,7 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0004',
     client_id: 'cli_raj_patel',
     project_id: 'prj_patel_wardrobe',
-    quote_id: 'qte_patel_wardrobe',
-    amount: quoteById('qte_patel_wardrobe').total,
+    amount: 4512,
     vat_rate: VAT,
     status: 'Sent',
     due_date: dateFromNow(18),
@@ -698,7 +428,6 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0005',
     client_id: 'cli_tom_bradley',
     project_id: 'prj_bradley_mediawall',
-    quote_id: null,
     amount: 6480,
     vat_rate: VAT,
     status: 'Overdue',
@@ -711,7 +440,6 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0006',
     client_id: 'cli_eleanor_shaw',
     project_id: 'prj_shaw_bedroom',
-    quote_id: null,
     amount: 1440,
     vat_rate: VAT,
     status: 'Draft',
@@ -724,7 +452,6 @@ const invoices: Invoice[] = [
     number: 'INV-2026-0007',
     client_id: 'cli_grace_mensah',
     project_id: 'prj_mensah_kitchen',
-    quote_id: null,
     amount: 960,
     vat_rate: VAT,
     status: 'Outstanding',
@@ -734,15 +461,8 @@ const invoices: Invoice[] = [
   },
 ];
 
-// Close the quote -> invoice link from the quote side for the invoices that
-// came from a quote, so both directions resolve.
-for (const invoice of invoices) {
-  if (!invoice.quote_id) continue;
-  quoteById(invoice.quote_id).invoice_id = invoice.id;
-}
-
 /* -------------------------------------------------------------------------- */
-/* bookings — spread across the next 30 days, some linked to quotes            */
+/* bookings — spread across the next 30 days                                    */
 /* -------------------------------------------------------------------------- */
 
 /**
@@ -755,35 +475,35 @@ for (const invoice of invoices) {
  * for a business trading since the spring.
  */
 const pastBookings: Booking[] = [
-  { id: 'bkg_hist_01', client_id: 'cli_tom_bradley', service_type: 'MediaWall', date_time: at('2026-03-16', '10:00'), status: 'Confirmed', linked_quote_id: 'qte_bradley_mediawall', created_at: at('2026-03-12') },
-  { id: 'bkg_hist_02', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-04-23', '14:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-04-18') },
-  { id: 'bkg_hist_03', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-04-30', '09:30'), status: 'Confirmed', linked_quote_id: 'qte_hart_kitchen', created_at: at('2026-04-25') },
-  { id: 'bkg_hist_04', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-05-19', '11:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-05-14') },
-  { id: 'bkg_hist_05', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-05-28', '15:30'), status: 'Confirmed', linked_quote_id: 'qte_jones_kitchen', created_at: at('2026-05-22') },
-  { id: 'bkg_hist_06', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-05-11', '10:30'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-05-06') },
-  { id: 'bkg_hist_07', client_id: 'cli_david_okafor', service_type: 'MediaWall', date_time: at('2026-06-04', '13:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-06-01') },
-  { id: 'bkg_hist_08', client_id: 'cli_david_okafor', service_type: 'MediaWall', date_time: at('2026-06-15', '09:00'), status: 'Confirmed', linked_quote_id: 'qte_okafor_mediawall', created_at: at('2026-06-09') },
-  { id: 'bkg_hist_09', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: at('2026-06-17', '16:00'), status: 'Confirmed', linked_quote_id: 'qte_patel_wardrobe', created_at: at('2026-06-12') },
-  { id: 'bkg_hist_10', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: at('2026-06-29', '11:30'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-06-24') },
-  { id: 'bkg_hist_11', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: at('2026-07-10', '10:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-07-08') },
-  { id: 'bkg_hist_12', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: at('2026-07-21', '14:30'), status: 'Confirmed', linked_quote_id: 'qte_shaw_bedroom', created_at: at('2026-07-16') },
-  { id: 'bkg_hist_13', client_id: 'cli_sarah_jones', service_type: 'Wardrobe', date_time: at('2026-07-17', '09:30'), status: 'Confirmed', linked_quote_id: 'qte_jones_wardrobe', created_at: at('2026-07-15') },
-  { id: 'bkg_hist_14', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: at('2026-07-31', '15:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-07-28') },
-  { id: 'bkg_hist_15', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: at('2026-08-12', '11:00'), status: 'Confirmed', linked_quote_id: 'qte_mensah_kitchen', created_at: at('2026-08-06') },
-  { id: 'bkg_hist_16', client_id: 'cli_raj_patel', service_type: 'Kitchen', date_time: at('2026-08-20', '13:30'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-08-18') },
-  { id: 'bkg_hist_17', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-08-05', '09:00'), status: 'Confirmed', linked_quote_id: null, created_at: at('2026-08-01') },
+  { id: 'bkg_hist_01', client_id: 'cli_tom_bradley', service_type: 'MediaWall', date_time: at('2026-03-16', '10:00'), status: 'Confirmed', created_at: at('2026-03-12') },
+  { id: 'bkg_hist_02', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-04-23', '14:00'), status: 'Confirmed', created_at: at('2026-04-18') },
+  { id: 'bkg_hist_03', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-04-30', '09:30'), status: 'Confirmed', created_at: at('2026-04-25') },
+  { id: 'bkg_hist_04', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-05-19', '11:00'), status: 'Confirmed', created_at: at('2026-05-14') },
+  { id: 'bkg_hist_05', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-05-28', '15:30'), status: 'Confirmed', created_at: at('2026-05-22') },
+  { id: 'bkg_hist_06', client_id: 'cli_amelia_hart', service_type: 'Kitchen', date_time: at('2026-05-11', '10:30'), status: 'Confirmed', created_at: at('2026-05-06') },
+  { id: 'bkg_hist_07', client_id: 'cli_david_okafor', service_type: 'MediaWall', date_time: at('2026-06-04', '13:00'), status: 'Confirmed', created_at: at('2026-06-01') },
+  { id: 'bkg_hist_08', client_id: 'cli_david_okafor', service_type: 'MediaWall', date_time: at('2026-06-15', '09:00'), status: 'Confirmed', created_at: at('2026-06-09') },
+  { id: 'bkg_hist_09', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: at('2026-06-17', '16:00'), status: 'Confirmed', created_at: at('2026-06-12') },
+  { id: 'bkg_hist_10', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: at('2026-06-29', '11:30'), status: 'Confirmed', created_at: at('2026-06-24') },
+  { id: 'bkg_hist_11', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: at('2026-07-10', '10:00'), status: 'Confirmed', created_at: at('2026-07-08') },
+  { id: 'bkg_hist_12', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: at('2026-07-21', '14:30'), status: 'Confirmed', created_at: at('2026-07-16') },
+  { id: 'bkg_hist_13', client_id: 'cli_sarah_jones', service_type: 'Wardrobe', date_time: at('2026-07-17', '09:30'), status: 'Confirmed', created_at: at('2026-07-15') },
+  { id: 'bkg_hist_14', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: at('2026-07-31', '15:00'), status: 'Confirmed', created_at: at('2026-07-28') },
+  { id: 'bkg_hist_15', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: at('2026-08-12', '11:00'), status: 'Confirmed', created_at: at('2026-08-06') },
+  { id: 'bkg_hist_16', client_id: 'cli_raj_patel', service_type: 'Kitchen', date_time: at('2026-08-20', '13:30'), status: 'Confirmed', created_at: at('2026-08-18') },
+  { id: 'bkg_hist_17', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: at('2026-08-05', '09:00'), status: 'Confirmed', created_at: at('2026-08-01') },
 ];
 
 const bookings: Booking[] = [
   ...pastBookings,
-  { id: 'bkg_okafor_survey', client_id: 'cli_david_okafor', service_type: 'Bedroom', date_time: fromNow(2, '10:00'), status: 'Confirmed', linked_quote_id: 'qte_okafor_bedroom', created_at: at('2026-08-19') },
-  { id: 'bkg_jones_template', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: fromNow(3, '09:30'), status: 'Confirmed', linked_quote_id: 'qte_jones_kitchen', created_at: at('2026-08-12') },
-  { id: 'bkg_patel_kitchen', client_id: 'cli_raj_patel', service_type: 'Kitchen', date_time: fromNow(6, '14:00'), status: 'Pending', linked_quote_id: 'qte_patel_kitchen', created_at: at('2026-08-23') },
-  { id: 'bkg_shaw_design', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: fromNow(9, '11:00'), status: 'Confirmed', linked_quote_id: 'qte_shaw_bedroom', created_at: at('2026-08-25') },
-  { id: 'bkg_jones_wardrobe', client_id: 'cli_sarah_jones', service_type: 'Wardrobe', date_time: fromNow(14, '15:30'), status: 'Pending', linked_quote_id: 'qte_jones_wardrobe', created_at: fromNow(-4) },
-  { id: 'bkg_mensah_followup', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: fromNow(21, '13:00'), status: 'Pending', linked_quote_id: null, created_at: fromNow(-2) },
-  { id: 'bkg_patel_snagging', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: fromNow(27, '10:30'), status: 'Confirmed', linked_quote_id: null, created_at: fromNow(-1) },
-  { id: 'bkg_bradley_cancelled', client_id: 'cli_tom_bradley', service_type: 'MediaWall', date_time: fromNow(11, '16:00'), status: 'Cancelled', linked_quote_id: null, created_at: at('2026-08-04') },
+  { id: 'bkg_okafor_survey', client_id: 'cli_david_okafor', service_type: 'Bedroom', date_time: fromNow(2, '10:00'), status: 'Confirmed', created_at: at('2026-08-19') },
+  { id: 'bkg_jones_template', client_id: 'cli_sarah_jones', service_type: 'Kitchen', date_time: fromNow(3, '09:30'), status: 'Confirmed', created_at: at('2026-08-12') },
+  { id: 'bkg_patel_kitchen', client_id: 'cli_raj_patel', service_type: 'Kitchen', date_time: fromNow(6, '14:00'), status: 'Pending', created_at: at('2026-08-23') },
+  { id: 'bkg_shaw_design', client_id: 'cli_eleanor_shaw', service_type: 'Bedroom', date_time: fromNow(9, '11:00'), status: 'Confirmed', created_at: at('2026-08-25') },
+  { id: 'bkg_jones_wardrobe', client_id: 'cli_sarah_jones', service_type: 'Wardrobe', date_time: fromNow(14, '15:30'), status: 'Pending', created_at: fromNow(-4) },
+  { id: 'bkg_mensah_followup', client_id: 'cli_grace_mensah', service_type: 'Kitchen', date_time: fromNow(21, '13:00'), status: 'Pending', created_at: fromNow(-2) },
+  { id: 'bkg_patel_snagging', client_id: 'cli_raj_patel', service_type: 'Wardrobe', date_time: fromNow(27, '10:30'), status: 'Confirmed', created_at: fromNow(-1) },
+  { id: 'bkg_bradley_cancelled', client_id: 'cli_tom_bradley', service_type: 'MediaWall', date_time: fromNow(11, '16:00'), status: 'Cancelled', created_at: at('2026-08-04') },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -954,16 +674,13 @@ const documents: DocumentRecord[] = [
   { id: 'doc_jones_mood', client_id: 'cli_sarah_jones', project_id: 'prj_jones_wardrobe', name: 'Wardrobe Mood Board.pdf', type: 'MoodBoard', size_bytes: 3_920_774, upload_date: at('2026-07-19'), client_visible: true, storage_url: 'placeholder://documents/cli_sarah_jones/wardrobe-mood-board.pdf' },
   { id: 'doc_jones_invoice', client_id: 'cli_sarah_jones', project_id: 'prj_jones_kitchen', name: 'INV-2026-0001.pdf', type: 'Invoice', size_bytes: 96_442, upload_date: at('2026-05-24'), client_visible: true, storage_url: 'placeholder://documents/cli_sarah_jones/inv-2026-0001.pdf' },
   { id: 'doc_okafor_render', client_id: 'cli_david_okafor', project_id: 'prj_okafor_mediawall', name: 'Media Wall Render — Rev B.pdf', type: 'MoodBoard', size_bytes: 5_114_208, upload_date: fromNow(-2), client_visible: true, storage_url: 'placeholder://documents/cli_david_okafor/media-wall-render-rev-b.pdf' },
-  { id: 'doc_okafor_quote', client_id: 'cli_david_okafor', project_id: 'prj_okafor_mediawall', name: 'Quote — Oadby Media Wall.pdf', type: 'Quote', size_bytes: 132_889, upload_date: at('2026-06-08'), client_visible: true, storage_url: 'placeholder://documents/cli_david_okafor/quote-oadby-media-wall.pdf' },
   { id: 'doc_okafor_survey', client_id: 'cli_david_okafor', project_id: 'prj_okafor_mediawall', name: 'Internal Survey Notes.pdf', type: 'Plan', size_bytes: 214_006, upload_date: at('2026-06-06'), client_visible: false, storage_url: 'placeholder://documents/cli_david_okafor/internal-survey-notes.pdf' },
   { id: 'doc_hart_contract', client_id: 'cli_amelia_hart', project_id: 'prj_hart_kitchen', name: 'Wigston Kitchen — Contract.pdf', type: 'Contract', size_bytes: 279_540, upload_date: at('2026-04-29'), client_visible: true, storage_url: 'placeholder://documents/cli_amelia_hart/wigston-kitchen-contract.pdf' },
   { id: 'doc_hart_handover', client_id: 'cli_amelia_hart', project_id: 'prj_hart_kitchen', name: 'Handover & Care Guide.pdf', type: 'Plan', size_bytes: 861_223, upload_date: at('2026-07-28'), client_visible: true, storage_url: 'placeholder://documents/cli_amelia_hart/handover-care-guide.pdf' },
   { id: 'doc_patel_contract', client_id: 'cli_raj_patel', project_id: 'prj_patel_wardrobe', name: 'Birstall Wardrobe — Contract.pdf', type: 'Contract', size_bytes: 268_781, upload_date: at('2026-06-23'), client_visible: true, storage_url: 'placeholder://documents/cli_raj_patel/birstall-wardrobe-contract.pdf' },
   { id: 'doc_patel_plan', client_id: 'cli_raj_patel', project_id: 'prj_patel_wardrobe', name: 'Wardrobe Elevations.pdf', type: 'Plan', size_bytes: 1_190_455, upload_date: at('2026-07-01'), client_visible: true, storage_url: 'placeholder://documents/cli_raj_patel/wardrobe-elevations.pdf' },
   { id: 'doc_shaw_mood', client_id: 'cli_eleanor_shaw', project_id: 'prj_shaw_bedroom', name: 'Bedroom Mood Board.pdf', type: 'MoodBoard', size_bytes: 4_402_119, upload_date: fromNow(-4), client_visible: true, storage_url: 'placeholder://documents/cli_eleanor_shaw/bedroom-mood-board.pdf' },
-  { id: 'doc_shaw_quote', client_id: 'cli_eleanor_shaw', project_id: 'prj_shaw_bedroom', name: 'Quote — Market Harborough Bedroom.pdf', type: 'Quote', size_bytes: 128_310, upload_date: at('2026-07-18'), client_visible: true, storage_url: 'placeholder://documents/cli_eleanor_shaw/quote-market-harborough-bedroom.pdf' },
   { id: 'doc_bradley_invoice', client_id: 'cli_tom_bradley', project_id: 'prj_bradley_mediawall', name: 'INV-2026-0005.pdf', type: 'Invoice', size_bytes: 94_118, upload_date: at('2026-06-26'), client_visible: true, storage_url: 'placeholder://documents/cli_tom_bradley/inv-2026-0005.pdf' },
-  { id: 'doc_mensah_internal', client_id: 'cli_grace_mensah', project_id: 'prj_mensah_kitchen', name: 'Margin Working — Internal.pdf', type: 'Quote', size_bytes: 76_930, upload_date: at('2026-08-05'), client_visible: false, storage_url: 'placeholder://documents/cli_grace_mensah/margin-working-internal.pdf' },
 ];
 
 /* -------------------------------------------------------------------------- */
@@ -1042,11 +759,7 @@ interface LogSpec {
 const logSpecs: LogSpec[] = [
   { actor: 'stf_admin', action: 'client_create', table: 'clients', target: 'cli_eleanor_shaw', daysAgo: 50, details: { name: 'Eleanor Shaw', source: 'contact_submission' } },
   { actor: 'stf_admin', action: 'contact_submission_status_change', table: 'contact_submissions', target: 'sub_eleanor_shaw', daysAgo: 50, details: { from: 'Contacted', to: 'Converted' } },
-  { actor: 'stf_designer_hannah', action: 'quote_create', table: 'quotes', target: 'qte_shaw_bedroom', daysAgo: 41, details: { type: 'Detailed', total: quoteById('qte_shaw_bedroom').total } },
-  { actor: 'stf_designer_hannah', action: 'quote_send', table: 'quotes', target: 'qte_shaw_bedroom', daysAgo: 40 },
   { actor: 'stf_designer', action: 'project_stage_change', table: 'projects', target: 'prj_jones_kitchen', daysAgo: 34, details: { from: 'Approval', to: 'Installation' } },
-  { actor: 'stf_admin', action: 'price_change', table: 'components', target: 'cmp_worktop_quartz', daysAgo: 32, details: { field: 'unit_price', from: 395, to: 420, note: 'Supplier increase, June price list' } },
-  { actor: 'stf_admin', action: 'component_deactivate', table: 'components', target: 'cmp_worktop_laminate', daysAgo: 32, details: { reason: 'Withdrawn from range' } },
   { actor: 'stf_admin', action: 'invoice_mark_paid', table: 'invoices', target: 'inv_hart_kitchen', daysAgo: 30, details: { number: 'INV-2026-0002', method: 'Bank transfer' } },
   { actor: 'stf_designer_hannah', action: 'project_stage_change', table: 'projects', target: 'prj_hart_kitchen', daysAgo: 29, details: { from: 'Installation', to: 'Completed' } },
   { actor: 'stf_admin', action: 'testimonial_publish', table: 'testimonials', target: 'tst_hart', daysAgo: 28 },
@@ -1101,8 +814,6 @@ function verifyReferentialIntegrity(): void {
     staff: new Set(staffUsers.map((r) => r.id)),
     client: new Set(clients.map((r) => r.id)),
     project: new Set(projects.map((r) => r.id)),
-    component: new Set(components.map((r) => r.id)),
-    quote: new Set(quotes.map((r) => r.id)),
     invoice: new Set(invoices.map((r) => r.id)),
     conversation: new Set(conversations.map((r) => r.id)),
   };
@@ -1125,38 +836,11 @@ function verifyReferentialIntegrity(): void {
     );
     check(project.progress_pct >= 0 && project.progress_pct <= 100, `projects.${project.id}.progress_pct out of range`);
   }
-  for (const quote of quotes) {
-    check(ids.client.has(quote.client_id), `quotes.${quote.id}.client_id -> ${quote.client_id}`);
-    check(
-      quote.invoice_id === null || ids.invoice.has(quote.invoice_id),
-      `quotes.${quote.id}.invoice_id -> ${quote.invoice_id}`,
-    );
-    // Totals must be arithmetically consistent.
-    const lineSum = sum(quoteLineItems.filter((l) => l.quote_id === quote.id).map((l) => l.line_total));
-    const expectedSubtotal = quote.type === 'Detailed' ? sum([lineSum, quote.design_fee]) : quote.subtotal;
-    check(quote.subtotal === expectedSubtotal, `quotes.${quote.id}.subtotal ${quote.subtotal} != ${expectedSubtotal}`);
-    check(
-      quote.total === grossTotal(quote.subtotal, quote.vat_rate),
-      `quotes.${quote.id}.total ${quote.total} != subtotal+VAT`,
-    );
-  }
-  for (const line of quoteLineItems) {
-    check(ids.quote.has(line.quote_id), `quote_line_items.${line.id}.quote_id -> ${line.quote_id}`);
-    check(ids.component.has(line.component_id), `quote_line_items.${line.id}.component_id -> ${line.component_id}`);
-    check(
-      line.line_total === money(line.quantity * line.unit_price),
-      `quote_line_items.${line.id}.line_total is not quantity x unit_price`,
-    );
-  }
   for (const invoice of invoices) {
     check(ids.client.has(invoice.client_id), `invoices.${invoice.id}.client_id -> ${invoice.client_id}`);
     check(
       invoice.project_id === null || ids.project.has(invoice.project_id),
       `invoices.${invoice.id}.project_id -> ${invoice.project_id}`,
-    );
-    check(
-      invoice.quote_id === null || ids.quote.has(invoice.quote_id),
-      `invoices.${invoice.id}.quote_id -> ${invoice.quote_id}`,
     );
     check(
       (invoice.status === 'Paid') === (invoice.paid_at !== null),
@@ -1165,10 +849,6 @@ function verifyReferentialIntegrity(): void {
   }
   for (const booking of bookings) {
     check(ids.client.has(booking.client_id), `bookings.${booking.id}.client_id -> ${booking.client_id}`);
-    check(
-      booking.linked_quote_id === null || ids.quote.has(booking.linked_quote_id),
-      `bookings.${booking.id}.linked_quote_id -> ${booking.linked_quote_id}`,
-    );
   }
   for (const conversation of conversations) {
     check(ids.client.has(conversation.client_id), `conversations.${conversation.id}.client_id`);
@@ -1238,9 +918,6 @@ async function main(): Promise<void> {
     db.staffUsers.replaceAll(staffUsers),
     db.clients.replaceAll(clients),
     db.projects.replaceAll(projects),
-    db.components.replaceAll(components),
-    db.quotes.replaceAll(quotes),
-    db.quoteLineItems.replaceAll(quoteLineItems),
     db.invoices.replaceAll(invoices),
     db.bookings.replaceAll(bookings),
     db.availabilitySettings.replaceAll(availabilitySettings),
@@ -1260,9 +937,6 @@ async function main(): Promise<void> {
     ['staff_users', staffUsers.length],
     ['clients', clients.length],
     ['projects', projects.length],
-    ['components', components.length],
-    ['quotes', quotes.length],
-    ['quote_line_items', quoteLineItems.length],
     ['invoices', invoices.length],
     ['bookings', bookings.length],
     ['availability_settings', availabilitySettings.length],

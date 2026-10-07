@@ -21,7 +21,7 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 /**
  * v1 routes: the CMS, bookings, settings, your account and sign-in.
  *
- * The CRM screens in src/pages (Dashboard, Clients, Bookings, Quotes,
+ * The CRM screens in src/pages (Dashboard, Clients, Bookings,
  * Projects, Invoices, Messages, Enquiries, Settings) are kept but not routed:
  * the v1 API does not mount their modules, so every one of them would open on
  * a 404. Routing them again goes hand in hand with re-importing the modules in

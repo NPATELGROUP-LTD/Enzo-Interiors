@@ -16,12 +16,10 @@ import { DatabaseService } from '../../data/database.service';
 export class CreateInvoiceDto {
   @IsString() client_id!: string;
   @IsOptional() @IsString() project_id?: string | null;
-  @IsOptional() @IsString() quote_id?: string | null;
 
   /**
    * The GROSS amount payable, VAT included. `vat_rate` is stored alongside so
-   * the net/VAT split can be shown, matching how the seed and the
-   * quote-to-invoice handoff both write this column.
+   * the net/VAT split can be shown, matching how the seed writes this column.
    */
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Amount must be a number with at most 2 decimal places' })
@@ -149,20 +147,12 @@ export class InvoicesService {
         throw new BadRequestException('That project belongs to a different client');
       }
     }
-    if (dto.quote_id) {
-      const quote = await this.db.quotes.findById(dto.quote_id);
-      if (!quote) throw new BadRequestException('Quote does not exist');
-      if (quote.client_id !== dto.client_id) {
-        throw new BadRequestException('That quote belongs to a different client');
-      }
-    }
 
     const settings = await this.db.settings();
     const created = await this.db.invoices.create({
       number: await this.nextNumber(),
       client_id: dto.client_id,
       project_id: dto.project_id ?? null,
-      quote_id: dto.quote_id ?? null,
       amount: money(dto.amount),
       vat_rate: dto.vat_rate ?? settings.vat_rate,
       status: dto.status ?? 'Draft',
@@ -269,11 +259,6 @@ export class InvoicesService {
       );
     }
 
-    // Release the originating quote so it can be converted again if the
-    // invoice was raised in error. The quote itself is never deleted.
-    if (invoice.quote_id) {
-      await this.db.quotes.update(invoice.quote_id, { invoice_id: null });
-    }
     await this.db.invoices.delete(id);
 
     await this.activity.record({
