@@ -29,13 +29,13 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * v1 SCOPE: the public site, the CMS that runs it, consultation booking
  * (BookingModule: the site's booking form and the admin's Bookings screen) and
  * the admin's users and notifications, and the newsletter. Nothing else. The CRM
- * modules (clients, projects, quotes, invoices, bookings, conversations,
- * documents, components, content, settings, dashboard) are still in
+ * modules (clients, projects, invoices, bookings, conversations,
+ * documents, content, settings, dashboard) are still in
  * src/modules and their tables are still in the schema, so existing data is
  * untouched — they are simply not mounted, which means none of their routes
  * exist on a v1 server. To bring the CRM back, import them here again:
  *
- *   ClientsModule, ProjectsModule, ComponentsModule, QuotesModule,
+ *   ClientsModule, ProjectsModule,
  *   InvoicesModule, BookingsModule, ConversationsModule, DocumentsModule,
  *   ContentModule, SettingsModule, DashboardModule
  */

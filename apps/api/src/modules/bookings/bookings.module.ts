@@ -48,14 +48,12 @@ export class CreateBookingDto {
   @IsIn(SERVICE_TYPES) service_type!: ServiceType;
   @IsDateString({}, { message: 'Enter a valid date and time' }) date_time!: string;
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: BookingStatus;
-  @IsOptional() @IsString() linked_quote_id?: string | null;
 }
 
 export class UpdateBookingDto {
   @IsOptional() @IsIn(SERVICE_TYPES) service_type?: ServiceType;
   @IsOptional() @IsDateString() date_time?: string;
   @IsOptional() @IsIn(BOOKING_STATUSES) status?: BookingStatus;
-  @IsOptional() @IsString() linked_quote_id?: string | null;
 }
 
 const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
@@ -141,14 +139,6 @@ export class BookingsService {
     const client = await this.db.clients.findById(dto.client_id);
     if (!client) throw new BadRequestException('Client does not exist');
 
-    if (dto.linked_quote_id) {
-      const quote = await this.db.quotes.findById(dto.linked_quote_id);
-      if (!quote) throw new BadRequestException('Linked quote does not exist');
-      if (quote.client_id !== dto.client_id) {
-        throw new BadRequestException('That quote belongs to a different client');
-      }
-    }
-
     await this.assertWithinWorkingHours(dto.date_time);
 
     const created = await this.db.bookings.create({
@@ -156,7 +146,6 @@ export class BookingsService {
       service_type: dto.service_type,
       date_time: new Date(dto.date_time).toISOString(),
       status: dto.status ?? 'Pending',
-      linked_quote_id: dto.linked_quote_id ?? null,
       created_at: new Date().toISOString(),
     });
 
@@ -181,7 +170,6 @@ export class BookingsService {
     if (dto.service_type !== undefined) patch.service_type = dto.service_type;
     if (dto.date_time !== undefined) patch.date_time = new Date(dto.date_time).toISOString();
     if (dto.status !== undefined) patch.status = dto.status;
-    if (dto.linked_quote_id !== undefined) patch.linked_quote_id = dto.linked_quote_id;
 
     await this.db.bookings.update(id, patch);
     await this.activity.record({

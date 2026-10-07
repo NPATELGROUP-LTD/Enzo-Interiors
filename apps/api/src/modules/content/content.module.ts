@@ -49,8 +49,7 @@ import { DatabaseService } from '../../data/database.service';
  * The four service categories with their Investment Guide tiers. This is
  * static marketing copy, not a database table — the Backend Schema has no
  * `services` table, and inventing one would put copywriting into a CRM screen
- * nobody asked for. The "from" figures line up with the calculator rates in
- * quotes.service.ts; if those change, change these too.
+ * nobody asked for.
  */
 const SERVICE_CATALOGUE: Array<{
   id: ServiceType;

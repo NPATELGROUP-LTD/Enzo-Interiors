@@ -124,15 +124,13 @@ export class ClientsService {
     const client = await this.db.clients.findById(id);
     if (!client) throw new NotFoundException('Client not found');
 
-    const [projects, quotes, invoices] = await Promise.all([
+    const [projects, invoices] = await Promise.all([
       this.db.projects.count((row) => row.client_id === id),
-      this.db.quotes.count((row) => row.client_id === id),
       this.db.invoices.count((row) => row.client_id === id),
     ]);
 
     const blockers: string[] = [];
     if (projects > 0) blockers.push(`${projects} project${projects === 1 ? '' : 's'}`);
-    if (quotes > 0) blockers.push(`${quotes} quote${quotes === 1 ? '' : 's'}`);
     if (invoices > 0) blockers.push(`${invoices} invoice${invoices === 1 ? '' : 's'}`);
     if (blockers.length > 0) {
       throw new BadRequestException(
@@ -174,11 +172,10 @@ export class ClientsService {
     const client = await this.db.clients.findById(id);
     if (!client) throw new NotFoundException('Client not found');
 
-    const [projects, invoices, documents, quotes, bookings, activity] = await Promise.all([
+    const [projects, invoices, documents, bookings, activity] = await Promise.all([
       this.db.projects.findAll((row) => row.client_id === id),
       this.db.invoices.findAll((row) => row.client_id === id),
       this.db.documents.findAll((row) => row.client_id === id),
-      this.db.quotes.findAll((row) => row.client_id === id),
       this.db.bookings.findAll((row) => row.client_id === id),
       this.activity.listForTarget('clients', id),
     ]);
@@ -193,7 +190,6 @@ export class ClientsService {
       projects: projects.sort((a, b) => b.created_at.localeCompare(a.created_at)),
       invoices: invoices.sort((a, b) => b.created_at.localeCompare(a.created_at)),
       documents: documents.sort((a, b) => b.upload_date.localeCompare(a.upload_date)),
-      quotes: quotes.sort((a, b) => b.created_at.localeCompare(a.created_at)),
       bookings: bookings.sort((a, b) => a.date_time.localeCompare(b.date_time)),
       activity,
       stats: {

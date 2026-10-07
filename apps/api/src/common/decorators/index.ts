@@ -10,7 +10,7 @@ export const ROLES_KEY = 'enzo:roles';
  *
  * JwtAuthGuard is registered globally, so authentication is the default and
  * exposing a route is an explicit, greppable act. Only the two login endpoints
- * and the public content/estimate routes consumed by apps/web carry this.
+ * and the public content routes consumed by apps/web carry this.
  */
 export const Public = () => SetMetadata(IS_PUBLIC_KEY, true);
 
