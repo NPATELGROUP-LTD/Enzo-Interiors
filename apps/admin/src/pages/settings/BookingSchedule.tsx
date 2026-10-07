@@ -2,10 +2,11 @@ import { Plus, X } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState } from 'react';
 
-import { Button, ErrorState, FIELD_BASE, LoadingState, Select, Toggle } from '@/components/ui';
+import { Button, ConfirmDialog, ErrorState, FIELD_BASE, LoadingState, Select, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
+import type { CalendarChoice, CalendarStatus } from '@/types/api';
 import type { CmsEntrySummary } from '@/types/cms';
 
 /* The shape apps/api/src/modules/booking/slots.ts validates and stores. */
@@ -104,6 +105,121 @@ function NumberRow({
         {unit}
       </span>
     </label>
+  );
+}
+
+/** Bookings go into the studio's Google Calendar, and what is already in it blocks times. */
+function GoogleCalendar() {
+  const toast = useToast();
+  const status = useQuery<CalendarStatus>('/calendar/status');
+  const connected = status.data?.connected === true;
+  const stale = status.data?.status === 'needs_reconnect';
+  const calendars = useQuery<CalendarChoice[]>(connected && !stale ? '/calendar/calendars' : null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  useEffect(() => {
+    // Back from Google: say how it went, then drop the query.
+    const query = new URLSearchParams(window.location.search);
+    const result = query.get('calendar');
+    if (!result) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    if (result === 'connected') toast.success('Google Calendar connected.');
+    else toast.error('Could not connect Google Calendar. Try again.');
+    void status.refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (!status.data?.configured) return null;
+
+  const fail = (caught: unknown, fallback: string) => toast.error(caught instanceof ApiError ? caught.message : fallback);
+
+  const connect = async () => {
+    try {
+      window.location.assign((await api.get<{ url: string }>('/calendar/connect')).url);
+    } catch (caught) {
+      fail(caught, 'Could not start connecting Google Calendar.');
+    }
+  };
+
+  const choose = async (calendarId: string) => {
+    try {
+      status.setData(await api.put<CalendarStatus>('/calendar/calendar', { calendarId }));
+      toast.success('Bookings will go into that calendar.');
+    } catch (caught) {
+      fail(caught, 'Could not change the calendar.');
+    }
+  };
+
+  const disconnect = async () => {
+    setDisconnecting(false);
+    try {
+      status.setData(await api.delete<CalendarStatus>('/calendar'));
+      toast.success('Google Calendar disconnected. Events already in it stay there.');
+    } catch (caught) {
+      fail(caught, 'Could not disconnect Google Calendar.');
+    }
+  };
+
+  return (
+    <section aria-labelledby="booking-calendar" className="mt-10 border-t border-border pt-7">
+      <h3 id="booking-calendar" className="text-[15px] font-semibold text-ink">
+        Google Calendar
+      </h3>
+      {!connected ? (
+        <>
+          <p className={HELP}>Bookings appear in your Google Calendar, and anything already in it can&apos;t be booked.</p>
+          <Button className="mt-4" onClick={() => void connect()}>
+            Connect Google Calendar
+          </Button>
+        </>
+      ) : stale ? (
+        <>
+          <p role="alert" className="mt-1 text-sm leading-relaxed text-warning">
+            Google Calendar needs to be reconnected. Until then new bookings are not added to it and its events don&apos;t block times.
+          </p>
+          <div className="mt-4 flex gap-2">
+            <Button variant="primary" onClick={() => void connect()}>
+              Reconnect
+            </Button>
+            <Button variant="ghost" className="text-danger" onClick={() => setDisconnecting(true)}>
+              Disconnect
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className={HELP}>Connected as {status.data.email}.</p>
+          <div className="mt-4 flex max-w-md flex-wrap items-end gap-3">
+            <div className="min-w-0 flex-1">
+              <Select
+                label="Calendar"
+                value={status.data.calendarId ?? ''}
+                disabled={!calendars.data}
+                onChange={(event) => void choose(event.target.value)}
+              >
+                {(calendars.data ?? []).map((row) => (
+                  <option key={row.id} value={row.id}>
+                    {row.name}
+                  </option>
+                ))}
+                {calendars.data ? null : <option value={status.data.calendarId ?? ''}>{status.data.calendarName}</option>}
+              </Select>
+            </div>
+            <Button variant="ghost" className="text-danger" onClick={() => setDisconnecting(true)}>
+              Disconnect
+            </Button>
+          </div>
+        </>
+      )}
+      <ConfirmDialog
+        open={disconnecting}
+        title="Disconnect Google Calendar?"
+        message="New bookings stop being added to it, and what is in it no longer blocks times. Events already there stay."
+        confirmLabel="Disconnect"
+        onConfirm={() => void disconnect()}
+        onCancel={() => setDisconnecting(false)}
+      />
+    </section>
   );
 }
 
@@ -384,6 +500,8 @@ export function BookingSchedule() {
           ))}
         </div>
       </section>
+
+      <GoogleCalendar />
 
       {settings.data?.updated_by ? (
         <p className="mt-10 text-xs text-ink-muted">

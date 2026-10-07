@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, admin, web, portal]
+        app: [api, admin, web]
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}

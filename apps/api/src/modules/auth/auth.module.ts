@@ -4,6 +4,8 @@ import { JwtModule } from '@nestjs/jwt';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { GoogleAuthController, GoogleAuthService } from './google';
+import { TwoFactorService } from './two-factor';
 import { UsersController, UsersService } from './users';
 
 /** The signing key, or a loud failure at boot. */
@@ -41,7 +43,7 @@ function mustHaveSecret(config: ConfigService): string {
       }),
     }),
   ],
-  controllers: [AuthController, UsersController],
-  providers: [AuthService, UsersService],
+  controllers: [AuthController, GoogleAuthController, UsersController],
+  providers: [AuthService, TwoFactorService, GoogleAuthService, UsersService],
 })
 export class AuthModule {}

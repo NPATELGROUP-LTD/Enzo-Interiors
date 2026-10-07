@@ -18,6 +18,7 @@ interface User {
   role: Role;
   status: 'Active' | 'Invited';
   inviteExpired: boolean;
+  twoFactorMethod: 'email' | 'totp' | null;
   created_at: string;
 }
 
@@ -96,6 +97,7 @@ export function UsersSection() {
   const users = useQuery<User[]>('/users');
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<User | null>(null);
+  const [resetting, setResetting] = useState<User | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   if (users.error) return <ErrorState message={users.error} onRetry={users.refetch} />;
@@ -126,6 +128,19 @@ export function UsersSection() {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not resend the invitation.');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const reset2fa = async () => {
+    const row = resetting;
+    setResetting(null);
+    if (!row) return;
+    try {
+      await api.post(`/users/${row.id}/reset-2fa`);
+      replace({ ...row, twoFactorMethod: null });
+      toast.success(`${row.name} will set up two-step sign-in again next time they sign in.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not reset two-step sign-in.');
     }
   };
 
@@ -186,6 +201,12 @@ export function UsersSection() {
                       {row.inviteExpired ? 'Invitation expired' : 'Invited, not joined yet'}
                     </span>
                   ) : null}
+                  {' · '}
+                  {row.twoFactorMethod === 'email'
+                    ? 'Email code'
+                    : row.twoFactorMethod === 'totp'
+                      ? 'Authenticator app'
+                      : 'No two-step yet'}
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-2">
@@ -208,6 +229,11 @@ export function UsersSection() {
                     <option value="Admin">Admin</option>
                   </select>
                 )}
+                {row.twoFactorMethod ? (
+                  <Button variant="ghost" onClick={() => setResetting(row)}>
+                    Reset two-step sign-in
+                  </Button>
+                ) : null}
                 {self ? null : (
                   <Button variant="ghost" className="text-danger" onClick={() => setRemoving(row)}>
                     Remove
@@ -223,6 +249,14 @@ export function UsersSection() {
         open={inviting}
         onClose={() => setInviting(false)}
         onInvited={(user) => users.setData((list) => [...(list ?? []), user])}
+      />
+      <ConfirmDialog
+        open={resetting !== null}
+        title={`Reset two-step sign-in for ${resetting?.name ?? ''}?`}
+        message="This removes their two-step sign-in, remembered devices and Google sign-in. They'll set it up again next time they sign in."
+        confirmLabel="Reset"
+        onConfirm={() => void reset2fa()}
+        onCancel={() => setResetting(null)}
       />
       <ConfirmDialog
         open={removing !== null}

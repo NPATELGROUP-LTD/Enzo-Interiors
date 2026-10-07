@@ -1,24 +1,93 @@
-import { Body, Controller, Get, HttpCode, Ip, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
+import { ClientIp } from '../../core/client-ip';
 import { AuthPrincipal } from '../../common/types/principal';
-import { AuthService, LoginResult } from './auth.service';
-import { ChangePasswordDto, ForgotPasswordDto, LoginDto, ProfileDto, ResetPasswordDto } from './dto';
+import { AuthService, LoginResult, Me } from './auth.service';
+import { ChallengeCodeDto, ChallengeDto, ChangePasswordDto, CodeDto, ForgotPasswordDto, LoginDto, ProfileDto, ResetPasswordDto } from './dto';
+import { DeviceView, TwoFactorService, TwoFactorStep } from './two-factor';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly twoFactor: TwoFactorService,
+  ) {}
 
-  /** Staff login. The client portal's /auth/portal/login returns with the portal. */
+  /**
+   * Staff login: a session, or `{ twoFactor, challenge }` when a code is
+   * needed next (two-factor.ts). The client portal's /auth/portal/login
+   * returns with the portal.
+   */
   @Public()
   @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
   @Post('admin/login')
   @HttpCode(200)
-  loginAdmin(@Body() dto: LoginDto, @Ip() ip: string): Promise<LoginResult> {
-    return this.auth.loginStaff(dto.email, dto.password, ip);
+  async loginAdmin(@Body() dto: LoginDto, @ClientIp() ip: string): Promise<LoginResult | TwoFactorStep> {
+    const staff = await this.auth.checkPassword(dto.email, dto.password, ip);
+    return this.twoFactor.begin(staff, ip, dto.deviceToken);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/verify-code')
+  @HttpCode(200)
+  verifyCode(@Body() dto: CodeDto, @ClientIp() ip: string, @Headers('user-agent') ua?: string): Promise<LoginResult> {
+    return this.twoFactor.verify(dto.challenge, dto.code, ip, dto.remember, ua);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/resend-code')
+  @HttpCode(200)
+  resendCode(@Body() dto: ChallengeDto) {
+    return this.twoFactor.resend(dto.challenge);
+  }
+
+  /* ---- Choosing a method at the first sign-in (the challenge, not a session) ---- */
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/enrol/email/start')
+  @HttpCode(200)
+  enrolEmailStart(@Body() dto: ChallengeDto) {
+    return this.twoFactor.enrolEmailStart(dto.challenge);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/enrol/email/confirm')
+  @HttpCode(200)
+  enrolEmailConfirm(@Body() dto: CodeDto, @ClientIp() ip: string, @Headers('user-agent') ua?: string): Promise<LoginResult> {
+    return this.twoFactor.enrolEmailConfirm(dto.challenge, dto.code, ip, dto.remember, ua);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/enrol/totp/start')
+  @HttpCode(200)
+  enrolAppStart(@Body() dto: ChallengeDto) {
+    return this.twoFactor.enrolAppStart(dto.challenge);
+  }
+
+  /** The emailed code from start, for the app's secret (shown as a QR code). */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/enrol/totp/secret')
+  @HttpCode(200)
+  enrolAppSecret(@Body() dto: ChallengeCodeDto, @ClientIp() ip: string) {
+    return this.twoFactor.enrolAppSecret(dto.challenge, dto.code, ip);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/enrol/totp/confirm')
+  @HttpCode(200)
+  enrolAppConfirm(@Body() dto: CodeDto, @ClientIp() ip: string, @Headers('user-agent') ua?: string): Promise<LoginResult> {
+    return this.twoFactor.enrolAppConfirm(dto.challenge, dto.code, ip, dto.remember, ua);
   }
 
   /** Always 204, account or not. */
@@ -34,7 +103,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
   @Post('admin/reset-password')
   @HttpCode(204)
-  async resetPassword(@Body() dto: ResetPasswordDto, @Ip() ip: string): Promise<void> {
+  async resetPassword(@Body() dto: ResetPasswordDto, @ClientIp() ip: string): Promise<void> {
     await this.auth.resetPassword(dto.token, dto.new_password, ip);
   }
 
@@ -43,8 +112,22 @@ export class AuthController {
    * re-reads the account on every request.
    */
   @Get('me')
-  me(@CurrentUser() principal: AuthPrincipal): AuthPrincipal {
-    return principal;
+  me(@CurrentUser() principal: AuthPrincipal): Promise<Me> {
+    return this.auth.me(principal);
+  }
+
+  /** Browsers that skip the code. Logging out leaves them; this is how to forget one. */
+  @Get('devices')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  devices(@CurrentUser() principal: AuthPrincipal): Promise<DeviceView[]> {
+    return this.twoFactor.devices(principal);
+  }
+
+  @Delete('devices/:id')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async forgetDevice(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string): Promise<void> {
+    await this.twoFactor.forgetDevice(principal, id);
   }
 
   /** Returns a new token: the old one, like every other session, is now void. */

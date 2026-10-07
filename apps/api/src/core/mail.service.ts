@@ -186,6 +186,37 @@ ${button(forgotUrl, 'Reset my password')}`,
     };
   },
 
+  /** The code is in the body only: subjects show on lock screens. */
+  loginCode(name: string, code: string): Rendered {
+    const subject = 'Your Enzo sign-in code';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+${para('Enter this code to finish signing in to Enzo Interiors. It expires in 10 minutes.')}
+<p style="margin:0 0 20px;font:600 30px/1.2 Menlo,Consolas,monospace;letter-spacing:.2em;color:${FOREST}">${escapeHtml(code)}</p>
+<p style="margin:0;color:#6B6B6B;font-size:14px">If you weren't signing in, someone has your password: change it now.</p>`,
+      ),
+      text: `Hi ${name},\n\nYour Enzo Interiors sign-in code is ${code}. It expires in 10 minutes.\n\nIf you weren't signing in, someone has your password: change it now.`,
+    };
+  },
+
+  /** Something changed how the account signs in (Google linked, app added, codes guessed). */
+  securityNotice(name: string, subject: string, message: string, forgotUrl: string): Rendered {
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+${para(message)}
+${para("If this wasn't you, reset your password now and tell whoever runs the account.")}
+${button(forgotUrl, 'Reset my password')}`,
+      ),
+      text: `Hi ${name},\n\n${message}\n\nIf this wasn't you, reset your password now: ${forgotUrl}`,
+    };
+  },
+
   enquiry(input: {
     kind: string;
     name: string;

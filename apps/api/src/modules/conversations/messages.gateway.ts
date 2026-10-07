@@ -12,6 +12,7 @@ import {
 import { Server, Socket } from 'socket.io';
 
 import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
+import { DatabaseService } from '../../data/database.service';
 import { ConversationsService, SendMessageDto } from './conversations.service';
 
 /** The room name for a conversation. One room per thread. */
@@ -53,6 +54,7 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
   constructor(
     private readonly conversations: ConversationsService,
     private readonly jwt: JwtService,
+    private readonly db: DatabaseService,
   ) {}
 
   async handleConnection(socket: Socket): Promise<void> {
@@ -70,6 +72,17 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
     try {
       const payload = await this.jwt.verifyAsync<JwtPayload>(raw);
+      // The same rules as JwtAuthGuard: a purpose token (2FA challenge,
+      // Google state) is not a session, and a staff token dies with its
+      // token_version. Clients have no token_version yet (portal not in v1).
+      const staff = payload.kind === 'Staff' ? await this.db.staffUsers.findById(payload.sub) : null;
+      if (
+        payload.purpose !== undefined ||
+        (payload.kind !== 'Staff' && payload.kind !== 'Client') ||
+        (payload.kind === 'Staff' && (!staff || (payload.tv ?? 0) !== staff.token_version))
+      ) {
+        throw new Error('Not a session');
+      }
       const principal: AuthPrincipal = {
         id: payload.sub,
         kind: payload.kind,

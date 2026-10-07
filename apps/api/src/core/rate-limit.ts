@@ -20,7 +20,8 @@ import Redis from 'ioredis';
 @Injectable()
 export class RateLimitStore implements ThrottlerStorage, OnApplicationShutdown {
   private readonly logger = new Logger(RateLimitStore.name);
-  private readonly redis: Redis | null;
+  /** Also CacheService's connection: one Redis client per process. */
+  readonly redis: Redis | null;
   private readonly remote: ThrottlerStorageRedisService | null;
   private readonly local = new ThrottlerStorageService();
   /** Plain counters (sign-in lockouts) when Redis is not there. */

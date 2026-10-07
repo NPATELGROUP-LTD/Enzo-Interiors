@@ -56,6 +56,11 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Invalid or expired session token');
     }
 
+    // Same key signs the 2FA challenge and Google's state. Neither is a session.
+    if (payload.purpose !== undefined) {
+      throw new UnauthorizedException('Invalid or expired session token');
+    }
+
     // Staff only: v1 has no client portal. When it returns, look up
     // db.clients here the same way (and give clients a token_version).
     const staff =

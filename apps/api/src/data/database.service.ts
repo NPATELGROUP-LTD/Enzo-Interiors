@@ -7,6 +7,7 @@ import {
   Booking,
   BookingSettingsRow,
   BusinessSettings,
+  CalendarConnection,
   Client,
   CmsEntry,
   ComponentItem,
@@ -28,6 +29,7 @@ import {
   SiteSettings,
   StaffUser,
   Testimonial,
+  TrustedDevice,
 } from '../common/types/domain';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
@@ -77,12 +79,14 @@ export class DatabaseService {
   readonly notifications: PrismaRepository<Notification>;
   readonly newsletterSubscribers: PrismaRepository<NewsletterSubscriber>;
   readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
+  readonly trustedDevices: PrismaRepository<TrustedDevice>;
+  readonly calendarConnections: PrismaRepository<CalendarConnection>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
 
     this.staffUsers = new PrismaRepository(prisma.staffUser, 'staff_users', {
-      dates: [...stamps, 'reset_expires_at'],
+      dates: [...stamps, 'reset_expires_at', 'totp_confirmed_at', 'login_code_expires_at'],
     });
     this.clients = new PrismaRepository(prisma.client, 'clients', {
       dates: [...stamps, 'joined_date'],
@@ -166,6 +170,12 @@ export class DatabaseService {
     });
     this.newsletterCampaigns = new PrismaRepository(prisma.newsletterCampaign, 'newsletter_campaigns', {
       dates: [...stamps, 'sent_at'],
+    });
+    this.trustedDevices = new PrismaRepository(prisma.trustedDevice, 'trusted_devices', {
+      dates: ['created_at', 'last_used_at', 'expires_at'],
+    });
+    this.calendarConnections = new PrismaRepository(prisma.calendarConnection, 'calendar_connections', {
+      dates: stamps,
     });
   }
 

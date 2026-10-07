@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 import type { LoginResponse, Principal, StaffRole } from '@/types/api';
-import { ApiError, UNAUTHORIZED_EVENT, api, tokenStore } from './api';
+import { ApiError, UNAUTHORIZED_EVENT, api, deviceStore, tokenStore } from './api';
 
 const USER_CACHE_KEY = 'enzo-admin-user';
 
@@ -45,9 +45,8 @@ interface AuthState {
   user: Principal | null;
   /** True until the stored token has been checked against the API. */
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
-  /** Switch to a token the API just issued (after a password change). */
+  /** Sign in with a session the API just issued (sign-in, or a password change). */
   adopt: (result: LoginResponse) => void;
   /** Take the API's fresh copy of me (after a name change). */
   update: (user: Principal) => void;
@@ -116,6 +115,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const adopt = useCallback((result: LoginResponse) => {
     tokenStore.set(result.access_token);
+    if (result.deviceToken) deviceStore.set(result.deviceToken);
     userCache.write(result.user);
     setUser(result.user);
   }, []);
@@ -124,19 +124,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userCache.write(next);
     setUser(next);
   }, []);
-
-  const login = useCallback(
-    async (email: string, password: string) => {
-      adopt(
-        await api.post<LoginResponse>(
-          '/auth/admin/login',
-          { email, password },
-          { allowUnauthorized: true },
-        ),
-      );
-    },
-    [adopt],
-  );
 
   const logout = useCallback(() => {
     tokenStore.clear();
@@ -148,7 +135,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => ({
       user,
       loading,
-      login,
       logout,
       adopt,
       update,
@@ -156,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user !== null && roles.includes(user.role as StaffRole),
       isAdmin: user?.role === 'Admin',
     }),
-    [user, loading, login, logout, adopt, update],
+    [user, loading, logout, adopt, update],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
