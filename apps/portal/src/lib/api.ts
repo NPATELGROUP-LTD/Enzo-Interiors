@@ -78,10 +78,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   } catch {
     // A network-level failure is the offline case, and the shell shows a
     // reconnecting state rather than an error page.
-    throw new ApiError(
-      0,
-      'Cannot reach the Enzo API. Check that it is running on ' + BASE_URL + '.',
-    );
+    throw new ApiError(0, 'Could not reach Enzo Interiors. Check your connection and try again.');
   }
 
   if (response.status === 401 && !allowUnauthorized) {
@@ -115,6 +112,19 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   return payload as T;
+}
+
+/**
+ * Download one of the client's documents. Each click asks the API for a fresh
+ * five-minute signed link and follows it straight away; the link is never
+ * stored. The bucket answers with Content-Disposition: attachment, so the
+ * browser saves the file and this page stays where it is.
+ */
+export async function downloadDocument(id: string): Promise<void> {
+  const { url } = await request<{ url: string; expires_in: number }>(
+    `/documents/${encodeURIComponent(id)}/download`,
+  );
+  window.location.assign(url);
 }
 
 export const api = {

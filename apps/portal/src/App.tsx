@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { PortalLayout } from './components/layout/PortalLayout';
 import { LoadingState } from './components/ui';
@@ -7,12 +7,14 @@ import { useAuth } from './lib/auth';
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { DashboardPage } from './pages/Dashboard';
 import { DocumentsPage } from './pages/Documents';
+import { InvoiceDetailPage } from './pages/InvoiceDetail';
 import { InvoicesPage } from './pages/Invoices';
 import { LoginPage } from './pages/Login';
 import { MessagesPage } from './pages/Messages';
 import { NotFoundPage } from './pages/NotFound';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
+import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
 import { SettingsPage } from './pages/Settings';
 
 export function App() {
@@ -27,6 +29,11 @@ export function App() {
     disconnectSocket();
     return undefined;
   }, [user]);
+
+  // The emailed links work signed in or out: an invitation may open on a shared device.
+  const { pathname } = useLocation();
+  if (pathname === '/reset-password') return <ResetPasswordPage />;
+  if (pathname === '/forgot-password' && !user) return <ForgotPasswordPage />;
 
   if (loading) {
     return (
@@ -56,6 +63,7 @@ export function App() {
         <Route path="/messages" element={<MessagesPage />} />
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
+        <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

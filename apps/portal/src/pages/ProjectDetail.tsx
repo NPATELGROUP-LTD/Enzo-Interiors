@@ -1,8 +1,5 @@
 import clsx from 'clsx';
-import {
-  ArrowLeft,
-  DownloadSimple,
-} from '@phosphor-icons/react';
+import { ArrowLeft } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -20,9 +17,10 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { DownloadButton } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
-import { date, dateTime, fileSize, humanise, money } from '@/lib/format';
+import { date, dateTime, fileSize, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
 import type { ProjectDetail } from '@/types/api';
 import { DOCUMENT_LABELS, SERVICE_LABELS, STAGE_DESCRIPTIONS } from '@/types/api';
@@ -45,7 +43,7 @@ export function ProjectDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Project not found." />;
 
-  const { project, documents, invoices, activity, timeline, awaiting_client_decision } = data;
+  const { project, documents, invoices, timeline, awaiting_client_decision } = data;
 
   // Mood boards and plans are the "Designs" the approval decision is about.
   const designs = documents.filter(
@@ -207,7 +205,7 @@ export function ProjectDetailPage() {
       />
 
       {tab === 'timeline' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="max-w-2xl">
           <Card>
             <p className="label-eyebrow">Project details</p>
             <dl className="mt-3 rows">
@@ -230,28 +228,6 @@ export function ProjectDetailPage() {
             </dl>
           </Card>
 
-          <Card>
-            <p className="label-eyebrow">Recent updates</p>
-            {activity.length === 0 ? (
-              <p className="py-6 text-center text-ink-muted">No updates recorded yet.</p>
-            ) : (
-              <ul className="mt-3 rows">
-                {activity.slice(0, 8).map((entry) => (
-                  <li key={entry.id} className="py-2.5 first:pt-0">
-                    <p className="font-medium text-ink">{humanise(entry.action)}</p>
-                    <p className="text-xs text-ink-muted">
-                      {entry.actor_name} · {dateTime(entry.created_at)}
-                    </p>
-                    {typeof entry.details?.note === 'string' ? (
-                      <p className="mt-1 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink">
-                        “{entry.details.note}”
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
         </div>
       ) : null}
 
@@ -277,10 +253,9 @@ export function ProjectDetailPage() {
                   </div>
                   <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
                 </div>
-                <p className="mt-3 text-xs text-ink-muted">
-                  Prototype: files are catalogued but not stored, so there is nothing to download
-                  yet.
-                </p>
+                <div className="mt-3">
+                  <DownloadButton id={document.id} name={document.name} />
+                </div>
               </Card>
             ))}
           </div>
@@ -310,16 +285,7 @@ export function ProjectDetailPage() {
                       {fileSize(document.size_bytes)}
                     </p>
                   </div>
-                  <Button
-                    variant="secondary"
-                    className="min-h-9 px-2 text-xs"
-                    icon={<DownloadSimple size={14} aria-hidden="true" />}
-                    onClick={() =>
-                      toast.info('File storage is not part of this prototype, so there is nothing to download yet.')
-                    }
-                  >
-                    Download
-                  </Button>
+                  <DownloadButton id={document.id} name={document.name} />
                 </li>
               ))}
             </ul>

@@ -76,8 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .get<Principal>('/auth/me')
       .then((principal) => {
         if (cancelled) return;
-        setUser(principal);
-        userCache.write(principal);
+        // A staff token has no place here: every portal route would refuse it.
+        const client = principal.kind === 'Client' ? principal : null;
+        if (!client) tokenStore.clear();
+        setUser(client);
+        userCache.write(client);
       })
       .catch((caught: unknown) => {
         if (cancelled) return;

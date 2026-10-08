@@ -226,6 +226,8 @@ test('a client sees only their own shared projects, without drafts, internal fil
   // OTHER's foreign document points at MINE's project; OTHER still cannot reach it.
   assert.equal((await call('GET', `/projects/${P.designs}/detail`, tokens.other)).status, 404);
   assert.equal((await call('POST', `/projects/${P.designs}/approve`, tokens.other, {})).status, 404);
+  assert.equal((await call('POST', `/projects/${P.designs}/request-changes`, tokens.other, { note: 'not mine' })).status, 404);
+  assert.ok(!ids(await json(await call('GET', '/projects', tokens.other))).includes(P.designs));
 
   // Staff-only routes stay shut to a client.
   assert.equal((await call('GET', `/projects/${P.designs}`, tokens.mine)).status, 403);

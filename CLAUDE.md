@@ -110,8 +110,17 @@ forgot = 30 min); `POST /auth/portal/reset` sets the bcrypt hash and bumps
 `token_version` in one conditional UPDATE, so a link works once and old portal
 sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt
 hash is stored. Changing a client's email bumps `token_version` too.
-- `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up
-  (it has no `/reset-password` page yet for the invitation link).
+- `apps/portal` — client portal (React/Vite PWA, same macOS look as admin).
+  Clients reach it only by invitation: `/reset-password` (invite or reset; the
+  token is read from the link and wiped from the address bar) and
+  `/forgot-password`. Pages: Dashboard, Projects (+ detail: approve / request
+  changes, downloads), Invoices (+ printable detail), Documents (download =
+  `GET /documents/:id/download` per click, never stored), Settings (password
+  change adopts the returned token; email / in-portal preferences). Messages is
+  a separate piece of work. Ports: dev 5175, docker 5275 (`PORTAL_PORT`);
+  production host `PORTAL_HOST` (portal.enzointeriors.co.uk), compose service
+  `portal`, CORS via `PORTAL_URL`. The service worker precaches the shell only:
+  every API, cross-origin and `/api` request is network-only.
 
 `packages/` was removed. Each app keeps a local copy of the types it consumes,
 which is deliberate — see the header of `apps/api/src/common/types/domain.ts`.
@@ -313,6 +322,7 @@ docker compose up -d --wait postgres minio minio-init redis   # redis optional
 cd apps/api   && npm ci && npm run db:setup && npm run dev   # :4000
 cd apps/admin && npm ci && npm run dev                       # :5174
 cd apps/web   && npm ci && npm run dev                       # :3000
+cd apps/portal && npm ci && npm run dev                      # :5175
 ```
 
 | App | Check |
@@ -325,6 +335,7 @@ cd apps/web   && npm ci && npm run dev                       # :3000
 `_test`, so the dev `enzo` data is never touched), 2FA off, no Redis/SMTP. Helper:
 `apps/api/src/test-support/app.ts` (`startTestApp()`); add `*.db.test.ts` files and list them in the script. CI runs it as `api (database tests)`.
 | `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
+| `apps/portal` | `npm run typecheck`, `npm run lint`, `npm run build` |
 | `apps/web` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` |
 
 Schema changes: edit `apps/api/prisma/schema.prisma`, then

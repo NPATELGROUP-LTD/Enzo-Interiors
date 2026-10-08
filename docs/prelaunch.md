@@ -45,9 +45,11 @@ Keeping upgrades backward compatible is a rule for migrations, not for Docker:
 
 ## Addresses and proxy
 
-- [ ] `WEB_PUBLIC_URL`, `ADMIN_URL`, `API_PUBLIC_URL` and `MEDIA_BASE_URL` are
-      the real `https://` hostnames. The admin and web images are built against
-      them, so rebuild after changing them.
+- [ ] `WEB_PUBLIC_URL`, `ADMIN_URL`, `PORTAL_URL`, `API_PUBLIC_URL` and
+      `MEDIA_BASE_URL` are the real `https://` hostnames. The admin, portal and
+      web images are built against them, so rebuild after changing them.
+      `PORTAL_URL` is also where invitation and reset emails point, and the
+      API allows it through CORS.
 - [ ] `TRUST_PROXY=2` behind Coolify + Cloudflare Tunnel, so rate limits and
       login lockouts see visitors' IPs rather than the proxy's.
 - [ ] Cloudflare: cache the media hostname (the objects are sent with
@@ -135,6 +137,10 @@ calendar card. Two-step sign-in needs only the first and last items.
       adds the Host rule to the API router. If the hostname shows a certificate
       error, Universal SSL does not cover that depth: needs Advanced
       Certificate Manager.
+- [ ] Client portal: DNS for `PORTAL_HOST` (default
+      `portal.enzointeriors.co.uk`) and a Cloudflare Tunnel public hostname
+      for it → Coolify's Traefik. The compose `portal` service carries the
+      Host rule; `PORTAL_URL=https://$PORTAL_HOST`.
 - [ ] Server clock synced (authenticator codes fail otherwise):
       `timedatectl` shows "System clock synchronized: yes"; else
       `sudo timedatectl set-ntp true`.

@@ -30,22 +30,6 @@ Opens on **http://localhost:5175**.
 | `npm run preview` | Serve the production build — use this to exercise the PWA |
 | `npm run typecheck` | `tsc --noEmit` |
 
-### Full run order
-
-```bash
-cd apps/api && npm install && npm run seed && npm run dev
-```
-
-Then, in a second terminal:
-
-```bash
-cd apps/portal && npm install && npm run dev
-```
-
-To reset all data to a known-good state: **stop the API**, run
-`npm run seed` in `apps/api`, then start it again. (Repositories cache tables in
-memory, so a running API will not pick up a seed written by another process.)
-
 ### Configuration
 
 `.env` (copy from `.env.example`):
@@ -56,30 +40,11 @@ VITE_API_BASE_URL=http://localhost:4000
 
 ---
 
-## Demo accounts
+## Accounts
 
-Listed on the login screen — click one to fill the form. **Every client account
-uses the password `client123`.**
-
-| Client | Email | What you will see |
-|---|---|---|
-| Sarah Jones | `sarah.jones@example.com` | Kitchen in installation, wardrobe in design, invoice paid |
-| David Okafor | `david.okafor@example.com` | **Media wall awaiting your approval**, invoice due |
-| Raj Patel | `raj.patel@example.com` | Wardrobe nearly complete (one project deliberately hidden — see below) |
-| Amelia Hart | `amelia.hart@example.com` | Completed project, everything paid |
-| Eleanor Shaw | `eleanor.shaw@example.com` | Bedroom in design |
-
-Staff accounts do not work here — they belong to the Admin CRM on 5174.
-
-Sign in as **David Okafor** for the most complete tour: the design-approval loop,
-an unread message and an outstanding invoice are all live on that account.
-
-> **Scoping is real, not cosmetic.** Raj Patel has a "Birstall Kitchen Extension"
-> project in the CRM with `client_visible` off; it does not appear in his portal
-> at all. The API enforces this — it is not a filter this app applies.
-
-> The "Demo accounts" panel on the login screen is a **prototype affordance**.
-> Delete it before any real deployment.
+There are no demo accounts. An Admin invites a client from the admin
+(client page → Invite to portal); the email links to `PORTAL_URL/reset-password`,
+where the client chooses a password. Staff accounts do not work here.
 
 ---
 
@@ -87,13 +52,14 @@ an unread message and an outstanding invoice are all live on that account.
 
 | Route | Screen |
 |---|---|
-| `/login` | Client sign-in with demo account picker |
+| `/login` | Client sign-in |
+| `/reset-password`, `/forgot-password` | Invitation / reset link, and asking for one |
 | `/dashboard` | Bento: decisions awaiting you, next appointment, unread, documents, invoices, timeline |
 | `/projects` | Card grid with progress and plain-English stage descriptions |
 | `/projects/:id` | Timeline, designs, documents, invoices, **Approve / Request changes** |
 | `/messages` | Live chat with the Enzo team, attachments |
 | `/documents` | Searchable, filterable by type |
-| `/invoices` | Summary tiles and table — **view and status only** |
+| `/invoices`, `/invoices/:id` | Summary, table and a printable invoice — **view only** |
 | `/settings` | Profile, notification preferences, password, theme |
 
 Every list screen has loading, empty and error states. Every form validates and
@@ -141,12 +107,10 @@ sidebar on desktop.
 
 ## PWA
 
-`vite-plugin-pwa` with `registerType: 'autoUpdate'`, per TRD §11: installable
-manifest with maskable icons, `standalone` display, Workbox service worker with
-stale-while-revalidate on API GETs, and an offline banner in the shell.
-
-Auth routes and mutations are excluded from caching. The service worker is
-**disabled in dev**; test it with `npm run build && npm run preview`.
+`vite-plugin-pwa` (`autoUpdate`): installable manifest, and a service worker
+that precaches the app shell only. API answers, signed document links and
+anything else cross-origin or under `/api` are network-only and never stored.
+Disabled in dev; test with `npm run build && npm run preview`.
 
 ---
 

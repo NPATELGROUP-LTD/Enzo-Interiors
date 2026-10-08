@@ -17,10 +17,9 @@ export default defineConfig({
     VitePWA({
       // TRD 11.2: new portal logic must reach clients without a manual reinstall.
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'Enzo Interiors — Client Portal',
-        short_name: 'Enzo Portal',
+        name: 'Enzo Interiors',
+        short_name: 'Enzo',
         description: 'Track your Enzo Interiors project, approve designs, and view documents and invoices.',
         // Standalone removes browser chrome so the portal feels like an app.
         display: 'standalone',
@@ -45,25 +44,18 @@ export default defineConfig({
         // Never let a cached shell shadow a newer one.
         cleanupOutdatedCaches: true,
         navigateFallback: 'index.html',
+        navigateFallbackDenylist: [/^\/api\//],
+        /**
+         * Only the app shell is cached. Everything else goes to the network
+         * and is never stored: API answers are a client's private data and
+         * live for one session, and a document link is signed for five
+         * minutes. That is anything on another origin (the API, the private
+         * bucket's signed URLs, fonts) and any /api path on this one.
+         */
         runtimeCaching: [
           {
-            /**
-             * API GETs are stale-while-revalidate per TRD 11.2, so the shell
-             * can paint last-seen data instantly while the network refreshes.
-             *
-             * Deliberately NOT applied to auth or mutations: a cached login or
-             * a replayed write would be a correctness bug, not a nicety.
-             */
-            urlPattern: ({ url, request }) =>
-              request.method === 'GET' &&
-              url.port === '4000' &&
-              !url.pathname.startsWith('/auth'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'enzo-portal-api',
-              expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 },
-              cacheableResponse: { statuses: [200] },
-            },
+            urlPattern: ({ url, sameOrigin }) => !sameOrigin || url.pathname.startsWith('/api/'),
+            handler: 'NetworkOnly',
           },
         ],
       },

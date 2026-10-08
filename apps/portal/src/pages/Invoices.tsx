@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 
 import {
   Card,
@@ -32,20 +33,17 @@ export function InvoicesPage() {
     const rows = invoices.data ?? [];
     const sum = (list: Invoice[]) =>
       Math.round(list.reduce((total, invoice) => total + invoice.amount, 0) * 100) / 100;
-    const unpaid = rows.filter(
-      (invoice) => invoice.status === 'Outstanding' || invoice.status === 'Overdue',
-    );
+    const unpaid = rows.filter((invoice) => invoice.status !== 'Paid');
     return {
       paid: sum(rows.filter((invoice) => invoice.status === 'Paid')),
       outstanding: sum(unpaid),
-      nextDue: rows
-        .filter((invoice) => invoice.status !== 'Paid' && invoice.status !== 'Draft')
+      nextDue: [...unpaid]
         .sort((a, b) => a.due_date.localeCompare(b.due_date))[0],
     };
   }, [invoices.data]);
 
-  // Drafts are internal until sent.
-  const visible = (invoices.data ?? []).filter((invoice) => invoice.status !== 'Draft');
+  // The API never sends a client a Draft.
+  const visible = invoices.data ?? [];
 
   return (
     <>
@@ -113,7 +111,11 @@ export function InvoicesPage() {
               <tbody>
                 {visible.map((invoice) => (
                   <tr key={invoice.id} className="hover:bg-surface-muted/40">
-                    <Td className="whitespace-nowrap font-medium text-ink">{invoice.number}</Td>
+                    <Td className="whitespace-nowrap font-medium">
+                      <Link to={`/invoices/${invoice.id}`} className="text-link">
+                        {invoice.number}
+                      </Link>
+                    </Td>
                     <Td className="text-ink-muted">{invoice.project_name ?? '—'}</Td>
                     <Td className="whitespace-nowrap text-ink-muted">{date(invoice.created_at)}</Td>
                     <Td className="whitespace-nowrap text-ink-muted">
