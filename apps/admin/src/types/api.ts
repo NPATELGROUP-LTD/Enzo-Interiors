@@ -243,10 +243,14 @@ export interface DocumentRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  storage_url: string;
   client_name: string;
   project_name: string | null;
-  download_url: string;
+}
+
+/** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */
+export interface DocumentDownload {
+  url: string;
+  expires_in: number;
 }
 
 export interface Testimonial {
@@ -329,8 +333,8 @@ export interface ClientDetail {
   assigned_staff: { id: string; name: string; role: StaffRole } | null;
   projects: Project[];
   invoices: Invoice[];
-  /** Without storage_url: where a file is kept is the API's business. */
-  documents: Array<Omit<DocumentRecord, 'storage_url'>>;
+  /** Where a file is kept is the API's business; it is never sent. */
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   activity: ActivityLog[];
   stats: {
     /** Admin only. */
@@ -346,7 +350,7 @@ export interface ProjectDetail {
   project: Project;
   client: { id: string; name: string; email: string } | null;
   /** This project's and this client's only; never where the file is stored. */
-  documents: Array<Omit<DocumentRecord, 'storage_url' | 'download_url' | 'client_name' | 'project_name'>>;
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
   timeline: Array<{

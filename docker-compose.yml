@@ -223,6 +223,8 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      # Client documents: never public, downloads are 5-minute signed links.
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-enzo-private}
       # The browser-reachable address of the public bucket, which is not the
       # in-network one above: a visitor cannot resolve "minio".
       S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?public URL of the media bucket}

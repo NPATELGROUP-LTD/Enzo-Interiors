@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { InvoicesModule } from './modules/invoices/invoices.controller';
@@ -34,16 +35,17 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * the admin's users and notifications, the newsletter, and the CRM's client
  * book (ClientsModule: Admin, and Designers for the clients of their projects;
  * portal invitations) and projects (ProjectsModule: Admin, Designers on their
- * assigned projects, clients on their own shared ones) and invoices
- * (InvoicesModule: Admin only; clients read their own, never Drafts). Nothing
- * else. The other CRM modules (bookings, conversations, documents, content,
+ * assigned projects, clients on their own shared ones), invoices
+ * (InvoicesModule: Admin only; clients read their own, never Drafts) and
+ * documents (DocumentsModule: the private bucket, same scope by project;
+ * clients their own shared files), and the dashboard (DashboardModule: per
+ * role). Nothing else. The other CRM modules (conversations, content,
  * settings, dashboard) are still in src/modules and their tables are still in
  * the schema, so existing data is untouched — they are simply not mounted,
  * which means none of their routes exist on a v1 server. To bring them back,
  * import them here again, each with an explicit @Roles on every route:
  *
- *   BookingsModule, ConversationsModule,
- *   DocumentsModule, ContentModule, SettingsModule, DashboardModule
+ *   ConversationsModule, ContentModule, SettingsModule
  */
 @Module({
   imports: [
@@ -71,6 +73,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     ClientsModule,
     ProjectsModule,
     InvoicesModule,
+    DocumentsModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.

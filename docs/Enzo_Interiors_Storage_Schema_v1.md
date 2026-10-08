@@ -67,6 +67,13 @@ documents/
 
 **Example:** `documents/a1b2c3d4/e5f6a7b8/9c0d1e2f_signed-contract.pdf`
 
+> **As built (CRM documents, Oct 2026):** the private bucket (`S3_PRIVATE_BUCKET`)
+> uses `clients/{client_id}/projects/{project_id}/{uuid}-{sanitised-name}.{ext}`;
+> every document has a project. Uploads go through the API (multipart, 25 MB,
+> PDF / JPG / PNG / WebP / .doc(x) / .xls(x) / .pptx, checked by first bytes);
+> downloads are 5-minute presigned GETs with `Content-Disposition: attachment`,
+> made per request. See `apps/api/src/core/storage.ts`.
+
 ---
 
 ### 3.2 Project Images (`project-images/`)

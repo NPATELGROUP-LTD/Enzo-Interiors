@@ -20,10 +20,12 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { date, dateTime, fileSize, humanise, money } from '@/lib/format';
+import { date, dateTime, humanise, money } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
+
+import { DocumentsTable } from '@/components/DocumentsTable';
 
 import { NewProjectDialog, useDesigners } from './Projects';
 
@@ -265,42 +267,11 @@ export function ClientDetailPage() {
       ) : null}
 
       {tab === 'documents' ? (
-        documents.length === 0 ? (
-          <Card className="p-0">
-            <EmptyState title="No documents" message="Nothing has been uploaded for this client." />
-          </Card>
-        ) : (
-          <TableWrap>
-            <thead>
-              <tr>
-                <Th>Name</Th>
-                <Th>Type</Th>
-                <Th>Uploaded</Th>
-                <Th>Size</Th>
-                <Th>Client can see</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {documents.map((document) => (
-                <tr key={document.id}>
-                  <Td className="font-medium text-ink">{document.name}</Td>
-                  <Td>
-                    <StatusTag tone="info">{document.type}</StatusTag>
-                  </Td>
-                  <Td className="whitespace-nowrap text-ink-muted">{date(document.upload_date)}</Td>
-                  <Td className="tabular whitespace-nowrap text-ink-muted">
-                    {fileSize(document.size_bytes)}
-                  </Td>
-                  <Td>
-                    <StatusTag tone={document.client_visible ? 'success' : 'neutral'}>
-                      {document.client_visible ? 'Visible' : 'Internal only'}
-                    </StatusTag>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
-        )
+        <DocumentsTable
+          documents={documents}
+          onChanged={refetch}
+          emptyMessage="Nothing has been uploaded for this client. Upload files from one of their projects."
+        />
       ) : null}
 
       {tab === 'notes' ? (

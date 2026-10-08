@@ -173,10 +173,14 @@ export interface DocumentRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  storage_url: string;
   client_name: string;
   project_name: string | null;
-  download_url: string;
+}
+
+/** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */
+export interface DocumentDownload {
+  url: string;
+  expires_in: number;
 }
 
 export interface ActivityLog {
@@ -212,7 +216,8 @@ export interface NotificationPreference {
 export interface ProjectDetail {
   project: Project;
   client: { id: string; name: string; email: string } | null;
-  documents: DocumentRecord[];
+  /** Without client_name / project_name: the project and client are above. */
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
   timeline: Array<{

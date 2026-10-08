@@ -2,7 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/commo
 
 import { DatabaseService } from '../../data/database.service';
 import { Where } from '../../data/prisma-repository';
-import { Project } from '../types/domain';
+import { DocumentRecord, Project } from '../types/domain';
 import { AuthPrincipal } from '../types/principal';
 
 /**
@@ -112,6 +112,21 @@ export class AccessService {
       this.isAssignable(principal) &&
       (project.assigned_designer_id === principal.id || project.assigned_installer_id === principal.id)
     );
+  }
+
+  /**
+   * The documents this principal may see, as a WHERE clause. A client: their
+   * own, once shared. A Designer: through their projects only (never through
+   * the client), and only a row that belongs to that project's client.
+   */
+  async documentScope(principal: AuthPrincipal): Promise<Where<DocumentRecord>> {
+    if (this.isAdmin(principal)) return {};
+    if (this.isClient(principal)) return { client_id: principal.id, client_visible: true };
+    const projects = this.isAssignable(principal)
+      ? await this.db.projects.findWhere(this.projectScope(principal))
+      : [];
+    if (projects.length === 0) return { id: { in: [] } };
+    return { OR: projects.map((project) => ({ project_id: project.id, client_id: project.client_id })) };
   }
 
   /**
