@@ -37,7 +37,9 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { disconnectSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
@@ -57,8 +59,8 @@ import { SearchPalette } from './SearchPalette';
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * Invoices (Admin only) are routed too. The other CRM screens (messages...)
- * are still in src/pages but are not routed, because the v1 API does not serve them. See App.tsx.
+ * Invoices (Admin only) are routed too, and Messages (Admin, and Designers
+ * for the clients of their projects).
  */
 export const SECTIONS: Array<{
   to: string;
@@ -513,6 +515,7 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
   }
   if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
+  if (pathname === '/messages') return { title: 'Messages', back: null };
   if (pathname === '/') return { title: 'Dashboard', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
@@ -527,6 +530,9 @@ export function AdminLayout() {
   const toast = useToast();
   const { isAdmin, logout, can } = useAuth();
   const canSeeClients = can(...CLIENT_ROLES);
+  const unreadMessages = useUnreadCount(canSeeClients);
+  // The shell only exists while signed in: leaving it (sign-out) closes the socket.
+  useEffect(() => () => disconnectSocket(), []);
   const { toggle: toggleTheme } = useTheme();
   const overview = useQuery<CmsOverview>('/cms/overview');
   const enquiries = useQuery<{ new_count: number }>(isAdmin ? '/enquiries?limit=1' : null);
@@ -595,6 +601,7 @@ export function AdminLayout() {
           <CmsMenu counts={counts} />
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
+          {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}

@@ -249,11 +249,15 @@ export interface Conversation extends BaseRecord {
   created_at: string;
 }
 
+/**
+ * A document from the Documents module, by id. The name and size are a
+ * snapshot for the chat bubble; opening it goes through GET
+ * /documents/:id/download, which checks access again. No storage key here.
+ */
 export interface MessageAttachment {
+  document_id: string;
   name: string;
   size_bytes: number;
-  /** Placeholder descriptor, not a real S3 key. No object storage this phase. */
-  storage_url: string;
 }
 
 /** Schema 3.10 */
@@ -514,7 +518,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message';
   title: string;
   body: string | null;
   link: string | null;

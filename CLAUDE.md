@@ -24,8 +24,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
-  accept an invitation). The CRM's Messages screen is still in `src/pages` but unrouted
-  (see `src/App.tsx`).
+  accept an invitation). **Messages** (`/messages`, Admin + Designers; `?client=` opens
+  or starts that client's thread; badge in the menu bar).
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
   (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
   media, the CMS (incl. the public `GET /content/site` bundle, which carries
@@ -38,9 +38,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   `reset`) and **projects** (`/projects`; the portal's list, detail, approve,
   request-changes are the only `'Client'` routes) and **documents**
   (`/documents`; the portal's list and `GET /documents/:id/download`) and
-  **invoices** and the **dashboard** (below). The conversations module and the saved
-  replies / audit-log viewer left in `modules/settings` are kept, with all CRM tables
-  (incl. the retired CRM `bookings`), but not mounted (`src/app.module.ts`); the CRM's
+  **invoices** and the **dashboard** (below) and **messages** (`/conversations`
+  + the Socket.IO gateway; `/saved-replies` and the Admin's `/activity-logs` from
+  `modules/settings`). All CRM tables are kept (incl. the retired CRM `bookings`); the CRM's
   bookings and content modules were deleted (booking is `appointments`, content is the CMS;
   deferred: an enquiries inbox). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
@@ -236,6 +236,19 @@ favicon is served with `media="(prefers-color-scheme: dark)"` (shipped ones:
 (`RETIRED` in `apps/admin/src/components/cms/guide.ts`, which also hides the
 booking page's old `timeSlots` / `wordmark`). The default favicon is
 `apps/web/public/icon.png`.
+
+**Messages:** one `conversations` row per client (Admin all, Designer/Installer
+their projects' clients via AccessService, client their own, Editor none).
+Attachments are `documents` ids shared with that client (`sharedWithClient`),
+opened via `/documents/:id/download`. `MessagesGateway` authenticates the
+handshake and every event with the shared `authenticate()` (one PK read), and
+re-checks each room member before delivery, so a signed-out/demoted socket is
+dropped; HTTP send/read go through the same `publish`/`read`. Nobody on the
+other side connected = email (no message text; staff via `notification_emails`
++ bell, client to `PORTAL_URL/messages`), once per conversation and side per
+15 min (`CacheService`). Single API instance: no Redis adapter; socket.io's
+default `/socket.io` path rides the API's Traefik host (WebSocket upgrade passes
+through Traefik and Cloudflare Tunnel as is).
 
 **Newsletter:** `newsletter_subscribers` (double opt-in: `pending` until the
 emailed link is clicked; only `confirmed` are sent to) and

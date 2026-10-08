@@ -42,8 +42,8 @@ export async function startTestApp(): Promise<{ url: string; nest: NestExpressAp
     DISABLE_2FA: 'true',
     ADMIN_EMAIL: ADMIN.email,
     ADMIN_PASSWORD: ADMIN.password,
-    // Empty, not deleted: ConfigModule would refill a deleted one from a
-    // local .env, and Redis counters then outlive the run (429 on sign-in).
+    // Empty, not deleted: ConfigModule.forRoot reloads .env into process.env
+    // for any key that is missing, which would bring Redis and SMTP back.
     REDIS_URL: '',
     SMTP_HOST: '',
   });
