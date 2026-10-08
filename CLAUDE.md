@@ -35,7 +35,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   confirm, unsubscribe; admin subscribers, CSV, campaigns) and **clients**
   (`/clients`, `POST /clients/:id/invite`; portal `POST /auth/portal/forgot` /
   `reset`) and **projects** (`/projects`; the portal's list, detail, approve,
-  request-changes are the only `'Client'` routes). The other CRM modules and their tables (incl. the CRM's
+  request-changes are the only `'Client'` routes) and **documents**
+  (`/documents`; the portal's list and `GET /documents/:id/download`). The other CRM modules and their tables (incl. the CRM's
   `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
@@ -56,10 +57,21 @@ and `current_stage` only; stage moves are direct (no approval step). Being
 assigned rings the bell. A client sees their own `client_visible` projects;
 project detail lists documents/invoices with that project_id AND its
 client_id, and for clients no Draft invoices, no internal documents, no
-activity; `storage_url` is never sent. Every `/clients` and `/projects` route
-names its `@Roles`. Deferred: projects from appointments/enquiries; the
-documents and invoices routes; a Designer's client detail still lists all of
-that client's invoices/documents.
+activity; `storage_url` is never sent. **Documents** (private bucket,
+`core/storage.ts` `PrivateStorage`): `AccessService.documentScope` = Admin
+all, a Designer the files of their projects (by project, never by client;
+also on client detail), a client their own `client_visible` ones; out of
+scope is 404. Upload is multipart (`file` + client_id, project_id required and
+the client's, type), ≤25 MB, PDF/JPG/PNG/WebP/Word/Excel/PowerPoint checked by
+first bytes, key `clients/<id>/projects/<id>/<uuid>-<name>` made by the API,
+`client_visible` false; `PATCH /documents/:id/visibility` is Admin-only; a
+move stays within the client; delete (and client delete) removes the object,
+best effort. `storage_url` holds the key and is never serialised; downloads
+are `GET /documents/:id/download` → `{url}`, a 5-minute attachment link signed
+per request (`S3_PRIVATE_BUCKET`, signed for the same public host as uploads).
+Every `/clients`, `/projects` and `/documents` route names its `@Roles`.
+Deferred: projects from appointments/enquiries; the invoices routes; a
+Designer's client detail still lists all of that client's invoices.
 
 **Client portal access** is by invitation only: nobody types a client's
 password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,

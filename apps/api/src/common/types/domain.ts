@@ -17,8 +17,8 @@
  *     why it is NOT how the Postgres schema should be defined.
  *   - `timestamptz` / `date` columns are ISO-8601 strings.
  *   - `jsonb` columns are their natural TS shape (arrays / objects).
- *   - `documents.storage_url` is a descriptive placeholder string, not an S3
- *     key. There is no object storage in this phase.
+ *   - `documents.storage_url` holds the private-bucket object KEY (the
+ *     column name predates the bucket). Never serialised; see DocumentsService.
  *
  * These types are internal to apps/api. apps/admin and apps/portal each keep
  * their own local copies of the subset they consume; nothing is shared across
@@ -289,7 +289,7 @@ export interface DocumentRecord extends BaseRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  /** Placeholder descriptor, not an S3 key. Metadata-only uploads this phase. */
+  /** Private-bucket object key, never a URL. Never leaves the API. */
   storage_url: string;
 }
 

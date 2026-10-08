@@ -5,6 +5,7 @@ import { Client } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { sum } from '../../common/util/money';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
 import { CreateClientDto, UpdateClientDto } from './dto';
@@ -31,6 +32,7 @@ export class ClientsService {
     private readonly access: AccessService,
     private readonly activity: ActivityLogService,
     private readonly auth: AuthService,
+    private readonly storage: PrivateStorage,
   ) {}
 
   /** Scoped list. A Designer sees the clients of their assigned projects; Admin sees all. */
@@ -183,7 +185,9 @@ export class ClientsService {
       await this.db.messages.deleteWhere({ conversation_id: { in: conversations.map((row) => row.id) } });
     }
     await this.db.conversations.deleteWhere({ client_id: id });
+    const documents = await this.db.documents.findWhere({ client_id: id });
     await this.db.documents.deleteWhere({ client_id: id });
+    for (const document of documents) await this.storage.remove(document.storage_url);
     await this.db.notificationPreferences.deleteWhere({ owner_type: 'Client', owner_id: id });
     await this.db.clients.delete(id);
 
@@ -211,7 +215,10 @@ export class ClientsService {
         { orderBy: { created_at: 'desc' } },
       ),
       this.db.invoices.findWhere({ client_id: id }, { orderBy: { created_at: 'desc' } }),
-      this.db.documents.findWhere({ client_id: id }, { orderBy: { upload_date: 'desc' } }),
+      // A Designer sees only the files of their own projects, not the whole client's.
+      this.access
+        .documentScope(principal)
+        .then((scope) => this.db.documents.findWhere({ ...scope, client_id: id }, { orderBy: { upload_date: 'desc' } })),
       this.activity.listForTarget('clients', id),
     ]);
 
