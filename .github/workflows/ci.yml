@@ -83,7 +83,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web, admin]
+        app: [api, web, admin, portal]
     steps:
       - uses: actions/checkout@v4
       - if: matrix.app != 'web'
