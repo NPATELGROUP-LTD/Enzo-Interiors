@@ -345,7 +345,7 @@ export function ClientsPage() {
               <Th>Client</Th>
               <Th>Contact</Th>
               <Th>Joined</Th>
-              <Th className="text-right">Total spent</Th>
+              {isAdmin ? <Th className="text-right">Total spent</Th> : null}
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
@@ -370,9 +370,11 @@ export function ClientsPage() {
                   <p className="text-xs text-ink-muted">{client.phone ?? 'No phone'}</p>
                 </Td>
                 <Td className="whitespace-nowrap text-ink-muted">{date(client.joined_date)}</Td>
-                <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
-                  {money(client.total_spent)}
-                </Td>
+                {isAdmin ? (
+                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                    {money(client.total_spent ?? 0)}
+                  </Td>
+                ) : null}
                 <Td>
                   <div className="flex justify-end gap-1">
                     <button

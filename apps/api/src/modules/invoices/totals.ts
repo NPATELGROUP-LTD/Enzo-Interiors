@@ -1,0 +1,47 @@
+import { Prisma } from '@prisma/client';
+
+/**
+ * Invoice arithmetic, in exact decimals (never JS floats).
+ *
+ * Line prices are NET (ex-VAT). Each line is rounded to the penny, the lines
+ * are added, VAT is that subtotal times the rate rounded once, and the gross
+ * total is subtotal + VAT. The gross total is what invoices.amount stores, so
+ * every reader that already treats `amount` as the payable keeps working.
+ */
+const D = Prisma.Decimal;
+type Dec = Prisma.Decimal;
+
+const pennies = (value: Prisma.Decimal.Value): Dec => new D(value).toDecimalPlaces(2, D.ROUND_HALF_UP);
+
+export interface Line {
+  quantity: number;
+  unit_price: number;
+}
+
+export interface Totals {
+  net: number;
+  vat: number;
+  gross: number;
+}
+
+export const lineTotal = (line: Line): Dec => pennies(new D(line.quantity).mul(line.unit_price));
+
+export function totalsOf(lines: Line[], vatRate: number): Totals {
+  const net = lines.reduce<Dec>((total, line) => total.add(lineTotal(line)), new D(0));
+  const vat = pennies(net.mul(vatRate).div(100));
+  return { net: net.toNumber(), vat: vat.toNumber(), gross: net.add(vat).toNumber() };
+}
+
+/** An invoice without lines (stored before lines existed): split its stored gross amount. */
+export function splitGross(gross: number, vatRate: number): Totals {
+  const net = pennies(new D(gross).div(new D(vatRate).div(100).add(1)));
+  return { net: net.toNumber(), vat: new D(gross).sub(net).toNumber(), gross };
+}
+
+/** Exact sum of money values. */
+export function sumMoney(values: number[]): number {
+  return values.reduce<Dec>((total, value) => total.add(value), new D(0)).toNumber();
+}
+
+/** invoices.amount is DECIMAL(12,2): anything at or over this does not fit. */
+export const MAX_AMOUNT = 10_000_000_000;

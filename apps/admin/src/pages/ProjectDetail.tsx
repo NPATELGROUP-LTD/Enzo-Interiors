@@ -265,7 +265,7 @@ export function ProjectDetailPage() {
         tabs={[
           { id: 'timeline', label: 'Overview' },
           { id: 'documents', label: 'Documents & mood boards', count: documents.length },
-          { id: 'invoices', label: 'Invoices', count: invoices.length },
+          ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
           { id: 'activity', label: 'Activity log', count: activity.length },
         ]}
         active={tab}
@@ -355,7 +355,7 @@ export function ProjectDetailPage() {
         )
       ) : null}
 
-      {tab === 'invoices' ? (
+      {tab === 'invoices' && isAdmin ? (
         invoices.length === 0 ? (
           <Card className="p-0">
             <EmptyState title="No invoices" message="Nothing has been invoiced for this project." />
@@ -373,7 +373,11 @@ export function ProjectDetailPage() {
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
-                  <Td className="font-medium text-ink">{invoice.number}</Td>
+                  <Td className="font-medium text-ink">
+                    <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
+                      {invoice.number}
+                    </Link>
+                  </Td>
                   <Td>
                     <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
                       {invoice.status}

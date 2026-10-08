@@ -58,8 +58,20 @@ project detail lists documents/invoices with that project_id AND its
 client_id, and for clients no Draft invoices, no internal documents, no
 activity; `storage_url` is never sent. Every `/clients` and `/projects` route
 names its `@Roles`. Deferred: projects from appointments/enquiries; the
-documents and invoices routes; a Designer's client detail still lists all of
-that client's invoices/documents.
+documents routes; a Designer's client detail still lists all of that client's
+documents.
+
+**Invoices** (`/invoices`, menu bar **Invoices**, Admin only): a client reads their
+own, never Drafts (list, summary, one); a Designer/Editor gets 403, and no
+money in `/clients` (`total_spent`, invoices, lifetime stats) or project detail.
+Lines live in `invoice_items` (net prices, FK cascade); `invoices.amount` stays
+the gross payable and is computed in the API with `Prisma.Decimal`
+(`modules/invoices/totals.ts`: each line to the penny, VAT once on the subtotal);
+an invoice with no lines keeps its stored amount. Lines/VAT edit only on a Draft
+(or in the request that moves it back to Draft); Draft -> Sent -> Overdue, Paid
+only via mark-paid (one transaction with the client's `total_spent`, refuses a
+repeat). `project_id` must belong to the invoice's client. Numbers retry on a
+unique clash. Deferred: emailing/PDF of an invoice (browser view only).
 
 **Client portal access** is by invitation only: nobody types a client's
 password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,

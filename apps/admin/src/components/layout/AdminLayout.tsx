@@ -7,6 +7,7 @@ import {
   CalendarPlus,
   Check,
   CloudCheck,
+  FilePlus,
   ImagesSquare,
   Kanban,
   ListBullets,
@@ -48,15 +49,16 @@ import { SearchPalette } from './SearchPalette';
  * The Enzo Interiors admin. In this version it manages the public website:
  * its content (the CMS menu below), consultation bookings, and its settings;
  * and the CRM: the client book and the projects board (Admin, and Designers
- * for the projects assigned to them and those projects' clients).
+ * for the projects assigned to them and those projects' clients), and invoices
+ * (Admin only).
  *
  * Each section is one kind of content. Pages hold the words of each page; the
  * rest are the things several pages share — a service appears on the home
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * The other CRM screens (invoices, messages...) are still in src/pages but
- * are not routed, because the v1 API does not serve them. See App.tsx.
+ * Invoices (Admin only) are routed too. The other CRM screens (messages...)
+ * are still in src/pages but are not routed, because the v1 API does not serve them. See App.tsx.
  */
 export const SECTIONS: Array<{
   to: string;
@@ -348,6 +350,40 @@ function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
   );
 }
 
+/** The lists on the Invoices screen, addressed as /invoices?view=overdue. */
+export const INVOICE_VIEWS = [
+  { id: 'all', label: 'All invoices' },
+  { id: 'draft', label: 'Drafts' },
+  { id: 'sent', label: 'Sent' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'paid', label: 'Paid' },
+] as const;
+
+/** Invoices (Admin): its lists, and a new invoice. */
+function InvoicesMenu() {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/invoices' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
+  return (
+    <MenuBarMenu id="invoices-menu" label="Invoices" to="/invoices">
+      {(close) => (
+        <>
+          {INVOICE_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'all' ? '/invoices' : `/invoices?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          <Separator />
+          <MenuItem to="/invoices?new=1" label="New invoice…" Icon={FilePlus} active={false} onChoose={close} />
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
 /** Settings: each pane, as in its sidebar. */
 function SettingsMenu() {
   return (
@@ -447,6 +483,13 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
     };
   }
   if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
+  if (pathname === '/invoices') {
+    const view = INVOICE_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: view.label }]} /> : 'Invoices',
+      back: null,
+    };
+  }
   if (pathname === '/account') return { title: 'Account', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
@@ -526,6 +569,7 @@ export function AdminLayout() {
           <CmsMenu counts={counts} />
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
+          {isAdmin ? <InvoicesMenu /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {isAdmin ? <SettingsMenu /> : null}
         </>

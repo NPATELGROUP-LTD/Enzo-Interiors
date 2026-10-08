@@ -121,7 +121,8 @@ export interface Client {
   status: ClientStatus;
   assigned_staff_id: string | null;
   joined_date: string;
-  total_spent: number;
+  /** Admin only: a Designer's copy of a client has no money in it. */
+  total_spent?: number;
   notes: string | null;
   /** A portal password has been set (an invitation was accepted). */
   has_portal_access: boolean;
@@ -148,6 +149,15 @@ export interface Project {
   assigned_installer_name?: string | null;
 }
 
+/** One line of an invoice: a net (ex-VAT) price. */
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  position: number;
+}
+
 export interface Invoice {
   id: string;
   number: string;
@@ -159,6 +169,8 @@ export interface Invoice {
   due_date: string;
   paid_at: string | null;
   created_at: string;
+  /** Rows inside a client's or project's detail have no items or names. */
+  items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
   net_amount: number;
@@ -321,8 +333,9 @@ export interface ClientDetail {
   documents: Array<Omit<DocumentRecord, 'storage_url'>>;
   activity: ActivityLog[];
   stats: {
-    lifetime_value: number;
-    outstanding: number;
+    /** Admin only. */
+    lifetime_value?: number;
+    outstanding?: number;
     active_projects: number;
     total_projects: number;
   };

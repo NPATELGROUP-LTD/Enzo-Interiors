@@ -207,7 +207,7 @@ test('a Designer sees only projects they design or install, and changes only sta
   // Staff see internal documents and drafts, but never another client's file or a storage key.
   const detail = await json<Detail>(await call('GET', `/projects/${P.designs}/detail`, tokens.designer));
   assert.deepEqual(ids(detail.documents as Array<{ id: string }>), [DOCS.internal, DOCS.shared].sort());
-  assert.deepEqual(ids(detail.invoices), [INVOICES.draft, INVOICES.sent].sort());
+  assert.deepEqual(detail.invoices, [], 'a Designer gets no invoices');
   assert.ok(detail.documents.every((document) => !('storage_url' in document)));
 });
 

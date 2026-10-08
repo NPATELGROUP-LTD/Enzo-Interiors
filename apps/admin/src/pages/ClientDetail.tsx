@@ -74,7 +74,7 @@ export function ClientDetailPage() {
     }
   };
 
-  const tabsWithCounts = TABS.map((entry) => ({
+  const tabsWithCounts = TABS.filter((entry) => isAdmin || entry.id !== 'invoices').map((entry) => ({
     ...entry,
     count:
       entry.id === 'projects'
@@ -116,20 +116,24 @@ export function ClientDetailPage() {
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {isAdmin ? (
+          <>
         <Card accent="success" className="pl-4">
           <p className="label-eyebrow">Lifetime value</p>
           <p className="tabular mt-1.5 text-2xl font-bold text-green-900">
-            {money(stats.lifetime_value)}
+            {money(stats.lifetime_value ?? 0)}
           </p>
           <p className="mt-1 text-xs text-ink-muted">From invoices marked paid</p>
         </Card>
-        <Card accent={stats.outstanding > 0 ? 'warning' : 'none'} className="pl-4">
+        <Card accent={(stats.outstanding ?? 0) > 0 ? 'warning' : 'none'} className="pl-4">
           <p className="label-eyebrow">Outstanding</p>
           <p className="tabular mt-1.5 text-2xl font-bold text-green-900">
-            {money(stats.outstanding)}
+            {money(stats.outstanding ?? 0)}
           </p>
           <p className="mt-1 text-xs text-ink-muted">Unpaid and overdue</p>
         </Card>
+          </>
+        ) : null}
         <Card className="pl-4">
           <p className="label-eyebrow">Active projects</p>
           <p className="tabular mt-1.5 text-2xl font-bold text-green-900">
@@ -219,7 +223,7 @@ export function ClientDetailPage() {
         )
       ) : null}
 
-      {tab === 'invoices' ? (
+      {tab === 'invoices' && isAdmin ? (
         invoices.length === 0 ? (
           <Card className="p-0">
             <EmptyState title="No invoices" message="Nothing has been invoiced to this client." />
@@ -237,7 +241,11 @@ export function ClientDetailPage() {
             <tbody>
               {invoices.map((invoice) => (
                 <tr key={invoice.id}>
-                  <Td className="font-medium text-ink">{invoice.number}</Td>
+                  <Td className="font-medium text-ink">
+                    <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
+                      {invoice.number}
+                    </Link>
+                  </Td>
                   <Td>
                     <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
                       {invoice.is_overdue && invoice.status !== 'Overdue'

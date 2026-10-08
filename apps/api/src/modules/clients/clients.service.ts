@@ -3,17 +3,21 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { AccessService } from '../../common/access/access.service';
 import { Client } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
-import { sum } from '../../common/util/money';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
+import { sumMoney } from '../invoices/totals';
 import { CreateClientDto, UpdateClientDto } from './dto';
 
 /**
  * A client as returned over the wire. `password_hash` and `token_version` are
  * stripped — a credential never leaves the API, not even to an Admin.
  */
-export type ClientView = Omit<Client, 'password_hash' | 'token_version'> & { has_portal_access: boolean };
+export type ClientView = Omit<Client, 'password_hash' | 'token_version' | 'total_spent'> & {
+  has_portal_access: boolean;
+  /** Admin only: money is not a Designer's business. */
+  total_spent?: number;
+};
 
 export function toClientView(client: Client): ClientView {
   const { password_hash, ...rest } = client;
@@ -39,11 +43,18 @@ export class ClientsService {
     const rows = await this.db.clients.findWhere(visible === 'all' ? {} : { id: { in: [...visible] } }, {
       orderBy: { name: 'asc' },
     });
-    return rows.map(toClientView);
+    return rows.map((row) => this.view(principal, row));
   }
 
   async findOne(principal: AuthPrincipal, id: string): Promise<ClientView> {
-    return toClientView(await this.require(principal, id));
+    return this.view(principal, await this.require(principal, id));
+  }
+
+  /** The client as this viewer may see it: a Designer gets no money. */
+  private view(principal: AuthPrincipal, client: Client): ClientView {
+    const view = toClientView(client);
+    if (!this.access.isAdmin(principal)) delete view.total_spent;
+    return view;
   }
 
   /** Access first, then existence: a Designer cannot probe ids outside their scope. */
@@ -82,7 +93,7 @@ export class ClientsService {
       targetId: created.id,
       details: { name: created.name, email: created.email },
     });
-    return toClientView(created);
+    return this.view(principal, created);
   }
 
   async update(principal: AuthPrincipal, id: string, dto: UpdateClientDto): Promise<ClientView> {
@@ -122,7 +133,7 @@ export class ClientsService {
       targetId: id,
       details: { fields },
     });
-    return toClientView(updated);
+    return this.view(principal, updated);
   }
 
   /**
@@ -204,13 +215,15 @@ export class ClientsService {
    */
   async detail(principal: AuthPrincipal, id: string) {
     const client = await this.require(principal, id);
+    const isAdmin = this.access.isAdmin(principal);
 
     const [projects, invoices, documents, activity] = await Promise.all([
       this.db.projects.findWhere(
         { client_id: id, ...this.access.projectScope(principal) },
         { orderBy: { created_at: 'desc' } },
       ),
-      this.db.invoices.findWhere({ client_id: id }, { orderBy: { created_at: 'desc' } }),
+      // Invoices are the Admin's: a Designer gets none, and no totals from them.
+      isAdmin ? this.db.invoices.findWhere({ client_id: id }, { orderBy: { created_at: 'desc' } }) : Promise.resolve([]),
       this.db.documents.findWhere({ client_id: id }, { orderBy: { upload_date: 'desc' } }),
       this.activity.listForTarget('clients', id),
     ]);
@@ -220,7 +233,7 @@ export class ClientsService {
       : null;
 
     return {
-      client: toClientView(client),
+      client: this.view(principal, client),
       assigned_staff: assignedStaff ? { id: assignedStaff.id, name: assignedStaff.name, role: assignedStaff.role } : null,
       projects,
       invoices,
@@ -230,14 +243,16 @@ export class ClientsService {
       stats: {
         // Lifetime value counts only invoices actually marked Paid — the manual
         // Admin action is the single source of truth for money received.
-        lifetime_value: sum(
-          invoices.filter((invoice) => invoice.status === 'Paid').map((invoice) => invoice.amount),
-        ),
-        outstanding: sum(
-          invoices
-            .filter((invoice) => invoice.status === 'Outstanding' || invoice.status === 'Overdue')
-            .map((invoice) => invoice.amount),
-        ),
+        ...(isAdmin && {
+          lifetime_value: sumMoney(
+            invoices.filter((invoice) => invoice.status === 'Paid').map((invoice) => invoice.amount),
+          ),
+          outstanding: sumMoney(
+            invoices
+              .filter((invoice) => ['Sent', 'Outstanding', 'Overdue'].includes(invoice.status))
+              .map((invoice) => invoice.amount),
+          ),
+        }),
         active_projects: projects.filter((project) => project.status !== 'Completed').length,
         total_projects: projects.length,
       },

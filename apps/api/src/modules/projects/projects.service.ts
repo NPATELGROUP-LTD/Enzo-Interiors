@@ -84,10 +84,13 @@ export class ProjectsService {
         { ...own, ...(isClient && { client_visible: true }) },
         { orderBy: { upload_date: 'desc' } },
       ),
-      this.db.invoices.findWhere(
-        { ...own, ...(isClient && { status: { not: 'Draft' } }) },
-        { orderBy: { created_at: 'desc' } },
-      ),
+      // Invoices are the Admin's; a client sees their own, never Drafts; a Designer sees none.
+      isClient || this.access.isAdmin(principal)
+        ? this.db.invoices.findWhere(
+            { ...own, ...(isClient && { status: { not: 'Draft' } }) },
+            { orderBy: { created_at: 'desc' } },
+          )
+        : Promise.resolve([]),
       isClient ? Promise.resolve([]) : this.activity.listForTarget('projects', id),
       this.db.clients.findById(project.client_id),
       this.decorate([project]),

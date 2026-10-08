@@ -89,6 +89,22 @@ export interface Project {
   assigned_designer_name: string | null;
 }
 
+/** One line of an invoice: a net (ex-VAT) price. */
+export interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  position: number;
+}
+
+/**
+ * GET /invoices (and /invoices/:id): the client's own invoices, never Drafts.
+ * `amount` is the gross payable; `net_amount` + `vat_amount` split it, and
+ * `items` are the net lines (empty on an invoice raised before lines existed).
+ * The rows inside a project's detail are the plain invoice rows, without
+ * `items`, names or the overdue fields.
+ */
 export interface Invoice {
   id: string;
   number: string;
@@ -100,6 +116,7 @@ export interface Invoice {
   due_date: string;
   paid_at: string | null;
   created_at: string;
+  items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
   net_amount: number;

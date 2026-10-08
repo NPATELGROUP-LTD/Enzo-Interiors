@@ -209,6 +209,16 @@ export interface Invoice extends BaseRecord {
   created_at: string;
 }
 
+/** One line of an invoice. Net (ex-VAT) price; the invoice's amount is derived from its lines. */
+export interface InvoiceItem extends BaseRecord {
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  position: number;
+  created_at: string;
+}
+
 /** Schema 3.8 */
 export interface Booking extends BaseRecord {
   client_id: string;
