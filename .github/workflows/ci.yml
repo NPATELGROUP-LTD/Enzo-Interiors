@@ -57,8 +57,25 @@ jobs:
         ports: ["5432:5432"]
         options: >-
           --health-cmd "pg_isready -U enzo" --health-interval 5s --health-timeout 5s --health-retries 10
+      # The documents and messages tests upload to the private bucket for real.
+      # Same image as docker-compose.yml; it creates the buckets itself.
+      minio:
+        image: bitnamilegacy/minio:2025.4.22
+        env:
+          MINIO_ROOT_USER: ci-minio
+          MINIO_ROOT_PASSWORD: ci-minio-secret
+          MINIO_DEFAULT_BUCKETS: enzo-public,enzo-private
+        ports: ["9000:9000"]
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9000/minio/health/ready" --health-interval 5s --health-timeout 5s --health-retries 20
     env:
       DATABASE_URL: postgresql://enzo:enzo@localhost:5432/enzo_test?schema=public
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_ACCESS_KEY_ID: ci-minio
+      S3_SECRET_ACCESS_KEY: ci-minio-secret
+      S3_PUBLIC_BUCKET: enzo-public
+      S3_PRIVATE_BUCKET: enzo-private
+      S3_PUBLIC_BASE_URL: http://127.0.0.1:9000/enzo-public
       JWT_SECRET: ci-only-jwt-secret-not-for-anything-real
       APP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
     defaults:
