@@ -39,17 +39,21 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
   /** Null until the first answer; then whether the last load worked. */
   const [loaded, setLoaded] = useState<boolean | null>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const unreadRef = useRef(0);
+  useEffect(() => {
+    unreadRef.current = unread;
+  }, [unread]);
 
   const load = useCallback(async () => {
     try {
       const result = await api.get<{ items: Note[]; unread: number }>('/notifications');
       setItems(result.items);
       setLoaded(true);
-      setUnread((before) => {
-        // Something new arrived: let the screens behind refresh their counts.
-        if (result.unread > before) onChange?.();
-        return result.unread;
-      });
+      // Something new arrived: let the screens behind refresh their counts. Not
+      // inside a setState updater: that runs while rendering, and onChange sets
+      // the layout's state.
+      if (result.unread > unreadRef.current) onChange?.();
+      setUnread(result.unread);
     } catch {
       // Offline or signed out: what was already shown stays, and an empty
       // bell says it could not load rather than that nothing happened.

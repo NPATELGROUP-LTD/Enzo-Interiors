@@ -23,6 +23,7 @@ export function MessagesPage() {
   const conversations = useQuery<Conversation[]>('/conversations');
   const conversation = conversations.data?.[0] ?? null;
   const activeId = conversation?.id ?? null;
+  const refetchConversations = conversations.refetch;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
@@ -60,7 +61,15 @@ export function MessagesPage() {
 
   useEffect(() => {
     const socket = connectSocket();
-    if (!socket || !activeId) return;
+    if (!socket) return;
+    if (!activeId) {
+      // No thread yet: when the studio starts one, its first message brings it in.
+      const onFirst = () => void refetchConversations();
+      socket.on('message:new', onFirst);
+      return () => {
+        socket.off('message:new', onFirst);
+      };
+    }
     let typingTimer = 0;
     const onNew = (message: Message) => {
       if (message.conversation_id !== activeId) return;
@@ -91,7 +100,7 @@ export function MessagesPage() {
       socket.off('conversation:read', onRead);
       socket.off('conversation:typing', onTyping);
     };
-  }, [activeId]);
+  }, [activeId, refetchConversations]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
