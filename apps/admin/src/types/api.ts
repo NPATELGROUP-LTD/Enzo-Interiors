@@ -14,12 +14,15 @@ export type StaffRole = 'Admin' | 'Editor' | 'Designer' | 'Installer';
 export type PrincipalRole = StaffRole | 'Client';
 export type ClientStatus = 'Active' | 'Inactive';
 export type ServiceType = 'Kitchen' | 'Bedroom' | 'MediaWall' | 'Wardrobe';
-export type ProjectStage =
-  | 'Consultation'
-  | 'Design'
-  | 'Approval'
-  | 'Installation'
-  | 'Completed';
+/** A name from the Admin's ordered list (GET /projects/stages). */
+export type ProjectStage = string;
+export interface ProjectStageConfig {
+  name: string;
+  /** progress_pct a project takes on entering this stage. */
+  progress: number;
+  /** Where the client approves (next stage) or asks for changes (previous). */
+  approval: boolean;
+}
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
 export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
@@ -27,13 +30,6 @@ export type SubmissionStatus = 'New' | 'Contacted' | 'Converted' | 'Archived';
 export type SenderType = 'Client' | 'Staff';
 
 export const SERVICE_TYPES: ServiceType[] = ['Kitchen', 'Bedroom', 'MediaWall', 'Wardrobe'];
-export const PROJECT_STAGES: ProjectStage[] = [
-  'Consultation',
-  'Design',
-  'Approval',
-  'Installation',
-  'Completed',
-];
 export const STAFF_ROLES: StaffRole[] = ['Admin', 'Designer', 'Installer'];
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
@@ -153,9 +149,29 @@ export interface Project {
 export interface InvoiceItem {
   id: string;
   description: string;
+  /** The heading this line sits under; consecutive lines with the same one are grouped. */
+  section: string | null;
+  /** The printed invoice's "Description" column. */
+  detail: string | null;
   quantity: number;
+  /** Net. 0 = a quantity-only row (materials), printed without a price. */
   unit_price: number;
   position: number;
+}
+
+export interface PaymentScheduleRow {
+  label: string;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string | null;
+}
+
+/** The company block printed on an invoice (from the CMS company entry). */
+export interface InvoiceIssuer {
+  name: string;
+  address: string[];
+  phone: string;
+  email: string;
 }
 
 export interface Invoice {
@@ -173,10 +189,22 @@ export interface Invoice {
   items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
+  /** Lines added up, before the discount. */
+  subtotal_amount: number;
+  /** Fixed £ off the subtotal, before VAT. */
+  discount: number;
+  /** After the discount, before VAT. */
   net_amount: number;
   vat_amount: number;
   is_overdue: boolean;
   days_overdue: number;
+  job_name: string | null;
+  job_address: string | null;
+  job_notes: string | null;
+  payment_schedule: PaymentScheduleRow[];
+  client_email: string | null;
+  client_phone: string | null;
+  issuer: InvoiceIssuer;
 }
 
 export interface Booking {
@@ -396,6 +424,8 @@ export interface AdminDashboard {
 }
 
 export interface DashboardProjects {
+  /** The configured stages, in order. */
+  stages: ProjectStage[];
   active: number;
   completed: number;
   awaiting_decision: number;

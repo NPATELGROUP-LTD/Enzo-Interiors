@@ -1,7 +1,8 @@
-import { Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put, Query } from '@nestjs/common';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { CreateInvoiceDto, InvoicesService, UpdateInvoiceDto } from './invoices.service';
 
 @Controller('invoices')
@@ -19,6 +20,13 @@ export class InvoicesController {
   @Roles('Admin', 'Client')
   summary(@CurrentUser() principal: AuthPrincipal) {
     return this.invoices.summary(principal);
+  }
+
+  /** Admin: up to 200 invoices in full (`?ids=a,b,c`), for one print run / PDF. */
+  @Get('export')
+  @Roles('Admin')
+  export(@Query('ids') ids?: string | string[]) {
+    return this.invoices.export(ids);
   }
 
   @Get(':id')
@@ -62,6 +70,7 @@ export class InvoicesController {
 }
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [InvoicesController],
   providers: [InvoicesService],
   exports: [InvoicesService],

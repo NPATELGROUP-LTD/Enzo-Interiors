@@ -28,6 +28,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DOWNLOAD_TTL_SECONDS, PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
+import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 
 /** 25 MB: a full plan set or a signed contract scan, not a video. */
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
@@ -104,6 +105,7 @@ export class DocumentsService {
     private readonly access: AccessService,
     private readonly activity: ActivityLogService,
     private readonly storage: PrivateStorage,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async list(principal: AuthPrincipal): Promise<DocumentView[]> {
@@ -221,8 +223,21 @@ export class DocumentsService {
         targetId: id,
         details: { from: document.client_visible, to: dto.client_visible, name: document.name },
       });
+      if (dto.client_visible) await this.tellClient(document);
     }
     return this.findOne(principal, id);
+  }
+
+  /** The client's bell (and devices), if they can now open it: its project must be shared too. */
+  private async tellClient(document: DocumentRecord): Promise<void> {
+    const project = document.project_id ? await this.db.projects.findById(document.project_id) : null;
+    if (!project?.client_visible || project.client_id !== document.client_id) return;
+    await this.notifications.notifyClient(document.client_id, {
+      kind: 'document',
+      title: `New file: ${document.name}`,
+      body: project.name,
+      link: '/documents',
+    });
   }
 
   async remove(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
@@ -329,6 +344,7 @@ export class DocumentsController {
 }
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [DocumentsController],
   providers: [DocumentsService],
 })

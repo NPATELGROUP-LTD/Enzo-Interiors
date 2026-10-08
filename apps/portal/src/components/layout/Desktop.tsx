@@ -17,6 +17,8 @@ import { useAuth } from '@/lib/auth';
 import { initials } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 
+import { Notifications } from './Notifications';
+
 /**
  * macOS-style desktop shell: a glass menu bar on top and one window that fills
  * everything below it. The pages sit in the menu bar the way a Mac app's menus
@@ -75,7 +77,7 @@ function hidePopover(id: string) {
   if (el?.matches(':popover-open')) el.hidePopover();
 }
 
-function Badge({ count, inverted = false }: { count: number; inverted?: boolean }) {
+export function Badge({ count, inverted = false }: { count: number; inverted?: boolean }) {
   if (count <= 0) return null;
   return (
     <span
@@ -160,6 +162,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
               Offline<span className="hidden 2xl:inline"> — showing last data, reconnecting…</span>
             </span>
           )}
+          <Notifications />
           <button
             type="button"
             onClick={toggle}

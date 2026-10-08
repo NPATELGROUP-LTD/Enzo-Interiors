@@ -10,6 +10,7 @@ import {
   ErrorState,
   FIELD_BASE,
   Input,
+  Listbox,
   LoadingState,
   StatusTag,
   TableWrap,
@@ -183,16 +184,16 @@ function Subscribers() {
         </label>
         <label>
           <span className="sr-only">Show</span>
-          <select
+          <Listbox
             value={status}
             onChange={(event) => setStatus(event.target.value as typeof status)}
-            className={clsx(FIELD_BASE, 'w-auto pr-8')}
+            className={"w-auto"}
           >
             <option value="all">Everyone</option>
             <option value="confirmed">Confirmed</option>
             <option value="pending">Not confirmed yet</option>
             <option value="unsubscribed">Unsubscribed</option>
-          </select>
+          </Listbox>
         </label>
       </div>
 

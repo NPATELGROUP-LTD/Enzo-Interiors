@@ -131,6 +131,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       favicon_dark_id: null,
       opening_hours: null,
       pages: null,
+      project_stages: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
     });

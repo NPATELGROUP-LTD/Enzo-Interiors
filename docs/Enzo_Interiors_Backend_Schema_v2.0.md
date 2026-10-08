@@ -141,8 +141,15 @@ Index: `idx_quotes_client_id`, `idx_quotes_status`
 | due_date | date | not null |
 | paid_at | timestamptz | nullable — set only when Admin manually marks Paid; **no payment gateway writes to this table** |
 | created_at | timestamptz | default now() |
+| discount | decimal(12,2) | not null, default 0 — fixed £ off the lines' subtotal, before VAT (migration 12) |
+| job_name, job_address, job_notes | text | nullable — the printed invoice's job block |
+| payment_schedule | jsonb | not null, default `[]` — `[{label, amount, date}]`, display only, never summed into `amount` |
 
 Index: `idx_invoices_client_id`, `idx_invoices_status`
+
+`invoice_items` (migration 10): `invoice_id` FK cascade, `description`, `quantity`, `unit_price` (net; 0 = quantity-only row),
+`position`, plus `section` (heading the line sits under) and `detail` (second "Description" column), both nullable text (migration 12).
+`amount` = round each line, sum, minus `discount`, plus VAT on that, rounded once (`modules/invoices/totals.ts`).
 
 ### 3.8 bookings
 | Field | Type | Constraints |

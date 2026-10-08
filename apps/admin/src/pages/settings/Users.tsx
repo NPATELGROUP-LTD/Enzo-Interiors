@@ -2,7 +2,7 @@ import { EnvelopeSimple, Plus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useState, type FormEvent } from 'react';
 
-import { Button, ConfirmDialog, ErrorState, Input, LoadingState, Modal, Select } from '@/components/ui';
+import { Button, ConfirmDialog, ErrorState, Input, Listbox, LoadingState, Modal, Select } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -225,19 +225,19 @@ export function UsersSection() {
                 {self ? (
                   <span className="px-2 text-sm text-ink-muted">{row.role}</span>
                 ) : (
-                  <select
+                  <Listbox
                     aria-label={`Role for ${row.name}`}
                     value={row.role}
                     disabled={busy === row.id}
                     onChange={(event) => void setRole(row, event.target.value as Role)}
-                    className="min-h-9 rounded-control border border-border bg-surface px-2.5 text-sm text-ink"
+                    className="w-auto text-sm"
                   >
                     {ROLES.map((option) => (
                       <option key={option} value={option}>
                         {option}
                       </option>
                     ))}
-                  </select>
+                  </Listbox>
                 )}
                 {row.twoFactorMethod ? (
                   <Button variant="ghost" onClick={() => setResetting(row)}>

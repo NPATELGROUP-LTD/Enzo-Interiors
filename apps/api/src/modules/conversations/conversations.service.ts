@@ -262,9 +262,9 @@ export class ConversationsService {
   }
 
   /**
-   * Nobody on the receiving side had the app open: tell them by email (and
-   * staff by the bell too), at most once per conversation and side every 15
-   * minutes. The email carries no message text, only a link to sign in.
+   * Nobody on the receiving side had the app open: tell them by email and the
+   * bell (which also pushes to their devices), at most once per conversation
+   * and side every 15 minutes. Neither carries the message text.
    */
   async notifyOffline(sender: AuthPrincipal, conversation: Conversation): Promise<void> {
     const toClient = sender.kind !== 'Client';
@@ -277,6 +277,12 @@ export class ConversationsService {
     if (toClient) {
       // Only someone who can sign in to the portal is sent there.
       if (client.status !== 'Active' || !looksHashed(client.password_hash)) return;
+      // The bell and their devices too; like the email, no message text.
+      await this.notifications.notifyClient(client.id, {
+        kind: 'message',
+        title: 'New message from Enzo Interiors',
+        link: '/messages',
+      });
       await this.mail.send({
         to: client.email,
         ...templates.newMessage('Enzo Interiors', 'your client portal', `${this.portalUrl}/messages`),

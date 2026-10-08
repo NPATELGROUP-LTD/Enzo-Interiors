@@ -11,24 +11,18 @@
  */
 
 export type ServiceType = 'Kitchen' | 'Bedroom' | 'MediaWall' | 'Wardrobe';
-export type ProjectStage =
-  | 'Consultation'
-  | 'Design'
-  | 'Approval'
-  | 'Installation'
-  | 'Completed';
+/** A name from the studio's ordered list (GET /projects/stages). */
+export type ProjectStage = string;
+export interface ProjectStageConfig {
+  name: string;
+  progress: number;
+  /** The stage where the client approves or asks for changes. */
+  approval: boolean;
+}
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
 export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
 export type SenderType = 'Client' | 'Staff';
-
-export const PROJECT_STAGES: ProjectStage[] = [
-  'Consultation',
-  'Design',
-  'Approval',
-  'Installation',
-  'Completed',
-];
 
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
@@ -51,8 +45,8 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   MoodBoard: 'Mood board',
 };
 
-/** Plain-English descriptions of each stage, for the client-facing timeline. */
-export const STAGE_DESCRIPTIONS: Record<ProjectStage, string> = {
+/** Plain-English descriptions of the default stages; a stage the studio added has none. */
+export const STAGE_DESCRIPTIONS: Partial<Record<ProjectStage, string>> = {
   Consultation: 'We visit, measure up and understand what you need.',
   Design: 'Your designer draws up the layout and prepares the 3D visuals.',
   Approval: 'Your turn — review the design and approve it or ask for changes.',
@@ -93,9 +87,29 @@ export interface Project {
 export interface InvoiceItem {
   id: string;
   description: string;
+  /** The heading this line sits under; consecutive lines with the same one are grouped. */
+  section: string | null;
+  /** The printed invoice's "Description" column. */
+  detail: string | null;
   quantity: number;
+  /** Net. 0 = a quantity-only row (materials), printed without a price. */
   unit_price: number;
   position: number;
+}
+
+export interface PaymentScheduleRow {
+  label: string;
+  amount: number;
+  /** YYYY-MM-DD */
+  date: string | null;
+}
+
+/** The company block printed on an invoice (from the CMS company entry). */
+export interface InvoiceIssuer {
+  name: string;
+  address: string[];
+  phone: string;
+  email: string;
 }
 
 /**
@@ -119,10 +133,22 @@ export interface Invoice {
   items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
+  /** Lines added up, before the discount. */
+  subtotal_amount: number;
+  /** Fixed £ off the subtotal, before VAT. */
+  discount: number;
+  /** After the discount, before VAT. */
   net_amount: number;
   vat_amount: number;
   is_overdue: boolean;
   days_overdue: number;
+  job_name: string | null;
+  job_address: string | null;
+  job_notes: string | null;
+  payment_schedule: PaymentScheduleRow[];
+  client_email: string | null;
+  client_phone: string | null;
+  issuer: InvoiceIssuer;
 }
 
 export interface Booking {

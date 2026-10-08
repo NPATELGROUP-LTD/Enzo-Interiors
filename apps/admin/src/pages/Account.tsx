@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 
+import { PushToggle } from '@/components/PushToggle';
 import { AppearancePicker, Button, Input, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -266,6 +267,16 @@ export function AccountPage() {
           </div>
         </section>
       ) : null}
+
+      <section aria-labelledby="account-push" className={`${SECTION} mt-10`}>
+        <h2 id="account-push" className={HEADING}>
+          Notifications
+        </h2>
+        <p className={HELP}>What rings your bell, on this device too. Each phone or computer is turned on separately.</p>
+        <div className="mt-5 max-w-md">
+          <PushToggle />
+        </div>
+      </section>
 
       <section aria-labelledby="account-look"className={`${SECTION} mt-10`}>
         <h2 id="account-look" className={HEADING}>

@@ -3,7 +3,6 @@ import {
   ArrowRight,
   ArrowUp,
   CaretDown,
-  CaretRight,
   LinkSimple,
   Plus,
   Trash,
@@ -11,7 +10,7 @@ import {
 import clsx from 'clsx';
 import { useId, useState, type CSSProperties, type ReactNode } from 'react';
 
-import { Toggle } from '@/components/ui';
+import { Listbox, Toggle } from '@/components/ui';
 import type { CollectionSchema, MediaAsset } from '@/types/cms';
 
 import { fieldLabel, isTechnical } from './guide';
@@ -883,19 +882,14 @@ function SoftSelect({
         {text}
       </label>
       <span className="relative flex sm:max-w-sm">
-        <select
+        <Listbox
           id={id}
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className={clsx(SOFT, 'w-full', ROLE.text, 'appearance-none pr-9')}
+          className={clsx(SOFT, 'w-full', ROLE.text)}
         >
           {children}
-        </select>
-        <CaretRight
-          size={14}
-          aria-hidden="true"
-          className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 rotate-90 text-ink-muted"
-        />
+        </Listbox>
       </span>
       {hint ? <Hint>{hint}</Hint> : null}
     </div>

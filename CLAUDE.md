@@ -89,7 +89,25 @@ an invoice with no lines keeps its stored amount. Lines/VAT edit only on a Draft
 (or in the request that moves it back to Draft); Draft -> Sent -> Overdue, Paid
 only via mark-paid (one transaction with the client's `total_spent`, refuses a
 repeat). `project_id` must belong to the invoice's client. Numbers retry on a
-unique clash. Deferred: emailing/PDF of an invoice (browser view only).
+unique clash. An invoice also carries a job block, a fixed £ `discount` taken
+off the subtotal BEFORE VAT, per-line `section`/`detail` (a 0-priced line is a
+quantity-only row) and a display-only `payment_schedule`. Admin and portal
+render the same A4 sheet (`components/invoice/`, kept identical in both apps);
+Print = browser PDF. `GET /invoices/export?ids=` (Admin) feeds a multi-client
+PDF/CSV export. Deferred: emailing an invoice.
+
+**Project stages** come from `site_settings.project_stages` (null = the default
+five in `modules/projects/stages.ts`), edited at Settings › Project stages:
+`{name, progress, approval}`, 1–20 unique names; the last is Completed, one may be
+the client-approval stage; rename moves projects, removing an occupied one is 409.
+Frontends read them via `useStages()` and pass them to `projectTone(status, stages)`.
+
+**Web Push** (`modules/notifications/push.ts`): every bell notification
+(`notify` staff, `notifyClient` portal) is also pushed to that person's
+`push_subscriptions`. Off unless `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY`/
+`VAPID_SUBJECT` are set (`npm run push:keys`; changing keys drops every
+subscription). Endpoints are allowlisted to the browser push services.
+`/notifications` serves both bells; each caller sees only its own rows.
 
 **Dashboard** (`modules/dashboard`, all SQL counts/sums, no table read whole):
 `/dashboard/admin` (Admin: money from invoices via `Prisma.Decimal`, enquiries,
@@ -397,7 +415,7 @@ These are final product decisions, not temporary shortcuts:
 Next.js marketing site. Pages: Homepage, Services, Service Detail, Portfolio (gallery), About, Contact, Booking Wizard (5 steps), 404. Quote Calculator (must respond <200ms) calls `/quotes/estimate` on the API.
 
 ### apps/admin/
-React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
+React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Projects (Kanban over the configurable stages; default Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
 
 ### apps/portal/
 React/Vite client portal. Modules: Dashboard, My Projects (with approval workflow), Messages (WebSocket real-time), Documents, Invoices (view-only), Settings. RBAC: Client (own records only).
