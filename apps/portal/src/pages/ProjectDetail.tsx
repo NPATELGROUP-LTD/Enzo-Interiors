@@ -19,6 +19,7 @@ import {
 import { useToast } from '@/components/ui/Toast';
 import { DownloadButton } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { date, dateTime, fileSize, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
@@ -28,6 +29,7 @@ import { DOCUMENT_LABELS, SERVICE_LABELS, STAGE_DESCRIPTIONS } from '@/types/api
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
+  const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
@@ -96,7 +98,7 @@ export function ProjectDetailPage() {
       <PageHeader
         title={project.name}
         description={SERVICE_LABELS[project.type]}
-        actions={<StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>}
+        actions={<StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>}
       />
 
       {/*

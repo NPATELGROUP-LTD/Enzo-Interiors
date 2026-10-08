@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import {
   ActivityLog,
@@ -22,7 +23,9 @@ import {
   Notification,
   NotificationPreference,
   PortfolioItem,
+  PushSubscriptionRecord,
   Project,
+  ProjectStageConfig,
   SavedReplyTemplate,
   SiteSettings,
   StaffUser,
@@ -75,6 +78,7 @@ export class DatabaseService {
   readonly bookingSettings: PrismaRepository<BookingSettingsRow>;
   readonly appointments: PrismaRepository<Appointment>;
   readonly notifications: PrismaRepository<Notification>;
+  readonly pushSubscriptions: PrismaRepository<PushSubscriptionRecord>;
   readonly newsletterSubscribers: PrismaRepository<NewsletterSubscriber>;
   readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
@@ -151,6 +155,9 @@ export class DatabaseService {
     this.notifications = new PrismaRepository(prisma.notification, 'notifications', {
       dates: ['created_at', 'read_at'],
     });
+    this.pushSubscriptions = new PrismaRepository(prisma.pushSubscription, 'push_subscriptions', {
+      dates: ['created_at'],
+    });
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });
@@ -162,6 +169,43 @@ export class DatabaseService {
     });
     this.calendarConnections = new PrismaRepository(prisma.calendarConnection, 'calendar_connections', {
       dates: stamps,
+    });
+  }
+
+  /**
+   * Settings › Project stages, all or nothing. While any project sits at a
+   * stage in `removed`, nothing is written and the counts come back. Otherwise
+   * projects at a renamed stage take its new name (ids collected first, so a
+   * swap of two names works) and the list is saved.
+   *
+   * ponytail: a stage move landing between this count and the commit can still
+   * write a removed name (READ COMMITTED); the board then shows it nowhere and
+   * a later save refuses until it is moved. Lock projects if that bites.
+   */
+  async saveProjectStages(
+    stages: ProjectStageConfig[],
+    renames: Array<[string, string]>,
+    removed: string[],
+    updatedBy: string,
+  ): Promise<Record<string, number>> {
+    return this.prisma.$transaction(async (tx) => {
+      if (removed.length) {
+        const inUse = await tx.project.groupBy({ by: ['status'], where: { status: { in: removed } }, _count: { _all: true } });
+        if (inUse.length) return Object.fromEntries(inUse.map((row) => [row.status, row._count._all]));
+      }
+      const moves: Array<{ to: string; ids: string[] }> = [];
+      for (const [from, to] of renames) {
+        const rows = await tx.project.findMany({ where: { status: from }, select: { id: true } });
+        moves.push({ to, ids: rows.map((row) => row.id) });
+      }
+      for (const { to, ids } of moves) {
+        if (ids.length) await tx.project.updateMany({ where: { id: { in: ids } }, data: { status: to } });
+      }
+      await tx.siteSettings.update({
+        where: { id: 'site' },
+        data: { project_stages: stages as unknown as Prisma.InputJsonValue, updated_at: new Date(), updated_by: updatedBy },
+      });
+      return {};
     });
   }
 

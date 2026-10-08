@@ -164,12 +164,50 @@ test('status rules: lines and VAT only change on a Draft; Paid is only reached b
   assert.ok(paid.paid_at);
   assert.equal((await call('PUT', `${url}/mark-paid`, tokens.admin)).status, 400, 'paid twice is refused');
   assert.equal((await call('PUT', url, tokens.admin, { due_date: '2099-03-01' })).status, 400, 'a Paid invoice is frozen');
+  assert.equal((await call('PUT', url, tokens.admin, { discount: 1 })).status, 400, 'its money too');
+  const noted = await json<Inv & { job_notes: string }>(await call('PUT', url, tokens.admin, { job_notes: 'Handle: push to open' }));
+  assert.deepEqual([noted.status, noted.job_notes, noted.amount], ['Paid', 'Handle: push to open', 42], 'but its paperwork can change');
   assert.equal((await call('DELETE', url, tokens.admin)).status, 400);
 
   // The client's lifetime value follows the paid invoices, to the penny.
   const sumPaid = await prisma.invoice.aggregate({ where: { client_id: MINE.id, status: 'Paid' }, _sum: { amount: true } });
   const client = await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } });
   assert.equal(client.total_spent.toString(), sumPaid._sum.amount!.toString());
+});
+
+test('the printed layout: sections, quantity-only rows, a discount before VAT, a schedule; export in order', async () => {
+  const made = await json<Inv & Record<string, unknown>>(
+    await create({
+      vat_rate: 20,
+      discount: 10,
+      job_name: '  Media wall  ',
+      job_address: '',
+      payment_schedule: [{ label: 'Deposit received', amount: 54, date: '2099-01-02' }],
+      items: [
+        { section: 'Materials', description: 'Oxide Artstone', detail: 'For the doors', quantity: 2, unit_price: 0 },
+        { section: 'Add on', description: 'Glass doors', quantity: 1, unit_price: 100 },
+      ],
+    }),
+    201,
+  );
+  assert.deepEqual(
+    [made.subtotal_amount, made.discount, made.net_amount, made.vat_amount, made.amount],
+    [100, 10, 90, 18, 108],
+    'the discount comes off before VAT; the quantity-only row adds nothing',
+  );
+  assert.deepEqual([made.job_name, made.job_address], ['Media wall', null]);
+  assert.deepEqual(made.payment_schedule, [{ label: 'Deposit received', amount: 54, date: '2099-01-02' }]);
+  assert.deepEqual(made.items.map((i) => [(i as Record<string, unknown>).section, i.unit_price]), [['Materials', 0], ['Add on', 100]]);
+  assert.equal(typeof (made.issuer as { name: string }).name, 'string');
+
+  assert.equal((await create({ discount: 101, items: [{ description: 'x', quantity: 1, unit_price: 100 }] })).status, 400, 'discount over the subtotal');
+  assert.equal((await create({ payment_schedule: [{ label: '', amount: 1 }], items: [{ description: 'x', quantity: 1, unit_price: 1 }] })).status, 400);
+
+  const both = await json<Inv[]>(await call('GET', `/invoices/export?ids=${OTHERS_SENT},${made.id}`, tokens.admin));
+  assert.deepEqual(both.map((i) => i.id), [OTHERS_SENT, made.id], 'any clients, in the order asked');
+  const tooMany = Array.from({ length: 201 }, (_, n) => `x${n}`).join(',');
+  assert.equal((await call('GET', `/invoices/export?ids=${tooMany}`, tokens.admin)).status, 400);
+  assert.equal((await call('GET', `/invoices/export?ids=${made.id}`, tokens.mine)).status, 403, 'clients cannot export');
 });
 
 test('a Draft can be deleted and takes its lines with it', async () => {
@@ -214,6 +252,7 @@ test('a Designer and an Editor are refused on every /invoices route', async () =
   const routes: Array<[string, string, unknown?]> = [
     ['GET', '/invoices'],
     ['GET', '/invoices/summary'],
+    ['GET', `/invoices/export?ids=${LEGACY}`],
     ['GET', `/invoices/${LEGACY}`],
     ['POST', '/invoices', { client_id: MINE.id, due_date: due, items: [{ description: 'x', quantity: 1, unit_price: 1 }] }],
     ['PUT', `/invoices/${LEGACY}`, { due_date: due }],

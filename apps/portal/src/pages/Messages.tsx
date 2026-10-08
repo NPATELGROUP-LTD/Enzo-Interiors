@@ -140,13 +140,13 @@ export function MessagesPage() {
   if (conversations.error) return <ErrorState message={conversations.error} onRetry={conversations.refetch} />;
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       <PageHeader title="Messages" description="Talk to the Enzo Interiors team." />
 
       {conversations.loading ? (
         <LoadingState label="Loading your messages…" />
       ) : (
-        <Card className="flex min-h-[28rem] flex-col p-0 lg:h-[calc(100dvh-19rem)]">
+        <Card className="flex min-h-0 flex-1 flex-col p-0">
           <div className="bg-ink/[0.025] p-3">
             <p className="font-semibold text-ink">Enzo Interiors</p>
             <p className="text-xs text-ink-muted">
@@ -282,7 +282,7 @@ export function MessagesPage() {
           ) : null}
         </Card>
       )}
-    </>
+    </div>
   );
 }
 

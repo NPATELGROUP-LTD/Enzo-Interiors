@@ -73,8 +73,16 @@ test('wrong password, unknown address and inactive client get the same 401', asy
 
 test('a client token is refused on every staff route', async () => {
   const client = await token('/auth/portal/login', ACTIVE.email, PASSWORD);
-  for (const path of ['/users', '/notifications', '/appointments', '/auth/devices']) {
+  for (const path of ['/users', '/appointments', '/auth/devices']) {
     assert.equal((await get(path, client)).status, 403, path);
+  }
+  // /notifications is shared by both bells, but a client only ever sees its own.
+  const note = await prisma.notification.create({ data: { id: randomUUID(), recipient_id: STAFF.id, kind: 'Test', title: 'Staff only' } });
+  try {
+    const bell = (await (await get('/notifications', client)).json()) as { items: { id: string }[] };
+    assert.ok(!bell.items.some((n) => n.id === note.id));
+  } finally {
+    await prisma.notification.delete({ where: { id: note.id } });
   }
   // A client token is also not a staff session for the staff-only writes.
   const put = await fetch(`${app.url}/auth/profile`, {

@@ -1,5 +1,5 @@
 import type { StatusTone } from '@/components/ui';
-import type { BookingStatus, InvoiceStatus, ProjectStage } from '@/types/api';
+import type { BookingStatus, InvoiceStatus, ProjectStage, ProjectStageConfig } from '@/types/api';
 
 /**
  * Status colour is reinforcement, never the only signal — every tag also
@@ -26,7 +26,12 @@ export const invoiceLabel = (status: InvoiceStatus, isOverdue = false): string =
   return 'Draft';
 };
 
-export const projectTone = (stage: ProjectStage): StatusTone => {
+/** With the studio's list: last = done, approval = needs the client. Else the default names. */
+export const projectTone = (stage: ProjectStage, stages?: ProjectStageConfig[]): StatusTone => {
+  if (stages?.length) {
+    if (stage === stages[stages.length - 1]!.name) return 'success';
+    return stages.find((entry) => entry.name === stage)?.approval ? 'warning' : 'neutral';
+  }
   switch (stage) {
     case 'Completed':
       return 'success';

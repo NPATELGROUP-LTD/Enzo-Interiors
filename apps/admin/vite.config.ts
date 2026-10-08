@@ -44,6 +44,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Never let a cached shell shadow a newer one.
         cleanupOutdatedCaches: true,
+        // Web Push handlers (public/push-sw.js): show the notification, open its page.
+        importScripts: ['push-sw.js'],
         navigateFallback: 'index.html',
         // No runtime caching of API responses. This is an editor: a cached
         // GET would show a draft as it was before the last save, and "did my

@@ -18,20 +18,30 @@ import {
 } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
-import { Invoice, InvoiceItem, InvoiceStatus } from '../../common/types/domain';
+import { Invoice, InvoiceItem, InvoiceStatus, PaymentScheduleRow } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { ItemInput } from '../../data/invoice-store';
 import { DatabaseService } from '../../data/database.service';
+import { NotificationsService } from '../notifications/notifications.module';
 import { MAX_AMOUNT, lateMs, splitGross, sumMoney, totalsOf } from './totals';
 
 /* -------------------------------------------------------------------------- */
 /* DTOs                                                                       */
 /* -------------------------------------------------------------------------- */
 
+/** Trims; an empty string becomes null (= cleared). */
+const OptionalText = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value));
+
+const MONEY = { maxDecimalPlaces: 2 } as const;
+
 export class InvoiceItemDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString() @MinLength(1, { message: 'Describe each line' }) @MaxLength(300) description!: string;
+
+  /** The heading the line sits under, e.g. "Materials". */
+  @OptionalText() @IsOptional() @IsString() @MaxLength(120) section?: string | null;
+  @OptionalText() @IsOptional() @IsString() @MaxLength(300) detail?: string | null;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Quantity must have at most 2 decimal places' })
@@ -43,10 +53,33 @@ export class InvoiceItemDto {
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Price must have at most 2 decimal places' })
   @Min(0, { message: 'Price cannot be negative' })
   @Max(9_999_999.99)
-  unit_price!: number;
+  unit_price!: number; // 0 = a quantity-only row, printed without a price
 }
 
-export class CreateInvoiceDto {
+export class PaymentScheduleRowDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString() @MinLength(1, { message: 'Name each payment' }) @MaxLength(120) label!: string;
+
+  @Type(() => Number)
+  @IsNumber(MONEY, { message: 'Payment amounts must have at most 2 decimal places' })
+  @Min(0) @Max(9_999_999.99)
+  amount!: number;
+
+  @IsOptional() @IsDateString({}, { message: 'Enter a valid payment date' }) date?: string | null;
+}
+
+/** The parts of an invoice that are paperwork, not money: editable whatever the status. */
+class InvoiceDocumentDto {
+  @OptionalText() @IsOptional() @IsString() @MaxLength(200) job_name?: string | null;
+  @OptionalText() @IsOptional() @IsString() @MaxLength(300) job_address?: string | null;
+  @OptionalText() @IsOptional() @IsString() @MaxLength(4000) job_notes?: string | null;
+
+  @IsOptional()
+  @IsArray() @ArrayMaxSize(12, { message: 'A payment schedule can have at most 12 rows' }) @ValidateNested({ each: true }) @Type(() => PaymentScheduleRowDto)
+  payment_schedule?: PaymentScheduleRowDto[];
+}
+
+export class CreateInvoiceDto extends InvoiceDocumentDto {
   @IsString() client_id!: string;
   @IsOptional() @IsString() project_id?: string | null;
 
@@ -55,6 +88,8 @@ export class CreateInvoiceDto {
   items!: InvoiceItemDto[];
 
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100) vat_rate?: number;
+  /** A fixed £ amount off the subtotal, before VAT. */
+  @IsOptional() @Type(() => Number) @IsNumber(MONEY, { message: 'The discount must have at most 2 decimal places' }) @Min(0) @Max(9_999_999.99) discount?: number;
 
   @IsDateString({}, { message: 'Enter a valid due date' })
   due_date!: string;
@@ -64,12 +99,14 @@ export class CreateInvoiceDto {
   status?: 'Draft' | 'Sent';
 }
 
-export class UpdateInvoiceDto {
+export class UpdateInvoiceDto extends InvoiceDocumentDto {
   @IsOptional() @IsString() project_id?: string | null;
   @IsOptional()
   @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'An invoice can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
   items?: InvoiceItemDto[];
   @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100) vat_rate?: number;
+  /** A fixed £ amount off the subtotal, before VAT. */
+  @IsOptional() @Type(() => Number) @IsNumber(MONEY, { message: 'The discount must have at most 2 decimal places' }) @Min(0) @Max(9_999_999.99) discount?: number;
   @IsOptional() @IsDateString() due_date?: string;
 
   /** Paid is not accepted here: recording payment is its own audited action (mark-paid). */
@@ -83,9 +120,11 @@ export class UpdateInvoiceDto {
  * back to Draft to be edited; Paid is final and only mark-paid gets there.
  * 'Outstanding' is the legacy name for Sent and is only ever left, never set.
  *
- * Lines and VAT can be edited only while the invoice is a Draft, or in the same
- * request that moves it back to Draft. Once it has been sent, the client may
- * have it, so the numbers do not change under them.
+ * Lines, VAT and the discount can be edited only while the invoice is a Draft,
+ * or in the same request that moves it back to Draft. Once it has been sent,
+ * the client may have it, so the numbers do not change under them. The job
+ * details and the payment schedule (DOCUMENT_FIELDS) change on any status,
+ * Paid included: they never touch `amount`.
  */
 const NEXT: Record<InvoiceStatus, InvoiceStatus[]> = {
   Draft: ['Sent'],
@@ -102,13 +141,31 @@ const NEXT: Record<InvoiceStatus, InvoiceStatus[]> = {
 export interface InvoiceView extends Invoice {
   items: InvoiceItem[];
   client_name: string;
+  client_email: string | null;
+  client_phone: string | null;
   project_name: string | null;
-  /** The ex-VAT subtotal and the VAT on it; `amount` is their sum, the gross payable. */
+  /** The lines added up, before the discount. */
+  subtotal_amount: number;
+  /** The ex-VAT amount after the discount and the VAT on it; `amount` is their sum, the gross payable. */
   net_amount: number;
   vat_amount: number;
   /** True when unpaid and past its due date, regardless of the stored status. */
   is_overdue: boolean;
   days_overdue: number;
+  issuer: Issuer;
+}
+
+const DOCUMENT_FIELDS = new Set(['job_name', 'job_address', 'job_notes', 'payment_schedule']);
+
+/** GET /invoices/export takes at most this many ids. */
+export const EXPORT_LIMIT = 200;
+
+/** Who the invoice is from: the CMS company entry, else what the printed invoice has always said. */
+export interface Issuer {
+  name: string;
+  address: string[];
+  phone: string;
+  email: string;
 }
 
 const NUMBER_ATTEMPTS = 8;
@@ -119,6 +176,7 @@ export class InvoicesService {
     private readonly db: DatabaseService,
     private readonly access: AccessService,
     private readonly activity: ActivityLogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Staff reach here only as Admin (controller). A client sees their own, never Drafts. */
@@ -134,6 +192,18 @@ export class InvoicesService {
       throw new NotFoundException('Invoice not found');
     }
     return (await this.views([invoice]))[0]!;
+  }
+
+  /** Admin only (controller): several invoices in full, in the order asked, for one print run. */
+  async export(idList: unknown): Promise<InvoiceView[]> {
+    // `?ids=a,b` is a string; a repeated `?ids=a&ids=b` arrives as an array.
+    const raw = Array.isArray(idList) ? idList.join(',') : typeof idList === 'string' ? idList : '';
+    const ids = [...new Set(raw.split(',').map((id) => id.trim()).filter(Boolean))];
+    if (ids.length === 0) throw new BadRequestException('Choose at least one invoice');
+    if (ids.length > EXPORT_LIMIT) throw new BadRequestException(`Export at most ${EXPORT_LIMIT} invoices at a time`);
+    const found = await this.views(await this.db.invoices.findWhere({ id: { in: ids } }));
+    const order = new Map(ids.map((id, index) => [id, index]));
+    return found.sort((a, b) => order.get(a.id)! - order.get(b.id)!);
   }
 
   /** Summary tiles for the portal Invoices screen. Drafts never count for a client. */
@@ -166,8 +236,9 @@ export class InvoicesService {
     await this.assertProjectOfClient(dto.project_id, dto.client_id);
 
     const vat_rate = dto.vat_rate ?? (await this.db.settings()).vat_rate;
+    const discount = dto.discount ?? 0;
     const items = this.lines(dto.items);
-    const { gross } = this.totals(items, vat_rate);
+    const { gross } = this.totals(items, vat_rate, discount);
 
     // Two invoices created at once can pick the same next number; the unique
     // index refuses the second, which then looks again. Each failed attempt
@@ -185,6 +256,11 @@ export class InvoicesService {
             due_date: dto.due_date.slice(0, 10),
             paid_at: null,
             created_at: new Date().toISOString(),
+            discount,
+            job_name: dto.job_name ?? null,
+            job_address: dto.job_address ?? null,
+            job_notes: dto.job_notes ?? null,
+            payment_schedule: this.schedule(dto.payment_schedule ?? []),
           },
           items,
         );
@@ -195,6 +271,7 @@ export class InvoicesService {
           targetId: created.id,
           details: { number: created.number, amount: created.amount, client: client.name },
         });
+        if (created.status !== 'Draft') await this.tellClient(created);
         return this.findOne(principal, created.id);
       } catch (error) {
         const taken = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
@@ -208,35 +285,45 @@ export class InvoicesService {
     const invoice = await this.db.invoices.findById(id);
     if (!invoice) throw new NotFoundException('Invoice not found');
 
-    if (invoice.status === 'Paid') {
+    const asked = Object.entries(dto).filter(([, value]) => value !== undefined).map(([key]) => key);
+    const paid = invoice.status === 'Paid';
+    if (paid && asked.some((key) => !DOCUMENT_FIELDS.has(key))) {
       throw new BadRequestException(
-        'This invoice is marked Paid and can no longer be edited. Raise a credit note or a new invoice instead.',
+        'This invoice is marked Paid: only the job details and payment schedule can still change. Raise a credit note or a new invoice instead.',
       );
     }
     if (dto.status && dto.status !== invoice.status && !NEXT[invoice.status].includes(dto.status)) {
       throw new BadRequestException(`A ${invoice.status} invoice cannot be changed to ${dto.status}.`);
     }
     const status = dto.status ?? invoice.status;
-    const editsMoney = dto.items !== undefined || dto.vat_rate !== undefined;
+    const editsMoney = dto.items !== undefined || dto.vat_rate !== undefined || dto.discount !== undefined;
     if (editsMoney && status !== 'Draft') {
-      throw new BadRequestException('Lines and VAT can only be edited on a Draft. Move the invoice back to Draft first.');
+      throw new BadRequestException('Lines, VAT and the discount can only be edited on a Draft. Move the invoice back to Draft first.');
     }
     if (dto.project_id !== undefined) await this.assertProjectOfClient(dto.project_id, invoice.client_id);
 
-    const patch: Partial<Invoice> = { status };
+    const patch: Partial<Invoice> = paid ? {} : { status };
     if (dto.project_id !== undefined) patch.project_id = dto.project_id;
     if (dto.due_date !== undefined) patch.due_date = dto.due_date.slice(0, 10);
     if (dto.vat_rate !== undefined) patch.vat_rate = dto.vat_rate;
+    if (dto.discount !== undefined) patch.discount = dto.discount;
+    if (dto.job_name !== undefined) patch.job_name = dto.job_name;
+    if (dto.job_address !== undefined) patch.job_address = dto.job_address;
+    if (dto.job_notes !== undefined) patch.job_notes = dto.job_notes;
+    if (dto.payment_schedule !== undefined) patch.payment_schedule = this.schedule(dto.payment_schedule);
 
     const given = dto.items ? this.lines(dto.items) : undefined;
     if (editsMoney) {
       // Re-total from the new lines, or the existing ones when only VAT changed.
       // An invoice with no lines at all (older than lines) keeps its stored amount.
       const lines = given ?? (await this.itemsOf(id));
-      if (lines.length > 0) patch.amount = this.totals(lines, patch.vat_rate ?? invoice.vat_rate).gross;
+      if (lines.length > 0) {
+        patch.amount = this.totals(lines, patch.vat_rate ?? invoice.vat_rate, patch.discount ?? invoice.discount).gross;
+      }
     }
 
-    const updated = await this.db.invoiceStore.update(id, patch, given);
+    if (Object.keys(patch).length === 0) return this.findOne(principal, id);
+    const updated = await this.db.invoiceStore.update(id, patch, given, paid);
     if (!updated) throw new BadRequestException('This invoice is marked Paid and can no longer be edited.');
 
     await this.activity.record({
@@ -246,7 +333,17 @@ export class InvoicesService {
       targetId: id,
       details: { fields: Object.keys(dto), number: updated.number },
     });
+    if (invoice.status === 'Draft' && updated.status !== 'Draft') await this.tellClient(updated);
     return this.findOne(principal, id);
+  }
+
+  /** The client's bell (and devices) when an invoice leaves Draft: the moment they can see it. */
+  private async tellClient(invoice: Invoice): Promise<void> {
+    await this.notifications.notifyClient(invoice.client_id, {
+      kind: 'invoice',
+      title: `New invoice ${invoice.number}`,
+      link: `/invoices/${invoice.id}`,
+    });
   }
 
   /**
@@ -305,13 +402,44 @@ export class InvoicesService {
   /* ------------------------------------------------------------------ */
 
   private lines(dtos: InvoiceItemDto[]): ItemInput[] {
-    return dtos.map(({ description, quantity, unit_price }) => ({ description, quantity, unit_price }));
+    return dtos.map(({ description, section, detail, quantity, unit_price }) => ({
+      description,
+      section: section ?? null,
+      detail: detail ?? null,
+      quantity,
+      unit_price,
+    }));
   }
 
-  private totals(items: ItemInput[], vatRate: number) {
-    const totals = totalsOf(items, vatRate);
+  private schedule(rows: PaymentScheduleRowDto[]): PaymentScheduleRow[] {
+    return rows.map(({ label, amount, date }) => ({ label, amount, date: date ? date.slice(0, 10) : null }));
+  }
+
+  private totals(items: ItemInput[], vatRate: number, discount: number) {
+    const totals = totalsOf(items, vatRate, discount);
+    if (totals.net < 0) throw new BadRequestException('The discount cannot be more than the lines add up to.');
     if (totals.gross >= MAX_AMOUNT) throw new BadRequestException('That total is too large for one invoice.');
     return totals;
+  }
+
+  /** The company block printed at the top. One indexed read per request, however many invoices. */
+  private async issuer(): Promise<Issuer> {
+    const entry = await this.db.cmsEntries.findFirstWhere({ collection: 'company' });
+    const company = (entry?.published ?? entry?.draft ?? {}) as {
+      legalName?: string;
+      city?: string;
+      phone?: { display?: string };
+      email?: string;
+      address?: { street?: string; postcode?: string };
+    };
+    const street = company.address?.street?.trim();
+    const town = [company.city, company.address?.postcode].filter((part) => part?.trim()).join(', ');
+    return {
+      name: company.legalName?.trim() || 'Enzo Interiors LTD.',
+      address: street ? [street, town, 'United Kingdom'].filter(Boolean) : ['51 Forest Road, Leicester,', 'LE5 0DW, United Kingdom'],
+      phone: company.phone?.display?.trim() || '077 77 333 052',
+      email: company.email?.trim() || 'info@enzointeriors.co.uk',
+    };
   }
 
   private itemsOf(invoiceId: string): Promise<InvoiceItem[]> {
@@ -330,27 +458,34 @@ export class InvoicesService {
   private async views(invoices: Invoice[]): Promise<InvoiceView[]> {
     if (invoices.length === 0) return [];
     const ids = (pick: (i: Invoice) => string | null) => [...new Set(invoices.map(pick).filter((v): v is string => !!v))];
-    const [items, clients, projects] = await Promise.all([
+    const [items, clients, projects, issuer] = await Promise.all([
       this.db.invoiceItems.findWhere({ invoice_id: { in: ids((i) => i.id) } }, { orderBy: { position: 'asc' } }),
       this.db.clients.findWhere({ id: { in: ids((i) => i.client_id) } }),
       this.db.projects.findWhere({ id: { in: ids((i) => i.project_id) } }),
+      this.issuer(),
     ]);
-    const clientName = new Map(clients.map((c) => [c.id, c.name]));
+    const clientOf = new Map(clients.map((c) => [c.id, c]));
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
     return invoices.map((invoice) => {
       const own = items.filter((item) => item.invoice_id === invoice.id);
-      const split = own.length > 0 ? totalsOf(own, invoice.vat_rate) : splitGross(invoice.amount, invoice.vat_rate);
+      const split = own.length > 0 ? totalsOf(own, invoice.vat_rate, invoice.discount) : splitGross(invoice.amount, invoice.vat_rate);
+      const client = clientOf.get(invoice.client_id);
       const unpaid = invoice.status !== 'Paid' && invoice.status !== 'Draft';
       const late = unpaid ? lateMs(invoice.due_date) : 0;
       return {
         ...invoice,
         items: own,
-        client_name: clientName.get(invoice.client_id) ?? 'Unknown client',
+        payment_schedule: Array.isArray(invoice.payment_schedule) ? invoice.payment_schedule : [],
+        client_name: client?.name ?? 'Unknown client',
+        client_email: client?.email ?? null,
+        client_phone: client?.phone ?? null,
         project_name: invoice.project_id ? (projectName.get(invoice.project_id) ?? null) : null,
+        subtotal_amount: split.subtotal,
         net_amount: split.net,
         vat_amount: split.vat,
         is_overdue: late > 0,
         days_overdue: late > 0 ? Math.floor(late / 86_400_000) : 0,
+        issuer,
       };
     });
   }

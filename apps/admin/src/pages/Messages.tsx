@@ -184,7 +184,7 @@ export function MessagesPage() {
   if (conversations.error) return <ErrorState message={conversations.error} onRetry={conversations.refetch} />;
 
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-6 sm:px-8 sm:pb-8 lg:pt-8">
       <PageHeader title="Messages" description="Conversations with your clients. Open a client to start one." />
 
       {conversations.loading ? (
@@ -197,8 +197,8 @@ export function MessagesPage() {
           />
         </Card>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-[20rem_1fr]">
-          <Card className="p-0 lg:h-[calc(100dvh-19rem)] lg:overflow-y-auto">
+        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[20rem_1fr] lg:grid-rows-[minmax(0,1fr)]">
+          <Card className="max-h-44 overflow-y-auto p-0 lg:max-h-none">
             <ul className="rows">
               {list.map((conversation) => (
                 <li key={conversation.id}>
@@ -246,7 +246,7 @@ export function MessagesPage() {
             </ul>
           </Card>
 
-          <Card className="flex min-h-[28rem] flex-col p-0 lg:h-[calc(100dvh-19rem)]">
+          <Card className="flex min-h-0 flex-col p-0">
             {active ? (
               <>
                 <div className="bg-ink/[0.025] p-3">
@@ -412,7 +412,7 @@ export function MessagesPage() {
           </Card>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

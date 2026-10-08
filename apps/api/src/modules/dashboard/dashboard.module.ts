@@ -2,12 +2,13 @@ import { Controller, Get, Injectable, Module } from '@nestjs/common';
 
 import { AccessService } from '../../common/access/access.service';
 import { CurrentUser, Roles } from '../../common/decorators';
-import { PROJECT_STAGES, Project, ProjectStage } from '../../common/types/domain';
+import { Project } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import { Where } from '../../data/prisma-repository';
 import { addDays, studioInstant, studioParts } from '../booking/slots';
 import { lateMs, sumMoney } from '../invoices/totals';
+import { approvalStage, doneStage, loadStages } from '../projects/stages';
 import { lastMonths } from './months';
 
 /** Money still to come in: not a Draft, not Paid. */
@@ -34,15 +35,22 @@ export class DashboardService {
     private readonly access: AccessService,
   ) {}
 
-  /** Projects by stage within `scope`, plus the three headline numbers. */
+  /**
+   * Projects by configured stage within `scope` (one count each, at most 20),
+   * plus the headline numbers. `stages` carries the order for the charts.
+   */
   private async projectCounts(scope: Where<Project>) {
-    const counts = await Promise.all(PROJECT_STAGES.map((status) => this.db.projects.countWhere({ ...scope, status })));
-    const by_stage = Object.fromEntries(PROJECT_STAGES.map((stage, i) => [stage, counts[i]!])) as Record<ProjectStage, number>;
-    const completed = by_stage.Completed;
+    const stages = await loadStages(this.db);
+    const names = stages.map((stage) => stage.name);
+    const counts = await Promise.all(names.map((status) => this.db.projects.countWhere({ ...scope, status })));
+    const by_stage: Record<string, number> = Object.fromEntries(names.map((name, i) => [name, counts[i]!]));
+    const approval = approvalStage(stages);
+    const completed = by_stage[doneStage(stages)]!;
     return {
+      stages: names,
       active: counts.reduce((a, b) => a + b, 0) - completed,
       completed,
-      awaiting_decision: by_stage.Approval,
+      awaiting_decision: approval ? by_stage[approval]! : 0,
       by_stage,
     };
   }
@@ -129,9 +137,10 @@ export class DashboardService {
   /** Designer/Installer: the projects they are assigned to and what is open on them. Nothing financial. */
   async designer(principal: AuthPrincipal) {
     const scope = this.access.projectScope(principal);
+    const done = doneStage(await loadStages(this.db));
     const [projects, open] = await Promise.all([
       this.projectCounts(scope),
-      this.db.projects.findWhere({ ...scope, status: { not: 'Completed' } }, { orderBy: { updated_at: 'desc' }, take: 10 }),
+      this.db.projects.findWhere({ ...scope, status: { not: done } }, { orderBy: { updated_at: 'desc' }, take: 10 }),
     ]);
     const clients = await this.db.clients.findWhere({ id: { in: [...new Set(open.map((p) => p.client_id))] } });
     const names = new Map(clients.map((client) => [client.id, client.name]));
@@ -161,6 +170,9 @@ export class DashboardService {
     const nowIso = new Date().toISOString();
     const store = this.db.invoiceStore;
     const client = await this.db.clients.findById(principal.id);
+    const stages = await loadStages(this.db);
+    const done = doneStage(stages);
+    const approval = approvalStage(stages);
 
     const [projects, documents, paid, outstanding, nextDue, appointment] = await Promise.all([
       this.db.projects.findWhere({ ...mine, client_visible: true }, { orderBy: { updated_at: 'desc' } }),
@@ -195,10 +207,10 @@ export class DashboardService {
       },
       projects: {
         total: projects.length,
-        active: projects.filter((project) => project.status !== 'Completed').length,
+        active: projects.filter((project) => project.status !== done).length,
         /** The decision awaiting the client: the portal's most important tile. */
         awaiting_your_approval: projects
-          .filter((project) => project.status === 'Approval')
+          .filter((project) => project.status === approval)
           .map((project) => ({ id: project.id, name: project.name, type: project.type })),
       },
       /** Progress bars for the dashboard timeline widget. */

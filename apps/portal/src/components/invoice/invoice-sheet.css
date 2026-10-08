@@ -1,0 +1,287 @@
+/*
+ * The printed invoice: one A4 sheet. Fixed light colours on purpose: the app's
+ * theme tokens flip in dark mode, a sheet of paper does not. Copied as is in
+ * apps/admin and apps/portal (no shared package, see CLAUDE.md).
+ */
+.inv-sheet {
+  --inv-forest: #173c30;
+  --inv-ink: #1e2420;
+  --inv-muted: #687066;
+  --inv-rule: #dce0d8;
+  --inv-wash: #f2f4ef;
+  --inv-sand: #ece7dc;
+
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 210mm;
+  min-height: 297mm;
+  padding: 12mm 15mm 10mm;
+  background: #fff;
+  color: var(--inv-ink);
+  color-scheme: light;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  font-size: 9pt;
+  line-height: 1.35;
+  box-shadow: 0 1px 2px rgba(30, 38, 31, 0.08), 0 12px 32px -12px rgba(30, 38, 31, 0.28);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+.inv-sheet *,
+.inv-sheet *::before,
+.inv-sheet *::after {
+  box-sizing: border-box;
+}
+.inv-serif {
+  font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+}
+.inv-num {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Letterhead */
+.inv-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10mm;
+}
+.inv-logo {
+  display: block;
+  width: 40mm;
+  height: auto;
+}
+.inv-issuer {
+  font-style: normal;
+  text-align: right;
+  color: var(--inv-muted);
+  font-size: 8.5pt;
+  line-height: 1.5;
+}
+.inv-issuer strong {
+  display: block;
+  margin-bottom: 1mm;
+  color: var(--inv-forest);
+  font-size: 11.5pt;
+  font-weight: 650;
+}
+
+/* The one loud thing: the green band, as on the paper invoice. */
+.inv-band {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8mm;
+  margin: 5mm -15mm 0;
+  padding: 2.6mm 15mm;
+  background: var(--inv-forest);
+  color: #f3efe4;
+}
+.inv-band h1 {
+  margin: 0;
+  font-size: 20pt;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+}
+.inv-band dl {
+  display: flex;
+  gap: 7mm;
+  margin: 0;
+  font-size: 8.5pt;
+}
+.inv-band dt {
+  color: rgba(243, 239, 228, 0.7);
+}
+.inv-band dd {
+  margin: 0;
+  font-weight: 600;
+}
+.inv-stamp {
+  display: inline-block;
+  margin-left: 3mm;
+  padding: 0.6mm 2.4mm;
+  border: 0.3mm solid currentColor;
+  border-radius: 1mm;
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  font-size: 8pt;
+  font-weight: 650;
+  vertical-align: middle;
+}
+
+/* Who and what */
+.inv-kicker {
+  margin: 0 0 1.5mm;
+  color: var(--inv-muted);
+  font-style: italic;
+  font-size: 8.5pt;
+}
+.inv-parties {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10mm;
+  padding: 3.5mm 0 3mm;
+  border-bottom: 0.3mm solid var(--inv-rule);
+}
+.inv-pairs {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.8mm 4mm;
+  margin: 0;
+}
+.inv-pairs dt {
+  color: var(--inv-muted);
+}
+.inv-pairs dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.inv-pairs dd.inv-strong {
+  font-weight: 650;
+}
+.inv-notes {
+  padding: 2.5mm 0 0;
+}
+.inv-notes p:last-child {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+/* Itemised list */
+.inv-h2 {
+  margin: 4.5mm 0 2mm;
+  color: var(--inv-forest);
+  font-size: 14pt;
+  font-weight: 600;
+}
+.inv-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.inv-table th,
+.inv-table td {
+  padding: 0.9mm 2mm;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 0.25mm solid var(--inv-rule);
+}
+.inv-table thead th {
+  background: var(--inv-sand);
+  color: var(--inv-forest);
+  font-size: 8.5pt;
+  font-weight: 650;
+  border-bottom: 0;
+}
+.inv-table .inv-right {
+  text-align: right;
+}
+.inv-table tr {
+  break-inside: avoid;
+}
+.inv-section th {
+  padding-top: 1.6mm;
+  background: var(--inv-wash);
+  color: var(--inv-forest);
+  font-weight: 650;
+}
+.inv-detail {
+  color: var(--inv-muted);
+}
+.inv-col-qty {
+  width: 14mm;
+}
+.inv-col-total {
+  width: 28mm;
+}
+
+.inv-totals {
+  width: 82mm;
+  margin: 3mm 0 0 auto;
+  border-collapse: collapse;
+}
+.inv-totals th,
+.inv-totals td {
+  padding: 0.8mm 2mm;
+  text-align: left;
+  font-weight: 400;
+}
+.inv-totals td {
+  text-align: right;
+}
+.inv-totals .inv-discount td {
+  color: #9b3b2f;
+}
+.inv-totals .inv-payable th,
+.inv-totals .inv-payable td {
+  padding-top: 2mm;
+  border-top: 0.4mm solid var(--inv-forest);
+  color: var(--inv-forest);
+  font-size: 11.5pt;
+  font-weight: 700;
+}
+
+.inv-schedule {
+  margin-top: 4mm;
+  break-inside: avoid;
+}
+.inv-schedule h3 {
+  margin: 0 0 1.5mm;
+  color: var(--inv-forest);
+  font-size: 11pt;
+  font-weight: 600;
+}
+
+.inv-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+  margin-top: auto;
+  padding-top: 5mm;
+  color: var(--inv-muted);
+  font-size: 8pt;
+}
+
+/* Screen: a scaled sheet on the desk. */
+.inv-frame {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  padding: 4px 0 16px;
+}
+.inv-frame > div {
+  width: 210mm;
+  margin: 0 auto;
+}
+
+/* Print: only the sheets, one per page. */
+.inv-print {
+  display: none;
+}
+@page invoice {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  body:has(> .inv-print) > :not(.inv-print) {
+    display: none !important;
+  }
+  body:has(> .inv-print) {
+    margin: 0 !important;
+    background: #fff !important;
+  }
+  .inv-print {
+    display: block;
+  }
+  .inv-print .inv-sheet {
+    page: invoice;
+    /* A hair under the page, so rounding never pushes the footer onto a blank second page. */
+    min-height: 296mm;
+    box-shadow: none;
+    break-after: page;
+  }
+  .inv-print .inv-sheet:last-child {
+    break-after: auto;
+  }
+}

@@ -1,7 +1,7 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
 
-import { PROJECT_STAGES, ProjectStage, SERVICE_TYPES, ServiceType } from '../../common/types/domain';
+import { ProjectStage, SERVICE_TYPES, ServiceType } from '../../common/types/domain';
 
 /** POST /projects — Admin only. */
 export class CreateProjectDto {
@@ -12,8 +12,8 @@ export class CreateProjectDto {
   @IsIn(SERVICE_TYPES, { message: `Type must be one of: ${SERVICE_TYPES.join(', ')}` })
   type!: ServiceType;
 
-  @IsOptional() @IsIn(PROJECT_STAGES, { message: `Stage must be one of: ${PROJECT_STAGES.join(', ')}` })
-  status?: ProjectStage;
+  /** One of the configured stages (checked by ProjectsService); omitted = the first. */
+  @IsOptional() @IsString() @MaxLength(40) status?: ProjectStage;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
   @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
@@ -40,11 +40,16 @@ export class UpdateProjectDto {
 
 /** PATCH /projects/:id/stage — Kanban drag-and-drop and the "Move to…" menu. */
 export class UpdateProjectStageDto {
-  @IsIn(PROJECT_STAGES, { message: `Stage must be one of: ${PROJECT_STAGES.join(', ')}` })
-  status!: ProjectStage;
+  /** One of the configured stages (checked by ProjectsService). */
+  @IsString() @MaxLength(40) status!: ProjectStage;
 
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
+}
+
+/** PUT /projects/stages — Admin only. Each item is checked in stages.ts planStages. */
+export class SaveProjectStagesDto {
+  @IsArray() stages!: unknown[];
 }
 
 /** Approve / Request Changes from the client portal. */

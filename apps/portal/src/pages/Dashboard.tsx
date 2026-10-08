@@ -10,6 +10,7 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, money, padCount, relative } from '@/lib/format';
 import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
@@ -26,6 +27,7 @@ import { SERVICE_LABELS } from '@/types/api';
  */
 export function DashboardPage() {
   const { user } = useAuth();
+  const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<PortalDashboard>('/dashboard/portal');
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -153,7 +155,7 @@ export function DashboardPage() {
                           {SERVICE_LABELS[project.type]} · updated {relative(project.updated_at)}
                         </p>
                       </div>
-                      <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+                      <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
                     </div>
                     <div className="mt-2">
                       <Progress value={project.progress_pct} label={`${project.name} progress`} />

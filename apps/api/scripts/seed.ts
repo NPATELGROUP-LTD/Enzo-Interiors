@@ -374,7 +374,11 @@ const projects: Project[] = [
 /* invoices — linked to projects, mixed statuses                           */
 /* -------------------------------------------------------------------------- */
 
-const invoices: Invoice[] = [
+/** The printed-invoice fields (migration 12) are left blank on the demo invoices. */
+type SeedInvoice = Omit<Invoice, 'discount' | 'job_name' | 'job_address' | 'job_notes' | 'payment_schedule'>;
+const BLANK_LAYOUT = { discount: 0, job_name: null, job_address: null, job_notes: null, payment_schedule: [] };
+
+const invoices: SeedInvoice[] = [
   {
     id: 'inv_jones_kitchen',
     number: 'INV-2026-0001',
@@ -918,7 +922,7 @@ async function main(): Promise<void> {
     db.staffUsers.replaceAll(staffUsers),
     db.clients.replaceAll(clients),
     db.projects.replaceAll(projects),
-    db.invoices.replaceAll(invoices),
+    db.invoices.replaceAll(invoices.map((row) => ({ ...row, ...BLANK_LAYOUT }))),
     db.bookings.replaceAll(bookings),
     db.availabilitySettings.replaceAll(availabilitySettings),
     db.conversations.replaceAll(conversations),

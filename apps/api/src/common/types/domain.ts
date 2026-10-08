@@ -47,15 +47,19 @@ export type ClientStatus = (typeof CLIENT_STATUSES)[number];
 export const SERVICE_TYPES = ['Kitchen', 'Bedroom', 'MediaWall', 'Wardrobe'] as const;
 export type ServiceType = (typeof SERVICE_TYPES)[number];
 
-/** The 5 Kanban stages, in pipeline order. The order is meaningful. */
-export const PROJECT_STAGES = [
-  'Consultation',
-  'Design',
-  'Approval',
-  'Installation',
-  'Completed',
-] as const;
-export type ProjectStage = (typeof PROJECT_STAGES)[number];
+/**
+ * A project stage is a name from the Admin's ordered list (Settings › Project
+ * stages; null = the default five, see modules/projects/stages.ts).
+ */
+export type ProjectStage = string;
+
+export interface ProjectStageConfig {
+  name: string;
+  /** progress_pct a project takes on entering this stage unless one is given. */
+  progress: number;
+  /** The stage where the client approves or sends the design back (at most one). */
+  approval: boolean;
+}
 
 export const INVOICE_STATUSES = ['Draft', 'Sent', 'Outstanding', 'Paid', 'Overdue'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
@@ -207,13 +211,32 @@ export interface Invoice extends BaseRecord {
   /** Set ONLY by the Admin-only manual mark-paid action. No gateway writes here, ever. */
   paid_at: string | null;
   created_at: string;
+  /** Fixed £ off the lines' subtotal, before VAT. 0 = none. */
+  discount: number;
+  job_name: string | null;
+  job_address: string | null;
+  job_notes: string | null;
+  /** Shown under the totals (deposit received, due on delivery...). Never summed into `amount`. */
+  payment_schedule: PaymentScheduleRow[];
+}
+
+export interface PaymentScheduleRow {
+  label: string;
+  amount: number;
+  /** YYYY-MM-DD, or null. */
+  date: string | null;
 }
 
 /** One line of an invoice. Net (ex-VAT) price; the invoice's amount is derived from its lines. */
 export interface InvoiceItem extends BaseRecord {
   invoice_id: string;
   description: string;
+  /** The heading the line sits under; consecutive lines with the same one are grouped. */
+  section: string | null;
+  /** The printed invoice's "Description" column. */
+  detail: string | null;
   quantity: number;
+  /** 0 = a quantity-only row (materials): printed with no price, adds nothing. */
   unit_price: number;
   position: number;
   created_at: string;
@@ -459,6 +482,8 @@ export interface SiteSettings extends BaseRecord {
   opening_hours: OpeningHours | null;
   /** Saved page switches; keys left out take PAGE_DEFAULTS (site-settings/pages.ts). */
   pages: Partial<Record<PageKey, boolean>> | null;
+  /** Settings › Project stages; null = DEFAULT_STAGES (projects/stages.ts). */
+  project_stages: ProjectStageConfig[] | null;
   updated_at: string;
   updated_by: string | null;
 }
@@ -518,11 +543,22 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document';
   title: string;
   body: string | null;
   link: string | null;
   read_at: string | null;
+  created_at: string;
+}
+
+/** A browser's Web Push subscription. owner_type names the table owner_id is in. */
+export interface PushSubscriptionRecord extends BaseRecord {
+  owner_id: string;
+  owner_type: 'staff' | 'client';
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string | null;
   created_at: string;
 }
 
