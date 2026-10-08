@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, admin, web]
+        app: [api, admin, web, portal]
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}
@@ -42,6 +42,56 @@ jobs:
       - run: npm run --if-present test
       - run: npm run --if-present build
 
+  # The api booted against a real PostgreSQL (apps/api/src/test-support). Its own job so
+  # the other matrix legs do not start a database; the DB name must end in _test.
+  api-db:
+    name: api (database tests)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: enzo
+          POSTGRES_PASSWORD: enzo
+          POSTGRES_DB: enzo_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U enzo" --health-interval 5s --health-timeout 5s --health-retries 10
+      # The documents and messages tests upload to the private bucket for real.
+      # Same image as docker-compose.yml; it creates the buckets itself.
+      minio:
+        image: bitnamilegacy/minio:2025.4.22
+        env:
+          MINIO_ROOT_USER: ci-minio
+          MINIO_ROOT_PASSWORD: ci-minio-secret
+          MINIO_DEFAULT_BUCKETS: enzo-public,enzo-private
+        ports: ["9000:9000"]
+        options: >-
+          --health-cmd "curl -fsS http://localhost:9000/minio/health/ready" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql://enzo:enzo@localhost:5432/enzo_test?schema=public
+      S3_ENDPOINT: http://127.0.0.1:9000
+      S3_ACCESS_KEY_ID: ci-minio
+      S3_SECRET_ACCESS_KEY: ci-minio-secret
+      S3_PUBLIC_BUCKET: enzo-public
+      S3_PRIVATE_BUCKET: enzo-private
+      S3_PUBLIC_BASE_URL: http://127.0.0.1:9000/enzo-public
+      JWT_SECRET: ci-only-jwt-secret-not-for-anything-real
+      APP_ENCRYPTION_KEY: MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/api/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run test:db
+
   # Image build smoke, PRs into main only. Context is each app's directory, as in docker-compose.yml.
   docker:
     name: docker (${{ matrix.app }})
@@ -50,7 +100,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [api, web, admin]
+        app: [api, web, admin, portal]
     steps:
       - uses: actions/checkout@v4
       - if: matrix.app != 'web'

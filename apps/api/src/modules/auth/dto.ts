@@ -85,6 +85,14 @@ export class ResetPasswordDto extends NewPasswordDto {
   token!: string;
 }
 
+/** The portal's link carries a signed token (auth.service PORTAL_PASSWORD), longer than the staff one. */
+export class PortalResetDto extends NewPasswordDto {
+  @IsString()
+  @MinLength(20)
+  @MaxLength(2000)
+  token!: string;
+}
+
 export class ProfileDto {
   @IsString()
   @MinLength(2, { message: 'Enter your name.' })

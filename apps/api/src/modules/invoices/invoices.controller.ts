@@ -8,18 +8,21 @@ import { CreateInvoiceDto, InvoicesService, UpdateInvoiceDto } from './invoices.
 export class InvoicesController {
   constructor(private readonly invoices: InvoicesService) {}
 
-  /** Clients see their own invoices here — view and status only, no payment. */
+  /** Admin: all invoices. Client: their own, never Drafts. View and status only, no payment. */
   @Get()
+  @Roles('Admin', 'Client')
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.invoices.list(principal);
   }
 
   @Get('summary')
+  @Roles('Admin', 'Client')
   summary(@CurrentUser() principal: AuthPrincipal) {
     return this.invoices.summary(principal);
   }
 
   @Get(':id')
+  @Roles('Admin', 'Client')
   findOne(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.invoices.findOne(principal, id);
   }
@@ -42,7 +45,7 @@ export class InvoicesController {
 
   /**
    * The manual, Admin-only record of payment received externally.
-   * Deliberately not reachable by a Designer, an Installer, or a Client.
+   * Deliberately not reachable by a Designer, an Editor, or a Client.
    */
   @Put(':id/mark-paid')
   @Roles('Admin')

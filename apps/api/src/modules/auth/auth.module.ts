@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleAuthController, GoogleAuthService } from './google';
+import { PortalAccountService, PortalPasswordController, PortalPreferencesController } from './portal-account';
 import { TwoFactorService } from './two-factor';
 import { UsersController, UsersService } from './users';
 
@@ -43,7 +44,9 @@ function mustHaveSecret(config: ConfigService): string {
       }),
     }),
   ],
-  controllers: [AuthController, GoogleAuthController, UsersController],
-  providers: [AuthService, TwoFactorService, GoogleAuthService, UsersService],
+  controllers: [AuthController, GoogleAuthController, UsersController, PortalPasswordController, PortalPreferencesController],
+  providers: [AuthService, TwoFactorService, GoogleAuthService, UsersService, PortalAccountService],
+  // For ClientsModule's portal invitations.
+  exports: [AuthService],
 })
 export class AuthModule {}

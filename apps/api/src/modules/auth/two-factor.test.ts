@@ -27,6 +27,7 @@ test('a 2FA challenge (or any purpose token) is never a session', async () => {
   );
   const call = (token: string) =>
     guard.canActivate({
+      getType: () => 'http',
       getHandler: () => null,
       getClass: () => null,
       switchToHttp: () => ({ getRequest: () => ({ headers: { authorization: `Bearer ${token}` } }) }),

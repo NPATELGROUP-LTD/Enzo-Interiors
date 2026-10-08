@@ -1,13 +1,17 @@
-import { Body, Controller, Get, HttpCode, Module, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Header, HttpCode, Module, Param, Post, Put } from '@nestjs/common';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
-import {
-  ConversationsService,
-  CreateConversationDto,
-  SendMessageDto,
-} from './conversations.service';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { SiteSettingsModule } from '../site-settings/site-settings.module';
+import { ConversationsService, CreateConversationDto, SendMessageDto } from './conversations.service';
 import { MessagesGateway } from './messages.gateway';
+
+/**
+ * Every route names its roles: Admin, Designers/Installers (their assigned
+ * clients, via AccessService) and the client (their own). Never Editors.
+ */
+const PEOPLE = ['Admin', 'Designer', 'Installer', 'Client'] as const;
 
 @Controller('conversations')
 export class ConversationsController {
@@ -16,64 +20,71 @@ export class ConversationsController {
     private readonly gateway: MessagesGateway,
   ) {}
 
-  /** Admin all-client inbox; for a client, their own threads. */
   @Get()
+  @Roles(...PEOPLE)
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.conversations.list(principal);
   }
 
-  /** Unread badge for the nav shell. */
+  /** The Messages badge. */
   @Get('unread-count')
+  @Roles(...PEOPLE)
   async unreadCount(@CurrentUser() principal: AuthPrincipal) {
     return { unread: await this.conversations.unreadCount(principal) };
   }
 
   @Get(':id')
+  @Roles(...PEOPLE)
   findOne(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.conversations.findOne(principal, id);
   }
 
   @Get(':id/messages')
+  @Roles(...PEOPLE)
+  @Header('Cache-Control', 'no-store')
   messages(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
     return this.conversations.messages(principal, id);
   }
 
-  @Post()
-  @Roles('Admin', 'Designer', 'Installer')
-  create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateConversationDto) {
-    return this.conversations.create(principal, dto);
+  /** What may be attached here: documents shared with this client. */
+  @Get(':id/documents')
+  @Roles(...PEOPLE)
+  attachable(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    return this.conversations.attachable(principal, id);
   }
 
-  /**
-   * HTTP fallback for sending. The WebSocket path is the primary one, but a
-   * send must still work if the socket is down — an offline portal that loses
-   * messages would be worse than one that is briefly not live.
-   *
-   * Broadcasts to the room afterwards so sockets that ARE connected still see
-   * it immediately.
-   */
+  /** The client's conversation, started if there is none. A client opens their own. */
+  @Post()
+  @Roles(...PEOPLE)
+  async open(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateConversationDto) {
+    const { view, created } = await this.conversations.open(principal, dto);
+    if (created) await this.gateway.adopt(view);
+    return view;
+  }
+
+  /** Sending without a socket (or when it is down): same checks, same live delivery. */
   @Post(':id/messages')
+  @Roles(...PEOPLE)
   @HttpCode(201)
-  async send(
-    @CurrentUser() principal: AuthPrincipal,
-    @Param('id') id: string,
-    @Body() dto: SendMessageDto,
-  ) {
-    const message = await this.conversations.sendMessage(principal, id, dto);
-    this.gateway.broadcastMessage(id, message);
+  async send(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: SendMessageDto) {
+    const { conversation, message } = await this.conversations.sendMessage(principal, id, dto);
+    await this.gateway.publish(principal, conversation, message);
     return message;
   }
 
   @Put(':id/read')
+  @Roles(...PEOPLE)
   @HttpCode(200)
-  markRead(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.conversations.markRead(principal, id);
+  async markRead(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    const { conversation, marked, read_at } = await this.conversations.markRead(principal, id);
+    if (marked > 0) await this.gateway.read(conversation, principal, read_at);
+    return { marked };
   }
 }
 
 @Module({
+  imports: [NotificationsModule, SiteSettingsModule],
   controllers: [ConversationsController],
   providers: [ConversationsService, MessagesGateway],
-  exports: [ConversationsService],
 })
 export class ConversationsModule {}

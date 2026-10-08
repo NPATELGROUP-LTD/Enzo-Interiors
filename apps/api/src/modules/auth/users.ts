@@ -32,11 +32,11 @@ type AdminRole = (typeof ADMIN_ROLES)[number];
 export class InviteDto {
   @IsString() @MinLength(2, { message: 'Enter their name.' }) @MaxLength(120) @Matches(NOT_IMPORTER, { message: 'Choose a different name.' }) name!: string;
   @IsEmail({}, { message: 'Enter a valid email address.' }) @MaxLength(254) email!: string;
-  @IsIn(ADMIN_ROLES, { message: 'Choose Admin or Editor.' }) role!: AdminRole;
+  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor or Designer.' }) role!: AdminRole;
 }
 
 export class RoleDto {
-  @IsIn(ADMIN_ROLES, { message: 'Choose Admin or Editor.' }) role!: AdminRole;
+  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor or Designer.' }) role!: AdminRole;
 }
 
 /** A person as the Users list shows them. Never carries a credential. */
@@ -55,8 +55,8 @@ export interface UserView {
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** The CRM's Designer is an Editor here. */
-const roleOf = (staff: StaffUser): AdminRole => (staff.role === 'Admin' ? 'Admin' : 'Editor');
+/** Installer is a legacy name for Designer. */
+const roleOf = (staff: StaffUser): AdminRole => (staff.role === 'Installer' ? 'Designer' : staff.role);
 
 function view(staff: StaffUser): UserView {
   const invited = !looksHashed(staff.password_hash);
@@ -89,8 +89,8 @@ export class UsersService {
   ) {}
 
   async list(): Promise<UserView[]> {
-    const rows = await this.db.staffUsers.findAll((row) => row.role !== 'Installer');
-    return rows.sort((a, b) => a.name.localeCompare(b.name)).map(view);
+    const rows = await this.db.staffUsers.findWhere({}, { orderBy: { name: 'asc' } });
+    return rows.map(view);
   }
 
   private async require(id: string): Promise<StaffUser> {
@@ -157,7 +157,13 @@ export class UsersService {
     const staff = await this.require(id);
     if (staff.id === principal.id) throw new BadRequestException('Ask another Admin to change your own role.');
     if (role !== 'Admin') await this.assertNotLastAdmin(staff, 'change their role');
-    const updated = (await this.db.staffUsers.update(id, { role, updated_at: new Date().toISOString() }))!;
+    // A new role signs them out everywhere, so no token (or open socket that
+    // read the role once) carries the old one.
+    const updated = (await this.db.staffUsers.update(id, {
+      role,
+      ...(role !== staff.role && { token_version: staff.token_version + 1 }),
+      updated_at: new Date().toISOString(),
+    }))!;
     await this.activity.record({
       principal,
       action: 'staff_role_change',

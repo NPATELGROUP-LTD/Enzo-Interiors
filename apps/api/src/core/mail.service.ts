@@ -341,12 +341,48 @@ To book another time, reply to this email or ${contact}.`,
       html: layout(
         subject,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
-${para(`${inviter} has invited you to the Enzo Interiors admin as ${role === 'Admin' ? 'an Admin' : 'an Editor'}. Choose a password to get started. The link works once and expires in 7 days.`)}
+${para(`${inviter} has invited you to the Enzo Interiors admin as ${role === 'Designer' ? 'a Designer' : role === 'Admin' ? 'an Admin' : 'an Editor'}. Choose a password to get started. The link works once and expires in 7 days.`)}
 ${button(link, 'Choose your password')}`,
       ),
       text: `Hi ${name},
 
 ${inviter} has invited you to the Enzo Interiors admin. Choose a password here (expires in 7 days):
+${link}`,
+    };
+  },
+
+  portalInvite(name: string, inviter: string, link: string): Rendered {
+    const subject = 'Your Enzo Interiors client portal';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
+${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Choose a password to get started. The link works once and expires in 7 days.`)}
+${button(link, 'Choose your password')}`,
+      ),
+      text: `Hi ${name},
+
+${inviter} has set up your Enzo Interiors client portal. Choose a password here (works once, expires in 7 days):
+${link}`,
+    };
+  },
+
+  /**
+   * A message is waiting and nobody on that side was online. Deliberately no
+   * message text: the conversation lives behind a sign-in, not in inboxes.
+   */
+  newMessage(from: string, where: string, link: string): Rendered {
+    const subject = `New message from ${from}`;
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Messages', subject)}
+${para(`You have a new message waiting in ${where}. Sign in to read it and reply.`)}
+${button(link, 'Open messages')}`,
+      ),
+      text: `You have a new message from ${from} waiting in ${where}. Sign in to read it and reply:
 ${link}`,
     };
   },

@@ -4,7 +4,6 @@ import type {
   ClientStatus,
   InvoiceStatus,
   ProjectStage,
-  QuoteStatus,
   SubmissionStatus,
 } from '@/types/api';
 
@@ -20,19 +19,6 @@ export const invoiceTone = (status: InvoiceStatus, isOverdue = false): StatusTon
   if (status === 'Outstanding') return 'warning';
   if (status === 'Sent') return 'info';
   return 'neutral'; // Draft
-};
-
-export const quoteTone = (status: QuoteStatus): StatusTone => {
-  switch (status) {
-    case 'Accepted':
-      return 'success';
-    case 'Sent':
-      return 'info';
-    case 'Expired':
-      return 'danger';
-    default:
-      return 'neutral'; // Draft
-  }
 };
 
 export const bookingTone = (status: BookingStatus): StatusTone => {

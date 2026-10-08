@@ -329,17 +329,20 @@ export function Toggle({
   checked,
   onChange,
   disabled,
+  hideLabel = false,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
+  /** Just the switch, e.g. in a table cell whose column header says what it is. */
+  hideLabel?: boolean;
 }) {
   const id = useId();
   return (
-    <div className="flex items-start justify-between gap-4 py-1">
-      <div className="flex-1">
+    <div className={clsx('flex items-start justify-between py-1', !hideLabel && 'gap-4')}>
+      <div className={clsx(hideLabel ? 'sr-only' : 'flex-1')}>
         <label htmlFor={id} className="text-sm font-semibold text-ink">
           {label}
         </label>
