@@ -285,6 +285,8 @@ export interface ContactSubmission {
   service_interest: string | null;
   message: string;
   status: SubmissionStatus;
+  kind: 'contact' | 'quote' | 'booking';
+  details: Record<string, string> | null;
   created_at: string;
 }
 

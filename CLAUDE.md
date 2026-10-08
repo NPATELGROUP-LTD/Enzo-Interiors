@@ -45,6 +45,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   deferred: an enquiries inbox). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
+**Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
+
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor` or `Designer`
 (`Installer` is a legacy value shown and treated as Designer). `Admin` does
 everything. `Editor` (and `Designer`, the same in the CMS) edits the CMS and

@@ -12,6 +12,7 @@ import { AppointmentsPage } from './pages/Appointments';
 import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
 import { DashboardPage } from './pages/Dashboard';
+import { EnquiriesPage } from './pages/Enquiries';
 import { InvoicesPage } from './pages/Invoices';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
@@ -101,6 +102,10 @@ export function App() {
         <Route
           path="/invoices"
           element={user.role === 'Admin' ? <InvoicesPage /> : <Navigate to="/cms" replace />}
+        />
+        <Route
+          path="/enquiries"
+          element={user.role === 'Admin' ? <EnquiriesPage /> : <Navigate to="/cms" replace />}
         />
         <Route
           path="/bookings"
