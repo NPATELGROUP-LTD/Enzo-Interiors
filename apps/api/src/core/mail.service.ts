@@ -368,6 +368,25 @@ ${link}`,
     };
   },
 
+  /**
+   * A message is waiting and nobody on that side was online. Deliberately no
+   * message text: the conversation lives behind a sign-in, not in inboxes.
+   */
+  newMessage(from: string, where: string, link: string): Rendered {
+    const subject = `New message from ${from}`;
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Messages', subject)}
+${para(`You have a new message waiting in ${where}. Sign in to read it and reply.`)}
+${button(link, 'Open messages')}`,
+      ),
+      text: `You have a new message from ${from} waiting in ${where}. Sign in to read it and reply:
+${link}`,
+    };
+  },
+
   reviewRequested(editor: string, page: string, note: string | null, link: string): Rendered {
     const subject = `${editor} sent ${page} for review`;
     return {

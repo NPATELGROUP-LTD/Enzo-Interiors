@@ -1,4 +1,4 @@
-import { Bell, CalendarCheck, ChatCircleText, CheckCircle, Kanban } from '@phosphor-icons/react';
+import { Bell, CalendarCheck, ChatCircleText, ChatsCircle, CheckCircle, Kanban } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,7 @@ import { Badge } from './Desktop';
 
 interface Note {
   id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message';
   title: string;
   body: string | null;
   link: string | null;
@@ -18,7 +18,7 @@ interface Note {
   created_at: string;
 }
 
-const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban };
+const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban, message: ChatsCircle };
 
 /** How often the bell asks. It also asks whenever the window comes back into focus. */
 const POLL_MS = 60_000;

@@ -557,7 +557,7 @@ const messageSpecs: MessageSpec[] = [
       { from: 'Client', body: 'Perfect. Do I need to clear the utility room as well, or just the kitchen?', daysAgo: 11 },
       { from: 'Staff', body: 'Just the kitchen, but if you can leave a clear route through from the front door that would help the fitters.', daysAgo: 11 },
       { from: 'Client', body: 'Will do. One more thing — can we still change the pendant finish?', daysAgo: 5 },
-      { from: 'Staff', body: 'We can, up until the order goes in on Friday. I have attached the two brass options side by side.', daysAgo: 5, attachments: [{ name: 'pendant-finish-options.pdf', size_bytes: 842_113, storage_url: 'placeholder://message-attachments/cnv_jones/pendant-finish-options.pdf' }] },
+      { from: 'Staff', body: 'We can, up until the order goes in on Friday. I will bring the two brass options to the fitting.', daysAgo: 5 },
       { from: 'Client', body: 'The brushed one on the left, please. Thanks Priya!', daysAgo: 4, unread: true },
     ],
   },

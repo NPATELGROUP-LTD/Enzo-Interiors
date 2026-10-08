@@ -1,52 +1,42 @@
 import clsx from 'clsx';
-import {
-  Paperclip,
-  PaperPlaneRight,
-  X,
-} from '@phosphor-icons/react';
-import { useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react';
+import { Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { Button, Card, EmptyState, ErrorState, LoadingState, PageHeader } from '@/components/ui';
+import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { date, fileSize, time } from '@/lib/format';
-import { getSocket } from '@/lib/socket';
-import type { Conversation, Message, MessageAttachment } from '@/types/api';
+import { connectSocket } from '@/lib/socket';
+import type { AttachableDocument, Conversation, DocumentDownload, Message, MessageAttachment } from '@/types/api';
+
+const MAX_BODY = 5000;
+const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
 
 /**
- * Client chat with the Enzo team.
- *
- * A client normally has a single thread, so unlike the admin inbox this screen
- * opens straight into the conversation rather than showing a list first. When
- * there is more than one, a compact switcher appears above the thread.
+ * The client's one conversation with the Enzo team. It opens straight into
+ * the thread; the first message starts it. Replies arrive live over the
+ * socket; sending is a plain POST, which the API also delivers live.
  */
 export function MessagesPage() {
   const toast = useToast();
   const conversations = useQuery<Conversation[]>('/conversations');
+  const conversation = conversations.data?.[0] ?? null;
+  const activeId = conversation?.id ?? null;
 
-  const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [loadingThread, setLoadingThread] = useState(false);
   const [threadError, setThreadError] = useState<string | null>(null);
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
+  const [picking, setPicking] = useState(false);
   const [sending, setSending] = useState(false);
-  const [typingFrom, setTypingFrom] = useState<string | null>(null);
-
+  const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    if (!activeId && conversations.data && conversations.data.length > 0) {
-      setActiveId(conversations.data[0]!.id);
-    }
-  }, [conversations.data, activeId]);
 
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
-
     setLoadingThread(true);
     setThreadError(null);
     api
@@ -55,102 +45,90 @@ export function MessagesPage() {
         if (cancelled) return;
         setMessages(thread);
         await api.put(`/conversations/${activeId}/read`).catch(() => undefined);
-        await conversations.refetch();
       })
       .catch((caught) => {
-        if (!cancelled) {
-          setThreadError(
-            caught instanceof ApiError ? caught.message : 'Could not load this conversation.',
-          );
-        }
+        if (!cancelled) setThreadError(errorText(caught, 'Could not load your messages.'));
       })
       .finally(() => {
         if (!cancelled) setLoadingThread(false);
       });
-
-    getSocket()?.emit('conversation:join', { conversationId: activeId });
+    connectSocket()?.emit('conversation:join', { conversationId: activeId });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   useEffect(() => {
-    const socket = getSocket();
-    if (!socket) return;
-
+    const socket = connectSocket();
+    if (!socket || !activeId) return;
+    let typingTimer = 0;
     const onNew = (message: Message) => {
-      if (message.conversation_id === activeId) {
-        setMessages((current) =>
-          current.some((entry) => entry.id === message.id) ? current : [...current, message],
-        );
+      if (message.conversation_id !== activeId) return;
+      setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
+      if (message.sender_type === 'Staff') {
+        setTyping(false);
         void api.put(`/conversations/${activeId}/read`).catch(() => undefined);
       }
-      void conversations.refetch();
     };
-    const onTyping = (payload: { conversationId: string; name: string }) => {
-      if (payload.conversationId !== activeId) return;
-      setTypingFrom(payload.name);
-      window.setTimeout(() => setTypingFrom(null), 2500);
+    const onRead = (event: { conversationId: string; reader: 'Staff' | 'Client'; read_at: string }) => {
+      if (event.conversationId !== activeId || event.reader !== 'Staff') return;
+      setMessages((current) =>
+        current.map((m) => (m.sender_type === 'Client' && !m.read_at ? { ...m, read_at: event.read_at } : m)),
+      );
     };
-
+    const onTyping = (event: { conversationId: string; kind: string }) => {
+      if (event.conversationId !== activeId || event.kind !== 'Staff') return;
+      setTyping(true);
+      window.clearTimeout(typingTimer);
+      typingTimer = window.setTimeout(() => setTyping(false), 2500);
+    };
     socket.on('message:new', onNew);
+    socket.on('conversation:read', onRead);
     socket.on('conversation:typing', onTyping);
     return () => {
+      window.clearTimeout(typingTimer);
       socket.off('message:new', onNew);
+      socket.off('conversation:read', onRead);
       socket.off('conversation:typing', onTyping);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages]);
+  }, [messages, typing]);
 
-  const send = async (event: FormEvent) => {
-    event.preventDefault();
-    if (!activeId || (!draft.trim() && attachments.length === 0)) return;
+  const lastPing = useRef(0);
+  const pingTyping = () => {
+    if (!activeId || Date.now() - lastPing.current < 2000) return;
+    lastPing.current = Date.now();
+    connectSocket()?.emit('conversation:typing', { conversationId: activeId });
+  };
 
+  const send = async (event?: FormEvent) => {
+    event?.preventDefault();
+    if (sending || (!draft.trim() && attachments.length === 0)) return;
     setSending(true);
     try {
-      const message = await api.post<Message>(`/conversations/${activeId}/messages`, {
-        body: draft.trim() || '(attachment)',
-        attachments: attachments.length > 0 ? attachments : undefined,
+      // The first message starts the conversation.
+      const id = activeId ?? (await api.post<Conversation>('/conversations', {})).id;
+      const message = await api.post<Message>(`/conversations/${id}/messages`, {
+        body: draft.trim(),
+        ...(attachments.length ? { document_ids: attachments.map((a) => a.document_id) } : {}),
       });
-      setMessages((current) =>
-        current.some((entry) => entry.id === message.id) ? current : [...current, message],
-      );
+      setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
       setDraft('');
       setAttachments([]);
-      await conversations.refetch();
+      if (!activeId) await conversations.refetch();
     } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'Could not send that message.');
+      toast.error(errorText(caught, 'Could not send that message.'));
     } finally {
       setSending(false);
     }
   };
 
-  /** Metadata only — no object storage this phase, so no bytes are uploaded. */
-  const onPickFile = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setAttachments((current) => [
-      ...current,
-      {
-        name: file.name,
-        size_bytes: file.size,
-        storage_url: `placeholder://message-attachments/${activeId}/${file.name}`,
-      },
-    ]);
-    event.target.value = '';
-  };
+  const lastOwn = [...messages].reverse().find((m) => m.sender_type === 'Client');
 
-  const list = conversations.data ?? [];
-  const active = list.find((conversation) => conversation.id === activeId);
-
-  if (conversations.error) {
-    return <ErrorState message={conversations.error} onRetry={conversations.refetch} />;
-  }
+  if (conversations.error) return <ErrorState message={conversations.error} onRetry={conversations.refetch} />;
 
   return (
     <>
@@ -158,201 +136,243 @@ export function MessagesPage() {
 
       {conversations.loading ? (
         <LoadingState label="Loading your messages…" />
-      ) : list.length === 0 ? (
-        <Card className="p-0">
-          <EmptyState
-            title="No messages yet"
-            message="When the Enzo team gets in touch, the conversation will appear here."
-          />
-        </Card>
       ) : (
-        <>
-          {list.length > 1 ? (
-            <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Conversations">
-              {list.map((conversation) => (
-                <button
-                  key={conversation.id}
-                  type="button"
-                  onClick={() => setActiveId(conversation.id)}
-                  aria-pressed={conversation.id === activeId}
-                  className={clsx(
-                    'min-h-11 rounded-control border px-3 text-sm font-semibold transition-colors duration-[160ms]',
-                    conversation.id === activeId
-                      ? 'border-transparent bg-green-900 text-on-primary'
-                      : 'border-transparent bg-ink/[0.06] text-ink-muted hover:bg-ink/[0.1] hover:text-ink',
-                  )}
-                >
-                  {conversation.subject}
-                  {conversation.unread_count > 0 ? (
-                    <span className="tabular ml-1.5 rounded-control bg-green-900 px-1.5 py-0.5 text-xs text-on-primary">
-                      {conversation.unread_count}
-                    </span>
-                  ) : null}
-                </button>
-              ))}
-            </div>
-          ) : null}
+        <Card className="flex min-h-[28rem] flex-col p-0 lg:h-[calc(100dvh-19rem)]">
+          <div className="bg-ink/[0.025] p-3">
+            <p className="font-semibold text-ink">Enzo Interiors</p>
+            <p className="text-xs text-ink-muted">
+              We usually reply within a working day. We will email you when there is a reply.
+            </p>
+          </div>
 
-          <Card
-            className={clsx(
-              'flex min-h-[28rem] flex-col p-0',
-              // The conversation chips above only render for 2+ threads.
-              list.length > 1 ? 'lg:h-[calc(100dvh-22.5rem)]' : 'lg:h-[calc(100dvh-19rem)]',
-            )}
-          >
-            <div className="bg-ink/[0.025] p-3">
-              <p className="font-semibold text-ink">{active?.subject ?? 'Conversation'}</p>
-              <p className="text-xs text-ink-muted">
-                With the Enzo Interiors team · replies usually within a working day
-              </p>
-            </div>
-
-            <div ref={scrollRef} className="flex-1 overflow-y-auto p-3">
-              {loadingThread ? (
-                <LoadingState label="Loading messages…" />
-              ) : threadError ? (
-                <ErrorState message={threadError} />
-              ) : messages.length === 0 ? (
-                <EmptyState
-                  title="No messages yet"
-                  message="Send the first message — we are happy to help with anything."
-                />
-              ) : (
-                <ul className="flex flex-col gap-3">
-                  {messages.map((message, index) => {
-                    const fromMe = message.sender_type === 'Client';
-                    const previous = messages[index - 1];
-                    const showDate =
-                      !previous ||
-                      previous.created_at.slice(0, 10) !== message.created_at.slice(0, 10);
-
-                    return (
-                      <li key={message.id}>
-                        {showDate ? (
-                          <p className="my-2 text-center text-xs text-ink-muted">
-                            {date(message.created_at)}
-                          </p>
-                        ) : null}
-                        <div className={clsx('flex', fromMe ? 'justify-end' : 'justify-start')}>
-                          <div
-                            className={clsx(
-                              'max-w-[85%] rounded-card border p-2.5 sm:max-w-[70%]',
-                              fromMe
-                                ? 'border-transparent bg-green-100'
-                                : 'border-transparent bg-surface-muted',
-                            )}
-                          >
-                            <p className="whitespace-pre-wrap leading-relaxed text-ink">
-                              {message.body}
-                            </p>
-                            {message.attachments?.length ? (
-                              <ul className="mt-2 flex flex-col gap-1">
-                                {message.attachments.map((attachment) => (
-                                  <li
-                                    key={attachment.name}
-                                    className="flex items-center gap-1.5 rounded-control border border-border bg-surface px-2 py-1 text-xs text-ink"
-                                  >
-                                    <Paperclip size={12} aria-hidden="true" />
-                                    <span className="truncate">{attachment.name}</span>
-                                    <span className="tabular shrink-0 text-ink-muted">
-                                      {fileSize(attachment.size_bytes)}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3" aria-live="polite">
+            {loadingThread ? (
+              <LoadingState label="Loading messages…" />
+            ) : threadError ? (
+              <ErrorState message={threadError} />
+            ) : messages.length === 0 ? (
+              <EmptyState title="No messages yet" message="Ask us anything about your project. Write below to start." />
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {messages.map((message, index) => {
+                  const fromMe = message.sender_type === 'Client';
+                  const previous = messages[index - 1];
+                  const newDay = !previous || previous.created_at.slice(0, 10) !== message.created_at.slice(0, 10);
+                  return (
+                    <li key={message.id}>
+                      {newDay ? <p className="my-2 text-center text-xs text-ink-muted">{date(message.created_at)}</p> : null}
+                      <div className={clsx('flex', fromMe ? 'justify-end' : 'justify-start')}>
+                        <div
+                          className={clsx(
+                            'max-w-[85%] rounded-card p-2.5 sm:max-w-[70%]',
+                            fromMe ? 'bg-green-100' : 'bg-surface-muted',
+                          )}
+                        >
+                          {message.body ? (
+                            <p className="whitespace-pre-wrap break-words leading-relaxed text-ink">{message.body}</p>
+                          ) : null}
+                          <Attachments items={message.attachments} />
+                          <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-muted">
+                            {fromMe ? 'You' : 'Enzo Interiors'} · {time(message.created_at)}
+                            {fromMe && message.id === lastOwn?.id && message.read_at ? (
+                              <span className="flex items-center gap-0.5">
+                                · <Checks size={12} aria-hidden="true" /> Read
+                              </span>
                             ) : null}
-                            <p className="mt-1 text-[11px] text-ink-muted">
-                              {fromMe ? 'You' : 'Enzo Interiors'} · {time(message.created_at)}
-                            </p>
-                          </div>
+                          </p>
                         </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {typingFrom ? (
-                <p className="mt-2 text-xs italic text-ink-muted">{typingFrom} is typing…</p>
-              ) : null}
-            </div>
-
-            <form onSubmit={send} className="bg-ink/[0.025] p-3">
-              {attachments.length > 0 ? (
-                <ul className="mb-2 flex flex-wrap gap-1.5">
-                  {attachments.map((attachment, index) => (
-                    <li
-                      key={`${attachment.name}-${index}`}
-                      className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
-                    >
-                      <Paperclip size={12} aria-hidden="true" />
-                      <span className="max-w-40 truncate">{attachment.name}</span>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setAttachments((current) => current.filter((_, i) => i !== index))
-                        }
-                        aria-label={`Remove ${attachment.name}`}
-                        className="text-ink-muted hover:text-danger"
-                      >
-                        <X size={12} aria-hidden="true" />
-                      </button>
+                      </div>
                     </li>
-                  ))}
-                </ul>
-              ) : null}
+                  );
+                })}
+              </ul>
+            )}
+            {typing ? <p className="mt-2 text-xs italic text-ink-muted">Enzo Interiors is typing…</p> : null}
+          </div>
 
-              <div className="flex items-end gap-2">
-                <label htmlFor="message-body" className="sr-only">
-                  Message
-                </label>
-                <textarea
-                  id="message-body"
-                  value={draft}
-                  onChange={(event) => {
-                    setDraft(event.target.value);
-                    getSocket()?.emit('conversation:typing', { conversationId: activeId });
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter' && !event.shiftKey) {
-                      event.preventDefault();
-                      void send(event as unknown as FormEvent);
-                    }
-                  }}
-                  rows={2}
-                  placeholder="Write a message…"
-                  className="min-h-11 flex-1 resize-y rounded-control border border-border bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-ink-muted/70 focus:border-green-900"
-                />
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  onChange={onPickFile}
-                  className="sr-only"
-                  aria-hidden="true"
-                  tabIndex={-1}
-                />
+          <form onSubmit={send} className="bg-ink/[0.025] p-3">
+            {attachments.length > 0 ? (
+              <ul className="mb-2 flex flex-wrap gap-1.5">
+                {attachments.map((attachment) => (
+                  <li
+                    key={attachment.document_id}
+                    className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
+                  >
+                    <Paperclip size={12} aria-hidden="true" />
+                    <span className="max-w-40 truncate">{attachment.name}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachments((current) => current.filter((a) => a.document_id !== attachment.document_id))
+                      }
+                      aria-label={`Remove ${attachment.name}`}
+                      className="text-ink-muted hover:text-danger"
+                    >
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <div className="flex items-end gap-2">
+              <label htmlFor="message-body" className="sr-only">
+                Message
+              </label>
+              <textarea
+                id="message-body"
+                value={draft}
+                maxLength={MAX_BODY}
+                onChange={(event) => {
+                  setDraft(event.target.value);
+                  pingTyping();
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    void send();
+                  }
+                }}
+                rows={2}
+                placeholder="Write a message…"
+                className="min-h-11 flex-1 resize-y rounded-control border border-border bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-ink-muted/70 focus:border-green-900"
+              />
+              {activeId ? (
                 <Button
                   type="button"
                   variant="secondary"
-                  onClick={() => fileInputRef.current?.click()}
-                  aria-label="Attach a file"
-                  title="Attach a file"
+                  onClick={() => setPicking(true)}
+                  aria-label="Attach one of your documents"
+                  title="Attach one of your documents"
                 >
                   <Paperclip size={16} aria-hidden="true" />
                 </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  loading={sending}
-                  disabled={!draft.trim() && attachments.length === 0}
-                  icon={<PaperPlaneRight size={16} aria-hidden="true" />}
-                >
-                  Send
-                </Button>
-              </div>
-            </form>
-          </Card>
-        </>
+              ) : null}
+              <Button
+                type="submit"
+                variant="primary"
+                loading={sending}
+                disabled={!draft.trim() && attachments.length === 0}
+                icon={<PaperPlaneRight size={16} aria-hidden="true" />}
+              >
+                Send
+              </Button>
+            </div>
+          </form>
+
+          {picking && activeId ? (
+            <AttachPicker
+              conversationId={activeId}
+              chosen={attachments}
+              onClose={() => setPicking(false)}
+              onChoose={(next) => {
+                setAttachments(next);
+                setPicking(false);
+              }}
+            />
+          ) : null}
+        </Card>
       )}
     </>
+  );
+}
+
+/** Attachment chips; each opens through the Documents download check. */
+function Attachments({ items }: { items: MessageAttachment[] | null }) {
+  const toast = useToast();
+  if (!items?.length) return null;
+  const open = async (attachment: MessageAttachment) => {
+    try {
+      const { url } = await api.get<DocumentDownload>(`/documents/${attachment.document_id}/download`);
+      window.location.assign(url);
+    } catch (caught) {
+      toast.error(errorText(caught, 'That file is no longer available.'));
+    }
+  };
+  return (
+    <ul className="mt-2 flex flex-col gap-1">
+      {items.map((attachment) => (
+        <li key={attachment.document_id}>
+          <button
+            type="button"
+            onClick={() => void open(attachment)}
+            className="flex min-h-9 w-full items-center gap-1.5 rounded-control border border-border bg-surface px-2 py-1 text-left text-xs text-ink hover:border-green-900"
+          >
+            <Paperclip size={12} aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+            <span className="tabular shrink-0 text-ink-muted">{fileSize(attachment.size_bytes)}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The client's own shared documents, to point the team at one. */
+function AttachPicker({
+  conversationId,
+  chosen,
+  onClose,
+  onChoose,
+}: {
+  conversationId: string;
+  chosen: MessageAttachment[];
+  onClose: () => void;
+  onChoose: (next: MessageAttachment[]) => void;
+}) {
+  const documents = useQuery<AttachableDocument[]>(`/conversations/${conversationId}/documents`);
+  const [picked, setPicked] = useState(() => new Set(chosen.map((a) => a.document_id)));
+  const toggle = (id: string, on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (on) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Attach a document"
+      description="Documents the Enzo team has shared with you."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={picked.size > 10}
+            onClick={() =>
+              onChoose(
+                (documents.data ?? [])
+                  .filter((doc) => picked.has(doc.id))
+                  .map((doc) => ({ document_id: doc.id, name: doc.name, size_bytes: doc.size_bytes })),
+              )
+            }
+          >
+            {picked.size > 10 ? 'Up to 10 files' : 'Attach'}
+          </Button>
+        </>
+      }
+    >
+      {documents.loading ? (
+        <LoadingState label="Loading documents…" />
+      ) : documents.error ? (
+        <ErrorState message={documents.error} onRetry={documents.refetch} />
+      ) : !documents.data?.length ? (
+        <EmptyState title="No documents yet" message="When the team shares a document with you, you can attach it here." />
+      ) : (
+        <ul className="flex flex-col">
+          {documents.data.map((doc) => (
+            <li key={doc.id} className="flex items-center justify-between gap-3">
+              <Checkbox label={doc.name} checked={picked.has(doc.id)} onChange={(on) => toggle(doc.id, on)} />
+              <span className="tabular shrink-0 text-xs text-ink-muted">{fileSize(doc.size_bytes)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Modal>
   );
 }

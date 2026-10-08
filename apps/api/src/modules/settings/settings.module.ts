@@ -21,9 +21,8 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
 
 /**
- * What is left of the CRM's settings module, NOT mounted in v1: saved replies
- * (they belong with the messages screen, when ConversationsModule returns) and
- * the audit-log viewer. Everything else it held moved or was superseded:
+ * What is left of the CRM's settings module: saved replies for the Messages
+ * composer and the audit-log viewer (Admin). Everything else it held moved or was superseded:
  * business profile -> site settings / the Company entry, staff -> Settings >
  * Users (modules/auth/users.ts), password and notification preferences for the
  * portal -> modules/auth/portal-account.ts.
@@ -31,7 +30,7 @@ import { DatabaseService } from '../../data/database.service';
 
 export class SavedReplyDto {
   @IsString() @MinLength(2) @MaxLength(120) title!: string;
-  @IsString() @MinLength(2) body!: string;
+  @IsString() @MinLength(2) @MaxLength(5000) body!: string;
   /** True to share with the whole team (staff_id null). Admin only. */
   @IsOptional() @IsBoolean() is_shared?: boolean;
 }

@@ -123,15 +123,22 @@ export class AccessService {
    */
   async documentScope(principal: AuthPrincipal): Promise<Where<DocumentRecord>> {
     if (this.isAdmin(principal)) return {};
-    if (this.isClient(principal)) {
-      const shared = await this.db.projects.findWhere({ client_id: principal.id, client_visible: true });
-      return { client_id: principal.id, client_visible: true, project_id: { in: shared.map((project) => project.id) } };
-    }
+    if (this.isClient(principal)) return this.sharedWithClient(principal.id);
     const projects = this.isAssignable(principal)
       ? await this.db.projects.findWhere(this.projectScope(principal))
       : [];
     if (projects.length === 0) return { id: { in: [] } };
     return { OR: projects.map((project) => ({ project_id: project.id, client_id: project.client_id })) };
+  }
+
+  /**
+   * The documents a client sees in their portal, as a WHERE clause: their
+   * own, shared, on a shared project. Also what staff may attach to a message
+   * to that client, so a message never points a client at a file they cannot open.
+   */
+  async sharedWithClient(clientId: string): Promise<Where<DocumentRecord>> {
+    const shared = await this.db.projects.findWhere({ client_id: clientId, client_visible: true });
+    return { client_id: clientId, client_visible: true, project_id: { in: shared.map((project) => project.id) } };
   }
 
   /**

@@ -13,6 +13,7 @@ import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
 import { DashboardPage } from './pages/Dashboard';
 import { InvoicesPage } from './pages/Invoices';
+import { MessagesPage } from './pages/Messages';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
 import { SiteSettingsPage } from './pages/SiteSettings';
@@ -27,12 +28,7 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 /**
  * v1 routes: the dashboard (the landing page for Admin and Designers; Editors
  * land on the CMS), the CMS, clients, projects, invoices, bookings, settings,
- * your account and sign-in.
- *
- * The other CRM screens in src/pages (Messages) are kept but not routed: the v1
- * API does not mount their modules, so they would open on a 404. Routing them
- * again goes hand in hand with re-importing the modules in
- * apps/api/src/app.module.ts.
+ * messages, your account and sign-in.
  */
 export function App() {
   const { user, loading, logout, can } = useAuth();
@@ -98,6 +94,7 @@ export function App() {
           path="/projects/:id"
           element={canSeeClients ? <ProjectDetailPage /> : <Navigate to="/cms" replace />}
         />
+        <Route path="/messages" element={canSeeClients ? <MessagesPage /> : <Navigate to="/cms" replace />} />
         <Route
           path="/invoices"
           element={user.role === 'Admin' ? <InvoicesPage /> : <Navigate to="/cms" replace />}

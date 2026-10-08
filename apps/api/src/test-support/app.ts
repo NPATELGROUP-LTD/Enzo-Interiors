@@ -42,9 +42,11 @@ export async function startTestApp(): Promise<{ url: string; nest: NestExpressAp
     DISABLE_2FA: 'true',
     ADMIN_EMAIL: ADMIN.email,
     ADMIN_PASSWORD: ADMIN.password,
+    // Empty, not deleted: ConfigModule.forRoot reloads .env into process.env
+    // for any key that is missing, which would bring Redis and SMTP back.
+    REDIS_URL: '',
+    SMTP_HOST: '',
   });
-  delete process.env.REDIS_URL;
-  delete process.env.SMTP_HOST;
 
   const { AppModule } = await import('../app.module'); // after env is set: modules read it at import
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { logger: ['error'] });

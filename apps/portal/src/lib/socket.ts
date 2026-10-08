@@ -4,27 +4,22 @@ import { api, tokenStore } from './api';
 
 /**
  * One Socket.IO connection per session, shared by the Messages screen and the
- * sidebar unread badge.
- *
- * A module-level singleton rather than a context because the socket outlives
- * any single screen and reconnecting on every navigation would drop messages
- * during the gap. `connect()` is idempotent.
+ * unread badge. connectSocket() is idempotent, so whichever mounts first opens
+ * it; Socket.IO reconnects by itself after a drop. The API checks the token on
+ * the handshake and on every event, so a signed-out session's socket is
+ * refused or disconnected; the next sign-in opens a fresh one.
  */
 let socket: Socket | null = null;
 
 export function connectSocket(): Socket | null {
+  if (socket) return socket;
   const token = tokenStore.get();
   if (!token) return null;
-  if (socket?.connected) return socket;
-
-  socket?.disconnect();
   socket = io(api.baseUrl, {
-    // The gateway reads this in handleConnection and verifies it exactly as
-    // the HTTP guard does; an unauthenticated socket is disconnected.
     auth: { token },
     transports: ['websocket', 'polling'],
-    reconnectionAttempts: 10,
     reconnectionDelay: 1000,
+    reconnectionDelayMax: 30_000,
   });
   return socket;
 }

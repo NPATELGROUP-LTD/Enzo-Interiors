@@ -1,6 +1,6 @@
-import { EnvelopeSimple, Plus } from '@phosphor-icons/react';
+import { ChatsCircle, EnvelopeSimple, Plus } from '@phosphor-icons/react';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
   Button,
@@ -44,6 +44,7 @@ const TABS = [
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data, loading, error, refetch } = useQuery<ClientDetailPayload>(
     id ? `/clients/${id}/detail` : null,
   );
@@ -98,6 +99,13 @@ export function ClientDetailPage() {
         actions={
           <>
             {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+            <Button
+              variant="secondary"
+              icon={<ChatsCircle size={16} aria-hidden="true" />}
+              onClick={() => navigate(`/messages?client=${encodeURIComponent(client.id)}`)}
+            >
+              Message
+            </Button>
             {isAdmin ? (
               <Button variant="secondary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setCreatingProject(true)}>
                 New project

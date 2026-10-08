@@ -136,10 +136,20 @@ export interface Booking {
   client_email: string;
 }
 
+/** A shared document by id; opened through GET /documents/:id/download. */
 export interface MessageAttachment {
+  document_id: string;
   name: string;
   size_bytes: number;
-  storage_url: string;
+}
+
+/** GET /conversations/:id/documents: what may be attached in that thread. */
+export interface AttachableDocument {
+  id: string;
+  name: string;
+  type: DocumentType;
+  size_bytes: number;
+  upload_date: string;
 }
 
 export interface Message {

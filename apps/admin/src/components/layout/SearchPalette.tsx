@@ -8,6 +8,7 @@ import {
   Gauge,
   UserCircle,
   Image as ImageIcon,
+  ChatsCircle,
   Kanban,
   MagnifyingGlass,
   Moon,
@@ -176,6 +177,7 @@ export function SearchPalette({ open, onClose, actions }: {
             { id: 'dashboard', group: 'Go to', label: 'Dashboard', detail: 'Projects, and for an Admin the money and enquiries', Icon: Gauge, run: go('/') },
             { id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') },
             { id: 'projects', group: 'Go to', label: 'Projects', detail: 'The five-stage board, from consultation to completed', Icon: Kanban, run: go('/projects') },
+            { id: 'messages', group: 'Go to', label: 'Messages', detail: 'Conversations with clients', Icon: ChatsCircle, run: go('/messages') },
           ]
         : []),
       ...(actions.isAdmin
