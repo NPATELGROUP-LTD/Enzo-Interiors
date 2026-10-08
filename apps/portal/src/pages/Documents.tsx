@@ -1,7 +1,4 @@
-import {
-  DownloadSimple,
-  MagnifyingGlass,
-} from '@phosphor-icons/react';
+import { MagnifyingGlass } from '@phosphor-icons/react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -16,14 +13,13 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { useToast } from '@/components/ui/Toast';
+import { DownloadButton } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { date, fileSize } from '@/lib/format';
 import type { DocumentRecord, DocumentType } from '@/types/api';
 import { DOCUMENT_LABELS, DOCUMENT_TYPES } from '@/types/api';
 
 export function DocumentsPage() {
-  const toast = useToast();
   const documents = useQuery<DocumentRecord[]>('/documents');
   const [search, setSearch] = useState('');
   const [type, setType] = useState<'all' | DocumentType>('all');
@@ -135,18 +131,7 @@ export function DocumentsPage() {
                   </Td>
                   <Td>
                     <div className="flex justify-end">
-                      <Button
-                        variant="secondary"
-                        className="min-h-9 px-2 text-xs"
-                        icon={<DownloadSimple size={14} aria-hidden="true" />}
-                        onClick={() =>
-                          toast.info(
-                            'File storage is not part of this prototype, so there is nothing to download yet.',
-                          )
-                        }
-                      >
-                        Download
-                      </Button>
+                      <DownloadButton id={document.id} name={document.name} />
                     </div>
                   </Td>
                 </tr>

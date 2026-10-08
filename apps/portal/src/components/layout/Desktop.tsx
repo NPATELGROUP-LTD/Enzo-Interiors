@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import {
   CaretDown,
   CaretLeft,
+  GearSix,
   Moon,
   SignOut,
   Sun,
@@ -22,8 +23,8 @@ import { useTheme } from '@/lib/theme';
  * do. From xl up they are listed inline; below that the app name opens them as
  * a dropdown menu.
  *
- * apps/portal carries an identical copy of this file; each app's layout file
- * only supplies its page list and name.
+ * apps/admin has its own, newer copy of this shell (menus instead of a page
+ * list); the two share the look, not the code.
  *
  * Stacking note: the window is deliberately NOT positioned, transformed or
  * blurred. Any of those would trap the pages' `fixed` modals inside it. Only
@@ -114,10 +115,6 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
     <div className="wallpaper flex h-dvh flex-col overflow-hidden text-ink">
       {/* ---------------------------------------------------------- Menu bar */}
       <header className="glass relative z-40 flex h-10 shrink-0 items-center gap-1 border-b border-glass-border px-2 text-[13px] font-semibold pointer-coarse:h-12">
-        <span aria-hidden="true" className="ml-1 mr-1.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] bg-green-900 text-[11px] font-bold text-on-primary">
-          E
-        </span>
-
         {/* Below xl the app name is the page menu. */}
         <button
           type="button"
@@ -125,7 +122,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           className="flex h-8 items-center gap-1 rounded-[6px] px-2 font-bold hover:bg-ink/10 pointer-coarse:h-10 xl:hidden"
         >
           {appName}
-          <span className="font-medium text-ink-muted">· {current?.label}</span>
+          <span className="hidden font-medium text-ink-muted min-[380px]:inline">· {current?.label}</span>
           <CaretDown size={12} aria-hidden="true" className="text-ink-muted" />
           {unread > 0 && current?.badge !== true ? <Badge count={unread} /> : null}
         </button>
@@ -235,6 +232,10 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           </span>
         </div>
         <div className="my-1 h-px bg-border" />
+        <Link to="/settings" className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}>
+          <GearSix size={15} aria-hidden="true" />
+          Settings
+        </Link>
         <button type="button" onClick={toggle} className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}>
           {theme === 'dark' ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
           {themeLabel}
@@ -243,12 +244,21 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           <SignOut size={15} aria-hidden="true" />
           Sign out
         </button>
+        <div className="my-1 h-px bg-border" />
+        <a
+          href="https://www.npatelgroup.ltd"
+          target="_blank"
+          rel="noopener"
+          className="block rounded-[7px] px-2 py-1.5 text-xs text-ink-muted hover:text-ink"
+        >
+          Made by NPATEL GROUP LTD
+        </a>
       </div>
 
       {/* ------------------------------------------------------------ Window */}
       <div className="flex min-h-0 flex-1 flex-col px-1.5 pb-[calc(env(safe-area-inset-bottom)+0.375rem)] pt-1.5 sm:px-3 sm:pb-3 sm:pt-2.5">
         <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] bg-canvas shadow-window">
-          <div className="grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3">
+          <div className="window-titlebar grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3">
             <div className="flex items-center gap-3">
               <span aria-hidden="true" className="hidden gap-2 sm:flex">
                 <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />

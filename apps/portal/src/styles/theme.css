@@ -80,44 +80,47 @@
   --badge: #d23b35;
 }
 
-.dark {
-  /* Derived — see the file header. Greens lift so they stay legible on a dark
-     ground; the semantic hues keep their meaning but swap fill and text. */
-  --green-900: #7fb99b; /* Primary action on dark: light enough to carry AA text on --canvas */
-  --green-800: #9ccdb2;
-  --green-100: #1e3a30;
-  --secondary-default: #1f2a25;
-  --secondary-hover: #2a3a32;
-  --canvas: #14170f;
-  --surface: #1c201a;
-  --surface-muted: #252a22;
-  --ink: #f0eee7;
-  --ink-muted: #a8ad9f;
-  --border: #333a2e;
-  --success: #7dc79b;
-  --success-bg: #1b3527;
-  --warning: #e0b072;
-  --warning-bg: #3a2c17;
-  --danger: #e59b97;
-  --danger-bg: #3a201f;
-  --focus-ring: #8fc0a3;
+/* Screen only: a printed page always uses the light palette. */
+@media screen {
+  .dark {
+    /* Derived — see the file header. Greens lift so they stay legible on a dark
+       ground; the semantic hues keep their meaning but swap fill and text. */
+    --green-900: #7fb99b; /* Primary action on dark: light enough to carry AA text on --canvas */
+    --green-800: #9ccdb2;
+    --green-100: #1e3a30;
+    --secondary-default: #1f2a25;
+    --secondary-hover: #2a3a32;
+    --canvas: #14170f;
+    --surface: #1c201a;
+    --surface-muted: #252a22;
+    --ink: #f0eee7;
+    --ink-muted: #a8ad9f;
+    --border: #333a2e;
+    --success: #7dc79b;
+    --success-bg: #1b3527;
+    --warning: #e0b072;
+    --warning-bg: #3a2c17;
+    --danger: #e59b97;
+    --danger-bg: #3a201f;
+    --focus-ring: #8fc0a3;
 
-  /* On dark, the primary fill is light, so its text must be dark. */
-  --on-primary: #14170f;
+    /* On dark, the primary fill is light, so its text must be dark. */
+    --on-primary: #14170f;
 
-  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.4);
+    --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.4);
 
-  --wallpaper:
-    radial-gradient(70rem 50rem at 5% -10%, #1f4434 0%, transparent 60%),
-    radial-gradient(60rem 45rem at 105% 0%, #3b2c1d 0%, transparent 55%),
-    radial-gradient(70rem 55rem at 55% 120%, #173c30 0%, transparent 60%), #0d110c;
-  --glass: rgba(30, 35, 28, 0.6);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --shadow-window: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.5);
-  --stripe: rgba(255, 255, 255, 0.03);
-  --row-hover: rgba(127, 185, 155, 0.1);
+    --wallpaper:
+      radial-gradient(70rem 50rem at 5% -10%, #1f4434 0%, transparent 60%),
+      radial-gradient(60rem 45rem at 105% 0%, #3b2c1d 0%, transparent 55%),
+      radial-gradient(70rem 55rem at 55% 120%, #173c30 0%, transparent 60%), #0d110c;
+    --glass: rgba(30, 35, 28, 0.6);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --shadow-window: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 0.5px rgba(255, 255, 255, 0.1);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow-soft: 0 0 0 0.5px rgba(255, 255, 255, 0.07), 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px -10px rgba(0, 0, 0, 0.5);
+    --stripe: rgba(255, 255, 255, 0.03);
+    --row-hover: rgba(127, 185, 155, 0.1);
+  }
 }
 
 @theme inline {
@@ -336,4 +339,41 @@
 }
 .rows > *:nth-child(odd) {
   background: var(--stripe);
+}
+
+/*
+ * Print: only the page itself. The menu bar, menus, buttons and the window
+ * frame go; the window stops clipping so a long page prints in full, on
+ * white, in the light palette.
+ */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  body,
+  .wallpaper,
+  .bg-canvas {
+    background: #fff !important;
+  }
+  header.glass,
+  [popover],
+  .no-print,
+  .window-titlebar {
+    display: none !important;
+  }
+  .wallpaper,
+  .wallpaper * {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .wallpaper section,
+  .print-sheet {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+  .print-sheet {
+    max-width: none !important;
+    padding: 0 !important;
+  }
 }

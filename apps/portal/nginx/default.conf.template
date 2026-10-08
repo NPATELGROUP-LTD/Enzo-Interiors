@@ -1,0 +1,31 @@
+server {
+  listen 80;
+  server_name _;
+  root /usr/share/nginx/html;
+  server_tokens off;
+
+  # Client-side routing: every unknown path is a route, not a missing file.
+  location / {
+    include /etc/nginx/conf.d/security.inc;
+    try_files $uri $uri/ /index.html;
+  }
+
+  # Hashed assets are immutable; index.html and the service worker must not be
+  # cached, or a deploy would not reach an installed PWA until its cache aged.
+  location /assets/ {
+    include /etc/nginx/conf.d/security.inc;
+    expires 1y;
+    add_header Cache-Control "public, immutable";
+  }
+  location = /index.html {
+    include /etc/nginx/conf.d/security.inc;
+    add_header Cache-Control "no-cache";
+  }
+  location = /sw.js {
+    include /etc/nginx/conf.d/security.inc;
+    add_header Cache-Control "no-cache";
+  }
+
+  gzip on;
+  gzip_types text/css application/javascript application/json image/svg+xml;
+}
