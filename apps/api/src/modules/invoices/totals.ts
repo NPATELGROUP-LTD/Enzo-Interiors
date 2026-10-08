@@ -43,5 +43,12 @@ export function sumMoney(values: number[]): number {
   return values.reduce<Dec>((total, value) => total.add(value), new D(0)).toNumber();
 }
 
+/**
+ * Milliseconds past the end of the due day (due_date is a timestamp at midnight
+ * UTC; an invoice is late after the end of that day). Zero or less = not late.
+ */
+export const lateMs = (dueDate: string, now = Date.now()): number =>
+  now - new Date(`${dueDate.slice(0, 10)}T23:59:59.999Z`).getTime();
+
 /** invoices.amount is DECIMAL(12,2): anything at or over this does not fit. */
 export const MAX_AMOUNT = 10_000_000_000;

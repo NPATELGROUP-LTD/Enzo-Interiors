@@ -23,7 +23,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { ItemInput } from '../../data/invoice-store';
 import { DatabaseService } from '../../data/database.service';
-import { MAX_AMOUNT, splitGross, sumMoney, totalsOf } from './totals';
+import { MAX_AMOUNT, lateMs, splitGross, sumMoney, totalsOf } from './totals';
 
 /* -------------------------------------------------------------------------- */
 /* DTOs                                                                       */
@@ -341,8 +341,7 @@ export class InvoicesService {
       const own = items.filter((item) => item.invoice_id === invoice.id);
       const split = own.length > 0 ? totalsOf(own, invoice.vat_rate) : splitGross(invoice.amount, invoice.vat_rate);
       const unpaid = invoice.status !== 'Paid' && invoice.status !== 'Draft';
-      // due_date is a timestamp at midnight UTC; the invoice is late after the end of that day.
-      const late = Date.now() - new Date(`${invoice.due_date.slice(0, 10)}T23:59:59.999Z`).getTime();
+      const late = unpaid ? lateMs(invoice.due_date) : 0;
       return {
         ...invoice,
         items: own,
@@ -350,8 +349,8 @@ export class InvoicesService {
         project_name: invoice.project_id ? (projectName.get(invoice.project_id) ?? null) : null,
         net_amount: split.net,
         vat_amount: split.vat,
-        is_overdue: unpaid && late > 0,
-        days_overdue: unpaid && late > 0 ? Math.floor(late / 86_400_000) : 0,
+        is_overdue: late > 0,
+        days_overdue: late > 0 ? Math.floor(late / 86_400_000) : 0,
       };
     });
   }

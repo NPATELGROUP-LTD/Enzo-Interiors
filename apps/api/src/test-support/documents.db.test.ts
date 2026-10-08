@@ -211,6 +211,31 @@ test('a client sees and downloads only their own shared documents', async () => 
   await json(await call('PATCH', `/documents/${shared.id}/visibility`, tokens.mine, { client_visible: false }), 403);
 });
 
+test('a shared file is hidden with its project, and a hidden project does not hide an invoice', async () => {
+  const doc = await json<Doc>(await upload(tokens.admin, mineFields(P.unassigned)), 201);
+  await json(await call('PATCH', `/documents/${doc.id}/visibility`, tokens.admin, { client_visible: true }));
+  const invoice = await prisma.invoice.create({
+    data: {
+      id: `inv_dh_${run}`, number: `T-DH-${run}`, client_id: MINE.id, project_id: P.unassigned,
+      amount: 120, vat_rate: 20, status: 'Sent', due_date: new Date(Date.now() + 864e5),
+    },
+  });
+  const sees = async () => (await json<Doc[]>(await call('GET', '/documents', tokens.mine))).some((d) => d.id === doc.id);
+
+  assert.equal(await sees(), true, 'shared file on a shared project');
+  await prisma.project.update({ where: { id: P.unassigned }, data: { client_visible: false } });
+  try {
+    assert.equal(await sees(), false, 'project hidden -> its shared file is gone from the list');
+    await json(await call('GET', `/documents/${doc.id}/download`, tokens.mine), 404);
+    const invoices = await json<Array<{ id: string }>>(await call('GET', '/invoices', tokens.mine));
+    assert.ok(invoices.some((i) => i.id === invoice.id), 'billing still reaches the client');
+  } finally {
+    await prisma.project.update({ where: { id: P.unassigned }, data: { client_visible: true } });
+    await prisma.invoice.delete({ where: { id: invoice.id } });
+  }
+  assert.equal(await sees(), true, 'project shared again -> the file is back');
+});
+
 test('deleting a document deletes its object', async () => {
   const doc = await json<Doc>(await upload(tokens.admin, mineFields()), 201);
   const { url } = await json<{ url: string }>(await call('GET', `/documents/${doc.id}/download`, tokens.admin));

@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
@@ -39,13 +40,14 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * (InvoicesModule: Admin only; clients read their own, never Drafts) and
  * documents (DocumentsModule: the private bucket, same scope by project;
  * clients their own shared files), and the dashboard (DashboardModule: per
- * role). Nothing else. The other CRM modules (conversations, content,
- * settings, dashboard) are still in src/modules and their tables are still in
- * the schema, so existing data is untouched — they are simply not mounted,
- * which means none of their routes exist on a v1 server. To bring them back,
- * import them here again, each with an explicit @Roles on every route:
+ * role). Nothing else. The remaining CRM modules (conversations, and the
+ * saved replies and audit-log viewer left in settings) are still in
+ * src/modules and their tables are still in the schema, so existing data is
+ * untouched — they are simply not mounted, which means none of their routes
+ * exist on a v1 server. To bring them back, import them here again, each with
+ * an explicit @Roles on every route:
  *
- *   ConversationsModule, ContentModule, SettingsModule
+ *   ConversationsModule, SettingsModule
  */
 @Module({
   imports: [
@@ -74,6 +76,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     ProjectsModule,
     InvoicesModule,
     DocumentsModule,
+    DashboardModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.

@@ -246,7 +246,11 @@ export class AuthService implements OnApplicationBootstrap {
       throw new UnauthorizedException('Incorrect email or password');
     }
     await this.limits.clear(`login:fail:${ip}|${key}`);
+    return this.issueClient(client);
+  }
 
+  /** A portal session for this client at their current token_version. */
+  private async issueClient(client: Client): Promise<LoginResult> {
     const user: AuthPrincipal = { id: client.id, kind: 'Client', role: 'Client', name: client.name, email: client.email };
     const payload: JwtPayload = {
       sub: client.id,
@@ -257,6 +261,32 @@ export class AuthService implements OnApplicationBootstrap {
       tv: client.token_version ?? 0,
     };
     return { access_token: await this.jwt.signAsync(payload), user };
+  }
+
+  /**
+   * PUT /account/password for a signed-in client. A wrong current password
+   * counts toward the same lockout as a wrong sign-in (a stolen token must not
+   * be a free password oracle). Bumps token_version in one conditional UPDATE,
+   * so every other portal session, and the token used to ask, stop working;
+   * the answer is a fresh session.
+   */
+  async changeClientPassword(principal: AuthPrincipal, currentPassword: string, newPassword: string, ip: string): Promise<LoginResult> {
+    const client = await this.db.clients.findById(principal.id);
+    if (!client) throw new UnauthorizedException('Invalid or expired session token');
+    const key = `client:${client.email.toLowerCase()}`;
+    await this.assertNotLocked(key, ip);
+    if (!(await verify(currentPassword, client.password_hash))) {
+      await this.recordFailure(key, ip);
+      throw new BadRequestException('Your current password is not correct.');
+    }
+    const version = client.token_version ?? 0;
+    const changed = await this.db.clients.updateWhere(
+      { id: client.id, token_version: version },
+      { password_hash: await hashPassword(newPassword), token_version: version + 1, updated_at: new Date().toISOString() },
+    );
+    if (changed !== 1) throw new BadRequestException('Your password was just changed elsewhere. Please sign in again.');
+    await this.mail.send({ to: client.email, ...templates.passwordChanged(client.name, `${this.portalUrl}/forgot-password`) });
+    return this.issueClient({ ...client, token_version: version + 1 });
   }
 
   /**

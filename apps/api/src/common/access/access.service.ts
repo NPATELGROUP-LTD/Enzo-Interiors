@@ -116,12 +116,17 @@ export class AccessService {
 
   /**
    * The documents this principal may see, as a WHERE clause. A client: their
-   * own, once shared. A Designer: through their projects only (never through
-   * the client), and only a row that belongs to that project's client.
+   * own, once shared AND on a project that is itself shared (hiding a project
+   * hides its files; a file with no project is never shown). A Designer:
+   * through their projects only (never through the client), and only a row
+   * that belongs to that project's client.
    */
   async documentScope(principal: AuthPrincipal): Promise<Where<DocumentRecord>> {
     if (this.isAdmin(principal)) return {};
-    if (this.isClient(principal)) return { client_id: principal.id, client_visible: true };
+    if (this.isClient(principal)) {
+      const shared = await this.db.projects.findWhere({ client_id: principal.id, client_visible: true });
+      return { client_id: principal.id, client_visible: true, project_id: { in: shared.map((project) => project.id) } };
+    }
     const projects = this.isAssignable(principal)
       ? await this.db.projects.findWhere(this.projectScope(principal))
       : [];

@@ -1,5 +1,7 @@
+import { Prisma } from '@prisma/client';
+
 import { Invoice, InvoiceItem } from '../common/types/domain';
-import { FieldTypes, PrismaRepository } from './prisma-repository';
+import { FieldTypes, PrismaRepository, Where } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 
 export const INVOICE_FIELDS: FieldTypes = {
@@ -34,6 +36,12 @@ export class InvoiceStore {
   private rows(invoice_id: string, items: ItemInput[]): Array<Omit<InvoiceItem, 'id'>> {
     const created_at = new Date().toISOString();
     return items.map((item, position) => ({ ...item, invoice_id, position, created_at }));
+  }
+
+  /** SUM(amount) over `where`, in PostgreSQL and exact (a Decimal, never a float). */
+  async sum(where: Where<Invoice>): Promise<Prisma.Decimal> {
+    const total = await this.prisma.invoice.aggregate({ where: where as Prisma.InvoiceWhereInput, _sum: { amount: true } });
+    return total._sum.amount ?? new Prisma.Decimal(0);
   }
 
   /** Throws a Prisma P2002 when the number is taken; the caller picks another. */

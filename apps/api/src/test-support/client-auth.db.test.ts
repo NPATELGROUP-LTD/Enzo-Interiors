@@ -125,3 +125,43 @@ test('changing a staff member\'s role signs them out', async () => {
   assert.equal((await get('/auth/me', staff)).status, 401);
   assert.equal((await get('/auth/me', admin)).status, 200, 'the admin who did it is untouched');
 });
+
+test('a client changes their password: the old token and old password die, a new session is issued', async () => {
+  const me = { id: `cli_pw_${run}`, email: `pw-${run}@test.enzo.local` };
+  await prisma.client.create({
+    data: { ...me, name: 'Password Client', status: 'Active', joined_date: new Date(), password_hash: await bcrypt.hash(PASSWORD, 4) },
+  });
+  const put = (path: string, bearer: string, body: unknown) =>
+    fetch(`${app.url}${path}`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${bearer}`, 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  try {
+    const old = await token('/auth/portal/login', me.email, PASSWORD);
+    const next = 'a-brand-new-password-456';
+
+    assert.equal((await put('/account/password', old, { current_password: 'wrong-password-123', new_password: next })).status, 400);
+    assert.equal((await get('/auth/me', old)).status, 200, 'a wrong current password changes nothing');
+
+    const changed = await put('/account/password', old, { current_password: PASSWORD, new_password: next });
+    assert.equal(changed.status, 200);
+    const fresh = ((await changed.json()) as { access_token: string }).access_token;
+
+    assert.equal((await get('/auth/me', old)).status, 401, 'the token that asked is void');
+    assert.equal((await get('/auth/me', fresh)).status, 200, 'the session it returns works');
+    assert.equal((await post('/auth/portal/login', { email: me.email, password: PASSWORD })).status, 401);
+    assert.equal((await post('/auth/portal/login', { email: me.email, password: next })).status, 200);
+
+    // The portal's other account route: preferences are the client's own, and staff have none.
+    assert.equal((await put('/notification-preferences', fresh, { sms_enabled: true })).status, 200);
+    const stored = (await (await get('/notification-preferences', fresh)).json()) as { sms_enabled: boolean };
+    assert.equal(stored.sms_enabled, true);
+    const admin = await token('/auth/admin/login', ADMIN.email, ADMIN.password);
+    assert.equal((await get('/notification-preferences', admin)).status, 403);
+    assert.equal((await put('/account/password', admin, { current_password: ADMIN.password, new_password: next })).status, 403);
+  } finally {
+    await prisma.notificationPreference.deleteMany({ where: { owner_id: me.id } });
+    await prisma.client.delete({ where: { id: me.id } });
+  }
+});
