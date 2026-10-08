@@ -5,6 +5,7 @@ import {
   Browsers,
   CalendarCheck,
   CloudCheck,
+  Gauge,
   UserCircle,
   Image as ImageIcon,
   Kanban,
@@ -172,6 +173,7 @@ export function SearchPalette({ open, onClose, actions }: {
       })),
       ...(actions.clients
         ? [
+            { id: 'dashboard', group: 'Go to', label: 'Dashboard', detail: 'Projects, and for an Admin the money and enquiries', Icon: Gauge, run: go('/') },
             { id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') },
             { id: 'projects', group: 'Go to', label: 'Projects', detail: 'The five-stage board, from consultation to completed', Icon: Kanban, run: go('/projects') },
           ]

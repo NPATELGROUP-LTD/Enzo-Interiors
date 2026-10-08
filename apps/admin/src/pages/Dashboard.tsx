@@ -12,12 +12,12 @@ import {
 import { useQuery } from '@/hooks/useApi';
 import { useAuth } from '@/lib/auth';
 import { dateTime, moneyCompact, padCount, relative } from '@/lib/format';
-import { bookingTone, projectTone } from '@/lib/status';
-import type { AdminDashboard, Project } from '@/types/api';
+import { projectTone } from '@/lib/status';
+import type { AdminDashboard, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
 import { PROJECT_STAGES, SERVICE_LABELS } from '@/types/api';
 
 /**
- * Simple bar chart for the monthly bookings figure.
+ * Simple bar chart for a monthly figure.
  *
  * Hand-drawn SVG rather than a charting dependency: the brief's restraint rules
  * rule out most of what a chart library brings, and a 12-bar chart does not
@@ -58,213 +58,306 @@ function BarChart({
   );
 }
 
-export function DashboardPage() {
-  const { user } = useAuth();
-  const { data, loading, error, refetch } = useQuery<AdminDashboard>('/dashboard/admin');
+/** Where the projects are, stage by stage. */
+function Pipeline({ projects }: { projects: DashboardProjects }) {
+  const total = Math.max(1, Object.values(projects.by_stage).reduce((sum, value) => sum + value, 0));
+  return (
+    <Card>
+      <p className="label-eyebrow">Pipeline</p>
+      <ul className="mt-3 flex flex-col gap-2.5">
+        {PROJECT_STAGES.map((stage) => {
+          const count = projects.by_stage[stage] ?? 0;
+          return (
+            <li key={stage}>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm text-ink">{stage}</span>
+                <span className="tabular text-sm font-semibold text-ink">{count}</span>
+              </div>
+              <Progress value={Math.round((count / total) * 100)} label={`${stage} share`} />
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+/** Designs sitting with the client for approval (what the API lets this person see). */
+function AwaitingDecision() {
   const projects = useQuery<Project[]>('/projects');
+  const waiting = (projects.data ?? []).filter((project) => project.status === 'Approval').slice(0, 4);
+
+  return (
+    <Card className="mt-4">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="label-eyebrow">Awaiting a client decision</p>
+          <p className="mt-1 text-ink-muted">Designs sitting with the client for approval.</p>
+        </div>
+        <Link to="/projects" className="text-link shrink-0">
+          View board
+        </Link>
+      </div>
+
+      {projects.loading ? (
+        <TableSkeleton rows={3} columns={3} />
+      ) : waiting.length === 0 ? (
+        <p className="py-6 text-center text-ink-muted">Nothing is waiting on a client right now.</p>
+      ) : (
+        <ul className="rows">
+          {waiting.map((project) => (
+            <li
+              key={project.id}
+              className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+            >
+              <div className="min-w-0">
+                <Link to={`/projects/${project.id}`} className="text-link block truncate">
+                  {project.name}
+                </Link>
+                <p className="truncate text-xs text-ink-muted">
+                  {project.client_name} · {SERVICE_LABELS[project.type]} · updated {dateTime(project.updated_at)}
+                </p>
+              </div>
+              <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function AdminView() {
+  const { data, loading, error, refetch } = useQuery<AdminDashboard>('/dashboard/admin');
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
+  if (loading || !data) {
+    return (
+      <Card className="p-0">
+        <TableSkeleton rows={6} columns={3} />
+      </Card>
+    );
+  }
 
-  const needingAttention = (projects.data ?? [])
-    .filter((project) => project.status === 'Approval')
-    .slice(0, 4);
+  const { appointments, projects, invoices, enquiries, clients } = data;
 
   return (
     <>
-      <PageHeader
-        title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
-        description="Everything that needs you today, in one place."
-      />
+      {/* Bento grid. Card order follows the brief's content-rules table. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <MetricCard
+          eyebrow="Today’s consultations"
+          value={padCount(appointments.today)}
+          accent="primary"
+          context={
+            appointments.next
+              ? `Next up: ${appointments.next.name}, ${relative(appointments.next.starts_at).toLowerCase()}.`
+              : 'Nothing booked ahead.'
+          }
+          bottom={
+            <Link to="/bookings" className="text-link">
+              Open calendar
+            </Link>
+          }
+        />
 
-      {loading || !data ? (
-        <Card className="p-0">
-          <TableSkeleton rows={6} columns={3} />
-        </Card>
-      ) : (
-        <>
-          {/* Bento grid. Card order follows the brief's content-rules table. */}
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <MetricCard
-              eyebrow="Today’s bookings"
-              value={padCount(data.bookings.today)}
-              accent="primary"
-              context={
-                data.bookings.next
-                  ? `Next appointment ${relative(data.bookings.next.date_time)} with ${data.bookings.next.client_name}.`
-                  : 'No appointments booked for today.'
-              }
-              bottom={
-                data.bookings.awaiting_confirmation > 0 ? (
-                  <StatusTag tone="warning">
-                    {data.bookings.awaiting_confirmation} awaiting confirmation
-                  </StatusTag>
-                ) : (
-                  <Link to="/bookings" className="text-link">
-                    Open calendar
-                  </Link>
-                )
-              }
-            />
+        <MetricCard
+          eyebrow="Active projects"
+          value={padCount(projects.active)}
+          accent="primary"
+          context={`${projects.active - projects.awaiting_decision} on track; ${projects.awaiting_decision} need a client decision.`}
+          bottom={
+            <Link to="/projects" className="text-link">
+              View projects
+            </Link>
+          }
+        />
 
-            <MetricCard
-              eyebrow="Active projects"
-              value={padCount(data.projects.active)}
-              accent="primary"
-              context={`${data.projects.active - data.projects.awaiting_decision} on track; ${data.projects.awaiting_decision} need a client decision.`}
-              bottom={
-                <Link to="/projects" className="text-link">
-                  View projects
-                </Link>
-              }
-            />
-
-            <MetricCard
-              eyebrow="Outstanding invoices"
-              value={moneyCompact(data.invoices.outstanding_total)}
-              accent={data.invoices.overdue_count > 0 ? 'danger' : 'warning'}
-              context={`${moneyCompact(data.invoices.due_this_week_total)} due this week.`}
-              bottom={
-                data.invoices.overdue_count > 0 ? (
-                  <StatusTag tone="danger">
-                    {data.invoices.overdue_count} overdue
-                  </StatusTag>
-                ) : (
-                  <Link to="/invoices" className="text-link">
-                    View invoices
-                  </Link>
-                )
-              }
-            />
-
-            <MetricCard
-              eyebrow="Unread messages"
-              value={padCount(data.messages.unread)}
-              accent={data.messages.unread > 0 ? 'warning' : 'primary'}
-              context={
-                data.messages.conversations_needing_reply > 0
-                  ? `${data.messages.conversations_needing_reply} conversation${
-                      data.messages.conversations_needing_reply === 1 ? ' requires' : 's require'
-                    } a reply today.`
-                  : 'Everything has been answered.'
-              }
-              bottom={
-                <Link to="/messages" className="text-link">
-                  Open inbox
-                </Link>
-              }
-            />
-
-            <MetricCard
-              eyebrow="New enquiries"
-              value={padCount(data.enquiries.new)}
-              accent="primary"
-              context={`${data.enquiries.since_yesterday} received since yesterday.`}
-              bottom={
-                <Link to="/content" className="text-link">
-                  Review leads
-                </Link>
-              }
-            />
-          </div>
-
-          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card className="flex flex-col xl:col-span-2">
-              <p className="label-eyebrow">Bookings by month</p>
-              <p className="mt-1 text-ink-muted">
-                Consultations booked over the last 12 months.
-              </p>
-              <div className="mt-4 flex-1">
-                <BarChart data={data.bookings_chart} />
-              </div>
-            </Card>
-
-            <Card>
-              <p className="label-eyebrow">Pipeline</p>
-              <ul className="mt-3 flex flex-col gap-2.5">
-                {PROJECT_STAGES.map((stage) => {
-                  const count = data.projects.by_stage[stage] ?? 0;
-                  const total = Math.max(
-                    1,
-                    Object.values(data.projects.by_stage).reduce((sum, value) => sum + value, 0),
-                  );
-                  return (
-                    <li key={stage}>
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-sm text-ink">{stage}</span>
-                        <span className="tabular text-sm font-semibold text-ink">{count}</span>
-                      </div>
-                      <Progress value={(count / total) * 100} label={`${stage} share`} />
-                    </li>
-                  );
-                })}
-              </ul>
-            </Card>
-          </div>
-
-          <Card className="mt-4">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <p className="label-eyebrow">Awaiting a client decision</p>
-                <p className="mt-1 text-ink-muted">
-                  Designs sitting with the client for approval.
-                </p>
-              </div>
-              <Link to="/projects" className="text-link shrink-0">
-                View board
-              </Link>
-            </div>
-
-            {projects.loading ? (
-              <TableSkeleton rows={3} columns={3} />
-            ) : needingAttention.length === 0 ? (
-              <p className="py-6 text-center text-ink-muted">
-                Nothing is waiting on a client right now.
-              </p>
+        <MetricCard
+          eyebrow="Outstanding invoices"
+          value={moneyCompact(invoices.outstanding_total)}
+          accent={invoices.overdue_count > 0 ? 'danger' : 'warning'}
+          context={`${moneyCompact(invoices.due_this_week_total)} due this week.`}
+          bottom={
+            invoices.overdue_count > 0 ? (
+              <StatusTag tone="danger">{invoices.overdue_count} overdue</StatusTag>
             ) : (
-              <ul className="rows">
-                {needingAttention.map((project) => (
-                  <li
-                    key={project.id}
-                    className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                  >
+              <Link to="/invoices" className="text-link">
+                View invoices
+              </Link>
+            )
+          }
+        />
+
+        <MetricCard
+          eyebrow="Paid this month"
+          value={moneyCompact(invoices.paid_this_month)}
+          accent="success"
+          context={`${moneyCompact(invoices.paid_total)} received in all.`}
+          bottom={
+            <Link to="/invoices?view=paid" className="text-link">
+              View paid
+            </Link>
+          }
+        />
+
+        <MetricCard
+          eyebrow="New enquiries"
+          value={padCount(enquiries.new)}
+          accent="primary"
+          context={`${enquiries.since_yesterday} received since yesterday.`}
+        />
+
+        <MetricCard
+          eyebrow="Active clients"
+          value={padCount(clients.active)}
+          accent="primary"
+          context={`${clients.total} client${clients.total === 1 ? '' : 's'} on the books.`}
+          bottom={
+            <Link to="/clients" className="text-link">
+              View clients
+            </Link>
+          }
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="flex flex-col xl:col-span-2">
+          <p className="label-eyebrow">Consultations by month</p>
+          <p className="mt-1 text-ink-muted">Consultations over the last 12 months.</p>
+          <div className="mt-4 flex-1">
+            <BarChart data={data.appointments_chart} />
+          </div>
+        </Card>
+        <Pipeline projects={projects} />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="flex flex-col xl:col-span-2">
+          <p className="label-eyebrow">Revenue by month</p>
+          <p className="mt-1 text-ink-muted">Invoices marked paid over the last 12 months.</p>
+          <div className="mt-4 flex-1">
+            <BarChart data={data.revenue_chart} formatValue={moneyCompact} />
+          </div>
+        </Card>
+
+        <Card accent="primary" className="flex flex-col">
+          <p className="label-eyebrow">Next consultation</p>
+          {appointments.next ? (
+            <>
+              <p className="mt-2 text-base font-semibold text-ink">{appointments.next.name}</p>
+              <p className="mt-0.5 text-ink-muted">{appointments.next.service_label}</p>
+              <p className="mt-0.5 text-ink-muted">
+                {dateTime(appointments.next.starts_at)} ({relative(appointments.next.starts_at)})
+              </p>
+              <p className="mt-auto pt-3 text-xs text-ink-muted">
+                {appointments.upcoming} upcoming in all ·{' '}
+                <Link to="/bookings" className="text-link">
+                  Open calendar
+                </Link>
+              </p>
+            </>
+          ) : (
+            <p className="mt-2 text-ink-muted">No consultations are booked.</p>
+          )}
+        </Card>
+      </div>
+
+      <AwaitingDecision />
+    </>
+  );
+}
+
+function DesignerView() {
+  const { data, loading, error, refetch } = useQuery<DesignerDashboard>('/dashboard/designer');
+
+  if (error) return <ErrorState message={error} onRetry={refetch} />;
+  if (loading || !data) {
+    return (
+      <Card className="p-0">
+        <TableSkeleton rows={6} columns={3} />
+      </Card>
+    );
+  }
+
+  const { projects, tasks } = data;
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <MetricCard
+          eyebrow="Your active projects"
+          value={padCount(projects.active)}
+          accent="primary"
+          context={`${projects.completed} completed.`}
+          bottom={
+            <Link to="/projects" className="text-link">
+              View projects
+            </Link>
+          }
+        />
+        <MetricCard
+          eyebrow="With the client"
+          value={padCount(projects.awaiting_decision)}
+          accent={projects.awaiting_decision > 0 ? 'warning' : 'primary'}
+          context="Designs waiting for a client decision."
+        />
+        <MetricCard
+          eyebrow="In installation"
+          value={padCount(projects.by_stage.Installation)}
+          accent="primary"
+          context="Projects being fitted."
+        />
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <Card className="xl:col-span-2">
+          <p className="label-eyebrow">Your open work</p>
+          <p className="mt-1 text-ink-muted">Projects assigned to you that are not finished, latest first.</p>
+          {tasks.length === 0 ? (
+            <p className="py-6 text-center text-ink-muted">Nothing is assigned to you right now.</p>
+          ) : (
+            <ul className="rows mt-3">
+              {tasks.map((task) => (
+                <li key={task.id} className="py-3 first:pt-0 last:pb-0">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <Link
-                        to={`/projects/${project.id}`}
-                        className="text-link block truncate"
-                      >
-                        {project.name}
+                      <Link to={`/projects/${task.id}`} className="text-link block truncate">
+                        {task.name}
                       </Link>
                       <p className="truncate text-xs text-ink-muted">
-                        {project.client_name} · {SERVICE_LABELS[project.type]} · updated{' '}
-                        {dateTime(project.updated_at)}
+                        {task.client_name} · {SERVICE_LABELS[task.type]} · {task.roles.join(' and ')} · updated{' '}
+                        {relative(task.updated_at)}
                       </p>
                     </div>
-                    <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-
-          {data.bookings.next ? (
-            <Card className="mt-4" accent="primary">
-              <p className="label-eyebrow">Next appointment</p>
-              <p className="mt-2 text-base font-semibold text-ink">
-                {data.bookings.next.client_name} ·{' '}
-                {SERVICE_LABELS[data.bookings.next.service_type]}
-              </p>
-              <p className="mt-0.5 text-ink-muted">
-                {dateTime(data.bookings.next.date_time)} ({relative(data.bookings.next.date_time)})
-              </p>
-              <div className="mt-3">
-                <StatusTag tone={bookingTone(data.bookings.next.status)}>
-                  {data.bookings.next.status}
-                </StatusTag>
-              </div>
-            </Card>
-          ) : null}
-        </>
-      )}
+                    <StatusTag tone={projectTone(task.status)}>{task.status}</StatusTag>
+                  </div>
+                  <div className="mt-2">
+                    <Progress value={task.progress_pct} label={`${task.name} progress`} />
+                  </div>
+                  {task.current_stage ? <p className="mt-1.5 text-xs text-ink-muted">{task.current_stage}</p> : null}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Pipeline projects={projects} />
+      </div>
     </>
+  );
+}
+
+/** The landing page for Admin (everything) and Designers (their own projects). Editors never reach it. */
+export function DashboardPage() {
+  const { user, isAdmin } = useAuth();
+
+  return (
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+      <PageHeader
+        title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
+        description={isAdmin ? 'Everything that needs you today, in one place.' : 'Where your projects are up to.'}
+      />
+      {isAdmin ? <AdminView /> : <DesignerView />}
+    </div>
   );
 }

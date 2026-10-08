@@ -362,29 +362,46 @@ export interface ProjectDetail {
   awaiting_client_decision: boolean;
 }
 
-/** GET /dashboard/admin */
+/** GET /dashboard/admin (Admin only) */
 export interface AdminDashboard {
-  bookings: {
+  appointments: {
     today: number;
     upcoming: number;
-    awaiting_confirmation: number;
-    next: Booking | null;
+    next: { id: string; reference: string; name: string; service_label: string; starts_at: string } | null;
   };
-  projects: {
-    active: number;
-    completed: number;
-    awaiting_decision: number;
-    by_stage: Record<ProjectStage, number>;
-  };
+  projects: DashboardProjects;
   enquiries: { total: number; new: number; since_yesterday: number };
   invoices: {
     outstanding_total: number;
     due_this_week_total: number;
     overdue_count: number;
     paid_total: number;
+    paid_this_month: number;
   };
-  messages: { unread: number; conversations_needing_reply: number };
   clients: { total: number; active: number };
-  bookings_chart: Array<{ month: string; label: string; value: number }>;
+  appointments_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
+}
+
+export interface DashboardProjects {
+  active: number;
+  completed: number;
+  awaiting_decision: number;
+  by_stage: Record<ProjectStage, number>;
+}
+
+/** GET /dashboard/designer: only the projects they are on, and nothing financial. */
+export interface DesignerDashboard {
+  projects: DashboardProjects;
+  tasks: Array<{
+    id: string;
+    name: string;
+    type: ServiceType;
+    client_name: string;
+    status: ProjectStage;
+    progress_pct: number;
+    current_stage: string | null;
+    roles: Array<'Designer' | 'Installer'>;
+    updated_at: string;
+  }>;
 }

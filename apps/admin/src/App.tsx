@@ -11,6 +11,7 @@ import { AccountPage } from './pages/Account';
 import { AppointmentsPage } from './pages/Appointments';
 import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
+import { DashboardPage } from './pages/Dashboard';
 import { InvoicesPage } from './pages/Invoices';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
@@ -24,12 +25,12 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 }
 
 /**
- * v1 routes: the CMS, clients, projects, bookings, settings, your account and
- * sign-in.
+ * v1 routes: the dashboard (the landing page for Admin and Designers; Editors
+ * land on the CMS), the CMS, clients, projects, invoices, bookings, settings,
+ * your account and sign-in.
  *
- * The other CRM screens in src/pages (Dashboard, Bookings,
- * Messages, Enquiries, Settings) are kept but not routed: the v1 API does not
- * mount their modules, so every one of them would open on a 404. Routing them
+ * The other CRM screens in src/pages (Messages) are kept but not routed: the v1
+ * API does not mount their modules, so they would open on a 404. Routing them
  * again goes hand in hand with re-importing the modules in
  * apps/api/src/app.module.ts.
  */
@@ -75,9 +76,10 @@ export function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Navigate to="/cms" replace />} />
+      <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<AdminLayout />}>
-        <Route path="/" element={<Navigate to="/cms" replace />} />
+        {/* Admin and Designers land on the dashboard; an Editor has none and lands on the CMS. */}
+        <Route path="/" element={canSeeClients ? <DashboardPage /> : <Navigate to="/cms" replace />} />
         <Route path="/cms" element={<CmsHome />} />
         <Route path="/account" element={<AccountPage />} />
         <Route

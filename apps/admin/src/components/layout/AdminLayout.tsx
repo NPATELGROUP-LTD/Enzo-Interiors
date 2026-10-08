@@ -206,6 +206,24 @@ function MenuBarMenu({
 
 const MENU_HEADING = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
 
+/** A menu-bar title that is just a link, for a screen with no menu of its own. */
+function MenuBarLink({ to, label, end }: { to: string; label: string; end?: boolean }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        clsx(
+          'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+          isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+        )
+      }
+    >
+      {label}
+    </NavLink>
+  );
+}
+
 /** CMS: every page and every kind of shared content. */
 function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
   const shared = SECTIONS.filter((section) => section.collection !== 'pages');
@@ -491,6 +509,7 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
     };
   }
   if (pathname === '/account') return { title: 'Account', back: null };
+  if (pathname === '/') return { title: 'Dashboard', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
   const isEntry = pathname !== section.to && section.collection !== 'pages';
@@ -566,6 +585,7 @@ export function AdminLayout() {
       settingsTo={isAdmin ? '/settings' : '/account'}
       menus={
         <>
+          {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
           <CmsMenu counts={counts} />
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}

@@ -12,7 +12,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, tokenStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useTheme } from '@/lib/theme';
 import type { NotificationPreference } from '@/types/api';
@@ -40,10 +40,12 @@ export function SettingsPage() {
 
     setPasswordSaving(true);
     try {
-      await api.put('/account/password', {
+      // Changing it signs every session out, this one included; the answer is a new one.
+      const session = await api.put<{ access_token: string }>('/account/password', {
         current_password: passwordForm.current,
         new_password: passwordForm.next,
       });
+      tokenStore.set(session.access_token);
       toast.success('Password changed.');
       setPasswordForm({ current: '', next: '', confirm: '' });
     } catch (caught) {

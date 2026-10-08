@@ -6,11 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Development Phase
 
-**v1 scope: the public website, the Admin CMS that runs it, consultation booking, and the CRM's client book.**
+**v1 scope: the public website, the Admin CMS that runs it, consultation booking, and the CRM: Clients, Projects, Invoices, Documents and the Dashboard.**
 
 - `apps/web` — Next.js marketing site. Reads all of its content from the API.
   `/booking` asks the API for free days/times and books through it.
-- `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
+- `apps/admin` — the Enzo Interiors admin. Menu bar: **Dashboard** (`/`, the
+  landing page for Admin and Designers; an Editor lands on the CMS), **CMS** (Pages, then
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
   **Clients** (`/clients`, `/clients/:id`, Admin + Designer; `?view=` /
   `?new=1`; a client's page has Invite to portal / Resend invite and, for an
@@ -20,11 +21,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
-  users). CMS, Clients, Projects, Bookings and Settings each drop a menu on hover. Your own
+  users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
-  accept an invitation). The other CRM screens are still in `src/pages` but unrouted
-  (see `src/App.tsx`; the CRM's `Bookings.tsx` is not the new `Appointments.tsx`).
+  accept an invitation). The CRM's Messages screen is still in `src/pages` but unrouted
+  (see `src/App.tsx`).
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
   (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
   media, the CMS (incl. the public `GET /content/site` bundle, which carries
@@ -36,8 +37,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   (`/clients`, `POST /clients/:id/invite`; portal `POST /auth/portal/forgot` /
   `reset`) and **projects** (`/projects`; the portal's list, detail, approve,
   request-changes are the only `'Client'` routes) and **documents**
-  (`/documents`; the portal's list and `GET /documents/:id/download`). The other CRM modules and their tables (incl. the CRM's
-  `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
+  (`/documents`; the portal's list and `GET /documents/:id/download`) and
+  **invoices** and the **dashboard** (below). The conversations module and the saved
+  replies / audit-log viewer left in `modules/settings` are kept, with all CRM tables
+  (incl. the retired CRM `bookings`), but not mounted (`src/app.module.ts`); the CRM's
+  bookings and content modules were deleted (booking is `appointments`, content is the CMS;
+  deferred: an enquiries inbox). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor` or `Designer`
@@ -83,6 +88,18 @@ an invoice with no lines keeps its stored amount. Lines/VAT edit only on a Draft
 only via mark-paid (one transaction with the client's `total_spent`, refuses a
 repeat). `project_id` must belong to the invoice's client. Numbers retry on a
 unique clash. Deferred: emailing/PDF of an invoice (browser view only).
+
+**Dashboard** (`modules/dashboard`, all SQL counts/sums, no table read whole):
+`/dashboard/admin` (Admin: money from invoices via `Prisma.Decimal`, enquiries,
+consultations from `appointments`, projects by stage, 12-month charts),
+`/dashboard/designer` (Designer/Installer: only their projects and open work, no
+money, enquiries or consultations), `/dashboard/portal` (Client: own, shared
+projects, files on shared projects, non-Draft invoices, a consultation booked
+with their email). Editor 403 on all. A client sees a document only if it AND
+its project are shared (`AccessService.documentScope`); invoices reach them
+whatever their project's visibility. A client changes their password at
+`PUT /account/password` (bumps `token_version`, returns a fresh session) and
+reads/writes `/notification-preferences`, both in `modules/auth/portal-account.ts`.
 
 **Client portal access** is by invitation only: nobody types a client's
 password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,

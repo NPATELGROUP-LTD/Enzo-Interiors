@@ -15,7 +15,7 @@ import {
 import { useQuery } from '@/hooks/useApi';
 import { date, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone } from '@/lib/status';
-import type { BusinessSettings, Invoice } from '@/types/api';
+import type { Invoice } from '@/types/api';
 
 /**
  * Invoices — view and status only.
@@ -27,7 +27,6 @@ import type { BusinessSettings, Invoice } from '@/types/api';
  */
 export function InvoicesPage() {
   const invoices = useQuery<Invoice[]>('/invoices');
-  const settings = useQuery<BusinessSettings>('/business-settings');
 
   const totals = useMemo(() => {
     const rows = invoices.data ?? [];
@@ -145,8 +144,7 @@ export function InvoicesPage() {
           <Card className="mt-4">
             <p className="label-eyebrow">How to pay</p>
             <p className="mt-2 text-ink">
-              Payment is arranged directly with{' '}
-              {settings.data?.business_name ?? 'Enzo Interiors'} — by bank transfer or card in the
+              Payment is arranged directly with Enzo Interiors — by bank transfer or card in the
               studio. There is no online payment in this portal.
             </p>
             <p className="mt-2 text-ink-muted">

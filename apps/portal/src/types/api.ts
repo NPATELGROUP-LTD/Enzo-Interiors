@@ -231,8 +231,8 @@ export interface ProjectDetail {
 
 /** GET /dashboard/portal */
 export interface PortalDashboard {
-  next_appointment: Booking | null;
-  unread_messages: number;
+  /** A website consultation booked with the client's email. */
+  next_appointment: { id: string; service_label: string; starts_at: string } | null;
   documents_count: number;
   invoices: {
     paid_total: number;
