@@ -45,7 +45,7 @@ async function bootstrap(): Promise<void> {
   // The admin and the public site (its enquiry forms) are separate origins,
   // so CORS is required rather than incidental. Origins come from env so a
   // deployment can lock this down without a code change.
-  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:3000')
+  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:5175,http://localhost:3000')
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean);
