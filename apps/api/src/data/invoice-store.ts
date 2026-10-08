@@ -6,12 +6,14 @@ import { PrismaService } from './prisma.service';
 
 export const INVOICE_FIELDS: FieldTypes = {
   dates: ['created_at', 'due_date', 'paid_at'],
-  decimals: ['amount', 'vat_rate'],
+  decimals: ['amount', 'vat_rate', 'discount'],
 };
 export const INVOICE_ITEM_FIELDS: FieldTypes = { dates: ['created_at'], decimals: ['quantity', 'unit_price'] };
 
 export interface ItemInput {
   description: string;
+  section: string | null;
+  detail: string | null;
   quantity: number;
   unit_price: number;
 }
@@ -54,11 +56,14 @@ export class InvoiceStore {
     });
   }
 
-  /** Null when the invoice is gone or already Paid. `items` replaces the lines when given. */
-  async update(id: string, patch: Partial<Omit<Invoice, 'id'>>, items?: ItemInput[]): Promise<Invoice | null> {
+  /**
+   * Null when the invoice is gone or already Paid. `items` replaces the lines when given.
+   * `paid` = the caller only touches the job/schedule fields, which a Paid invoice may still change.
+   */
+  async update(id: string, patch: Partial<Omit<Invoice, 'id'>>, items?: ItemInput[], paid = false): Promise<Invoice | null> {
     return this.prisma.$transaction(async (tx) => {
       const repos = this.repos(tx);
-      if (!(await repos.invoices.updateWhere({ id, status: { not: 'Paid' } }, patch))) return null;
+      if (!(await repos.invoices.updateWhere({ id, status: paid ? 'Paid' : { not: 'Paid' } }, patch))) return null;
       if (items) {
         await repos.items.deleteWhere({ invoice_id: id });
         for (const row of this.rows(id, items)) await repos.items.create(row);

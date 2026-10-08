@@ -43,6 +43,8 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         // Never let a cached shell shadow a newer one.
         cleanupOutdatedCaches: true,
+        // Web Push handlers (public/push-sw.js): show the notification, open its page.
+        importScripts: ['push-sw.js'],
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         /**

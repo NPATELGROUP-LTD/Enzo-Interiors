@@ -4,6 +4,7 @@ import type {
   ClientStatus,
   InvoiceStatus,
   ProjectStage,
+  ProjectStageConfig,
   SubmissionStatus,
 } from '@/types/api';
 
@@ -32,7 +33,15 @@ export const bookingTone = (status: BookingStatus): StatusTone => {
   }
 };
 
-export const projectTone = (stage: ProjectStage): StatusTone => {
+/**
+ * With the configured list: the last stage is done, the approval stage waits
+ * on the client. Without it, the default names.
+ */
+export const projectTone = (stage: ProjectStage, stages?: ProjectStageConfig[]): StatusTone => {
+  if (stages?.length) {
+    if (stage === stages[stages.length - 1]!.name) return 'success';
+    return stages.find((entry) => entry.name === stage)?.approval ? 'warning' : 'neutral';
+  }
   switch (stage) {
     case 'Completed':
       return 'success';

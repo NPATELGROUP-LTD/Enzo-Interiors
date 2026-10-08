@@ -18,6 +18,7 @@ import {
   EmptyState,
   ErrorState,
   Input,
+  Listbox,
   Modal,
   Progress,
   Select,
@@ -30,12 +31,13 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dateTime } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { Client, Project, ProjectStage, ServiceType } from '@/types/api';
-import { PROJECT_STAGES, SERVICE_LABELS, SERVICE_TYPES } from '@/types/api';
+import { SERVICE_LABELS, SERVICE_TYPES } from '@/types/api';
 
 type View = (typeof PROJECT_VIEWS)[number]['id'];
 
@@ -56,10 +58,12 @@ function crew(project: Project): string {
 
 function ProjectCard({
   project,
+  stages,
   onMove,
   onToggleVisible,
 }: {
   project: Project;
+  stages: ProjectStage[];
   onMove: (project: Project, stage: ProjectStage) => void;
   /** Admin only; absent for Designers. */
   onToggleVisible?: (project: Project) => void;
@@ -106,18 +110,18 @@ function ProjectCard({
           The brief requires a "Move to…" control alongside drag-and-drop, so
           the board is operable by keyboard and by anyone who cannot drag.
         */}
-        <select
+        <Listbox
           value={project.status}
           onChange={(event) => onMove(project, event.target.value as ProjectStage)}
           aria-label={`Move ${project.name} to another stage`}
-          className="min-h-11 flex-1 rounded-control border border-border bg-surface px-2 text-xs text-ink focus:border-green-900"
+          className="flex-1 text-xs"
         >
-          {PROJECT_STAGES.map((stage) => (
+          {stages.map((stage) => (
             <option key={stage} value={stage}>
               Move to {stage}
             </option>
           ))}
-        </select>
+        </Listbox>
         {onToggleVisible ? (
           <button
             type="button"
@@ -151,11 +155,13 @@ function ProjectCard({
 
 function Column({
   stage,
+  stages,
   projects,
   onMove,
   onToggleVisible,
 }: {
   stage: ProjectStage;
+  stages: ProjectStage[];
   projects: Project[];
   onMove: (project: Project, stage: ProjectStage) => void;
   onToggleVisible?: (project: Project) => void;
@@ -184,6 +190,7 @@ function Column({
             <ProjectCard
               key={project.id}
               project={project}
+              stages={stages}
               onMove={onMove}
               onToggleVisible={onToggleVisible}
             />
@@ -207,7 +214,7 @@ export interface StaffOption {
 
 /**
  * The New project dialog: on the Projects screen (choose the client) and on a
- * client's page (client fixed). Projects start at Consultation, hidden from
+ * client's page (client fixed). Projects start at the first stage, hidden from
  * the client portal until an Admin sends them.
  */
 export function NewProjectDialog({
@@ -254,7 +261,7 @@ export function NewProjectDialog({
         assigned_designer_id: form.assigned_designer_id || null,
         assigned_installer_id: form.assigned_installer_id || null,
       });
-      toast.success(`${created.name} created at Consultation.`);
+      toast.success(`${created.name} created at ${created.status}.`);
       onClose();
       navigate(`/projects/${created.id}`);
     } catch (caught) {
@@ -280,7 +287,7 @@ export function NewProjectDialog({
       open={open}
       onClose={onClose}
       title={client ? `New project for ${client.name}` : 'New project'}
-      description="It starts at Consultation, hidden from the client portal until you send it."
+      description="It starts at the first stage, hidden from the client portal until you send it."
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
@@ -365,6 +372,7 @@ export function ProjectsPage() {
   const projects = useQuery<Project[]>('/projects');
   const clients = useQuery<Client[]>(isAdmin ? '/clients' : null);
   const designers = useDesigners(isAdmin);
+  const { names: stages, stages: stageList } = useStages();
 
   const [params, setParams] = useSearchParams();
   const view: View = PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ?? 'board';
@@ -389,16 +397,10 @@ export function ProjectsPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const byStage = useMemo(() => {
-    const grouped: Record<ProjectStage, Project[]> = {
-      Consultation: [],
-      Design: [],
-      Approval: [],
-      Installation: [],
-      Completed: [],
-    };
-    for (const project of projects.data ?? []) grouped[project.status].push(project);
+    const grouped: Record<ProjectStage, Project[]> = Object.fromEntries(stages.map((stage) => [stage, []]));
+    for (const project of projects.data ?? []) grouped[project.status]?.push(project);
     return grouped;
-  }, [projects.data]);
+  }, [projects.data, stages]);
 
   const moveProject = async (project: Project, stage: ProjectStage) => {
     if (project.status === stage) return;
@@ -491,11 +493,12 @@ export function ProjectsPage() {
           {/* The board scrolls horizontally inside its own container so the
               page body never scrolls sideways on narrow screens. */}
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {PROJECT_STAGES.map((stage) => (
+            {stages.map((stage) => (
               <Column
                 key={stage}
                 stage={stage}
-                projects={byStage[stage]}
+                stages={stages}
+                projects={byStage[stage] ?? []}
                 onMove={moveProject}
                 onToggleVisible={isAdmin ? toggleVisible : undefined}
               />
@@ -526,7 +529,7 @@ export function ProjectsPage() {
                 </Td>
                 <Td className="text-ink">{project.client_name}</Td>
                 <Td>
-                  <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+                  <StatusTag tone={projectTone(project.status, stageList)}>{project.status}</StatusTag>
                 </Td>
                 <Td className="text-ink-muted">{crew(project)}</Td>
                 <Td className="min-w-36">

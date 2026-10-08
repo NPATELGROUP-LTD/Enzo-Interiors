@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 import { ADMIN, startTestApp } from './app';
@@ -243,5 +243,29 @@ test('staff are refused on the client-only decision routes', async () => {
     for (const path of [`/projects/${P.installs}/approve`, `/projects/${P.installs}/request-changes`]) {
       assert.equal((await call('POST', path, token, { note: 'x' })).status, 403, path);
     }
+  }
+});
+
+test('an Admin renames stages (projects follow) and cannot remove one still in use', async () => {
+  const stages = await json<Array<{ name: string; progress: number; approval: boolean }>>(await call('GET', '/projects/stages', tokens.mine));
+  assert.deepEqual(stages.map((stage) => stage.name), ['Consultation', 'Design', 'Approval', 'Installation', 'Completed']);
+  for (const token of [tokens.designer, tokens.editor, tokens.mine]) {
+    assert.equal((await call('PUT', '/projects/stages', token, { stages })).status, 403);
+  }
+
+  const renamed = stages.map((stage) => ({ ...stage, was: stage.name, name: stage.name === 'Design' ? 'Designing' : stage.name }));
+  try {
+    await json(await call('PUT', '/projects/stages', tokens.admin, { stages: renamed }));
+    assert.equal((await prisma.project.findUniqueOrThrow({ where: { id: P.other } })).status, 'Designing');
+    assert.equal((await call('PATCH', `/projects/${P.hidden}/stage`, tokens.admin, { status: 'Design' })).status, 400, 'the old name is gone');
+
+    const without = renamed.filter((stage) => stage.name !== 'Designing').map((stage) => ({ ...stage, was: stage.name }));
+    const refused = await call('PUT', '/projects/stages', tokens.admin, { stages: without });
+    assert.equal(refused.status, 409);
+    assert.ok(((await refused.json()) as { in_use: Record<string, number> }).in_use.Designing! >= 2);
+    assert.equal((await prisma.project.findUniqueOrThrow({ where: { id: P.hidden } })).status, 'Designing', 'nothing written');
+  } finally {
+    await prisma.siteSettings.update({ where: { id: 'site' }, data: { project_stages: Prisma.DbNull } });
+    await prisma.project.updateMany({ where: { status: 'Designing' }, data: { status: 'Design' } });
   }
 });

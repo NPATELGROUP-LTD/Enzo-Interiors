@@ -10,11 +10,12 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
 import { dateTime, moneyCompact, padCount, relative } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { AdminDashboard, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
-import { PROJECT_STAGES, SERVICE_LABELS } from '@/types/api';
+import { SERVICE_LABELS } from '@/types/api';
 
 /**
  * Simple bar chart for a monthly figure.
@@ -65,7 +66,7 @@ function Pipeline({ projects }: { projects: DashboardProjects }) {
     <Card>
       <p className="label-eyebrow">Pipeline</p>
       <ul className="mt-3 flex flex-col gap-2.5">
-        {PROJECT_STAGES.map((stage) => {
+        {projects.stages.map((stage) => {
           const count = projects.by_stage[stage] ?? 0;
           return (
             <li key={stage}>
@@ -85,7 +86,8 @@ function Pipeline({ projects }: { projects: DashboardProjects }) {
 /** Designs sitting with the client for approval (what the API lets this person see). */
 function AwaitingDecision() {
   const projects = useQuery<Project[]>('/projects');
-  const waiting = (projects.data ?? []).filter((project) => project.status === 'Approval').slice(0, 4);
+  const { approval, stages } = useStages();
+  const waiting = (projects.data ?? []).filter((project) => project.status === approval).slice(0, 4);
 
   return (
     <Card className="mt-4">
@@ -118,7 +120,7 @@ function AwaitingDecision() {
                   {project.client_name} · {SERVICE_LABELS[project.type]} · updated {dateTime(project.updated_at)}
                 </p>
               </div>
-              <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+              <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             </li>
           ))}
         </ul>
@@ -275,6 +277,7 @@ function AdminView() {
 
 function DesignerView() {
   const { data, loading, error, refetch } = useQuery<DesignerDashboard>('/dashboard/designer');
+  const { stages } = useStages();
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading || !data) {
@@ -308,10 +311,10 @@ function DesignerView() {
           context="Designs waiting for a client decision."
         />
         <MetricCard
-          eyebrow="In installation"
-          value={padCount(projects.by_stage.Installation)}
+          eyebrow={`At ${projects.stages.at(-2) ?? 'work'}`}
+          value={padCount(projects.by_stage[projects.stages.at(-2) ?? ''] ?? 0)}
           accent="primary"
-          context="Projects being fitted."
+          context="The last stage before done."
         />
       </div>
 
@@ -335,7 +338,7 @@ function DesignerView() {
                         {relative(task.updated_at)}
                       </p>
                     </div>
-                    <StatusTag tone={projectTone(task.status)}>{task.status}</StatusTag>
+                    <StatusTag tone={projectTone(task.status, stages)}>{task.status}</StatusTag>
                   </div>
                   <div className="mt-2">
                     <Progress value={task.progress_pct} label={`${task.name} progress`} />

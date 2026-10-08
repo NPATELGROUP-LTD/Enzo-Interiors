@@ -10,6 +10,7 @@ import {
   TableSkeleton,
 } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { date, relative } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { Project } from '@/types/api';
@@ -17,6 +18,7 @@ import { SERVICE_LABELS, STAGE_DESCRIPTIONS } from '@/types/api';
 
 export function ProjectsPage() {
   const { data, loading, error, refetch } = useQuery<Project[]>('/projects');
+  const { stages, approval } = useStages();
 
   return (
     <>
@@ -43,8 +45,8 @@ export function ProjectsPage() {
           {(data ?? []).map((project) => (
             <Card
               key={project.id}
-              accent={project.status === 'Approval' ? 'warning' : 'none'}
-              className={project.status === 'Approval' ? 'pl-5' : undefined}
+              accent={project.status === approval ? 'warning' : 'none'}
+              className={project.status === approval ? 'pl-5' : undefined}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -55,7 +57,7 @@ export function ProjectsPage() {
                     {SERVICE_LABELS[project.type]} · started {date(project.created_at)}
                   </p>
                 </div>
-                <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+                <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
               </div>
 
               <div className="mt-4">
@@ -78,7 +80,7 @@ export function ProjectsPage() {
                   {' · updated '}
                   {relative(project.updated_at)}
                 </p>
-                {project.status === 'Approval' ? (
+                {project.status === approval ? (
                   <Link to={`/projects/${project.id}`} className="text-link">
                     Review design
                   </Link>

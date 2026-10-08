@@ -12,6 +12,7 @@ import {
   Tabs,
   Toggle,
 } from '@/components/ui';
+import { PushToggle } from '@/components/PushToggle';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api, tokenStore } from '@/lib/api';
@@ -148,6 +149,7 @@ export function SettingsPage() {
                 checked={preferences.data.in_app_enabled}
                 onChange={(next) => void savePreference({ in_app_enabled: next })}
               />
+              <PushToggle />
             </div>
           )}
           <p className="mt-4 text-xs text-ink-muted">

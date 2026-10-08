@@ -17,6 +17,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import {
   CreateProjectDto,
   ProjectDecisionDto,
+  SaveProjectStagesDto,
   UpdateProjectDto,
   UpdateProjectStageDto,
 } from './dto';
@@ -39,6 +40,20 @@ export class ProjectsController {
   @Roles('Admin', 'Designer', 'Installer', 'Client')
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.projects.list(principal);
+  }
+
+  /** The ordered stage list: board columns, pickers, the portal's timeline. Before :id. */
+  @Get('stages')
+  @Roles('Admin', 'Designer', 'Installer', 'Client')
+  stages() {
+    return this.projects.stages();
+  }
+
+  /** Settings > Project stages. Renames move projects; removing a stage in use is a 409. */
+  @Put('stages')
+  @Roles('Admin')
+  saveStages(@CurrentUser() principal: AuthPrincipal, @Body() dto: SaveProjectStagesDto) {
+    return this.projects.saveStages(principal, dto.stages);
   }
 
   @Get(':id')

@@ -6,6 +6,7 @@ import {
   EnvelopeSimple,
   Files,
   Globe,
+  Kanban,
   Newspaper,
   PaintBrush,
   Plus,
@@ -17,7 +18,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
 
 import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, ErrorState, FIELD_BASE, Input, LoadingState, Toggle } from '@/components/ui';
+import { Button, ErrorState, FIELD_BASE, Input, Listbox, LoadingState, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -26,6 +27,7 @@ import type { MediaAsset } from '@/types/cms';
 import { BookingSchedule } from './settings/BookingSchedule';
 import { Newsletter } from './settings/Newsletter';
 import { OpeningHours } from './settings/OpeningHours';
+import { ProjectStages } from './settings/ProjectStages';
 import { UsersSection } from './settings/Users';
 
 interface SiteSettings {
@@ -64,6 +66,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'hours', label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
   { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
+  { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people, Admin or Editor', Icon: UsersThree },
 ];
@@ -109,6 +112,7 @@ export function SiteSettingsPage() {
   let pane: ReactNode;
   if (section === 'booking') pane = <BookingSchedule />;
   else if (section === 'hours') pane = <OpeningHours />;
+  else if (section === 'stages') pane = <ProjectStages />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
@@ -137,7 +141,7 @@ export function SiteSettingsPage() {
           {/* No sidebar below lg: a native dropdown takes one line. */}
           <label className="mb-7 block lg:hidden">
             <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">Settings</span>
-            <select
+            <Listbox
               value={section}
               onChange={(event) => navigate(`/settings/${event.target.value}`)}
               className={clsx(FIELD_BASE, 'w-full')}
@@ -147,7 +151,7 @@ export function SiteSettingsPage() {
                   {row.label}
                 </option>
               ))}
-            </select>
+            </Listbox>
           </label>
           {pane}
         </div>

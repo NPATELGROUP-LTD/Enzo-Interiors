@@ -7,15 +7,21 @@ import {
   X,
 } from '@phosphor-icons/react';
 import {
+  Children,
+  isValidElement,
   useEffect,
   useId,
   useRef,
+  useState,
+  type ChangeEvent,
+  type KeyboardEvent as ReactKeyEvent,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 
 /**
@@ -289,6 +295,199 @@ export function Textarea({
   );
 }
 
+interface Opt {
+  value: string;
+  label: ReactNode;
+  text: string;
+  disabled?: boolean;
+}
+
+function readOptions(children: ReactNode, out: Opt[] = []): Opt[] {
+  Children.forEach(children, (child) => {
+    if (!isValidElement(child)) return;
+    const props = child.props as { value?: string | number; children?: ReactNode; disabled?: boolean };
+    if (child.type === 'option') {
+      const text = Children.toArray(props.children).join('');
+      out.push({ value: String(props.value ?? text), label: props.children, text, disabled: props.disabled });
+    } else if (props.children) readOptions(props.children, out); // fragments
+  });
+  return out;
+}
+
+/**
+ * Themed replacement for a native <select>: same props, same
+ * `onChange(event.target.value)` contract, but the list is ours (so it follows
+ * light/dark, radius and brand green) and renders in a portal so modals and
+ * scroll areas never clip it. Keys: Up/Down/Home/End/Enter/Space/Escape/type-ahead.
+ */
+export function Listbox({
+  value,
+  onChange,
+  children,
+  className,
+  id,
+  name,
+  disabled,
+  required,
+  'aria-label': ariaLabel,
+  'aria-invalid': ariaInvalid,
+  'aria-describedby': describedBy,
+}: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'value'> & { value?: string | number | readonly string[] }) {
+  const options = readOptions(children);
+  const current = String(value ?? '');
+  const selected = options.findIndex((o) => o.value === current);
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const [box, setBox] = useState({ top: 0, left: 0, width: 0, up: false, max: 288 });
+  const button = useRef<HTMLButtonElement>(null);
+  const list = useRef<HTMLUListElement>(null);
+  const typed = useRef({ text: '', at: 0 });
+  const listId = useId();
+
+  function show() {
+    const r = button.current?.getBoundingClientRect();
+    if (!r || disabled) return;
+    const below = window.innerHeight - r.bottom - 8;
+    const above = r.top - 8;
+    const up = below < Math.min(options.length * 38 + 8, 220) && above > below;
+    setBox({ top: up ? r.top - 4 : r.bottom + 4, left: r.left, width: r.width, up, max: Math.min(288, up ? above : below) });
+    setActive(Math.max(selected, 0));
+    setOpen(true);
+  }
+
+  function pick(i: number) {
+    const o = options[i];
+    if (!o || o.disabled) return;
+    setOpen(false);
+    button.current?.focus();
+    if (o.value !== current) {
+      const target = { value: o.value, name: name ?? '' };
+      onChange?.({ target, currentTarget: target } as unknown as ChangeEvent<HTMLSelectElement>);
+    }
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => {
+      const t = e.target as Node;
+      if (!button.current?.contains(t) && !list.current?.contains(t)) setOpen(false);
+    };
+    const close = (e: Event) => {
+      if (!list.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (open) list.current?.children[active]?.scrollIntoView({ block: 'nearest' });
+  }, [open, active]);
+
+  function onKeyDown(e: ReactKeyEvent<HTMLButtonElement>) {
+    const last = options.length - 1;
+    const go = (i: number) => {
+      e.preventDefault();
+      if (!open) show();
+      setActive(Math.max(0, Math.min(last, i)));
+    };
+    if (e.key === 'ArrowDown') go(open ? active + 1 : Math.max(selected, 0));
+    else if (e.key === 'ArrowUp') go(open ? active - 1 : Math.max(selected, 0));
+    else if (e.key === 'Home') go(0);
+    else if (e.key === 'End') go(last);
+    else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (open) pick(active);
+      else show();
+    } else if (e.key === 'Escape' && open) {
+      e.preventDefault();
+      e.stopPropagation(); // keep a surrounding modal open
+      setOpen(false);
+    } else if (e.key === 'Tab') setOpen(false);
+    else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const t = typed.current;
+      t.text = Date.now() - t.at > 700 ? e.key.toLowerCase() : t.text + e.key.toLowerCase();
+      t.at = Date.now();
+      const hit = options.findIndex((o) => !o.disabled && o.text.toLowerCase().startsWith(t.text));
+      if (hit >= 0) go(hit);
+    }
+  }
+
+  return (
+    <>
+      {name ? <input type="hidden" name={name} value={current} /> : null}
+      <button
+        ref={button}
+        type="button"
+        id={id}
+        role="combobox"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-controls={open ? listId : undefined}
+        aria-label={ariaLabel}
+        aria-invalid={ariaInvalid}
+        aria-describedby={describedBy}
+        aria-required={required}
+        disabled={disabled}
+        onClick={() => (open ? setOpen(false) : show())}
+        onKeyDown={onKeyDown}
+        className={clsx(FIELD_BASE, 'relative flex items-center text-left', 'pr-9', className)}
+      >
+        <span className="min-w-0 flex-1 truncate">{options[selected]?.label ?? ' '}</span>
+        <CaretDown
+          size={16}
+          aria-hidden="true"
+          className={clsx('absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted transition-transform', open && 'rotate-180')}
+        />
+      </button>
+      {open
+        ? createPortal(
+            <ul
+              ref={list}
+              id={listId}
+              role="listbox"
+              aria-label={ariaLabel}
+              style={{
+                position: 'fixed',
+                left: box.left,
+                minWidth: box.width,
+                maxHeight: box.max,
+                ...(box.up ? { bottom: window.innerHeight - box.top } : { top: box.top }),
+              }}
+              className="z-[1000] max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-card border border-border bg-surface p-1 text-sm text-ink shadow-overlay"
+            >
+              {options.map((o, i) => (
+                <li
+                  key={o.value}
+                  role="option"
+                  aria-selected={i === selected}
+                  aria-disabled={o.disabled}
+                  onPointerEnter={() => setActive(i)}
+                  onClick={() => pick(i)}
+                  className={clsx(
+                    'flex min-h-11 cursor-pointer items-center justify-between gap-3 rounded-[6px] px-2.5 pointer-fine:min-h-8',
+                    i === active && 'bg-surface-muted',
+                    i === selected && 'font-semibold text-green-900 dark:text-ink',
+                    o.disabled && 'cursor-not-allowed opacity-50',
+                  )}
+                >
+                  <span className="truncate">{o.label}</span>
+                  {i === selected ? <Check size={14} weight="bold" aria-hidden="true" className="shrink-0 text-green-900 dark:text-ink" /> : null}
+                </li>
+              ))}
+            </ul>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 export function Select({
   label,
   error,
@@ -300,23 +499,16 @@ export function Select({
   return (
     <Field label={label} error={error} hint={hint} required={required}>
       {(id, describedBy) => (
-        <div className="relative">
-          <select
-            {...rest}
-            id={id}
-            required={required}
-            aria-invalid={error ? true : undefined}
-            aria-describedby={describedBy}
-            className={clsx(FIELD_BASE, 'appearance-none pr-9', error && 'border-danger', rest.className)}
-          >
-            {children}
-          </select>
-          <CaretDown
-            size={16}
-            aria-hidden="true"
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ink-muted"
-          />
-        </div>
+        <Listbox
+          {...rest}
+          id={id}
+          required={required}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
+          className={clsx(error && 'border-danger', rest.className)}
+        >
+          {children}
+        </Listbox>
       )}
     </Field>
   );

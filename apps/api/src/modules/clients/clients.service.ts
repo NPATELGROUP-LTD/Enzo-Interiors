@@ -8,6 +8,7 @@ import { PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
 import { sumMoney } from '../invoices/totals';
+import { doneStage, loadStages } from '../projects/stages';
 import { CreateClientDto, UpdateClientDto } from './dto';
 
 /**
@@ -235,6 +236,7 @@ export class ClientsService {
       this.activity.listForTarget('clients', id),
     ]);
 
+    const done = doneStage(await loadStages(this.db));
     const assignedStaff = client.assigned_staff_id
       ? await this.db.staffUsers.findById(client.assigned_staff_id)
       : null;
@@ -260,7 +262,7 @@ export class ClientsService {
               .map((invoice) => invoice.amount),
           ),
         }),
-        active_projects: projects.filter((project) => project.status !== 'Completed').length,
+        active_projects: projects.filter((project) => project.status !== done).length,
         total_projects: projects.length,
       },
     };

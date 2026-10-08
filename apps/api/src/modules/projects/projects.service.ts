@@ -1,7 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { AccessService } from '../../common/access/access.service';
-import { PROJECT_STAGES, Project, ProjectStage } from '../../common/types/domain';
+import { Project, ProjectStageConfig } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
@@ -12,25 +12,13 @@ import {
   UpdateProjectDto,
   UpdateProjectStageDto,
 } from './dto';
+import { approvalStage, loadStages, planStages } from './stages';
 
 export interface ProjectView extends Project {
   client_name: string;
   assigned_designer_name: string | null;
   assigned_installer_name: string | null;
 }
-
-/**
- * Default progress for each stage, used when a stage moves and the caller does
- * not supply an explicit percentage. Keeps the client-facing progress bar
- * honest without the admin having to maintain two fields by hand.
- */
-const STAGE_PROGRESS: Record<ProjectStage, number> = {
-  Consultation: 10,
-  Design: 35,
-  Approval: 60,
-  Installation: 80,
-  Completed: 100,
-};
 
 /** What a Designer may change on a project assigned to them. The rest is the Admin's. */
 const DESIGNER_FIELDS = new Set(['progress_pct', 'current_stage']);
@@ -49,6 +37,43 @@ export class ProjectsService {
     private readonly activity: ActivityLogService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  /* ------------------------------------------------------------------ */
+  /* Stages (Settings > Project stages)                                  */
+  /* ------------------------------------------------------------------ */
+
+  stages(): Promise<ProjectStageConfig[]> {
+    return loadStages(this.db);
+  }
+
+  /**
+   * Admin only (controller). Renamed stages take their projects with them;
+   * a stage still holding projects cannot be removed (409 with the counts).
+   */
+  async saveStages(principal: AuthPrincipal, input: unknown): Promise<ProjectStageConfig[]> {
+    const plan = planStages(await this.stages(), input);
+    const inUse = await this.db.saveProjectStages(plan.stages, plan.renames, plan.removed, principal.name);
+    if (Object.keys(inUse).length) {
+      const list = Object.entries(inUse).map(([name, n]) => `${n} at "${name}"`).join(', ');
+      throw new ConflictException({ message: `Move these projects to another stage first: ${list}.`, in_use: inUse });
+    }
+    await this.activity.record({
+      principal,
+      action: 'project_stages_update',
+      targetTable: 'site_settings',
+      targetId: 'site',
+      details: { stages: plan.stages.map((stage) => stage.name), renamed: plan.renames, removed: plan.removed },
+    });
+    return plan.stages;
+  }
+
+  /** The configured stage called `name`, or a 400 naming the choices. */
+  private async stage(name: string): Promise<ProjectStageConfig> {
+    const stages = await this.stages();
+    const found = stages.find((stage) => stage.name === name);
+    if (!found) throw new BadRequestException(`Stage must be one of: ${stages.map((stage) => stage.name).join(', ')}`);
+    return found;
+  }
 
   /* ------------------------------------------------------------------ */
   /* Reads                                                               */
@@ -79,7 +104,7 @@ export class ProjectsService {
     const isClient = this.access.isClient(principal);
     const own = { project_id: id, client_id: project.client_id };
 
-    const [documents, invoices, activity, client, [view]] = await Promise.all([
+    const [documents, invoices, activity, client, [view], stages] = await Promise.all([
       this.db.documents.findWhere(
         { ...own, ...(isClient && { client_visible: true }) },
         { orderBy: { upload_date: 'desc' } },
@@ -94,7 +119,9 @@ export class ProjectsService {
       isClient ? Promise.resolve([]) : this.activity.listForTarget('projects', id),
       this.db.clients.findById(project.client_id),
       this.decorate([project]),
+      this.stages(),
     ]);
+    const position = stages.findIndex((stage) => stage.name === project.status);
 
     return {
       project: view!,
@@ -102,15 +129,15 @@ export class ProjectsService {
       documents: documents.map(({ storage_url: _storage, ...document }) => document),
       invoices,
       activity,
-      /** The 5-stage timeline, with the current position marked. */
-      timeline: PROJECT_STAGES.map((stage, index) => ({
-        stage,
+      /** The configured stages, with the current position marked. */
+      timeline: stages.map((stage, index) => ({
+        stage: stage.name,
         position: index,
-        reached: index <= PROJECT_STAGES.indexOf(project.status),
-        current: stage === project.status,
+        reached: index <= position,
+        current: index === position,
       })),
       /** True when this project is sitting on the client's desk for a decision. */
-      awaiting_client_decision: project.status === 'Approval',
+      awaiting_client_decision: project.status === approvalStage(stages),
     };
   }
 
@@ -125,15 +152,15 @@ export class ProjectsService {
     await this.assertAssignable(dto.assigned_designer_id);
     await this.assertAssignable(dto.assigned_installer_id);
 
-    const status = dto.status ?? 'Consultation';
+    const stage = dto.status ? await this.stage(dto.status) : (await this.stages())[0]!;
     const now = new Date().toISOString();
 
     const created = await this.db.projects.create({
       client_id: dto.client_id,
       name: dto.name.trim(),
       type: dto.type,
-      status,
-      progress_pct: dto.progress_pct ?? STAGE_PROGRESS[status],
+      status: stage.name,
+      progress_pct: dto.progress_pct ?? stage.progress,
       current_stage: dto.current_stage ?? null,
       assigned_designer_id: dto.assigned_designer_id ?? null,
       assigned_installer_id: dto.assigned_installer_id ?? null,
@@ -151,6 +178,7 @@ export class ProjectsService {
       details: { name: created.name, type: created.type, client: client.name },
     });
     await this.notifyNewAssignees(principal, created);
+    await this.notifyClient(created);
     return this.findOne(principal, created.id);
   }
 
@@ -204,6 +232,7 @@ export class ProjectsService {
       details: { fields },
     });
     await this.notifyNewAssignees(principal, updated, project);
+    await this.notifyClient(updated, project);
 
     return this.findOne(principal, id);
   }
@@ -223,6 +252,7 @@ export class ProjectsService {
     dto: UpdateProjectStageDto,
   ): Promise<ProjectView> {
     const project = await this.access.requireProject(principal, id);
+    const stage = await this.stage(dto.status);
     if (project.status === dto.status) {
       // Not an error — a drag that lands back where it started is a no-op.
       return this.findOne(principal, id);
@@ -230,7 +260,7 @@ export class ProjectsService {
 
     await this.db.projects.update(id, {
       status: dto.status,
-      progress_pct: dto.progress_pct ?? STAGE_PROGRESS[dto.status],
+      progress_pct: dto.progress_pct ?? stage.progress,
       current_stage: dto.current_stage ?? project.current_stage,
       updated_at: new Date().toISOString(),
     });
@@ -242,6 +272,7 @@ export class ProjectsService {
       targetId: id,
       details: { from: project.status, to: dto.status, name: project.name },
     });
+    await this.notifyClient({ ...project, status: dto.status }, project);
     return this.findOne(principal, id);
   }
 
@@ -249,21 +280,22 @@ export class ProjectsService {
    * Client approves the design (portal Project Detail). Client only
    * (controller); requireProject limits it to their own shared projects.
    *
-   * Advances Approval -> Installation. This is the forward half of the
-   * design-approval loop the App Flow doc calls the critical path.
+   * Advances the approval stage to the one after it. This is the forward half
+   * of the design-approval loop the App Flow doc calls the critical path.
    */
   async approve(principal: AuthPrincipal, id: string, dto: ProjectDecisionDto): Promise<ProjectView> {
     const project = await this.access.requireProject(principal, id);
-    if (project.status !== 'Approval') {
+    const { at, next } = await this.decisionStages(project);
+    if (!at || !next) {
       throw new BadRequestException(
         `There is nothing to approve on this project right now — it is at the ${project.status} stage.`,
       );
     }
 
     await this.db.projects.update(id, {
-      status: 'Installation',
-      progress_pct: STAGE_PROGRESS.Installation,
-      current_stage: 'Design approved by client — scheduling installation',
+      status: next.name,
+      progress_pct: next.progress,
+      current_stage: 'Design approved by client',
       updated_at: new Date().toISOString(),
     });
 
@@ -272,7 +304,7 @@ export class ProjectsService {
       action: 'project_design_approved',
       targetTable: 'projects',
       targetId: id,
-      details: { from: 'Approval', to: 'Installation', note: dto.note ?? null },
+      details: { from: at.name, to: next.name, note: dto.note ?? null },
     });
     return this.findOne(principal, id);
   }
@@ -280,7 +312,7 @@ export class ProjectsService {
   /**
    * Client requests changes (portal Project Detail).
    *
-   * Sends the project BACK to Design, which is what "Request Changes restarts
+   * Sends the project BACK one stage (Design, by default), which is what "Request Changes restarts
    * the project stage" means in the App Flow doc. The admin's Kanban and the
    * activity log both reflect this on their next read, with the client's note
    * attached so the designer knows what to change.
@@ -291,7 +323,8 @@ export class ProjectsService {
     dto: ProjectDecisionDto,
   ): Promise<ProjectView> {
     const project = await this.access.requireProject(principal, id);
-    if (project.status !== 'Approval') {
+    const { at, previous } = await this.decisionStages(project);
+    if (!at || !previous) {
       throw new BadRequestException(
         `Changes can only be requested while a design is awaiting your approval. This project is at the ${project.status} stage.`,
       );
@@ -301,8 +334,8 @@ export class ProjectsService {
     }
 
     await this.db.projects.update(id, {
-      status: 'Design',
-      progress_pct: STAGE_PROGRESS.Design,
+      status: previous.name,
+      progress_pct: previous.progress,
       current_stage: 'Client requested changes — design being revised',
       updated_at: new Date().toISOString(),
     });
@@ -312,7 +345,7 @@ export class ProjectsService {
       action: 'project_changes_requested',
       targetTable: 'projects',
       targetId: id,
-      details: { from: 'Approval', to: 'Design', note: dto.note.trim() },
+      details: { from: at.name, to: previous.name, note: dto.note.trim() },
     });
     return this.findOne(principal, id);
   }
@@ -347,6 +380,14 @@ export class ProjectsService {
 
   /* ------------------------------------------------------------------ */
 
+  /** The approval stage and its neighbours, when `project` is at it. */
+  private async decisionStages(project: Project) {
+    const stages = await this.stages();
+    const index = stages.findIndex((stage) => stage.approval && stage.name === project.status);
+    if (index < 0) return { at: undefined, previous: undefined, next: undefined };
+    return { at: stages[index], previous: stages[index - 1], next: stages[index + 1] };
+  }
+
   private async decorate(projects: Project[]): Promise<ProjectView[]> {
     const clientIds = [...new Set(projects.map((project) => project.client_id))];
     const staffIds = [
@@ -379,6 +420,22 @@ export class ProjectsService {
     if (!staff || (staff.role !== 'Designer' && staff.role !== 'Installer')) {
       throw new BadRequestException('Assign someone with the Designer role.');
     }
+  }
+
+  /**
+   * The client's bell (and devices): a project just shared with them, or a
+   * shared one that moved stage. Only staff changes call this, never the
+   * client's own approve / request-changes.
+   */
+  private async notifyClient(project: Project, before?: Project): Promise<void> {
+    if (!project.client_visible) return;
+    const shared = !before?.client_visible;
+    if (!shared && before.status === project.status) return;
+    await this.notifications.notifyClient(project.client_id, {
+      kind: 'project',
+      title: shared ? `${project.name} is now in your portal` : `${project.name} has moved to ${project.status}`,
+      link: `/projects/${project.id}`,
+    });
   }
 
   /** The bell, for whoever was just put on the project (not whoever did it). */

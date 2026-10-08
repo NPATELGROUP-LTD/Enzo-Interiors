@@ -18,6 +18,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, humanise, money } from '@/lib/format';
@@ -45,6 +46,7 @@ const TABS = [
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<ClientDetailPayload>(
     id ? `/clients/${id}/detail` : null,
   );
@@ -216,7 +218,7 @@ export function ClientDetailPage() {
                       {project.assigned_designer_name ? ` · ${project.assigned_designer_name}` : ''}
                     </p>
                   </div>
-                  <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+                  <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
                 </div>
                 <div className="mt-3">
                   <Progress value={project.progress_pct} label={`${project.name} progress`} />

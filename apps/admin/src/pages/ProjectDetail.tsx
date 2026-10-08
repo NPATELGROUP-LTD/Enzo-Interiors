@@ -23,12 +23,13 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, humanise, money } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
 import type { ProjectDetail, ProjectStage } from '@/types/api';
-import { PROJECT_STAGES, SERVICE_LABELS } from '@/types/api';
+import { SERVICE_LABELS } from '@/types/api';
 
 import { DocumentsTable } from '@/components/DocumentsTable';
 
@@ -44,6 +45,7 @@ export function ProjectDetailPage() {
   const toast = useToast();
   const navigate = useNavigate();
   const { isAdmin } = useAuth();
+  const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
@@ -132,7 +134,7 @@ export function ProjectDetailPage() {
         description={`${project.client_name ?? client?.name ?? 'Unknown client'} · ${SERVICE_LABELS[project.type]}`}
         actions={
           <>
-            <StatusTag tone={projectTone(project.status)}>{project.status}</StatusTag>
+            <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
               <Button variant="ghost" className="text-danger" icon={<Trash size={15} aria-hidden="true" />} onClick={() => setDeleting(true)}>
                 Delete
@@ -155,7 +157,7 @@ export function ProjectDetailPage() {
       <div className="mb-5 grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <p className="label-eyebrow">Stage</p>
-          {/* Horizontal 5-stage timeline. */}
+          {/* Horizontal timeline of the configured stages. */}
           <ol className="mt-4 flex items-center">
             {timeline.map((step, index) => (
               <li key={step.stage} className="flex flex-1 items-center last:flex-none">
@@ -235,7 +237,7 @@ export function ProjectDetailPage() {
               value={project.status}
               onChange={(event) => void changeStage(event.target.value as ProjectStage)}
             >
-              {PROJECT_STAGES.map((stage) => (
+              {timeline.map(({ stage }) => (
                 <option key={stage} value={stage}>
                   {stage}
                 </option>

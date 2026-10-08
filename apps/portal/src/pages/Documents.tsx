@@ -6,6 +6,7 @@ import {
   Card,
   EmptyState,
   ErrorState,
+  Listbox,
   PageHeader,
   StatusTag,
   TableSkeleton,
@@ -59,11 +60,11 @@ export function DocumentsPage() {
             className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900"
           />
         </div>
-        <select
+        <Listbox
           value={type}
           onChange={(event) => setType(event.target.value as 'all' | DocumentType)}
           aria-label="Filter by document type"
-          className="min-h-11 rounded-control border border-border bg-surface px-3 text-ink focus:border-green-900"
+          className="w-full sm:w-48"
         >
           <option value="all">All types</option>
           {DOCUMENT_TYPES.map((option) => (
@@ -71,7 +72,7 @@ export function DocumentsPage() {
               {DOCUMENT_LABELS[option]}
             </option>
           ))}
-        </select>
+        </Listbox>
       </div>
 
       {documents.error ? (

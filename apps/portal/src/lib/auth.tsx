@@ -10,6 +10,7 @@ import {
 
 import type { LoginResponse, Principal } from '@/types/api';
 import { ApiError, UNAUTHORIZED_EVENT, api, tokenStore } from './api';
+import { disablePush } from './push';
 
 const USER_CACHE_KEY = 'enzo-portal-user';
 
@@ -122,6 +123,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // This device stops getting pushes for this person (needs the token, so first).
+    void disablePush(tokenStore.get()).catch(() => undefined);
     tokenStore.clear();
     userCache.write(null);
     setUser(null);
