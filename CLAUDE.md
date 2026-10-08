@@ -42,7 +42,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   + the Socket.IO gateway; `/saved-replies` and the Admin's `/activity-logs` from
   `modules/settings`). All CRM tables are kept (incl. the retired CRM `bookings`); the CRM's
   bookings and content modules were deleted (booking is `appointments`, content is the CMS;
-  deferred: an enquiries inbox). The first admin
+  enquiries have their own inbox, below). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
 **Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
@@ -237,7 +237,8 @@ favicon is served with `media="(prefers-color-scheme: dark)"` (shipped ones:
 booking page's old `timeSlots` / `wordmark`). The default favicon is
 `apps/web/public/icon.png`.
 
-**Messages:** one `conversations` row per client (Admin all, Designer/Installer
+**Messages:** one `conversations` row per client (unique index on `client_id`,
+migration `11_conversation_per_client`; a lost create race re-reads the winner) (Admin all, Designer/Installer
 their projects' clients via AccessService, client their own, Editor none).
 Attachments are `documents` ids shared with that client (`sharedWithClient`),
 opened via `/documents/:id/download`. `MessagesGateway` authenticates the

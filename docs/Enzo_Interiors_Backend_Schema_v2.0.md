@@ -171,7 +171,7 @@ Index: `idx_bookings_date_time`
 | Table | Field | Type | Constraints |
 |---|---|---|---|
 | conversations | id | uuid | PK |
-| conversations | client_id | uuid | FK → clients.id, not null |
+| conversations | client_id | uuid | FK → clients.id, not null, unique (one conversation per client) |
 | conversations | created_at | timestamptz | default now() |
 | messages | id | uuid | PK |
 | messages | conversation_id | uuid | FK → conversations.id, not null |

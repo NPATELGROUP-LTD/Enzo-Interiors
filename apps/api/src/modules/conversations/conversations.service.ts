@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ArrayMaxSize, IsArray, IsOptional, IsString, MaxLength } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
@@ -140,11 +141,9 @@ export class ConversationsService {
 
   /**
    * The client's conversation, started if there is none yet. A client starts
-   * their own; staff start one for a client in their scope.
-   *
-   * ponytail: find-then-create, so two simultaneous first messages could make
-   * two threads (both still list and work). A unique index on client_id when
-   * that ever happens.
+   * their own; staff start one for a client in their scope. One per client is
+   * the unique index on client_id: the loser of two simultaneous first
+   * messages gets P2002 and re-reads the winner's row.
    */
   async open(principal: AuthPrincipal, dto: CreateConversationDto): Promise<{ view: ConversationView; created: boolean }> {
     const clientId = this.access.isClient(principal) ? principal.id : dto.client_id;
@@ -156,11 +155,19 @@ export class ConversationsService {
     const existing = await this.db.conversations.findFirstWhere({ client_id: clientId }, { created_at: 'asc' });
     if (existing) return { view: await this.findOne(principal, existing.id), created: false };
 
-    const created = await this.db.conversations.create({
-      client_id: clientId,
-      subject: `Messages with ${client.name}`,
-      created_at: new Date().toISOString(),
-    });
+    let created: Conversation;
+    try {
+      created = await this.db.conversations.create({
+        client_id: clientId,
+        subject: `Messages with ${client.name}`,
+        created_at: new Date().toISOString(),
+      });
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
+      const winner = await this.db.conversations.findFirstWhere({ client_id: clientId });
+      if (!winner) throw error;
+      return { view: await this.findOne(principal, winner.id), created: false };
+    }
     await this.activity.record({
       principal,
       action: 'conversation_create',

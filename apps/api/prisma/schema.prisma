@@ -214,6 +214,7 @@ model Conversation {
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([client_id])
+  @@unique([client_id]) // one conversation per client (migration 11)
   @@map("conversations")
 }
 

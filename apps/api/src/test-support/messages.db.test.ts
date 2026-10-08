@@ -298,6 +298,23 @@ test('sockets: bad tokens refused, rooms scoped, typing contained, live delivery
   assert.equal((await other.emitWithAck('message:send', { conversationId: conv.mine, body: 'sneak' })).ok, false);
 });
 
+test('two simultaneous first messages make one conversation', async () => {
+  const fresh = { id: `cli_mnew_${run}`, email: `m-new-${run}@test.enzo.local`, name: `New ${run}` };
+  const password_hash = await bcrypt.hash(PASSWORD, 4);
+  await prisma.client.create({ data: { ...fresh, joined_date: new Date(), status: 'Active', password_hash } });
+  try {
+    const token = await signIn('/auth/portal/login', fresh.email, PASSWORD);
+    const opened = await Promise.all(
+      Array.from({ length: 4 }, async () => json<{ id: string }>(await call('POST', '/conversations', token, {}), 201)),
+    );
+    assert.equal(new Set(opened.map((c) => c.id)).size, 1);
+    assert.equal(await prisma.conversation.count({ where: { client_id: fresh.id } }), 1);
+  } finally {
+    await prisma.conversation.deleteMany({ where: { client_id: fresh.id } });
+    await prisma.client.delete({ where: { id: fresh.id } });
+  }
+});
+
 test('sockets die with the session: demoted staff and signed-out clients', async () => {
   const designer = await connect(tokens.designer);
   const mine = await connect(tokens.mine);
