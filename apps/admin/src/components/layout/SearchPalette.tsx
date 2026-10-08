@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import {
   AddressBook,
+  EnvelopeSimple,
   ArrowSquareOut,
   Browsers,
   CalendarCheck,
@@ -180,6 +181,7 @@ export function SearchPalette({ open, onClose, actions }: {
         : []),
       ...(actions.isAdmin
         ? [
+            { id: 'enquiries', group: 'Go to', label: 'Enquiries', detail: 'Messages from the website’s forms', Icon: EnvelopeSimple, run: go('/enquiries') },
             { id: 'bookings', group: 'Go to', label: 'Bookings', detail: 'Consultations, new booking', Icon: CalendarCheck, run: go('/bookings') },
             ...SETTINGS_SECTIONS.map((row) => ({
               id: `settings-${row.id}`,

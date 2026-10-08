@@ -108,7 +108,14 @@ export function ClientsPage() {
   // Opened from the button or the menu bar's "Add client…": a blank form either way.
   useEffect(() => {
     if (!creating) return;
-    setForm(EMPTY_FORM);
+    // The Enquiries inbox hands over the sender's details in the address.
+    const query = new URLSearchParams(window.location.search);
+    setForm({
+      ...EMPTY_FORM,
+      name: query.get('name') ?? '',
+      email: query.get('email') ?? '',
+      phone: query.get('phone') ?? '',
+    });
     setFormError(null);
   }, [creating]);
   const openCreate = () => update({ new: '1' });
@@ -128,7 +135,7 @@ export function ClientsPage() {
   };
 
   const closeForm = () => {
-    if (creating) update({ new: null }, true);
+    if (creating) update({ new: null, name: null, email: null, phone: null }, true);
     setEditing(null);
     setFormError(null);
   };

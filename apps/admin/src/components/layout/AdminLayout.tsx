@@ -85,6 +85,8 @@ export interface CmsShell {
   refresh: () => void;
   /** Opens the search palette. */
   openSearch: () => void;
+  /** Re-reads the new-enquiries count behind the menu bar badge. */
+  refreshEnquiries: () => void;
 }
 
 export function useCmsShell(): CmsShell {
@@ -207,7 +209,7 @@ function MenuBarMenu({
 const MENU_HEADING = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
 
 /** A menu-bar title that is just a link, for a screen with no menu of its own. */
-function MenuBarLink({ to, label, end }: { to: string; label: string; end?: boolean }) {
+function MenuBarLink({ to, label, end, badge = 0 }: { to: string; label: string; end?: boolean; badge?: number }) {
   return (
     <NavLink
       to={to}
@@ -220,6 +222,7 @@ function MenuBarLink({ to, label, end }: { to: string; label: string; end?: bool
       }
     >
       {label}
+      <Badge count={badge} />
     </NavLink>
   );
 }
@@ -508,6 +511,7 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
       back: null,
     };
   }
+  if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
   if (pathname === '/') return { title: 'Dashboard', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
@@ -525,6 +529,8 @@ export function AdminLayout() {
   const canSeeClients = can(...CLIENT_ROLES);
   const { toggle: toggleTheme } = useTheme();
   const overview = useQuery<CmsOverview>('/cms/overview');
+  const enquiries = useQuery<{ new_count: number }>(isAdmin ? '/enquiries?limit=1' : null);
+  const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
   const [searching, setSearching] = useState(false);
   const openSearch = useCallback(() => setSearching(true), []);
@@ -568,8 +574,8 @@ export function AdminLayout() {
   };
 
   const context = useMemo<CmsShell>(
-    () => ({ overview: overview.data, error: overview.error, refresh, openSearch }),
-    [overview.data, overview.error, refresh, openSearch],
+    () => ({ overview: overview.data, error: overview.error, refresh, openSearch, refreshEnquiries: () => void refreshEnquiries() }),
+    [overview.data, overview.error, refresh, openSearch, refreshEnquiries],
   );
 
   return (
@@ -590,6 +596,7 @@ export function AdminLayout() {
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
+          {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {isAdmin ? <SettingsMenu /> : null}
         </>

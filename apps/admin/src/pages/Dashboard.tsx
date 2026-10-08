@@ -206,6 +206,11 @@ function AdminView() {
           value={padCount(enquiries.new)}
           accent="primary"
           context={`${enquiries.since_yesterday} received since yesterday.`}
+          bottom={
+            <Link to="/enquiries?view=New" className="text-link">
+              Open inbox
+            </Link>
+          }
         />
 
         <MetricCard
