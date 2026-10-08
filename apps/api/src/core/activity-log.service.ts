@@ -63,9 +63,9 @@ export class ActivityLogService {
 
   /** The audit trail for one record, newest first. Powers the detail-view tabs. */
   async listForTarget(targetTable: string, targetId: string): Promise<ActivityLog[]> {
-    const rows = await this.db.activityLogs.findAll(
-      (row) => row.target_table === targetTable && row.target_id === targetId,
+    return this.db.activityLogs.findWhere(
+      { target_table: targetTable, target_id: targetId },
+      { orderBy: { created_at: 'desc' } },
     );
-    return rows.sort((a, b) => b.created_at.localeCompare(a.created_at));
   }
 }

@@ -1,0 +1,23 @@
+# The image installs its own dependencies for linux/amd64. Copying the host's
+# tree over them replaces native binaries (sharp, esbuild, unrs-resolver) with
+# ones built for the developer's machine, and the build fails or, worse,
+# does not.
+node_modules
+
+# Build output. Regenerated inside the image; copying it in only invalidates
+# layers and can leave a stale bundle behind.
+.next
+dist
+*.tsbuildinfo
+
+# Local environment. These hold secrets, and Next and Vite both read .env*
+# files during the build, so a stray one here would silently outrank the
+# build arguments docker-compose passes in.
+.env
+.env.*
+!.env.example
+
+.git
+*.log
+coverage
+.turbo

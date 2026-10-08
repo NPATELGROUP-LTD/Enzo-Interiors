@@ -20,18 +20,9 @@ export type ProjectStage =
   | 'Approval'
   | 'Installation'
   | 'Completed';
-export type ComponentCategory =
-  | 'Worktop'
-  | 'DoorFinish'
-  | 'Lighting'
-  | 'Appliance'
-  | 'StorageAccessory'
-  | 'Electrical';
-export type QuoteType = 'Simple' | 'Detailed';
-export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Expired';
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Quote' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
 export type SubmissionStatus = 'New' | 'Contacted' | 'Converted' | 'Archived';
 export type SenderType = 'Client' | 'Staff';
 
@@ -43,18 +34,9 @@ export const PROJECT_STAGES: ProjectStage[] = [
   'Installation',
   'Completed',
 ];
-export const COMPONENT_CATEGORIES: ComponentCategory[] = [
-  'Worktop',
-  'DoorFinish',
-  'Lighting',
-  'Appliance',
-  'StorageAccessory',
-  'Electrical',
-];
 export const STAFF_ROLES: StaffRole[] = ['Admin', 'Designer', 'Installer'];
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
-  'Quote',
   'Invoice',
   'Plan',
   'MoodBoard',
@@ -72,15 +54,6 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
   Bedroom: 'Bedroom',
   MediaWall: 'Media Wall',
   Wardrobe: 'Wardrobe',
-};
-
-export const CATEGORY_LABELS: Record<ComponentCategory, string> = {
-  Worktop: 'Worktop',
-  DoorFinish: 'Door Finish',
-  Lighting: 'Lighting',
-  Appliance: 'Appliance',
-  StorageAccessory: 'Storage Accessory',
-  Electrical: 'Electrical',
 };
 
 export interface Principal {
@@ -148,8 +121,10 @@ export interface Client {
   status: ClientStatus;
   assigned_staff_id: string | null;
   joined_date: string;
-  total_spent: number;
+  /** Admin only: a Designer's copy of a client has no money in it. */
+  total_spent?: number;
   notes: string | null;
+  /** A portal password has been set (an invitation was accepted). */
   has_portal_access: boolean;
   created_at: string;
   updated_at: string;
@@ -164,49 +139,23 @@ export interface Project {
   progress_pct: number;
   current_stage: string | null;
   assigned_designer_id: string | null;
+  assigned_installer_id: string | null;
   client_visible: boolean;
   created_at: string;
   updated_at: string;
-  client_name: string;
-  assigned_designer_name: string | null;
+  /** On /projects responses; not on the rows inside a client's detail. */
+  client_name?: string;
+  assigned_designer_name?: string | null;
+  assigned_installer_name?: string | null;
 }
 
-export interface ComponentItem {
+/** One line of an invoice: a net (ex-VAT) price. */
+export interface InvoiceItem {
   id: string;
-  name: string;
-  category: ComponentCategory;
-  unit_price: number;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface QuoteLineItem {
-  id: string;
-  quote_id: string;
-  component_id: string;
-  component_name: string;
+  description: string;
   quantity: number;
   unit_price: number;
-  line_total: number;
-}
-
-export interface Quote {
-  id: string;
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-  lines: QuoteLineItem[];
-  client_name: string;
+  position: number;
 }
 
 export interface Invoice {
@@ -214,13 +163,14 @@ export interface Invoice {
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
   due_date: string;
   paid_at: string | null;
   created_at: string;
+  /** Rows inside a client's or project's detail have no items or names. */
+  items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
   net_amount: number;
@@ -235,7 +185,6 @@ export interface Booking {
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
   client_name: string;
   client_email: string;
@@ -250,10 +199,20 @@ export interface AvailabilitySetting {
   is_closed: boolean;
 }
 
+/** A document by id; opened through GET /documents/:id/download. */
 export interface MessageAttachment {
+  document_id: string;
   name: string;
   size_bytes: number;
-  storage_url: string;
+}
+
+/** GET /conversations/:id/documents: what may be attached in that thread. */
+export interface AttachableDocument {
+  id: string;
+  name: string;
+  type: DocumentType;
+  size_bytes: number;
+  upload_date: string;
 }
 
 export interface Message {
@@ -294,10 +253,14 @@ export interface DocumentRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  storage_url: string;
   client_name: string;
   project_name: string | null;
-  download_url: string;
+}
+
+/** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */
+export interface DocumentDownload {
+  url: string;
+  expires_in: number;
 }
 
 export interface Testimonial {
@@ -332,6 +295,8 @@ export interface ContactSubmission {
   service_interest: string | null;
   message: string;
   status: SubmissionStatus;
+  kind: 'contact' | 'quote' | 'booking';
+  details: Record<string, string> | null;
   created_at: string;
 }
 
@@ -380,13 +345,13 @@ export interface ClientDetail {
   assigned_staff: { id: string; name: string; role: StaffRole } | null;
   projects: Project[];
   invoices: Invoice[];
-  documents: DocumentRecord[];
-  quotes: Quote[];
-  bookings: Booking[];
+  /** Where a file is kept is the API's business; it is never sent. */
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   activity: ActivityLog[];
   stats: {
-    lifetime_value: number;
-    outstanding: number;
+    /** Admin only. */
+    lifetime_value?: number;
+    outstanding?: number;
     active_projects: number;
     total_projects: number;
   };
@@ -396,7 +361,8 @@ export interface ClientDetail {
 export interface ProjectDetail {
   project: Project;
   client: { id: string; name: string; email: string } | null;
-  documents: DocumentRecord[];
+  /** This project's and this client's only; never where the file is stored. */
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
   timeline: Array<{
@@ -408,30 +374,46 @@ export interface ProjectDetail {
   awaiting_client_decision: boolean;
 }
 
-/** GET /dashboard/admin */
+/** GET /dashboard/admin (Admin only) */
 export interface AdminDashboard {
-  bookings: {
+  appointments: {
     today: number;
     upcoming: number;
-    awaiting_confirmation: number;
-    next: Booking | null;
+    next: { id: string; reference: string; name: string; service_label: string; starts_at: string } | null;
   };
-  projects: {
-    active: number;
-    completed: number;
-    awaiting_decision: number;
-    by_stage: Record<ProjectStage, number>;
-  };
+  projects: DashboardProjects;
   enquiries: { total: number; new: number; since_yesterday: number };
   invoices: {
     outstanding_total: number;
     due_this_week_total: number;
     overdue_count: number;
     paid_total: number;
+    paid_this_month: number;
   };
-  messages: { unread: number; conversations_needing_reply: number };
   clients: { total: number; active: number };
-  quotes: { draft: number; sent: number; accepted_awaiting_invoice: number };
-  bookings_chart: Array<{ month: string; label: string; value: number }>;
+  appointments_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
+}
+
+export interface DashboardProjects {
+  active: number;
+  completed: number;
+  awaiting_decision: number;
+  by_stage: Record<ProjectStage, number>;
+}
+
+/** GET /dashboard/designer: only the projects they are on, and nothing financial. */
+export interface DesignerDashboard {
+  projects: DashboardProjects;
+  tasks: Array<{
+    id: string;
+    name: string;
+    type: ServiceType;
+    client_name: string;
+    status: ProjectStage;
+    progress_pct: number;
+    current_stage: string | null;
+    roles: Array<'Designer' | 'Installer'>;
+    updated_at: string;
+  }>;
 }

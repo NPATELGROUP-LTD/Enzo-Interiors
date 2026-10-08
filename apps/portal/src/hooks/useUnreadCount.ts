@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react';
 
 import { api } from '@/lib/api';
-import { getSocket } from '@/lib/socket';
+import { connectSocket } from '@/lib/socket';
 
 /**
- * Unread message count for the navigation badge.
- *
- * Seeded from the API, then kept live by the shared socket so a reply from the
- * Enzo team bumps the badge while the client is on another screen. Refreshes on
- * window focus too, covering a socket that dropped while the device slept.
+ * Unread messages from the Enzo team, for the navigation badge. Seeded from
+ * the API, refreshed when a message arrives or a thread is read, and when the
+ * window regains focus (a socket that dropped while the device slept).
  */
 export function useUnreadCount(): number {
   const [unread, setUnread] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-
     const refresh = () => {
       api
         .get<{ unread: number }>('/conversations/unread-count')
@@ -26,16 +23,16 @@ export function useUnreadCount(): number {
           /* The badge is a nicety; never surface a failure here as an error. */
         });
     };
-
     refresh();
 
-    const socket = getSocket();
+    const socket = connectSocket();
     socket?.on('message:new', refresh);
+    socket?.on('conversation:read', refresh);
     window.addEventListener('focus', refresh);
-
     return () => {
       cancelled = true;
       socket?.off('message:new', refresh);
+      socket?.off('conversation:read', refresh);
       window.removeEventListener('focus', refresh);
     };
   }, []);

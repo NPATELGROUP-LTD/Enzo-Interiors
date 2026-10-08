@@ -5,7 +5,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dateTime, initials } from '@/lib/format';
+import { dateTime, initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 import type { LoginResponse, Me, Principal, TrustedDevice } from '@/types/api';
 
@@ -57,7 +57,7 @@ export function AccountPage() {
   }, []);
 
   if (!user) return null;
-  const role = user.role === 'Admin' ? 'Admin' : 'Editor';
+  const role = roleLabel(user.role);
 
   const saveName = async (event: FormEvent) => {
     event.preventDefault();

@@ -14,7 +14,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { MODIFIER } from './SearchPalette';
 
 import { useAuth } from '@/lib/auth';
-import { initials } from '@/lib/format';
+import { initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 
 /**
@@ -213,7 +213,7 @@ export function Desktop({
           <span className="min-w-0">
             <span className="flex items-baseline gap-1.5">
               <span className="truncate font-semibold">{user?.name}</span>
-              <span className="shrink-0 text-xs text-ink-muted">{user?.role === 'Admin' ? 'Admin' : 'Editor'}</span>
+              <span className="shrink-0 text-xs text-ink-muted">{roleLabel(user?.role)}</span>
             </span>
             <span className="block truncate text-xs text-ink-muted">{user?.email}</span>
           </span>

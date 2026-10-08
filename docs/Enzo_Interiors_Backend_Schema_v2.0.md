@@ -80,6 +80,7 @@ Index: `idx_clients_status`, `idx_clients_assigned_staff_id`
 | progress_pct | smallint | default 0, check 0–100 |
 | current_stage | varchar(80) | nullable |
 | assigned_designer_id | uuid | FK → staff_users.id, nullable |
+| assigned_installer_id | uuid | FK → staff_users.id, nullable, indexed (migration 9); a Designer-role user. Either assignment gives access |
 | client_visible | boolean | default true |
 | created_at | timestamptz | default now() |
 | updated_at | timestamptz | default now() |
@@ -170,7 +171,7 @@ Index: `idx_bookings_date_time`
 | Table | Field | Type | Constraints |
 |---|---|---|---|
 | conversations | id | uuid | PK |
-| conversations | client_id | uuid | FK → clients.id, not null |
+| conversations | client_id | uuid | FK → clients.id, not null, unique (one conversation per client) |
 | conversations | created_at | timestamptz | default now() |
 | messages | id | uuid | PK |
 | messages | conversation_id | uuid | FK → conversations.id, not null |

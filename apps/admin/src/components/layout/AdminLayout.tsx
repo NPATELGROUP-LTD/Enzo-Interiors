@@ -7,10 +7,13 @@ import {
   CalendarPlus,
   Check,
   CloudCheck,
+  FilePlus,
   ImagesSquare,
+  Kanban,
   ListBullets,
   Question,
   Star,
+  UserPlus,
   UsersThree,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
@@ -34,7 +37,9 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { disconnectSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
+import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
@@ -44,15 +49,18 @@ import { SearchPalette } from './SearchPalette';
 
 /**
  * The Enzo Interiors admin. In this version it manages the public website:
- * its content (the CMS menu below), consultation bookings, and its settings.
+ * its content (the CMS menu below), consultation bookings, and its settings;
+ * and the CRM: the client book and the projects board (Admin, and Designers
+ * for the projects assigned to them and those projects' clients), and invoices
+ * (Admin only).
  *
  * Each section is one kind of content. Pages hold the words of each page; the
  * rest are the things several pages share — a service appears on the home
  * page, the services page, its own page and the booking form — so each gets
  * its own place rather than being edited inside whichever page shows it.
  *
- * The CRM screens (clients, quotes, projects...) are still in src/pages but
- * are not routed, because the v1 API does not serve them. See App.tsx.
+ * Invoices (Admin only) are routed too, and Messages (Admin, and Designers
+ * for the clients of their projects).
  */
 export const SECTIONS: Array<{
   to: string;
@@ -79,6 +87,8 @@ export interface CmsShell {
   refresh: () => void;
   /** Opens the search palette. */
   openSearch: () => void;
+  /** Re-reads the new-enquiries count behind the menu bar badge. */
+  refreshEnquiries: () => void;
 }
 
 export function useCmsShell(): CmsShell {
@@ -200,6 +210,25 @@ function MenuBarMenu({
 
 const MENU_HEADING = 'flex items-center px-2 pb-0.5 pt-1.5 text-[11px] font-semibold text-ink-muted';
 
+/** A menu-bar title that is just a link, for a screen with no menu of its own. */
+function MenuBarLink({ to, label, end, badge = 0 }: { to: string; label: string; end?: boolean; badge?: number }) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        clsx(
+          'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+          isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+        )
+      }
+    >
+      {label}
+      <Badge count={badge} />
+    </NavLink>
+  );
+}
+
 /** CMS: every page and every kind of shared content. */
 function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
   const shared = SECTIONS.filter((section) => section.collection !== 'pages');
@@ -264,6 +293,114 @@ function BookingsMenu() {
           <Separator />
           <MenuItem to="/bookings#month" label="Month at a glance" Icon={CalendarBlank} active={false} onChoose={close} />
           <MenuItem to="/bookings?new=1" label="New booking…" Icon={CalendarPlus} active={false} onChoose={close} />
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** Who reaches the CRM (clients, projects): Admin, and Designers for their assigned work. Never Editors. */
+export const CLIENT_ROLES = ['Admin', 'Designer', 'Installer'] as const;
+
+/** The lists on the Clients screen, addressed as /clients?view=inactive. */
+export const CLIENT_VIEWS = [
+  { id: 'all', label: 'All clients' },
+  { id: 'active', label: 'Active' },
+  { id: 'inactive', label: 'Inactive' },
+] as const;
+
+/** Clients: its lists, and (Admin) a new client. */
+function ClientsMenu({ canAdd }: { canAdd: boolean }) {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/clients' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
+  return (
+    <MenuBarMenu id="clients-menu" label="Clients" to="/clients">
+      {(close) => (
+        <>
+          {CLIENT_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'all' ? '/clients' : `/clients?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          {canAdd ? (
+            <>
+              <Separator />
+              <MenuItem to="/clients?new=1" label="Add client…" Icon={UserPlus} active={false} onChoose={close} />
+            </>
+          ) : null}
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** The views of the Projects screen, addressed as /projects?view=list. */
+export const PROJECT_VIEWS = [
+  { id: 'board', label: 'Board' },
+  { id: 'list', label: 'List' },
+] as const;
+
+/** Projects: the board, the list, and (Admin) a new project. */
+function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/projects' ? (new URLSearchParams(search).get('view') ?? 'board') : null;
+  return (
+    <MenuBarMenu id="projects-menu" label="Projects" to="/projects">
+      {(close) => (
+        <>
+          {PROJECT_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'board' ? '/projects' : `/projects?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          {canAdd ? (
+            <>
+              <Separator />
+              <MenuItem to="/projects?new=1" label="New project…" Icon={Kanban} active={false} onChoose={close} />
+            </>
+          ) : null}
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
+/** The lists on the Invoices screen, addressed as /invoices?view=overdue. */
+export const INVOICE_VIEWS = [
+  { id: 'all', label: 'All invoices' },
+  { id: 'draft', label: 'Drafts' },
+  { id: 'sent', label: 'Sent' },
+  { id: 'overdue', label: 'Overdue' },
+  { id: 'paid', label: 'Paid' },
+] as const;
+
+/** Invoices (Admin): its lists, and a new invoice. */
+function InvoicesMenu() {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/invoices' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
+  return (
+    <MenuBarMenu id="invoices-menu" label="Invoices" to="/invoices">
+      {(close) => (
+        <>
+          {INVOICE_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'all' ? '/invoices' : `/invoices?view=${id}`}
+              label={label}
+              active={view === id}
+              onChoose={close}
+            />
+          ))}
+          <Separator />
+          <MenuItem to="/invoices?new=1" label="New invoice…" Icon={FilePlus} active={false} onChoose={close} />
         </>
       )}
     </MenuBarMenu>
@@ -353,7 +490,33 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
       back: null,
     };
   }
+  if (pathname === '/clients') {
+    const view = CLIENT_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Clients', to: '/clients' }, { label: view.label }]} /> : 'Clients',
+      back: null,
+    };
+  }
+  if (pathname.startsWith('/clients/')) return { title: 'Client', back: { to: '/clients', label: 'Clients' } };
+  if (pathname === '/projects') {
+    const view = PROJECT_VIEWS.find(({ id }) => id !== 'board' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Projects', to: '/projects' }, { label: view.label }]} /> : 'Projects',
+      back: null,
+    };
+  }
+  if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
+  if (pathname === '/invoices') {
+    const view = INVOICE_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
+    return {
+      title: view ? <Crumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: view.label }]} /> : 'Invoices',
+      back: null,
+    };
+  }
+  if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
+  if (pathname === '/messages') return { title: 'Messages', back: null };
+  if (pathname === '/') return { title: 'Dashboard', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
   const isEntry = pathname !== section.to && section.collection !== 'pages';
@@ -365,9 +528,15 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
 
 export function AdminLayout() {
   const toast = useToast();
-  const { isAdmin, logout } = useAuth();
+  const { isAdmin, logout, can } = useAuth();
+  const canSeeClients = can(...CLIENT_ROLES);
+  const unreadMessages = useUnreadCount(canSeeClients);
+  // The shell only exists while signed in: leaving it (sign-out) closes the socket.
+  useEffect(() => () => disconnectSocket(), []);
   const { toggle: toggleTheme } = useTheme();
   const overview = useQuery<CmsOverview>('/cms/overview');
+  const enquiries = useQuery<{ new_count: number }>(isAdmin ? '/enquiries?limit=1' : null);
+  const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
   const [searching, setSearching] = useState(false);
   const openSearch = useCallback(() => setSearching(true), []);
@@ -411,8 +580,8 @@ export function AdminLayout() {
   };
 
   const context = useMemo<CmsShell>(
-    () => ({ overview: overview.data, error: overview.error, refresh, openSearch }),
-    [overview.data, overview.error, refresh, openSearch],
+    () => ({ overview: overview.data, error: overview.error, refresh, openSearch, refreshEnquiries: () => void refreshEnquiries() }),
+    [overview.data, overview.error, refresh, openSearch, refreshEnquiries],
   );
 
   return (
@@ -420,7 +589,7 @@ export function AdminLayout() {
     <SearchPalette
       open={searching}
       onClose={() => setSearching(false)}
-      actions={{ isAdmin, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
+      actions={{ isAdmin, clients: canSeeClients, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
     />
     <Desktop
       appName="Enzo Interiors"
@@ -428,7 +597,13 @@ export function AdminLayout() {
       settingsTo={isAdmin ? '/settings' : '/account'}
       menus={
         <>
+          {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
           <CmsMenu counts={counts} />
+          {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
+          {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
+          {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}
+          {isAdmin ? <InvoicesMenu /> : null}
+          {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {isAdmin ? <SettingsMenu /> : null}
         </>

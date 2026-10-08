@@ -17,8 +17,8 @@
  *     why it is NOT how the Postgres schema should be defined.
  *   - `timestamptz` / `date` columns are ISO-8601 strings.
  *   - `jsonb` columns are their natural TS shape (arrays / objects).
- *   - `documents.storage_url` is a descriptive placeholder string, not an S3
- *     key. There is no object storage in this phase.
+ *   - `documents.storage_url` holds the private-bucket object KEY (the
+ *     column name predates the bucket). Never serialised; see DocumentsService.
  *
  * These types are internal to apps/api. apps/admin and apps/portal each keep
  * their own local copies of the subset they consume; nothing is shared across
@@ -30,14 +30,16 @@
 /* -------------------------------------------------------------------------- */
 
 /**
- * v1's admin has two roles: Admin, and Editor (writes content, cannot publish).
- * Designer and Installer are the CRM's; a Designer is treated as an Editor.
+ * Admin does everything. Editor writes website content (cannot publish) and
+ * never reaches the CRM. Designer works the CRM projects assigned to them (as
+ * designer or installer) and may also write content like an Editor. Installer
+ * is a legacy value treated exactly as Designer.
  */
 export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-/** The roles the v1 admin invites and assigns. */
-export const ADMIN_ROLES = ['Admin', 'Editor'] as const;
+/** The roles the admin invites and assigns (Installer shows as Designer). */
+export const ADMIN_ROLES = ['Admin', 'Editor', 'Designer'] as const;
 
 export const CLIENT_STATUSES = ['Active', 'Inactive'] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -55,22 +57,6 @@ export const PROJECT_STAGES = [
 ] as const;
 export type ProjectStage = (typeof PROJECT_STAGES)[number];
 
-export const COMPONENT_CATEGORIES = [
-  'Worktop',
-  'DoorFinish',
-  'Lighting',
-  'Appliance',
-  'StorageAccessory',
-  'Electrical',
-] as const;
-export type ComponentCategory = (typeof COMPONENT_CATEGORIES)[number];
-
-export const QUOTE_TYPES = ['Simple', 'Detailed'] as const;
-export type QuoteType = (typeof QUOTE_TYPES)[number];
-
-export const QUOTE_STATUSES = ['Draft', 'Sent', 'Accepted', 'Expired'] as const;
-export type QuoteStatus = (typeof QUOTE_STATUSES)[number];
-
 export const INVOICE_STATUSES = ['Draft', 'Sent', 'Outstanding', 'Paid', 'Overdue'] as const;
 export type InvoiceStatus = (typeof INVOICE_STATUSES)[number];
 
@@ -83,7 +69,7 @@ export type SenderType = (typeof SENDER_TYPES)[number];
 export const OWNER_TYPES = ['Client', 'Staff'] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
-export const DOCUMENT_TYPES = ['Contract', 'Quote', 'Invoice', 'Plan', 'MoodBoard'] as const;
+export const DOCUMENT_TYPES = ['Contract', 'Invoice', 'Plan', 'MoodBoard'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const SUBMISSION_STATUSES = ['New', 'Contacted', 'Converted', 'Archived'] as const;
@@ -180,10 +166,12 @@ export interface Client extends BaseRecord {
   joined_date: string;
   total_spent: number;
   notes: string | null;
-  /** MOCK ONLY. Plaintext, exactly as StaffUser.password_hash above. */
+  /** bcrypt hash; anything else never matches (auth.service verify()). */
   password_hash: string;
   created_at: string;
   updated_at: string;
+  /** As StaffUser.token_version. Optional so a create may leave it out (defaulted column). */
+  token_version?: number;
 }
 
 /** Schema 3.3 */
@@ -196,54 +184,14 @@ export interface Project extends BaseRecord {
   progress_pct: number;
   current_stage: string | null;
   assigned_designer_id: string | null;
+  /**
+   * Who fits it (a Designer-role user). Either assignment gives access.
+   * Optional so a create may leave it out; a row read back always has it.
+   */
+  assigned_installer_id?: string | null;
   client_visible: boolean;
   created_at: string;
   updated_at: string;
-}
-
-/** Schema 3.4 — the Component Pricing Library. */
-export interface ComponentItem extends BaseRecord {
-  name: string;
-  category: ComponentCategory;
-  unit_price: number;
-  description: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
-/** Schema 3.5 */
-export interface Quote extends BaseRecord {
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * Schema 3.6.
- *
- * `unit_price` is a POINT-IN-TIME SNAPSHOT of ComponentItem.unit_price taken
- * when the line was created. Editing a component's price later must never
- * rewrite this value. That rule is enforced in quotes.service.ts and is the
- * single most important data-integrity rule in this schema
- * (Backend Schema section 6, and the "Critical rule" in CLAUDE.md).
- */
-export interface QuoteLineItem extends BaseRecord {
-  quote_id: string;
-  component_id: string;
-  /** Denormalised at creation so a renamed or deactivated component still reads correctly. */
-  component_name: string;
-  quantity: number;
-  unit_price: number;
-  line_total: number;
 }
 
 /** Schema 3.7 */
@@ -252,7 +200,6 @@ export interface Invoice extends BaseRecord {
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
@@ -262,13 +209,22 @@ export interface Invoice extends BaseRecord {
   created_at: string;
 }
 
+/** One line of an invoice. Net (ex-VAT) price; the invoice's amount is derived from its lines. */
+export interface InvoiceItem extends BaseRecord {
+  invoice_id: string;
+  description: string;
+  quantity: number;
+  unit_price: number;
+  position: number;
+  created_at: string;
+}
+
 /** Schema 3.8 */
 export interface Booking extends BaseRecord {
   client_id: string;
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
 }
 
@@ -293,11 +249,15 @@ export interface Conversation extends BaseRecord {
   created_at: string;
 }
 
+/**
+ * A document from the Documents module, by id. The name and size are a
+ * snapshot for the chat bubble; opening it goes through GET
+ * /documents/:id/download, which checks access again. No storage key here.
+ */
 export interface MessageAttachment {
+  document_id: string;
   name: string;
   size_bytes: number;
-  /** Placeholder descriptor, not a real S3 key. No object storage this phase. */
-  storage_url: string;
 }
 
 /** Schema 3.10 */
@@ -343,7 +303,7 @@ export interface DocumentRecord extends BaseRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  /** Placeholder descriptor, not an S3 key. Metadata-only uploads this phase. */
+  /** Private-bucket object key, never a URL. Never leaves the API. */
   storage_url: string;
 }
 
@@ -400,8 +360,7 @@ export interface BusinessSettings extends BaseRecord {
  * Schema 3.18.
  *
  * `staff_id` is documented as not-null, but the design-approval loop means a
- * CLIENT can also cause an audited state change (Approve, Request Changes,
- * Accept quote). Rather than drop those from the audit trail — which would
+ * CLIENT can also cause an audited state change (Approve, Request Changes). Rather than drop those from the audit trail — which would
  * leave gaps in exactly the flow the docs call the critical path — the column
  * holds either principal and `actor_type` disambiguates it. Flagged here as a
  * deliberate deviation from Backend Schema v2.0 section 3.18.
@@ -559,7 +518,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message';
   title: string;
   body: string | null;
   link: string | null;

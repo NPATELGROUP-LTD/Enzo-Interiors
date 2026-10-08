@@ -6,21 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current Development Phase
 
-**v1 scope: the public website, the Admin CMS that runs it, and consultation booking.**
+**v1 scope: the public website, the Admin CMS that runs it, consultation booking, and the CRM: Clients, Projects, Invoices, Documents and the Dashboard.**
 
 - `apps/web` — Next.js marketing site. Reads all of its content from the API.
   `/booking` asks the API for free days/times and books through it.
-- `apps/admin` — the Enzo Interiors admin. Menu bar: **CMS** (Pages, then
+- `apps/admin` — the Enzo Interiors admin. Menu bar: **Dashboard** (`/`, the
+  landing page for Admin and Designers; an Editor lands on the CMS), **CMS** (Pages, then
   Services, Recent work, Testimonials, Team, FAQs, Menu, Company),
+  **Clients** (`/clients`, `/clients/:id`, Admin + Designer; `?view=` /
+  `?new=1`; a client's page has Invite to portal / Resend invite and, for an
+  Admin, New project), **Projects** (`/projects` board/`?view=list`/`?new=1`,
+  `/projects/:id`, Admin + Designer),
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
-  users). CMS, Bookings and Settings each drop a menu on hover. Your own
+  users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
-  accept an invitation). The CRM screens are still in `src/pages` but unrouted
-  (see `src/App.tsx`; the CRM's `Bookings.tsx` is not the new `Appointments.tsx`).
+  accept an invitation). **Messages** (`/messages`, Admin + Designers; `?client=` opens
+  or starts that client's thread; badge in the menu bar).
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
   (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
   media, the CMS (incl. the public `GET /content/site` bundle, which carries
@@ -28,16 +33,94 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   requests), site settings, the public `POST /enquiries`, **booking**
   (`/booking/*` public + settings, `/appointments` for staff),
   `/notifications` and the **newsletter** (`/newsletter` public sign-up,
-  confirm, unsubscribe; admin subscribers, CSV, campaigns). The CRM modules and their tables (incl. the CRM's
-  `bookings`) are kept but not mounted (`src/app.module.ts`). The first admin
+  confirm, unsubscribe; admin subscribers, CSV, campaigns) and **clients**
+  (`/clients`, `POST /clients/:id/invite`; portal `POST /auth/portal/forgot` /
+  `reset`) and **projects** (`/projects`; the portal's list, detail, approve,
+  request-changes are the only `'Client'` routes) and **documents**
+  (`/documents`; the portal's list and `GET /documents/:id/download`) and
+  **invoices** and the **dashboard** (below) and **messages** (`/conversations`
+  + the Socket.IO gateway; `/saved-replies` and the Admin's `/activity-logs` from
+  `modules/settings`). All CRM tables are kept (incl. the retired CRM `bookings`); the CRM's
+  bookings and content modules were deleted (booking is `appointments`, content is the CMS;
+  enquiries have their own inbox, below). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
-**Roles (v1):** `Admin` does everything. `Editor` (and the CRM's `Designer`,
-treated the same) edits the CMS and sends changes for review; cannot publish,
-add or delete entries, or see Bookings/Settings. Reviews live on the entry
+**Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
+
+**Roles (v1):** Settings › Users assigns `Admin`, `Editor` or `Designer`
+(`Installer` is a legacy value shown and treated as Designer). `Admin` does
+everything. `Editor` (and `Designer`, the same in the CMS) edits the CMS and
+sends changes for review; cannot publish, add or delete entries, or see
+Bookings/Settings. Reviews live on the entry
 (`cms_entries.review_*`) and clear on publish or send-back; both ends are told
-through `notifications` (the bell) and admins by email too.
-- `apps/portal` — client portal. Present in the repo, **not in v1**, not wired up.
+through `notifications` (the bell) and admins by email too. **Clients:** Admin
+all; `Designer` (and `Installer`) only clients with a project where
+`projects.assigned_designer_id` or `assigned_installer_id` is them
+(`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
+editing only phone/address/notes; Editors none. **Projects:** Admin all
+(create, delete, assignment, `client_visible`, default off); a Designer only
+projects they design or install (others 404), changing stage, `progress_pct`
+and `current_stage` only; stage moves are direct (no approval step). Being
+assigned rings the bell. A client sees their own `client_visible` projects;
+project detail lists documents/invoices with that project_id AND its
+client_id, and for clients no Draft invoices, no internal documents, no
+activity; `storage_url` is never sent. **Documents** (private bucket,
+`core/storage.ts` `PrivateStorage`): `AccessService.documentScope` = Admin
+all, a Designer the files of their projects (by project, never by client;
+also on client detail), a client their own `client_visible` ones; out of
+scope is 404. Upload is multipart (`file` + client_id, project_id required and
+the client's, type), ≤25 MB, PDF/JPG/PNG/WebP/Word/Excel/PowerPoint checked by
+first bytes, key `clients/<id>/projects/<id>/<uuid>-<name>` made by the API,
+`client_visible` false; `PATCH /documents/:id/visibility` is Admin-only; a
+move stays within the client; delete (and client delete) removes the object,
+best effort. `storage_url` holds the key and is never serialised; downloads
+are `GET /documents/:id/download` → `{url}`, a 5-minute attachment link signed
+per request (`S3_PRIVATE_BUCKET`, signed for the same public host as uploads).
+Every `/clients`, `/projects`, `/invoices` and `/documents` route names its `@Roles`.
+Deferred: projects from appointments/enquiries.
+
+**Invoices** (`/invoices`, menu bar **Invoices**, Admin only): a client reads their
+own, never Drafts (list, summary, one); a Designer/Editor gets 403, and no
+money in `/clients` (`total_spent`, invoices, lifetime stats) or project detail.
+Lines live in `invoice_items` (net prices, FK cascade); `invoices.amount` stays
+the gross payable and is computed in the API with `Prisma.Decimal`
+(`modules/invoices/totals.ts`: each line to the penny, VAT once on the subtotal);
+an invoice with no lines keeps its stored amount. Lines/VAT edit only on a Draft
+(or in the request that moves it back to Draft); Draft -> Sent -> Overdue, Paid
+only via mark-paid (one transaction with the client's `total_spent`, refuses a
+repeat). `project_id` must belong to the invoice's client. Numbers retry on a
+unique clash. Deferred: emailing/PDF of an invoice (browser view only).
+
+**Dashboard** (`modules/dashboard`, all SQL counts/sums, no table read whole):
+`/dashboard/admin` (Admin: money from invoices via `Prisma.Decimal`, enquiries,
+consultations from `appointments`, projects by stage, 12-month charts),
+`/dashboard/designer` (Designer/Installer: only their projects and open work, no
+money, enquiries or consultations), `/dashboard/portal` (Client: own, shared
+projects, files on shared projects, non-Draft invoices, a consultation booked
+with their email). Editor 403 on all. A client sees a document only if it AND
+its project are shared (`AccessService.documentScope`); invoices reach them
+whatever their project's visibility. A client changes their password at
+`PUT /account/password` (bumps `token_version`, returns a fresh session) and
+reads/writes `/notification-preferences`, both in `modules/auth/portal-account.ts`.
+
+**Client portal access** is by invitation only: nobody types a client's
+password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,
+a JWT with purpose `portal-password` bound to `clients.token_version` (7 days;
+forgot = 30 min); `POST /auth/portal/reset` sets the bcrypt hash and bumps
+`token_version` in one conditional UPDATE, so a link works once and old portal
+sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt
+hash is stored. Changing a client's email bumps `token_version` too.
+- `apps/portal` — client portal (React/Vite PWA, same macOS look as admin).
+  Clients reach it only by invitation: `/reset-password` (invite or reset; the
+  token is read from the link and wiped from the address bar) and
+  `/forgot-password`. Pages: Dashboard, Projects (+ detail: approve / request
+  changes, downloads), Invoices (+ printable detail), Documents (download =
+  `GET /documents/:id/download` per click, never stored), Settings (password
+  change adopts the returned token; email / in-portal preferences). Messages is
+  a separate piece of work. Ports: dev 5175, docker 5275 (`PORTAL_PORT`);
+  production host `PORTAL_HOST` (portal.enzointeriors.co.uk), compose service
+  `portal`, CORS via `PORTAL_URL`. The service worker precaches the shell only:
+  every API, cross-origin and `/api` request is network-only.
 
 `packages/` was removed. Each app keeps a local copy of the types it consumes,
 which is deliberate — see the header of `apps/api/src/common/types/domain.ts`.
@@ -76,7 +159,7 @@ enzo-interiors/
 | App | Framework | Rendering | Auth | PWA | Purpose |
 |---|---|---|---|---|---|
 | `apps/web` | Next.js (App Router) | SSR/SSG | Public + optional booking capture | ✗ | Marketing site, lead gen, quote calculator |
-| `apps/admin` | React + Vite | CSR SPA | `/auth/admin/login` JWT | ✓ | Staff CRM, projects, quotes, invoices |
+| `apps/admin` | React + Vite | CSR SPA | `/auth/admin/login` JWT | ✓ | Staff CRM, projects, invoices |
 | `apps/portal` | React + Vite | CSR SPA | `/auth/portal/login` JWT | ✓ | Client dashboard, project approval, messages |
 | `apps/api` | NestJS | N/A | JWT + RBAC Guards | N/A | RBAC-enforced API; no frontend accesses DB/S3 directly |
 
@@ -93,7 +176,7 @@ buckets: a **public** one for marketing images (stable URLs, embedded in cached
 pages) and a **private** one for client documents (signed per request). The
 "never return an unsigned URL" rule applies to the private bucket; see the
 header of `apps/api/src/modules/media/media.module.ts` for why.  
-**Key tables:** `staff_users`, `clients`, `projects`, `components`, `quotes`, `quote_line_items`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`, plus the CMS tables `cms_entries` and `media_assets`.
+**Key tables:** `staff_users`, `clients`, `projects`, `invoices`, `bookings`, `availability_settings`, `conversations`/`messages`, `documents`, `portfolio_items`, `contact_submissions`, `activity_logs`, plus the CMS tables `cms_entries` and `media_assets`.
 
 **The CMS:** every editable thing on the public site is one row in `cms_entries`
 (`collection` + `slug`, with a `draft` and a `published` JSONB body). One table
@@ -154,6 +237,20 @@ favicon is served with `media="(prefers-color-scheme: dark)"` (shipped ones:
 booking page's old `timeSlots` / `wordmark`). The default favicon is
 `apps/web/public/icon.png`.
 
+**Messages:** one `conversations` row per client (unique index on `client_id`,
+migration `11_conversation_per_client`; a lost create race re-reads the winner) (Admin all, Designer/Installer
+their projects' clients via AccessService, client their own, Editor none).
+Attachments are `documents` ids shared with that client (`sharedWithClient`),
+opened via `/documents/:id/download`. `MessagesGateway` authenticates the
+handshake and every event with the shared `authenticate()` (one PK read), and
+re-checks each room member before delivery, so a signed-out/demoted socket is
+dropped; HTTP send/read go through the same `publish`/`read`. Nobody on the
+other side connected = email (no message text; staff via `notification_emails`
++ bell, client to `PORTAL_URL/messages`), once per conversation and side per
+15 min (`CacheService`). Single API instance: no Redis adapter; socket.io's
+default `/socket.io` path rides the API's Traefik host (WebSocket upgrade passes
+through Traefik and Cloudflare Tunnel as is).
+
 **Newsletter:** `newsletter_subscribers` (double opt-in: `pending` until the
 emailed link is clicked; only `confirmed` are sent to) and
 `newsletter_campaigns` (HTML body sanitised on save by
@@ -178,8 +275,13 @@ has run is never edited, so the previous image still runs on the new schema
 written into existing rows.
 
 **Sessions:** JWTs carry `tv` = `staff_users.token_version`; `JwtAuthGuard`
-re-reads the staff row per request, so a password change or reset signs out
-every other session immediately.
+re-reads the staff row per request, so a password change or reset (or a role
+change) signs out every other session immediately. Portal clients
+(`POST /auth/portal/login`, no 2FA yet) carry `clients.token_version` and must
+be `Active`; both go through `authenticate()` in `common/guards/jwt-auth.guard.ts`
+(for a socket gateway too). `RolesGuard` denies client tokens by default: a
+route is open to clients only if its `@Roles` names `'Client'`. The three
+global guards skip non-HTTP contexts.
 
 **Two-step sign-in:** staff password logins (not Google, not the CRM portal) end
 in a second step. Each user picks **Email code** or **Authenticator app** once,
@@ -212,7 +314,7 @@ on the API). `TRUST_CLOUDFLARE=true` takes the client IP from
 `CF-Connecting-IP` (`core/client-ip.ts`) — only safe if the API is reachable
 only through Cloudflare. Migration `7_two_factor_google_calendar`.
 
-**Critical rule:** `quote_line_items.unit_price` is a point-in-time snapshot — price changes never retroactively alter historical quotes.
+**Retired:** quotes and the part library are gone from the code (the quote builder is its own project). The tables `quotes`, `quote_line_items`, `components` and the columns `invoices.quote_id` / `bookings.linked_quote_id` stay in the schema because migrations only add; nothing reads or writes them. The old `unit_price` snapshot rule went with them.
 
 For the full schema, see `docs/Enzo_Interiors_Backend_Schema_v2.0.md`.
 
@@ -234,12 +336,20 @@ docker compose up -d --wait postgres minio minio-init redis   # redis optional
 cd apps/api   && npm ci && npm run db:setup && npm run dev   # :4000
 cd apps/admin && npm ci && npm run dev                       # :5174
 cd apps/web   && npm ci && npm run dev                       # :3000
+cd apps/portal && npm ci && npm run dev                      # :5175
 ```
 
 | App | Check |
 |---|---|
 | `apps/api` | `npm run typecheck`, `npm test`, `npm run build` |
+| `apps/api` (DB) | `npm run test:db` — boots the real app on a random port against a real PostgreSQL |
+
+`test:db` needs the compose `postgres` service up. It uses a separate `enzo_test` database
+(created on first run, migrated with `prisma migrate deploy`; refuses any name not ending
+`_test`, so the dev `enzo` data is never touched), 2FA off, no Redis/SMTP. Helper:
+`apps/api/src/test-support/app.ts` (`startTestApp()`); add `*.db.test.ts` files and list them in the script. CI runs it as `api (database tests)`.
 | `apps/admin` | `npm run typecheck`, `npm test`, `npm run build` |
+| `apps/portal` | `npm run typecheck`, `npm run lint`, `npm run build` |
 | `apps/web` | `npm run typecheck`, `npm run lint`, `npm test`, `npm run build` |
 
 Schema changes: edit `apps/api/prisma/schema.prisma`, then
@@ -279,7 +389,7 @@ These are final product decisions, not temporary shortcuts:
 - `Enzo_Interiors_Backend_Schema_v2.0.md` — PostgreSQL/Prisma schema, entity relationships, data integrity rules.
 - `Enzo_Interiors_Storage_Schema_v1.md` — S3 bucket structure, folder layout, signed URL TTLs, retention policies.
 - `Enzo_Interiors_UI_UX_Brief_v6.md` — Design tokens, brand colors, typography, component specs, accessibility.
-- `Enzo_Interiors_App_Flow_v4.md` — End-to-end user flows (e.g. quote → booking → project → approval).
+- `Enzo_Interiors_App_Flow_v4.md` — End-to-end user flows (e.g. booking → project → approval).
 - `websitemap.md` — All routes for web, admin, portal.
 - `Boilerplate Codebase.md` — Packed repo snapshot (reference only; don't edit).
 
@@ -287,10 +397,10 @@ These are final product decisions, not temporary shortcuts:
 Next.js marketing site. Pages: Homepage, Services, Service Detail, Portfolio (gallery), About, Contact, Booking Wizard (5 steps), 404. Quote Calculator (must respond <200ms) calls `/quotes/estimate` on the API.
 
 ### apps/admin/
-React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Quotes & Pricing, Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
+React/Vite admin CRM. Modules: Dashboard, Clients, Bookings & Availability, Projects (5-stage Kanban: Consultation → Design → Approval → Installation → Completed), Invoices, Messages, Content Manager, Settings. RBAC: Admin (full), Designer/Installer (assigned projects only).
 
 ### apps/portal/
-React/Vite client portal. Modules: Dashboard, My Projects (with approval workflow), My Quotes, Messages (WebSocket real-time), Documents, Invoices (view-only), Settings. RBAC: Client (own records only).
+React/Vite client portal. Modules: Dashboard, My Projects (with approval workflow), Messages (WebSocket real-time), Documents, Invoices (view-only), Settings. RBAC: Client (own records only).
 
 ### apps/api/
 NestJS backend. All CRUD, auth (JWT + RBAC Guards), WebSocket gateway (messages), S3 signed URL generation. No frontend talks to DB or S3 directly.
@@ -306,7 +416,7 @@ NestJS backend. All CRUD, auth (JWT + RBAC Guards), WebSocket gateway (messages)
 - **Client Login** → `POST /auth/portal/login` → JWT → Client Portal access
 
 **Scope Enforcement:**
-- Clients see only their own records (projects, quotes, invoices, messages).
+- Clients see only their own records (projects, invoices, messages).
 - Designer/Installer see assigned projects/clients only.
 - Admin sees all records.
 

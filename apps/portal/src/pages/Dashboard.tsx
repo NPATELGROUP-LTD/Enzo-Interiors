@@ -12,7 +12,7 @@ import {
 import { useQuery } from '@/hooks/useApi';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, money, padCount, relative } from '@/lib/format';
-import { bookingTone, invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
+import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
 import type { PortalDashboard } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
@@ -70,60 +70,19 @@ export function DashboardPage() {
             </Card>
           ) : null}
 
-          {data.quotes.awaiting_your_decision > 0 ? (
-            <Card accent="warning" className="mb-4 pl-5">
-              <p className="label-eyebrow">Waiting for you</p>
-              <p className="mt-2 text-base font-semibold text-ink">
-                {data.quotes.awaiting_your_decision === 1
-                  ? 'You have a quote to review'
-                  : `You have ${data.quotes.awaiting_your_decision} quotes to review`}
-              </p>
-              <div className="mt-2">
-                <Link to="/quotes" className="text-link">
-                  View quotes
-                </Link>
-              </div>
-            </Card>
-          ) : null}
-
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <MetricCard
               eyebrow="Next appointment"
               value={
                 data.next_appointment
-                  ? relative(data.next_appointment.date_time)
+                  ? relative(data.next_appointment.starts_at)
                   : 'None booked'
               }
               accent="primary"
               context={
                 data.next_appointment
-                  ? `${SERVICE_LABELS[data.next_appointment.service_type]} · ${dateTime(
-                      data.next_appointment.date_time,
-                    )}`
+                  ? `${data.next_appointment.service_label} · ${dateTime(data.next_appointment.starts_at)}`
                   : 'Get in touch to arrange your next visit.'
-              }
-              bottom={
-                data.next_appointment ? (
-                  <StatusTag tone={bookingTone(data.next_appointment.status)}>
-                    {data.next_appointment.status}
-                  </StatusTag>
-                ) : null
-              }
-            />
-
-            <MetricCard
-              eyebrow="Unread messages"
-              value={padCount(data.unread_messages)}
-              accent={data.unread_messages > 0 ? 'warning' : 'primary'}
-              context={
-                data.unread_messages > 0
-                  ? 'The Enzo team has been in touch.'
-                  : 'You are up to date with the team.'
-              }
-              bottom={
-                <Link to="/messages" className="text-link">
-                  Open messages
-                </Link>
               }
             />
 

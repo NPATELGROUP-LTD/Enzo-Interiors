@@ -1,51 +1,78 @@
-import { Logger } from '@nestjs/common';
+import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
   ConnectedSocket,
   MessageBody,
   OnGatewayConnection,
-  OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { IsString, MaxLength } from 'class-validator';
 import { Server, Socket } from 'socket.io';
 
-import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
+import { AccessService } from '../../common/access/access.service';
+import { authenticate } from '../../common/guards/jwt-auth.guard';
+import { Conversation, Message } from '../../common/types/domain';
+import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import { ConversationsService, SendMessageDto } from './conversations.service';
 
-/** The room name for a conversation. One room per thread. */
+/** The room for a conversation. One room per thread. */
 const room = (conversationId: string): string => `conversation:${conversationId}`;
 
-/** Socket.data shape, so the principal survives across events on a connection. */
+/** Message sends per socket per minute: a chat, not a firehose. */
+const SENDS_PER_MINUTE = 30;
+
 interface SocketData {
-  principal?: AuthPrincipal;
+  token: string;
+  principal: AuthPrincipal;
+  sent: number[];
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped events, typed data
+type AuthedSocket = Socket<any, any, any, SocketData>;
+
+export class ConversationRefDto {
+  @IsString() @MaxLength(64) conversationId!: string;
+}
+
+export class SocketSendDto extends SendMessageDto {
+  @IsString() @MaxLength(64) conversationId!: string;
 }
 
 /**
- * The single Socket.IO gateway powering Messages for BOTH the admin inbox and
- * the client portal chat, exactly as the architecture doc describes.
+ * Allowed browser origins, set from ConfigService when the gateway is built
+ * (the decorator below is evaluated at import, before config exists).
+ */
+let allowedOrigins: string[] = [];
+
+/**
+ * Live Messages for the admin inbox and the client portal.
  *
- * Authentication happens once, at connection time, from the same signed token
- * the HTTP API uses — an unauthenticated socket is disconnected rather than
- * left half-connected. Membership of a conversation room is checked against
- * AccessService on join, so a client cannot subscribe to another client's
- * thread by guessing an id.
+ * Every connection and every event is authenticated with the same
+ * authenticate() the HTTP guard uses (one primary-key lookup), so a socket dies
+ * with its session: sign-out elsewhere, a password change, a role change or a
+ * deactivated client. Rooms are joined only through AccessService. A message
+ * is pushed to each socket in the room after re-checking that socket's session
+ * and access, so a socket that has gone quiet cannot keep listening either.
  *
- * CORS is configured here as well as on the HTTP app: Socket.IO negotiates its
- * own handshake and does not inherit `app.enableCors`.
+ * ponytail: one API instance, so rooms live in this process. Several replicas
+ * need @socket.io/redis-adapter and sticky sessions. Socket.IO's default path
+ * (/socket.io) on the API host; Traefik and Cloudflare Tunnel pass the
+ * WebSocket upgrade through as they are, and polling works as a fallback.
  */
 @WebSocketGateway({
   cors: {
-    origin: (process.env.CORS_ORIGINS ?? 'http://localhost:5174,http://localhost:5175')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
+    // Called per handshake. No Origin = not a browser, so CORS has nothing to say.
+    origin: (origin: string | undefined, done: (error: Error | null, allow?: boolean) => void) =>
+      done(null, !origin || allowedOrigins.includes(origin)),
     credentials: true,
   },
 })
-export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect {
+@UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
   @WebSocketServer()
   server!: Server;
 
@@ -53,156 +80,166 @@ export class MessagesGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   constructor(
     private readonly conversations: ConversationsService,
+    private readonly access: AccessService,
     private readonly jwt: JwtService,
     private readonly db: DatabaseService,
-  ) {}
-
-  async handleConnection(socket: Socket): Promise<void> {
-    // Accept the token from handshake auth (the normal Socket.IO client path)
-    // or from the Authorization header, so a non-browser client also works.
-    const raw =
-      (socket.handshake.auth?.token as string | undefined) ??
-      socket.handshake.headers.authorization?.replace(/^Bearer /i, '');
-
-    if (!raw) {
-      socket.emit('error:auth', { message: 'Missing session token' });
-      socket.disconnect(true);
-      return;
-    }
-
-    try {
-      const payload = await this.jwt.verifyAsync<JwtPayload>(raw);
-      // The same rules as JwtAuthGuard: a purpose token (2FA challenge,
-      // Google state) is not a session, and a staff token dies with its
-      // token_version. Clients have no token_version yet (portal not in v1).
-      const staff = payload.kind === 'Staff' ? await this.db.staffUsers.findById(payload.sub) : null;
-      if (
-        payload.purpose !== undefined ||
-        (payload.kind !== 'Staff' && payload.kind !== 'Client') ||
-        (payload.kind === 'Staff' && (!staff || (payload.tv ?? 0) !== staff.token_version))
-      ) {
-        throw new Error('Not a session');
-      }
-      const principal: AuthPrincipal = {
-        id: payload.sub,
-        kind: payload.kind,
-        role: payload.role,
-        name: payload.name,
-        email: payload.email,
-      };
-      (socket.data as SocketData).principal = principal;
-
-      // A client only ever has one counterparty, so auto-joining their own
-      // threads means the portal chat is live without an explicit join.
-      const visible = await this.conversations.list(principal);
-      for (const conversation of visible) {
-        await socket.join(room(conversation.id));
-      }
-
-      socket.emit('connected', {
-        user: principal,
-        conversations: visible.map((conversation) => conversation.id),
-      });
-    } catch {
-      socket.emit('error:auth', { message: 'Invalid or expired session token' });
-      socket.disconnect(true);
-    }
-  }
-
-  handleDisconnect(socket: Socket): void {
-    const principal = (socket.data as SocketData).principal;
-    if (principal) {
-      this.logger.debug(`Socket disconnected: ${principal.email}`);
-    }
-  }
-
-  /** Explicitly subscribe to one thread (the admin inbox switching threads). */
-  @SubscribeMessage('conversation:join')
-  async join(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { conversationId?: string },
+    config: ConfigService,
   ) {
-    const principal = this.principalOf(socket);
-    if (!principal || !payload?.conversationId) return { ok: false };
+    allowedOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5174,http://localhost:5175')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean);
+  }
 
+  /** The handshake: no valid session token, no connection (the client sees connect_error). */
+  afterInit(server: Server): void {
+    server.use((socket, next) => {
+      const token = socket.handshake.auth?.token;
+      if (typeof token !== 'string' || !token) return next(new Error('Unauthorized'));
+      authenticate(this.jwt, this.db, token).then(
+        (principal) => {
+          Object.assign(socket.data, { token, principal, sent: [] } satisfies SocketData);
+          next();
+        },
+        () => next(new Error('Unauthorized')),
+      );
+    });
+  }
+
+  /** Join every thread this principal may see, so new messages arrive without asking. */
+  async handleConnection(socket: AuthedSocket): Promise<void> {
+    const visible = await this.conversations.list(socket.data.principal);
+    await socket.join(visible.map((conversation) => room(conversation.id)));
+    socket.emit('connected', { conversations: visible.map((conversation) => conversation.id) });
+  }
+
+  @SubscribeMessage('conversation:join')
+  async join(@ConnectedSocket() socket: AuthedSocket, @MessageBody() { conversationId }: ConversationRefDto) {
+    const principal = await this.reauthenticate(socket);
+    if (!principal) return { ok: false };
     try {
-      await this.conversations.requireConversation(principal, payload.conversationId);
-      await socket.join(room(payload.conversationId));
-      return { ok: true, conversationId: payload.conversationId };
+      await this.conversations.requireConversation(principal, conversationId);
     } catch {
-      // Do not distinguish "does not exist" from "not yours" over the socket.
+      // "Does not exist" and "not yours" look the same over the socket.
       return { ok: false, error: 'Conversation not available' };
     }
-  }
-
-  @SubscribeMessage('conversation:leave')
-  async leave(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { conversationId?: string },
-  ) {
-    if (!payload?.conversationId) return { ok: false };
-    await socket.leave(room(payload.conversationId));
+    await socket.join(room(conversationId));
     return { ok: true };
   }
 
-  /**
-   * Send a message over the socket.
-   *
-   * Delegates to the same service method the HTTP endpoint uses, so validation,
-   * access control and persistence are identical on both transports, then
-   * broadcasts to everyone in the room. That broadcast is what makes an admin
-   * reply appear in the client's portal without a refresh.
-   */
+  @SubscribeMessage('conversation:leave')
+  async leave(@ConnectedSocket() socket: AuthedSocket, @MessageBody() { conversationId }: ConversationRefDto) {
+    if (!(await this.reauthenticate(socket))) return { ok: false };
+    await socket.leave(room(conversationId));
+    return { ok: true };
+  }
+
+  /** Same service method as POST /conversations/:id/messages, then the same delivery. */
   @SubscribeMessage('message:send')
-  async send(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { conversationId?: string; body?: string; attachments?: SendMessageDto['attachments'] },
-  ) {
-    const principal = this.principalOf(socket);
-    if (!principal) return { ok: false, error: 'Not authenticated' };
-    if (!payload?.conversationId || !payload.body?.trim()) {
-      return { ok: false, error: 'A conversation id and a message body are required' };
-    }
+  async send(@ConnectedSocket() socket: AuthedSocket, @MessageBody() dto: SocketSendDto) {
+    const principal = await this.reauthenticate(socket);
+    if (!principal) return { ok: false };
+
+    const now = Date.now();
+    socket.data.sent = socket.data.sent.filter((at) => now - at < 60_000);
+    if (socket.data.sent.length >= SENDS_PER_MINUTE) return { ok: false, error: 'Slow down a little.' };
+    socket.data.sent.push(now);
 
     try {
-      const message = await this.conversations.sendMessage(principal, payload.conversationId, {
-        body: payload.body,
-        attachments: payload.attachments,
+      const { conversation, message } = await this.conversations.sendMessage(principal, dto.conversationId, {
+        body: dto.body,
+        document_ids: dto.document_ids,
       });
-      this.server.to(room(payload.conversationId)).emit('message:new', message);
+      await this.publish(principal, conversation, message);
       return { ok: true, message };
     } catch (error) {
-      return {
-        ok: false,
-        error: error instanceof Error ? error.message : 'Could not send message',
-      };
+      return { ok: false, error: error instanceof Error ? error.message : 'Could not send message' };
     }
   }
 
+  /** Only into a room this socket was let into; nothing comes back. */
   @SubscribeMessage('conversation:typing')
-  typing(
-    @ConnectedSocket() socket: Socket,
-    @MessageBody() payload: { conversationId?: string },
-  ) {
-    const principal = this.principalOf(socket);
-    if (!principal || !payload?.conversationId) return;
-    // Broadcast to the room excluding the sender.
-    socket.to(room(payload.conversationId)).emit('conversation:typing', {
-      conversationId: payload.conversationId,
-      name: principal.name,
+  async typing(@ConnectedSocket() socket: AuthedSocket, @MessageBody() { conversationId }: ConversationRefDto) {
+    if (!socket.rooms.has(room(conversationId))) return;
+    const principal = await this.reauthenticate(socket);
+    if (!principal) return;
+    socket.to(room(conversationId)).emit('conversation:typing', {
+      conversationId,
+      name: principal.kind === 'Client' ? principal.name : 'Enzo Interiors',
       kind: principal.kind,
     });
   }
 
   /**
-   * Push a message into a room from outside the socket layer, so a message
-   * created over HTTP still reaches live sockets.
+   * Deliver a new message to the room, then email the other side if nobody
+   * there was connected. Used by the socket send and the HTTP send alike.
    */
-  broadcastMessage(conversationId: string, message: unknown): void {
-    this.server?.to(room(conversationId)).emit('message:new', message);
+  async publish(sender: AuthPrincipal, conversation: Conversation, message: Message): Promise<void> {
+    const reached = await this.deliver(conversation, 'message:new', message);
+    const recipientOnline = reached.some((p) => (sender.kind === 'Client' ? p.kind === 'Staff' : p.kind === 'Client'));
+    if (!recipientOnline) {
+      await this.conversations.notifyOffline(sender, conversation).catch((error: unknown) => {
+        this.logger.error(`Offline notice failed: ${error instanceof Error ? error.message : String(error)}`);
+      });
+    }
   }
 
-  private principalOf(socket: Socket): AuthPrincipal | undefined {
-    return (socket.data as SocketData).principal;
+  /** Read receipts: the other side's ticks update live. */
+  async read(conversation: Conversation, reader: AuthPrincipal, readAt: string): Promise<void> {
+    await this.deliver(conversation, 'conversation:read', {
+      conversationId: conversation.id,
+      reader: reader.kind,
+      read_at: readAt,
+    });
+  }
+
+  /** A new conversation: every connected socket that may see it joins its room. */
+  async adopt(conversation: Conversation): Promise<void> {
+    for (const socket of await this.server.fetchSockets()) {
+      const principal = await this.check(socket.data as SocketData, conversation.client_id);
+      if (principal) socket.join(room(conversation.id));
+    }
+  }
+
+  /**
+   * Emit to each socket in the room whose session and access still hold;
+   * the rest are disconnected or dropped from the room. Returns who got it.
+   * One lookup per socket per message: fine for a studio's handful of sockets.
+   */
+  private async deliver(conversation: Conversation, event: string, payload: unknown): Promise<AuthPrincipal[]> {
+    const reached: AuthPrincipal[] = [];
+    for (const socket of await this.server.in(room(conversation.id)).fetchSockets()) {
+      const data = socket.data as SocketData;
+      const principal = await this.check(data, conversation.client_id);
+      if (principal === 'signed-out') socket.disconnect(true);
+      else if (!principal) socket.leave(room(conversation.id));
+      else {
+        socket.emit(event, payload);
+        reached.push(principal);
+      }
+    }
+    return reached;
+  }
+
+  private async check(data: SocketData, clientId: string): Promise<AuthPrincipal | 'signed-out' | null> {
+    try {
+      const principal = await authenticate(this.jwt, this.db, data.token);
+      data.principal = principal;
+      return (await this.access.canAccessClient(principal, clientId)) ? principal : null;
+    } catch {
+      return 'signed-out';
+    }
+  }
+
+  /** The session behind this socket, fresh from the database, or a disconnect. */
+  private async reauthenticate(socket: AuthedSocket): Promise<AuthPrincipal | null> {
+    try {
+      socket.data.principal = await authenticate(this.jwt, this.db, socket.data.token);
+      return socket.data.principal;
+    } catch {
+      socket.emit('error:auth', { message: 'Your session has ended. Sign in again.' });
+      socket.disconnect(true);
+      return null;
+    }
   }
 }

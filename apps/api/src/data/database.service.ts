@@ -10,11 +10,11 @@ import {
   CalendarConnection,
   Client,
   CmsEntry,
-  ComponentItem,
   ContactSubmission,
   Conversation,
   DocumentRecord,
   Invoice,
+  InvoiceItem,
   MediaAsset,
   Message,
   NewsletterCampaign,
@@ -23,14 +23,13 @@ import {
   NotificationPreference,
   PortfolioItem,
   Project,
-  Quote,
-  QuoteLineItem,
   SavedReplyTemplate,
   SiteSettings,
   StaffUser,
   Testimonial,
   TrustedDevice,
 } from '../common/types/domain';
+import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 
@@ -55,10 +54,9 @@ export class DatabaseService {
   readonly staffUsers: PrismaRepository<StaffUser>;
   readonly clients: PrismaRepository<Client>;
   readonly projects: PrismaRepository<Project>;
-  readonly components: PrismaRepository<ComponentItem>;
-  readonly quotes: PrismaRepository<Quote>;
-  readonly quoteLineItems: PrismaRepository<QuoteLineItem>;
   readonly invoices: PrismaRepository<Invoice>;
+  readonly invoiceItems: PrismaRepository<InvoiceItem>;
+  readonly invoiceStore: InvoiceStore;
   readonly bookings: PrismaRepository<Booking>;
   readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
   readonly conversations: PrismaRepository<Conversation>;
@@ -93,21 +91,9 @@ export class DatabaseService {
       decimals: ['total_spent'],
     });
     this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
-    this.components = new PrismaRepository(prisma.componentItem, 'components', {
-      dates: stamps,
-      decimals: ['unit_price'],
-    });
-    this.quotes = new PrismaRepository(prisma.quote, 'quotes', {
-      dates: stamps,
-      decimals: ['design_fee', 'subtotal', 'vat_rate', 'total'],
-    });
-    this.quoteLineItems = new PrismaRepository(prisma.quoteLineItem, 'quote_line_items', {
-      decimals: ['unit_price', 'line_total'],
-    });
-    this.invoices = new PrismaRepository(prisma.invoice, 'invoices', {
-      dates: ['created_at', 'due_date', 'paid_at'],
-      decimals: ['amount', 'vat_rate'],
-    });
+    this.invoices = new PrismaRepository(prisma.invoice, 'invoices', INVOICE_FIELDS);
+    this.invoiceItems = new PrismaRepository(prisma.invoiceItem, 'invoice_items', INVOICE_ITEM_FIELDS);
+    this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
       dates: ['created_at', 'date_time'],
     });

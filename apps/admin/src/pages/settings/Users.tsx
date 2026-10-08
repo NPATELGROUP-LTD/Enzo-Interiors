@@ -9,7 +9,10 @@ import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { initials } from '@/lib/format';
 
-type Role = 'Admin' | 'Editor';
+type Role = 'Admin' | 'Editor' | 'Designer';
+
+const ROLES: Role[] = ['Editor', 'Designer', 'Admin'];
+const article = (role: Role) => (role === 'Admin' ? 'an Admin' : role === 'Editor' ? 'an Editor' : 'a Designer');
 
 interface User {
   id: string;
@@ -25,6 +28,7 @@ interface User {
 const ROLE_HELP: Record<Role, string> = {
   Admin: 'Everything: publishes, bookings, settings and users.',
   Editor: 'Edits the website and sends changes to an Admin to publish.',
+  Designer: 'Works the projects they are assigned to, and their clients. Can edit the website like an Editor.',
 };
 
 function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: () => void; onInvited: (user: User) => void }) {
@@ -69,8 +73,11 @@ function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: ()
         <Input label="Name" autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} />
         <Input label="Email" type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} />
         <Select label="Role" value={role} hint={ROLE_HELP[role]} onChange={(event) => setRole(event.target.value as Role)}>
-          <option value="Editor">Editor</option>
-          <option value="Admin">Admin</option>
+          {ROLES.map((option) => (
+            <option key={option} value={option}>
+              {option}
+            </option>
+          ))}
         </Select>
         {error ? (
           <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-sm text-danger">
@@ -109,7 +116,7 @@ export function UsersSection() {
     setBusy(row.id);
     try {
       replace(await api.put<User>(`/users/${row.id}`, { role }));
-      toast.success(`${row.name} is now ${role === 'Admin' ? 'an Admin' : 'an Editor'}.`);
+      toast.success(`${row.name} is now ${article(role)}.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not change the role.');
     } finally {
@@ -164,7 +171,7 @@ export function UsersSection() {
           <h2 className="text-lg font-semibold tracking-tight text-ink">Users</h2>
           <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">
             Admins can do everything. Editors change the website and send their changes to an Admin, who
-            publishes them or sends them back.
+            publishes them or sends them back. Designers work the projects assigned to them.
           </p>
         </div>
         <Button variant="primary" icon={<Plus size={16} />} onClick={() => setInviting(true)}>
@@ -225,8 +232,11 @@ export function UsersSection() {
                     onChange={(event) => void setRole(row, event.target.value as Role)}
                     className="min-h-9 rounded-control border border-border bg-surface px-2.5 text-sm text-ink"
                   >
-                    <option value="Editor">Editor</option>
-                    <option value="Admin">Admin</option>
+                    {ROLES.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
                   </select>
                 )}
                 {row.twoFactorMethod ? (

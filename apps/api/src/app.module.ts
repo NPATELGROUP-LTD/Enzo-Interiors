@@ -11,11 +11,18 @@ import { RateLimitStore } from './core/rate-limit';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { ConversationsModule } from './modules/conversations/conversations.controller';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
+import { InvoicesModule } from './modules/invoices/invoices.controller';
 import { MediaModule } from './modules/media/media.module';
 import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ProjectsModule } from './modules/projects/projects.controller';
+import { SettingsModule } from './modules/settings/settings.module';
 import { SiteSettingsModule } from './modules/site-settings/site-settings.module';
 
 /**
@@ -27,17 +34,18 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
  * requires an explicit, greppable @Public().
  *
  * v1 SCOPE: the public site, the CMS that runs it, consultation booking
- * (BookingModule: the site's booking form and the admin's Bookings screen) and
- * the admin's users and notifications, and the newsletter. Nothing else. The CRM
- * modules (clients, projects, quotes, invoices, bookings, conversations,
- * documents, components, content, settings, dashboard) are still in
- * src/modules and their tables are still in the schema, so existing data is
- * untouched — they are simply not mounted, which means none of their routes
- * exist on a v1 server. To bring the CRM back, import them here again:
- *
- *   ClientsModule, ProjectsModule, ComponentsModule, QuotesModule,
- *   InvoicesModule, BookingsModule, ConversationsModule, DocumentsModule,
- *   ContentModule, SettingsModule, DashboardModule
+ * (BookingModule: the site's booking form and the admin's Bookings screen),
+ * the admin's users and notifications, the newsletter, and the CRM's client
+ * book (ClientsModule: Admin, and Designers for the clients of their projects;
+ * portal invitations) and projects (ProjectsModule: Admin, Designers on their
+ * assigned projects, clients on their own shared ones), invoices
+ * (InvoicesModule: Admin only; clients read their own, never Drafts) and
+ * documents (DocumentsModule: the private bucket, same scope by project;
+ * clients their own shared files), the dashboard (DashboardModule: per
+ * role), messages (ConversationsModule: one conversation per client, same
+ * scope, live over Socket.IO on this server) and the staff's saved replies
+ * plus the Admin's audit-log viewer (SettingsModule). Every CRM route names
+ * its roles with @Roles.
  */
 @Module({
   imports: [
@@ -62,6 +70,13 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     BookingModule,
     CalendarModule,
     NewsletterModule,
+    ClientsModule,
+    ProjectsModule,
+    InvoicesModule,
+    DocumentsModule,
+    DashboardModule,
+    ConversationsModule,
+    SettingsModule,
   ],
   providers: [
     // First, so a flood is refused before any token is verified.

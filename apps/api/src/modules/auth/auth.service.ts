@@ -12,7 +12,7 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
-import { StaffUser, TwoFactorMethod } from '../../common/types/domain';
+import { Client, StaffUser, TwoFactorMethod } from '../../common/types/domain';
 import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
 import { waitFor } from '../../common/guards/throttle.guard';
 import { MailService, templates } from '../../core/mail.service';
@@ -96,6 +96,15 @@ const ACCOUNT_LOCK = 15 * 60_000;
 const RESET_TTL_MS = 30 * 60 * 1000;
 
 /**
+ * The purpose of a portal set-password link. The link is a JWT naming the
+ * client and their token_version; setting the password bumps token_version, so
+ * a link works once, dies with any later reset, and signs out every portal
+ * session. JwtAuthGuard refuses any token with a purpose, so it is never a
+ * session. No reset columns on clients: the signature is the record.
+ */
+const PORTAL_PASSWORD = 'portal-password';
+
+/**
  * Staff authentication: sign-in, password change, and reset by email. The
  * second step of sign-in is two-factor.ts; Google is google.ts.
  *
@@ -107,6 +116,7 @@ const RESET_TTL_MS = 30 * 60 * 1000;
 export class AuthService implements OnApplicationBootstrap {
   private readonly logger = new Logger(AuthService.name);
   private readonly adminUrl = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
+  private readonly portalUrl = (process.env.PORTAL_URL ?? 'http://localhost:5175').replace(/\/+$/, '');
 
   constructor(
     private readonly db: DatabaseService,
@@ -217,6 +227,69 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   /**
+   * POST /auth/portal/login. Same lockout and same single message as staff
+   * sign-in, keyed apart (`client:` prefix) so a client's mistyped password
+   * never locks a staff account with the same address, or the reverse. An
+   * inactive client gets the same answer as a wrong password. No second step
+   * for clients yet.
+   */
+  async portalLogin(email: string, password: string, ip: string): Promise<LoginResult> {
+    const address = email.trim().toLowerCase();
+    const key = `client:${address}`;
+    await this.assertNotLocked(key, ip);
+
+    const client = await this.db.clients.findFirstWhere({ email: { equals: address, mode: 'insensitive' } });
+    // verify() runs bcrypt even with no row, so a missing account is not faster.
+    const ok = await verify(password, client?.password_hash);
+    if (!client || !ok || client.status !== 'Active') {
+      await this.recordFailure(key, ip);
+      throw new UnauthorizedException('Incorrect email or password');
+    }
+    await this.limits.clear(`login:fail:${ip}|${key}`);
+    return this.issueClient(client);
+  }
+
+  /** A portal session for this client at their current token_version. */
+  private async issueClient(client: Client): Promise<LoginResult> {
+    const user: AuthPrincipal = { id: client.id, kind: 'Client', role: 'Client', name: client.name, email: client.email };
+    const payload: JwtPayload = {
+      sub: client.id,
+      kind: 'Client',
+      role: 'Client',
+      name: client.name,
+      email: client.email,
+      tv: client.token_version ?? 0,
+    };
+    return { access_token: await this.jwt.signAsync(payload), user };
+  }
+
+  /**
+   * PUT /account/password for a signed-in client. A wrong current password
+   * counts toward the same lockout as a wrong sign-in (a stolen token must not
+   * be a free password oracle). Bumps token_version in one conditional UPDATE,
+   * so every other portal session, and the token used to ask, stop working;
+   * the answer is a fresh session.
+   */
+  async changeClientPassword(principal: AuthPrincipal, currentPassword: string, newPassword: string, ip: string): Promise<LoginResult> {
+    const client = await this.db.clients.findById(principal.id);
+    if (!client) throw new UnauthorizedException('Invalid or expired session token');
+    const key = `client:${client.email.toLowerCase()}`;
+    await this.assertNotLocked(key, ip);
+    if (!(await verify(currentPassword, client.password_hash))) {
+      await this.recordFailure(key, ip);
+      throw new BadRequestException('Your current password is not correct.');
+    }
+    const version = client.token_version ?? 0;
+    const changed = await this.db.clients.updateWhere(
+      { id: client.id, token_version: version },
+      { password_hash: await hashPassword(newPassword), token_version: version + 1, updated_at: new Date().toISOString() },
+    );
+    if (changed !== 1) throw new BadRequestException('Your password was just changed elsewhere. Please sign in again.');
+    await this.mail.send({ to: client.email, ...templates.passwordChanged(client.name, `${this.portalUrl}/forgot-password`) });
+    return this.issueClient({ ...client, token_version: version + 1 });
+  }
+
+  /**
    * Re-entering your password while signed in (linking Google). A wrong one
    * counts toward the lockout like a wrong sign-in. 400, not 401: a 401 would
    * end the session the admin is using.
@@ -249,6 +322,9 @@ export class AuthService implements OnApplicationBootstrap {
 
   /** GET /auth/me: who I am, and how I sign in. Never a secret or a hash. */
   async me(principal: AuthPrincipal): Promise<Me> {
+    if (principal.kind === 'Client') {
+      return { ...principal, twoFactorMethod: null, googleLinked: false, googleEmail: null };
+    }
     const staff = await this.db.staffUsers.findById(principal.id);
     return {
       ...principal,
@@ -306,6 +382,71 @@ export class AuthService implements OnApplicationBootstrap {
     }
     await this.setPassword(staff, newPassword);
     await this.clearLocks(staff.email.toLowerCase(), ip);
+  }
+
+  /* ---- Portal passwords: invite, forgot, reset ---- */
+
+  /** The client's one-time set-password link. In the fragment, like the staff one. */
+  private async portalLink(client: Client, expiresIn: '30m' | '7d', invite: boolean): Promise<string> {
+    const token = await this.jwt.signAsync(
+      { sub: client.id, tv: client.token_version ?? 0, purpose: PORTAL_PASSWORD },
+      { expiresIn },
+    );
+    return `${this.portalUrl}/reset-password#token=${token}${invite ? '&invite=1' : ''}`;
+  }
+
+  /** Emails the invitation (POST /clients/:id/invite). The caller decides who may be invited. */
+  async sendPortalInvite(client: Client, inviter: string): Promise<boolean> {
+    const link = await this.portalLink(client, '7d', true);
+    const sent = await this.mail.send({ to: client.email, ...templates.portalInvite(client.name, inviter, link) });
+    if (!sent) this.logger.warn(`Portal invitation for ${maskEmail(client.email)} could not be emailed.`);
+    return sent;
+  }
+
+  /**
+   * POST /auth/portal/forgot. Silent unless the address is an active client
+   * who already has a portal password: forgetting one is not a way to get one
+   * (that is the Admin's invitation). Same answer either way.
+   */
+  async forgotPortalPassword(email: string): Promise<void> {
+    const address = email.trim().toLowerCase();
+    const client = await this.db.clients.findFirstWhere({ email: { equals: address, mode: 'insensitive' } });
+    if (!client || client.status !== 'Active' || !looksHashed(client.password_hash)) return;
+    if ((await this.limits.hit(`forgot:client:${address}`, 60 * 60_000)) > 3) return;
+
+    const link = await this.portalLink(client, '30m', false);
+    const sent = await this.mail.send({ to: client.email, ...templates.passwordReset(client.name, link) });
+    if (!sent) this.logger.warn(`Portal reset requested for ${maskEmail(client.email)} but no email could be sent.`);
+  }
+
+  /** POST /auth/portal/reset: the invitation and the forgotten password both land here. */
+  async resetPortalPassword(token: string, newPassword: string, ip: string): Promise<void> {
+    const expired = () => new BadRequestException('This link has expired or was already used. Ask for a new one.');
+    let claims: { sub?: string; tv?: number; purpose?: string };
+    try {
+      claims = await this.jwt.verifyAsync(token);
+    } catch {
+      throw expired();
+    }
+    if (claims.purpose !== PORTAL_PASSWORD || !claims.sub || typeof claims.tv !== 'number') throw expired();
+    const client = await this.db.clients.findById(claims.sub);
+    if (!client || client.status !== 'Active') throw expired();
+
+    // Conditional on the version the link was signed with, in one UPDATE, so
+    // two requests racing with the same link cannot both win.
+    const changed = await this.db.clients.updateWhere(
+      { id: client.id, token_version: claims.tv },
+      { password_hash: await hashPassword(newPassword), token_version: claims.tv + 1, updated_at: new Date().toISOString() },
+    );
+    if (changed !== 1) throw expired();
+    await this.clearLocks(`client:${client.email.toLowerCase()}`, ip);
+    // Accepting an invitation sets the first password; nothing was "changed".
+    if (looksHashed(client.password_hash)) {
+      await this.mail.send({
+        to: client.email,
+        ...templates.passwordChanged(client.name, `${this.portalUrl}/forgot-password`),
+      });
+    }
   }
 
   /** Stores the new hash, burns any reset token, and signs every session out. */

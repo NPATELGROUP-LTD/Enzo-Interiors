@@ -2,6 +2,9 @@
  * Display formatting. UK conventions throughout — this is a Leicester business.
  */
 
+/** A staff role as people see it: Installer is a legacy name for Designer. */
+export const roleLabel = (role: string | undefined): string => (role === 'Installer' ? 'Designer' : (role ?? ''));
+
 const GBP = new Intl.NumberFormat('en-GB', {
   style: 'currency',
   currency: 'GBP',

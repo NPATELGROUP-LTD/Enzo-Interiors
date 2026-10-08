@@ -17,11 +17,9 @@ export type ProjectStage =
   | 'Approval'
   | 'Installation'
   | 'Completed';
-export type QuoteType = 'Simple' | 'Detailed';
-export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Expired';
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Quote' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
 export type SenderType = 'Client' | 'Staff';
 
 export const PROJECT_STAGES: ProjectStage[] = [
@@ -34,7 +32,6 @@ export const PROJECT_STAGES: ProjectStage[] = [
 
 export const DOCUMENT_TYPES: DocumentType[] = [
   'Contract',
-  'Quote',
   'Invoice',
   'Plan',
   'MoodBoard',
@@ -49,7 +46,6 @@ export const SERVICE_LABELS: Record<ServiceType, string> = {
 
 export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   Contract: 'Contract',
-  Quote: 'Quote',
   Invoice: 'Invoice',
   Plan: 'Plan',
   MoodBoard: 'Mood board',
@@ -93,45 +89,34 @@ export interface Project {
   assigned_designer_name: string | null;
 }
 
-export interface QuoteLineItem {
+/** One line of an invoice: a net (ex-VAT) price. */
+export interface InvoiceItem {
   id: string;
-  quote_id: string;
-  component_id: string;
-  component_name: string;
+  description: string;
   quantity: number;
   unit_price: number;
-  line_total: number;
+  position: number;
 }
 
-export interface Quote {
-  id: string;
-  client_id: string;
-  service_id: ServiceType;
-  type: QuoteType;
-  design_fee: number;
-  subtotal: number;
-  vat_rate: number;
-  total: number;
-  status: QuoteStatus;
-  invoice_id: string | null;
-  created_at: string;
-  updated_at: string;
-  lines: QuoteLineItem[];
-  client_name: string;
-}
-
+/**
+ * GET /invoices (and /invoices/:id): the client's own invoices, never Drafts.
+ * `amount` is the gross payable; `net_amount` + `vat_amount` split it, and
+ * `items` are the net lines (empty on an invoice raised before lines existed).
+ * The rows inside a project's detail are the plain invoice rows, without
+ * `items`, names or the overdue fields.
+ */
 export interface Invoice {
   id: string;
   number: string;
   client_id: string;
   project_id: string | null;
-  quote_id: string | null;
   amount: number;
   vat_rate: number;
   status: InvoiceStatus;
   due_date: string;
   paid_at: string | null;
   created_at: string;
+  items?: InvoiceItem[];
   client_name: string;
   project_name: string | null;
   net_amount: number;
@@ -146,16 +131,25 @@ export interface Booking {
   service_type: ServiceType;
   date_time: string;
   status: BookingStatus;
-  linked_quote_id: string | null;
   created_at: string;
   client_name: string;
   client_email: string;
 }
 
+/** A shared document by id; opened through GET /documents/:id/download. */
 export interface MessageAttachment {
+  document_id: string;
   name: string;
   size_bytes: number;
-  storage_url: string;
+}
+
+/** GET /conversations/:id/documents: what may be attached in that thread. */
+export interface AttachableDocument {
+  id: string;
+  name: string;
+  type: DocumentType;
+  size_bytes: number;
+  upload_date: string;
 }
 
 export interface Message {
@@ -189,10 +183,14 @@ export interface DocumentRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
-  storage_url: string;
   client_name: string;
   project_name: string | null;
-  download_url: string;
+}
+
+/** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */
+export interface DocumentDownload {
+  url: string;
+  expires_in: number;
 }
 
 export interface ActivityLog {
@@ -228,7 +226,8 @@ export interface NotificationPreference {
 export interface ProjectDetail {
   project: Project;
   client: { id: string; name: string; email: string } | null;
-  documents: DocumentRecord[];
+  /** Without client_name / project_name: the project and client are above. */
+  documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
   timeline: Array<{
@@ -242,8 +241,8 @@ export interface ProjectDetail {
 
 /** GET /dashboard/portal */
 export interface PortalDashboard {
-  next_appointment: Booking | null;
-  unread_messages: number;
+  /** A website consultation booked with the client's email. */
+  next_appointment: { id: string; service_label: string; starts_at: string } | null;
   documents_count: number;
   invoices: {
     paid_total: number;
@@ -255,7 +254,6 @@ export interface PortalDashboard {
     active: number;
     awaiting_your_approval: Array<{ id: string; name: string; type: ServiceType }>;
   };
-  quotes: { awaiting_your_decision: number };
   timeline: Array<{
     id: string;
     name: string;

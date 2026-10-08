@@ -186,10 +186,11 @@ services:
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
-      # The admin, and the public site's enquiry forms.
-      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${WEB_PUBLIC_URL:-http://localhost:3000}
+      # The admin, the client portal, and the public site's enquiry forms.
+      CORS_ORIGINS: ${ADMIN_URL:-http://localhost:5174},${PORTAL_URL:-http://localhost:5175},${WEB_PUBLIC_URL:-http://localhost:3000}
       # Where password-reset links point.
       ADMIN_URL: ${ADMIN_URL:-http://localhost:5174}
+      PORTAL_URL: ${PORTAL_URL:-http://localhost:5175}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379}
       # Newsletter links: confirm/unsubscribe pages, and the one-click header.
       WEB_PUBLIC_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
@@ -222,6 +223,8 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      # Client documents: never public, downloads are 5-minute signed links.
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-enzo-private}
       # The browser-reachable address of the public bucket, which is not the
       # in-network one above: a visitor cannot resolve "minio".
       S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?public URL of the media bucket}
@@ -363,6 +366,38 @@ services:
     healthcheck:
       # Static files behind nginx: serving index.html is the whole contract.
       # wget is busybox's, already in the alpine image.
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  # The client portal: the same nginx-served SPA pattern as admin.
+  portal:
+    image: enzo-interiors-portal:latest
+    build:
+      context: ./apps/portal
+      args:
+        # Inlined at build time, like the admin's.
+        VITE_API_BASE_URL: ${API_PUBLIC_URL:?public URL of the API}
+    restart: unless-stopped
+    networks: [default, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-portal.rule=Host(`${PORTAL_HOST:-portal.enzointeriors.co.uk}`)
+      - traefik.http.routers.enzo-portal.entrypoints=http
+      - traefik.http.services.enzo-portal.loadbalancer.server.port=80
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      # Substituted into the Content-Security-Policy by nginx at start.
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+    ports:
+      - '${PORTAL_PORT:-5175}:80'
+    healthcheck:
       test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
       interval: 10s
       timeout: 5s

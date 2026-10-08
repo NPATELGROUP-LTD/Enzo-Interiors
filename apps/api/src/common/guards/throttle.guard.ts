@@ -19,9 +19,15 @@ export function waitFor(ms: number): string {
  * website can show as they are, instead of "ThrottlerException: Too Many
  * Requests". Retry-After and the RateLimit headers are still set as before.
  * Counts per clientIp(), so behind Cloudflare each visitor has their own limit.
+ * HTTP only: the stock guard sets response headers, which a socket event has not.
  */
 @Injectable()
 export class FriendlyThrottlerGuard extends ThrottlerGuard {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    if (context.getType() !== 'http') return true;
+    return super.canActivate(context);
+  }
+
   protected async getTracker(req: Record<string, unknown>): Promise<string> {
     return clientIp(req as unknown as Parameters<typeof clientIp>[0]);
   }

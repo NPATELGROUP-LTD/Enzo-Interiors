@@ -5,15 +5,18 @@ import {
   AppearancePicker,
   Button,
   Card,
+  ErrorState,
   Input,
+  LoadingState,
   PageHeader,
   Tabs,
   Toggle,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, tokenStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { connectSocket, disconnectSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
 import type { NotificationPreference } from '@/types/api';
 
@@ -31,8 +34,8 @@ export function SettingsPage() {
   const changePassword = async (event: FormEvent) => {
     event.preventDefault();
     setPasswordError(null);
-    if (passwordForm.next.length < 6) {
-      return setPasswordError('Your new password must be at least 6 characters.');
+    if (passwordForm.next.length < 12) {
+      return setPasswordError('Use at least 12 characters for the new password.');
     }
     if (passwordForm.next !== passwordForm.confirm) {
       return setPasswordError('The new passwords do not match.');
@@ -40,10 +43,15 @@ export function SettingsPage() {
 
     setPasswordSaving(true);
     try {
-      await api.put('/account/password', {
+      // Changing it signs every session out, this one included; the answer is a new one.
+      const session = await api.put<{ access_token: string }>('/account/password', {
         current_password: passwordForm.current,
         new_password: passwordForm.next,
       });
+      tokenStore.set(session.access_token);
+      // The live connection was opened with the old token; open it again with the new one.
+      disconnectSocket();
+      connectSocket();
       toast.success('Password changed.');
       setPasswordForm({ current: '', next: '', confirm: '' });
     } catch (caught) {
@@ -57,9 +65,8 @@ export function SettingsPage() {
 
   const savePreference = async (patch: Partial<NotificationPreference>) => {
     try {
-      await api.put('/notification-preferences', patch);
+      preferences.setData(await api.put<NotificationPreference>('/notification-preferences', patch));
       toast.success('Preferences saved.');
-      await preferences.refetch();
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not save preferences.');
     }
@@ -119,31 +126,32 @@ export function SettingsPage() {
           <p className="mt-1 text-ink-muted">
             Choose how you would like to hear about project updates, messages and invoices.
           </p>
-          {preferences.data ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-3 [&>div]:rounded-control [&>div]:bg-ink/[0.035] [&>div]:p-3">
+          {preferences.error ? (
+            <div className="mt-4">
+              <ErrorState message={preferences.error} onRetry={preferences.refetch} />
+            </div>
+          ) : preferences.loading || !preferences.data ? (
+            <div className="mt-4">
+              <LoadingState label="Loading your preferences…" />
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 [&>div]:rounded-control [&>div]:bg-ink/[0.035] [&>div]:p-3">
               <Toggle
                 label="Email"
-                description="Project updates and new messages."
+                description="Project updates, new documents and invoices."
                 checked={preferences.data.email_enabled}
                 onChange={(next) => void savePreference({ email_enabled: next })}
               />
               <Toggle
-                label="SMS"
-                description="Appointment reminders only."
-                checked={preferences.data.sms_enabled}
-                onChange={(next) => void savePreference({ sms_enabled: next })}
-              />
-              <Toggle
-                label="In-app"
-                description="Notifications inside this portal."
+                label="In the portal"
+                description="Updates shown when you sign in."
                 checked={preferences.data.in_app_enabled}
                 onChange={(next) => void savePreference({ in_app_enabled: next })}
               />
             </div>
-          ) : null}
-          <p className="mt-4 rounded-control bg-surface-muted px-3 py-2 text-xs text-ink-muted">
-            Prototype note: these preferences are saved, but no email or SMS is actually sent in
-            this build.
+          )}
+          <p className="mt-4 text-xs text-ink-muted">
+            Security emails, like a password change, are always sent.
           </p>
         </Card>
       ) : null}

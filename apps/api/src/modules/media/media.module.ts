@@ -28,6 +28,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { MediaAsset } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { s3Clients } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { BRAND_KEYS } from '../site-settings/site-settings.module';
 
@@ -177,11 +178,8 @@ export class MediaService {
     this.bucket = process.env.S3_PUBLIC_BUCKET ?? 'enzo-public';
     this.publicBase = (process.env.S3_PUBLIC_BASE_URL ?? '').replace(/\/+$/, '');
 
-    const endpoint = process.env.S3_ENDPOINT;
-    const accessKeyId = process.env.S3_ACCESS_KEY_ID;
-    const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;
-
-    if (!endpoint || !accessKeyId || !secretAccessKey) {
+    const s3 = s3Clients();
+    if (!s3) {
       // The CMS is still fully usable against the assets that shipped in
       // apps/web/public; only new uploads need storage. Failing to boot over
       // it would take the whole API down for a missing optional feature.
@@ -191,29 +189,10 @@ export class MediaService {
       this.client = null;
       return;
     }
-
-    const options = {
-      region: process.env.S3_REGION ?? 'us-east-1',
-      credentials: { accessKeyId, secretAccessKey },
-      // MinIO serves buckets as a path segment, not a subdomain. AWS S3 still
-      // accepts path-style requests too, so this is right for both.
-      forcePathStyle: true,
-    };
-    this.client = new S3Client({ ...options, endpoint });
-
-    // The upload URL is used by the editor's BROWSER, and a presigned URL's
-    // signature covers its host. Inside docker the API reaches storage as
-    // http://minio:9000, which no browser can resolve, so upload URLs are
-    // signed for the public address instead: S3_PUBLIC_ENDPOINT when set,
-    // else the origin of the public bucket URL (path-style, so the bucket is
-    // its last path segment). Signing is local maths, so this client never
-    // makes a request of its own.
-    const publicEndpoint =
-      process.env.S3_PUBLIC_ENDPOINT ??
-      (this.publicBase.endsWith(`/${this.bucket}`)
-        ? this.publicBase.slice(0, -(this.bucket.length + 1))
-        : endpoint);
-    this.signer = new S3Client({ ...options, endpoint: publicEndpoint });
+    // The upload URL is used by the editor's BROWSER, so it is signed by
+    // `signer`, for the public address (see s3Clients).
+    this.client = s3.client;
+    this.signer = s3.signer;
   }
 
   /** Turns a stored row into something with a usable `src`. */

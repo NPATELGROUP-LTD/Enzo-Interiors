@@ -2,21 +2,30 @@ import { Controller, Get, Injectable, Module } from '@nestjs/common';
 
 import { AccessService } from '../../common/access/access.service';
 import { CurrentUser, Roles } from '../../common/decorators';
+import { PROJECT_STAGES, Project, ProjectStage } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
-import { money, sum } from '../../common/util/money';
 import { DatabaseService } from '../../data/database.service';
+import { Where } from '../../data/prisma-repository';
+import { addDays, studioInstant, studioParts } from '../booking/slots';
+import { lateMs, sumMoney } from '../invoices/totals';
+import { lastMonths } from './months';
+
+/** Money still to come in: not a Draft, not Paid. */
+const UNPAID = { in: ['Sent', 'Outstanding', 'Overdue'] };
+const DAY = 86_400_000;
 
 /**
- * Dashboard aggregates.
+ * The dashboards, one per audience, each answering from SQL (counts, sums and
+ * bounded lists; no table is read whole):
  *
- * ADDITION beyond the documented endpoint table, deliberately. The bento
- * dashboards in both apps need counts and sums across eight tables; composing
- * them in the frontend would mean eight list requests per dashboard load, each
- * pulling far more data than the tile displays, and would put business
- * arithmetic (what counts as overdue, what counts as unread) in two frontends
- * instead of one API. Everything here is derived from data the caller could
- * already read through the documented endpoints, and the same RBAC scoping
- * applies, so this adds convenience rather than reach.
+ *   /dashboard/admin     Admin: money, enquiries, consultations, every project.
+ *   /dashboard/designer  Designer/Installer: only the projects they are on.
+ *                        No money, no enquiries, no consultations.
+ *   /dashboard/portal    Client: their own shared projects, files and invoices.
+ *
+ * Editors get 403 on all three. The audiences differ in shape, not just in
+ * scope, so they are separate routes with their own @Roles rather than one
+ * route that quietly drops fields.
  */
 @Injectable()
 export class DashboardService {
@@ -25,266 +34,184 @@ export class DashboardService {
     private readonly access: AccessService,
   ) {}
 
-  /** The admin bento: bookings, active projects, enquiries, invoices, messages, chart. */
-  async admin(principal: AuthPrincipal) {
-    const [
-      allProjects,
-      allInvoices,
-      allBookings,
-      allConversations,
-      allMessages,
-      submissions,
-      clients,
-      quotes,
-    ] = await Promise.all([
-      this.db.projects.findAll(),
-      this.db.invoices.findAll(),
-      this.db.bookings.findAll(),
-      this.db.conversations.findAll(),
-      this.db.messages.findAll(),
-      this.db.contactSubmissions.findAll(),
-      this.db.clients.findAll(),
-      this.db.quotes.findAll(),
-    ]);
-
-    const scope = <T>(rows: T[], clientIdOf: (row: T) => string) =>
-      this.access.scopeToVisibleClients(principal, rows, clientIdOf);
-
-    const [projects, invoices, bookings, conversations, scopedClients, scopedQuotes] =
-      await Promise.all([
-        scope(allProjects, (r) => r.client_id),
-        scope(allInvoices, (r) => r.client_id),
-        scope(allBookings, (r) => r.client_id),
-        scope(allConversations, (r) => r.client_id),
-        scope(clients, (r) => r.id),
-        scope(quotes, (r) => r.client_id),
-      ]);
-
-    const now = new Date();
-    const todayKey = now.toISOString().slice(0, 10);
-    const nowIso = now.toISOString();
-
-    const conversationIds = new Set(conversations.map((c) => c.id));
-    // Unread for staff means unread messages sent BY clients.
-    const unreadMessages = allMessages.filter(
-      (message) =>
-        conversationIds.has(message.conversation_id) &&
-        message.sender_type === 'Client' &&
-        message.read_at === null,
-    );
-
-    const unpaid = invoices.filter(
-      (invoice) => invoice.status === 'Outstanding' || invoice.status === 'Overdue',
-    );
-    const overdue = unpaid.filter(
-      (invoice) => new Date(`${invoice.due_date}T23:59:59.999Z`).getTime() < now.getTime(),
-    );
-    const dueThisWeek = unpaid.filter((invoice) => {
-      const due = new Date(`${invoice.due_date}T23:59:59.999Z`).getTime();
-      return due >= now.getTime() && due <= now.getTime() + 7 * 86_400_000;
-    });
-
-    // The dashboard tile names the client, so the raw booking row is not
-    // enough on its own — decorate it the same way BookingsService would.
-    const clientNames = new Map(clients.map((client) => [client.id, client]));
-    const nextBooking =
-      bookings
-        .filter((booking) => booking.date_time >= nowIso && booking.status !== 'Cancelled')
-        .sort((a, b) => a.date_time.localeCompare(b.date_time))[0] ?? null;
-    const decoratedNext = nextBooking
-      ? {
-          ...nextBooking,
-          client_name: clientNames.get(nextBooking.client_id)?.name ?? 'Unknown client',
-          client_email: clientNames.get(nextBooking.client_id)?.email ?? '',
-        }
-      : null;
-
+  /** Projects by stage within `scope`, plus the three headline numbers. */
+  private async projectCounts(scope: Where<Project>) {
+    const counts = await Promise.all(PROJECT_STAGES.map((status) => this.db.projects.countWhere({ ...scope, status })));
+    const by_stage = Object.fromEntries(PROJECT_STAGES.map((stage, i) => [stage, counts[i]!])) as Record<ProjectStage, number>;
+    const completed = by_stage.Completed;
     return {
-      bookings: {
-        today: bookings.filter(
-          (booking) => booking.date_time.slice(0, 10) === todayKey && booking.status !== 'Cancelled',
-        ).length,
-        upcoming: bookings.filter(
-          (booking) => booking.date_time >= nowIso && booking.status !== 'Cancelled',
-        ).length,
-        awaiting_confirmation: bookings.filter(
-          (booking) => booking.status === 'Pending' && booking.date_time >= nowIso,
-        ).length,
-        next: decoratedNext,
-      },
-      projects: {
-        active: projects.filter((project) => project.status !== 'Completed').length,
-        completed: projects.filter((project) => project.status === 'Completed').length,
-        awaiting_decision: projects.filter((project) => project.status === 'Approval').length,
-        by_stage: {
-          Consultation: projects.filter((p) => p.status === 'Consultation').length,
-          Design: projects.filter((p) => p.status === 'Design').length,
-          Approval: projects.filter((p) => p.status === 'Approval').length,
-          Installation: projects.filter((p) => p.status === 'Installation').length,
-          Completed: projects.filter((p) => p.status === 'Completed').length,
-        },
-      },
-      enquiries: {
-        // Contact submissions are not client-scoped — they are leads with no
-        // client record yet, so every staff member sees the same inbox.
-        total: submissions.length,
-        new: submissions.filter((submission) => submission.status === 'New').length,
-        since_yesterday: submissions.filter(
-          (submission) =>
-            new Date(submission.created_at).getTime() > now.getTime() - 86_400_000,
-        ).length,
-      },
-      invoices: {
-        outstanding_total: sum(unpaid.map((invoice) => invoice.amount)),
-        due_this_week_total: sum(dueThisWeek.map((invoice) => invoice.amount)),
-        overdue_count: overdue.length,
-        paid_total: sum(
-          invoices.filter((invoice) => invoice.status === 'Paid').map((invoice) => invoice.amount),
-        ),
-      },
-      messages: {
-        unread: unreadMessages.length,
-        conversations_needing_reply: new Set(
-          unreadMessages.map((message) => message.conversation_id),
-        ).size,
-      },
-      clients: {
-        total: scopedClients.length,
-        active: scopedClients.filter((client) => client.status === 'Active').length,
-      },
-      quotes: {
-        draft: scopedQuotes.filter((quote) => quote.status === 'Draft').length,
-        sent: scopedQuotes.filter((quote) => quote.status === 'Sent').length,
-        accepted_awaiting_invoice: scopedQuotes.filter(
-          (quote) => quote.status === 'Accepted' && quote.invoice_id === null,
-        ).length,
-      },
-      /** Monthly bookings chart — the trailing 12 months, oldest first. */
-      bookings_chart: this.monthlySeries(bookings.map((booking) => booking.date_time), 12),
-      /** Monthly revenue from invoices actually marked Paid. */
-      revenue_chart: this.monthlyRevenue(
-        invoices
-          .filter((invoice) => invoice.status === 'Paid' && invoice.paid_at)
-          .map((invoice) => ({ at: invoice.paid_at!, amount: invoice.amount })),
-        12,
-      ),
+      active: counts.reduce((a, b) => a + b, 0) - completed,
+      completed,
+      awaiting_decision: by_stage.Approval,
+      by_stage,
     };
   }
 
-  /** The portal bento: next appointment, unread, documents, invoices, timeline. */
-  async portal(principal: AuthPrincipal) {
-    const clientId = principal.id;
-    const [projects, invoices, bookings, documents, conversations, messages, quotes] =
-      await Promise.all([
-        this.db.projects.findAll((row) => row.client_id === clientId && row.client_visible),
-        this.db.invoices.findAll((row) => row.client_id === clientId),
-        this.db.bookings.findAll((row) => row.client_id === clientId),
-        this.db.documents.findAll((row) => row.client_id === clientId && row.client_visible),
-        this.db.conversations.findAll((row) => row.client_id === clientId),
-        this.db.messages.findAll(),
-        this.db.quotes.findAll((row) => row.client_id === clientId),
-      ]);
+  async admin() {
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const today = studioParts(now).date;
+    const months = lastMonths(today.slice(0, 7), 12);
+    const since = studioInstant(`${months[0]!.month}-01`, '00:00').toISOString();
+    const thisMonth = studioInstant(`${months[11]!.month}-01`, '00:00').toISOString();
+    // due_date is midnight UTC of the due day; late once that day has ended.
+    const utcToday = `${nowIso.slice(0, 10)}T00:00:00.000Z`;
+    const inAWeek = new Date(Date.parse(utcToday) + 8 * DAY).toISOString();
+    const upcoming = { status: 'Confirmed', starts_at: { gte: nowIso } };
+    const store = this.db.invoiceStore;
 
-    const nowIso = new Date().toISOString();
-    const conversationIds = new Set(conversations.map((c) => c.id));
-    // Unread for a client means unread messages sent BY staff.
-    const unread = messages.filter(
-      (message) =>
-        conversationIds.has(message.conversation_id) &&
-        message.sender_type === 'Staff' &&
-        message.read_at === null,
-    );
+    const [
+      projects, nextAppointment, appointmentsToday, appointmentsUpcoming, appointmentRows,
+      enquiriesTotal, enquiriesNew, enquiriesRecent,
+      outstanding, dueThisWeek, overdue, paid, paidThisMonth, paidRows,
+      clientsTotal, clientsActive,
+    ] = await Promise.all([
+      this.projectCounts({}),
+      this.db.appointments.findFirstWhere(upcoming, { starts_at: 'asc' }),
+      this.db.appointments.countWhere({
+        status: 'Confirmed',
+        starts_at: { gte: studioInstant(today, '00:00').toISOString(), lt: studioInstant(addDays(today, 1), '00:00').toISOString() },
+      }),
+      this.db.appointments.countWhere(upcoming),
+      this.db.appointments.findWhere({ status: 'Confirmed', starts_at: { gte: since } }),
+      this.db.contactSubmissions.countWhere({}),
+      this.db.contactSubmissions.countWhere({ status: 'New' }),
+      this.db.contactSubmissions.countWhere({ created_at: { gt: new Date(now.getTime() - DAY).toISOString() } }),
+      store.sum({ status: UNPAID }),
+      store.sum({ status: UNPAID, due_date: { gte: utcToday, lt: inAWeek } }),
+      this.db.invoices.countWhere({ status: UNPAID, due_date: { lt: utcToday } }),
+      store.sum({ status: 'Paid' }),
+      store.sum({ status: 'Paid', paid_at: { gte: thisMonth } }),
+      this.db.invoices.findWhere({ status: 'Paid', paid_at: { gte: since } }),
+      this.db.clients.countWhere({}),
+      this.db.clients.countWhere({ status: 'Active' }),
+    ]);
 
-    const unpaid = invoices.filter(
-      (invoice) => invoice.status === 'Outstanding' || invoice.status === 'Overdue',
-    );
-    const nextInvoice = invoices
-      .filter((invoice) => invoice.status !== 'Paid' && invoice.status !== 'Draft')
-      .sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
-
-    const client = await this.db.clients.findById(clientId);
-    const nextAppointment =
-      bookings
-        .filter((booking) => booking.date_time >= nowIso && booking.status !== 'Cancelled')
-        .sort((a, b) => a.date_time.localeCompare(b.date_time))[0] ?? null;
+    const appointments_chart = lastMonths(today.slice(0, 7), 12);
+    for (const row of appointmentRows) {
+      const bucket = appointments_chart.find((b) => b.month === studioParts(new Date(row.starts_at)).date.slice(0, 7));
+      if (bucket) bucket.value += 1;
+    }
+    const revenue_chart = lastMonths(today.slice(0, 7), 12);
+    for (const bucket of revenue_chart) {
+      bucket.value = sumMoney(
+        paidRows.filter((row) => studioParts(new Date(row.paid_at!)).date.startsWith(bucket.month)).map((row) => row.amount),
+      );
+    }
 
     return {
-      next_appointment: nextAppointment
-        ? {
-            ...nextAppointment,
-            client_name: client?.name ?? 'Unknown client',
-            client_email: client?.email ?? '',
-          }
-        : null,
-      unread_messages: unread.length,
-      documents_count: documents.length,
+      appointments: {
+        today: appointmentsToday,
+        upcoming: appointmentsUpcoming,
+        next: nextAppointment && {
+          id: nextAppointment.id,
+          reference: nextAppointment.reference,
+          name: nextAppointment.name,
+          service_label: nextAppointment.service_label,
+          starts_at: nextAppointment.starts_at,
+        },
+      },
+      projects,
+      enquiries: { total: enquiriesTotal, new: enquiriesNew, since_yesterday: enquiriesRecent },
       invoices: {
-        paid_total: sum(
-          invoices.filter((invoice) => invoice.status === 'Paid').map((invoice) => invoice.amount),
-        ),
-        outstanding_total: sum(unpaid.map((invoice) => invoice.amount)),
-        next_due: nextInvoice ?? null,
+        outstanding_total: outstanding.toNumber(),
+        due_this_week_total: dueThisWeek.toNumber(),
+        overdue_count: overdue,
+        paid_total: paid.toNumber(),
+        paid_this_month: paidThisMonth.toNumber(),
+      },
+      clients: { total: clientsTotal, active: clientsActive },
+      appointments_chart,
+      revenue_chart,
+    };
+  }
+
+  /** Designer/Installer: the projects they are assigned to and what is open on them. Nothing financial. */
+  async designer(principal: AuthPrincipal) {
+    const scope = this.access.projectScope(principal);
+    const [projects, open] = await Promise.all([
+      this.projectCounts(scope),
+      this.db.projects.findWhere({ ...scope, status: { not: 'Completed' } }, { orderBy: { updated_at: 'desc' }, take: 10 }),
+    ]);
+    const clients = await this.db.clients.findWhere({ id: { in: [...new Set(open.map((p) => p.client_id))] } });
+    const names = new Map(clients.map((client) => [client.id, client.name]));
+    return {
+      projects,
+      tasks: open.map((project) => ({
+        id: project.id,
+        name: project.name,
+        type: project.type,
+        client_name: names.get(project.client_id) ?? 'Unknown client',
+        status: project.status,
+        progress_pct: project.progress_pct,
+        current_stage: project.current_stage,
+        // What they are on it for, since one person can be both.
+        roles: [
+          project.assigned_designer_id === principal.id ? 'Designer' : null,
+          project.assigned_installer_id === principal.id ? 'Installer' : null,
+        ].filter((role) => role !== null),
+        updated_at: project.updated_at,
+      })),
+    };
+  }
+
+  /** A client: only their own, only what has been shared, never a Draft invoice. */
+  async portal(principal: AuthPrincipal) {
+    const mine = { client_id: principal.id };
+    const nowIso = new Date().toISOString();
+    const store = this.db.invoiceStore;
+    const client = await this.db.clients.findById(principal.id);
+
+    const [projects, documents, paid, outstanding, nextDue, appointment] = await Promise.all([
+      this.db.projects.findWhere({ ...mine, client_visible: true }, { orderBy: { updated_at: 'desc' } }),
+      this.access.documentScope(principal).then((scope) => this.db.documents.countWhere(scope)),
+      store.sum({ ...mine, status: 'Paid' }),
+      store.sum({ ...mine, status: UNPAID }),
+      this.db.invoices.findFirstWhere({ ...mine, status: { notIn: ['Draft', 'Paid'] } }, { due_date: 'asc' }),
+      // A consultation booked on the website is theirs when it carries their email.
+      client
+        ? this.db.appointments.findFirstWhere(
+            { email: { equals: client.email, mode: 'insensitive' }, status: 'Confirmed', starts_at: { gte: nowIso } },
+            { starts_at: 'asc' },
+          )
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      next_appointment: appointment && {
+        id: appointment.id,
+        service_label: appointment.service_label,
+        starts_at: appointment.starts_at,
+      },
+      documents_count: documents,
+      invoices: {
+        paid_total: paid.toNumber(),
+        outstanding_total: outstanding.toNumber(),
+        next_due: nextDue && {
+          ...nextDue,
+          is_overdue: lateMs(nextDue.due_date) > 0,
+          days_overdue: Math.max(0, Math.floor(lateMs(nextDue.due_date) / DAY)),
+        },
       },
       projects: {
         total: projects.length,
         active: projects.filter((project) => project.status !== 'Completed').length,
-        /** The decision awaiting the client — the portal's most important tile. */
+        /** The decision awaiting the client: the portal's most important tile. */
         awaiting_your_approval: projects
           .filter((project) => project.status === 'Approval')
           .map((project) => ({ id: project.id, name: project.name, type: project.type })),
       },
-      quotes: {
-        awaiting_your_decision: quotes.filter((quote) => quote.status === 'Sent').length,
-      },
       /** Progress bars for the dashboard timeline widget. */
-      timeline: projects
-        .sort((a, b) => b.updated_at.localeCompare(a.updated_at))
-        .map((project) => ({
-          id: project.id,
-          name: project.name,
-          type: project.type,
-          status: project.status,
-          progress_pct: project.progress_pct,
-          current_stage: project.current_stage,
-          updated_at: project.updated_at,
-        })),
+      timeline: projects.map((project) => ({
+        id: project.id,
+        name: project.name,
+        type: project.type,
+        status: project.status,
+        progress_pct: project.progress_pct,
+        current_stage: project.current_stage,
+        updated_at: project.updated_at,
+      })),
     };
-  }
-
-  /** Count per month for the trailing `months` months, oldest first. */
-  private monthlySeries(timestamps: string[], months: number) {
-    const buckets = this.emptyBuckets(months);
-    for (const timestamp of timestamps) {
-      const key = timestamp.slice(0, 7);
-      const bucket = buckets.find((entry) => entry.month === key);
-      if (bucket) bucket.value += 1;
-    }
-    return buckets;
-  }
-
-  private monthlyRevenue(entries: Array<{ at: string; amount: number }>, months: number) {
-    const buckets = this.emptyBuckets(months);
-    for (const entry of entries) {
-      const bucket = buckets.find((b) => b.month === entry.at.slice(0, 7));
-      if (bucket) bucket.value = money(bucket.value + entry.amount);
-    }
-    return buckets;
-  }
-
-  private emptyBuckets(months: number): Array<{ month: string; label: string; value: number }> {
-    const buckets: Array<{ month: string; label: string; value: number }> = [];
-    const cursor = new Date();
-    cursor.setDate(1);
-    for (let i = months - 1; i >= 0; i -= 1) {
-      const date = new Date(cursor);
-      date.setMonth(date.getMonth() - i);
-      buckets.push({
-        month: date.toISOString().slice(0, 7),
-        label: date.toLocaleString('en-GB', { month: 'short' }),
-        value: 0,
-      });
-    }
-    return buckets;
   }
 }
 
@@ -293,9 +220,15 @@ export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
   @Get('admin')
-  @Roles('Admin', 'Designer', 'Installer')
-  admin(@CurrentUser() principal: AuthPrincipal) {
-    return this.dashboard.admin(principal);
+  @Roles('Admin')
+  admin() {
+    return this.dashboard.admin();
+  }
+
+  @Get('designer')
+  @Roles('Designer', 'Installer')
+  designer(@CurrentUser() principal: AuthPrincipal) {
+    return this.dashboard.designer(principal);
   }
 
   @Get('portal')

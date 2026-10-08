@@ -1,29 +1,30 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { DatabaseService } from '../../data/database.service';
-import { Project } from '../types/domain';
+import { Where } from '../../data/prisma-repository';
+import { DocumentRecord, Project } from '../types/domain';
 import { AuthPrincipal } from '../types/principal';
 
 /**
  * Row-level access scoping — the half of RBAC the guards cannot do.
  *
  * RolesGuard answers "may an Admin call this endpoint". This answers "may THIS
- * staff member read THIS client", which needs the data itself. The rules are
- * the ones in Backend Schema v2.0 section 4 and TRD section 7:
+ * staff member read THIS client", which needs the data itself:
  *
- *   Client              own client_id only.
- *   Designer/Installer  clients assigned to them, plus the clients of projects
- *                       they are the assigned designer on.
+ *   Client              own client_id only, and only projects shared with them.
+ *   Designer/Installer  projects they are assigned to, as designer
+ *                       (assigned_designer_id) or installer
+ *                       (assigned_installer_id), and those projects' clients.
  *   Admin               everything.
+ *   Anyone else         nothing (an Editor never reaches the CRM; this is the
+ *                       floor if a route forgets its @Roles).
  *
- * The Designer/Installer rule reads both edges deliberately. `assigned_staff_id`
- * on clients is account ownership; `assigned_designer_id` on projects is work
- * assignment. A designer handed a single project for someone else's client must
- * be able to see that client, or the project is unusable — but they still get
- * only the clients those two edges reach, never the full book.
+ * Work assignment is the only edge. clients.assigned_staff_id is who looks
+ * after the account, an Admin's note; it grants nobody access.
  *
  * Every service that returns client-scoped rows funnels through
- * `visibleClientIds` so the scoping cannot be forgotten in one endpoint and
+ * `visibleClientIds`, and every project read through `projectScope` /
+ * `requireProject`, so the scoping cannot be forgotten in one endpoint and
  * present in another.
  */
 @Injectable()
@@ -34,12 +35,27 @@ export class AccessService {
     return principal.kind === 'Staff' && principal.role === 'Admin';
   }
 
-  isStaff(principal: AuthPrincipal): boolean {
-    return principal.kind === 'Staff';
-  }
-
   isClient(principal: AuthPrincipal): boolean {
     return principal.kind === 'Client';
+  }
+
+  /** Designer or Installer: sees assigned work only. */
+  private isAssignable(principal: AuthPrincipal): boolean {
+    return principal.kind === 'Staff' && (principal.role === 'Designer' || principal.role === 'Installer');
+  }
+
+  /**
+   * The projects this principal may see, as a WHERE clause, so PostgreSQL
+   * filters (both assignment columns are indexed). Closed by default: anyone
+   * not named here matches no row.
+   */
+  projectScope(principal: AuthPrincipal): Where<Project> {
+    if (this.isAdmin(principal)) return {};
+    if (this.isClient(principal)) return { client_id: principal.id, client_visible: true };
+    if (this.isAssignable(principal)) {
+      return { OR: [{ assigned_designer_id: principal.id }, { assigned_installer_id: principal.id }] };
+    }
+    return { id: { in: [] } };
   }
 
   /**
@@ -51,26 +67,19 @@ export class AccessService {
    */
   async visibleClientIds(principal: AuthPrincipal): Promise<Set<string> | 'all'> {
     if (this.isAdmin(principal)) return 'all';
+    if (this.isClient(principal)) return new Set([principal.id]);
+    if (!this.isAssignable(principal)) return new Set();
 
-    if (this.isClient(principal)) {
-      return new Set([principal.id]);
-    }
-
-    // Designer / Installer.
-    const [assignedClients, assignedProjects] = await Promise.all([
-      this.db.clients.findAll((client) => client.assigned_staff_id === principal.id),
-      this.db.projects.findAll((project) => project.assigned_designer_id === principal.id),
-    ]);
-
-    const ids = new Set<string>(assignedClients.map((client) => client.id));
-    for (const project of assignedProjects) ids.add(project.client_id);
-    return ids;
+    const projects = await this.db.projects.findWhere(this.projectScope(principal));
+    return new Set(projects.map((project) => project.client_id));
   }
 
   /** True when the principal may read/write records belonging to `clientId`. */
   async canAccessClient(principal: AuthPrincipal, clientId: string): Promise<boolean> {
-    const visible = await this.visibleClientIds(principal);
-    return visible === 'all' || visible.has(clientId);
+    if (this.isAdmin(principal)) return true;
+    if (this.isClient(principal)) return principal.id === clientId;
+    if (!this.isAssignable(principal)) return false;
+    return (await this.db.projects.countWhere({ client_id: clientId, ...this.projectScope(principal) })) > 0;
   }
 
   /**
@@ -90,30 +99,56 @@ export class AccessService {
   }
 
   /**
-   * Whether a project is visible to the principal.
-   *
-   * A client additionally cannot see a project with `client_visible` false —
-   * that is the admin's "send to client" toggle, and it hides work in progress
-   * from the portal.
+   * Whether a project is visible to the principal: the in-memory twin of
+   * `projectScope`. A client additionally cannot see a project with
+   * `client_visible` false — the admin's "send to client" toggle.
    */
-  async canAccessProject(principal: AuthPrincipal, project: Project): Promise<boolean> {
+  canAccessProject(principal: AuthPrincipal, project: Project): boolean {
     if (this.isAdmin(principal)) return true;
-
     if (this.isClient(principal)) {
       return project.client_id === principal.id && project.client_visible;
     }
-
-    if (project.assigned_designer_id === principal.id) return true;
-    return this.canAccessClient(principal, project.client_id);
+    return (
+      this.isAssignable(principal) &&
+      (project.assigned_designer_id === principal.id || project.assigned_installer_id === principal.id)
+    );
   }
 
-  /** Load a project by id, enforcing visibility. Throws 404 when out of scope. */
+  /**
+   * The documents this principal may see, as a WHERE clause. A client: their
+   * own, once shared AND on a project that is itself shared (hiding a project
+   * hides its files; a file with no project is never shown). A Designer:
+   * through their projects only (never through the client), and only a row
+   * that belongs to that project's client.
+   */
+  async documentScope(principal: AuthPrincipal): Promise<Where<DocumentRecord>> {
+    if (this.isAdmin(principal)) return {};
+    if (this.isClient(principal)) return this.sharedWithClient(principal.id);
+    const projects = this.isAssignable(principal)
+      ? await this.db.projects.findWhere(this.projectScope(principal))
+      : [];
+    if (projects.length === 0) return { id: { in: [] } };
+    return { OR: projects.map((project) => ({ project_id: project.id, client_id: project.client_id })) };
+  }
+
+  /**
+   * The documents a client sees in their portal, as a WHERE clause: their
+   * own, shared, on a shared project. Also what staff may attach to a message
+   * to that client, so a message never points a client at a file they cannot open.
+   */
+  async sharedWithClient(clientId: string): Promise<Where<DocumentRecord>> {
+    const shared = await this.db.projects.findWhere({ client_id: clientId, client_visible: true });
+    return { client_id: clientId, client_visible: true, project_id: { in: shared.map((project) => project.id) } };
+  }
+
+  /**
+   * Load a project by id, enforcing visibility. 404 when out of scope, for
+   * staff too: a project id outside your work is not yours to confirm.
+   */
   async requireProject(principal: AuthPrincipal, projectId: string): Promise<Project> {
     const project = await this.db.projects.findById(projectId);
-    if (!project) throw new NotFoundException('Project not found');
-    if (!(await this.canAccessProject(principal, project))) {
-      if (this.isClient(principal)) throw new NotFoundException('Project not found');
-      throw new ForbiddenException('This project is outside your assigned work');
+    if (!project || !this.canAccessProject(principal, project)) {
+      throw new NotFoundException('Project not found');
     }
     return project;
   }

@@ -1,11 +1,16 @@
 import clsx from 'clsx';
 import {
+  AddressBook,
+  EnvelopeSimple,
   ArrowSquareOut,
   Browsers,
   CalendarCheck,
   CloudCheck,
+  Gauge,
   UserCircle,
   Image as ImageIcon,
+  ChatsCircle,
+  Kanban,
   MagnifyingGlass,
   Moon,
   SignOut,
@@ -43,6 +48,8 @@ interface Result {
 
 export interface PaletteActions {
   isAdmin: boolean;
+  /** May open the CRM: clients and projects (Admin, Designer). */
+  clients: boolean;
   unpublished: number;
   publishAll: () => void;
   toggleTheme: () => void;
@@ -166,8 +173,17 @@ export function SearchPalette({ open, onClose, actions }: {
         Icon: row.Icon,
         run: go(row.to),
       })),
+      ...(actions.clients
+        ? [
+            { id: 'dashboard', group: 'Go to', label: 'Dashboard', detail: 'Projects, and for an Admin the money and enquiries', Icon: Gauge, run: go('/') },
+            { id: 'clients', group: 'Go to', label: 'Clients', detail: 'Client records, portal invitations', Icon: AddressBook, run: go('/clients') },
+            { id: 'projects', group: 'Go to', label: 'Projects', detail: 'The five-stage board, from consultation to completed', Icon: Kanban, run: go('/projects') },
+            { id: 'messages', group: 'Go to', label: 'Messages', detail: 'Conversations with clients', Icon: ChatsCircle, run: go('/messages') },
+          ]
+        : []),
       ...(actions.isAdmin
         ? [
+            { id: 'enquiries', group: 'Go to', label: 'Enquiries', detail: 'Messages from the website’s forms', Icon: EnvelopeSimple, run: go('/enquiries') },
             { id: 'bookings', group: 'Go to', label: 'Bookings', detail: 'Consultations, new booking', Icon: CalendarCheck, run: go('/bookings') },
             ...SETTINGS_SECTIONS.map((row) => ({
               id: `settings-${row.id}`,
