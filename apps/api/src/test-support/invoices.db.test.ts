@@ -167,12 +167,20 @@ test('status rules: lines and VAT only change on a Draft; Paid is only reached b
   assert.equal((await call('PUT', url, tokens.admin, { discount: 1 })).status, 400, 'its money too');
   const noted = await json<Inv & { job_notes: string }>(await call('PUT', url, tokens.admin, { job_notes: 'Handle: push to open' }));
   assert.deepEqual([noted.status, noted.job_notes, noted.amount], ['Paid', 'Handle: push to open', 42], 'but its paperwork can change');
-  assert.equal((await call('DELETE', url, tokens.admin)).status, 400);
-
   // The client's lifetime value follows the paid invoices, to the penny.
-  const sumPaid = await prisma.invoice.aggregate({ where: { client_id: MINE.id, status: 'Paid' }, _sum: { amount: true } });
-  const client = await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } });
-  assert.equal(client.total_spent.toString(), sumPaid._sum.amount!.toString());
+  const lifetime = async () => {
+    const sumPaid = await prisma.invoice.aggregate({ where: { client_id: MINE.id, status: 'Paid' }, _sum: { amount: true } });
+    const client = await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } });
+    assert.equal(client.total_spent.toString(), (sumPaid._sum.amount ?? 0).toString());
+  };
+  await lifetime();
+
+  // A Paid invoice is deleted only with the Admin's password, and leaves the lifetime value with it.
+  assert.equal((await call('DELETE', url, tokens.admin)).status, 403, 'no password');
+  assert.equal((await call('DELETE', url, tokens.admin, { password: 'not-it' })).status, 403, 'wrong password');
+  assert.equal((await call('DELETE', url, tokens.admin, { password: ADMIN.password })).status, 200);
+  assert.equal((await call('GET', url, tokens.admin)).status, 404);
+  await lifetime();
 });
 
 test('the printed layout: sections, quantity-only rows, a discount before VAT, a schedule; export in order', async () => {

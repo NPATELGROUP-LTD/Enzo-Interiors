@@ -12,6 +12,7 @@ import { DatabaseService } from '../../data/database.service';
 import { Where } from '../../data/prisma-repository';
 import { looksHashed } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.module';
+import { PushService } from '../notifications/push';
 import { SiteSettingsService } from '../site-settings/site-settings.module';
 
 /* -------------------------------------------------------------------------- */
@@ -80,6 +81,7 @@ export class ConversationsService {
     private readonly mail: MailService,
     private readonly notifications: NotificationsService,
     private readonly settings: SiteSettingsService,
+    private readonly push: PushService,
   ) {}
 
   /** Staff read messages from the client, a client reads messages from staff. */
@@ -262,9 +264,29 @@ export class ConversationsService {
   }
 
   /**
+   * Every new message is pushed to the other side's devices, whether or not
+   * they have the app open somewhere: an open tab on a desk says nothing about
+   * the phone in their pocket. One notification per chat (same tag), no
+   * message text on the lock screen. The page's own service worker stays quiet
+   * while that chat is on screen (push-sw.js).
+   */
+  async pushMessage(sender: AuthPrincipal, conversation: Conversation): Promise<void> {
+    const client = await this.db.clients.findById(conversation.client_id);
+    if (!client) return;
+    const tag = `message:${conversation.id}`;
+    if (sender.kind !== 'Client') {
+      if (!this.canUsePortal(client)) return;
+      this.push.send('client', client.id, { title: 'New message from Enzo Interiors', link: '/messages', tag });
+      return;
+    }
+    const note = { title: `New message from ${client.name}`, link: `/messages?client=${client.id}`, tag };
+    for (const staffId of await this.staffFor(client.id)) this.push.send('staff', staffId, note);
+  }
+
+  /**
    * Nobody on the receiving side had the app open: tell them by email and the
-   * bell (which also pushes to their devices), at most once per conversation
-   * and side every 15 minutes. Neither carries the message text.
+   * bell, at most once per conversation and side every 15 minutes. Neither
+   * carries the message text. Devices were already pushed by pushMessage.
    */
   async notifyOffline(sender: AuthPrincipal, conversation: Conversation): Promise<void> {
     const toClient = sender.kind !== 'Client';
@@ -276,13 +298,8 @@ export class ConversationsService {
     if (!client) return;
     if (toClient) {
       // Only someone who can sign in to the portal is sent there.
-      if (client.status !== 'Active' || !looksHashed(client.password_hash)) return;
-      // The bell and their devices too; like the email, no message text.
-      await this.notifications.notifyClient(client.id, {
-        kind: 'message',
-        title: 'New message from Enzo Interiors',
-        link: '/messages',
-      });
+      if (!this.canUsePortal(client)) return;
+      await this.notifications.notifyClient(client.id, { kind: 'message', title: 'New message from Enzo Interiors', link: '/messages' }, false);
       await this.mail.send({
         to: client.email,
         ...templates.newMessage('Enzo Interiors', 'your client portal', `${this.portalUrl}/messages`),
@@ -290,20 +307,24 @@ export class ConversationsService {
       return;
     }
 
-    const note = { kind: 'message' as const, title: `New message from ${client.name}`, link: '/messages' };
-    const designers = await this.db.projects.findWhere({ client_id: client.id });
-    const assigned = new Set(
-      designers.flatMap((p) => [p.assigned_designer_id, p.assigned_installer_id]).filter((id): id is string => Boolean(id)),
-    );
-    await this.notifications.notifyAdmins(note);
-    for (const staffId of assigned) {
-      const staff = await this.db.staffUsers.findById(staffId);
-      if (staff && staff.role !== 'Admin') await this.notifications.notify(staffId, note);
-    }
+    const note = { kind: 'message' as const, title: `New message from ${client.name}`, link: `/messages?client=${client.id}` };
+    for (const staffId of await this.staffFor(client.id)) await this.notifications.notify(staffId, note, false);
     const to = await this.settings.notificationRecipients();
     if (to.length > 0) {
       await this.mail.send({ to, ...templates.newMessage(client.name, 'the Enzo Interiors admin', `${this.adminUrl}/messages`) });
     }
+  }
+
+  private canUsePortal(client: { status: string; password_hash: string }): boolean {
+    return client.status === 'Active' && looksHashed(client.password_hash);
+  }
+
+  /** The staff who hear about a client's messages: every Admin, plus whoever designs or installs for them. */
+  private async staffFor(clientId: string): Promise<string[]> {
+    const projects = await this.db.projects.findWhere({ client_id: clientId });
+    const assigned = new Set(projects.flatMap((p) => [p.assigned_designer_id, p.assigned_installer_id]).filter((id): id is string => Boolean(id)));
+    const staff = await this.db.staffUsers.findAll((row) => row.role === 'Admin' || assigned.has(row.id));
+    return staff.map((row) => row.id);
   }
 
   /** Load a conversation the caller may see, or throw. The gateway uses it too. */

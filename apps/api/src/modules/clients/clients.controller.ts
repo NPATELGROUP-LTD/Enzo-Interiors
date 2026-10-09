@@ -3,6 +3,7 @@ import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
+import { PasswordConfirmDto } from '../auth/reauth';
 import { ClientsService } from './clients.service';
 import { CreateClientDto, UpdateClientDto } from './dto';
 
@@ -63,10 +64,11 @@ export class ClientsController {
     return this.clients.invite(principal, id);
   }
 
-  /** Destructive, and refuses while projects/invoices still reference the client. */
+  /** Deletes the client with all their records; needs `password` (the Admin's own). */
   @Delete(':id')
   @Roles('Admin')
-  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.clients.remove(principal, id);
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.clients.remove(principal, id, dto.password);
   }
 }

@@ -660,7 +660,9 @@ export function Modal({
 
 /**
  * Confirmation for destructive actions. The brief and the PRD's reliability
- * requirement both call for these before any delete.
+ * requirement both call for these before any delete. `password` adds a
+ * "Your password" field for the ones that cannot be undone; onConfirm gets
+ * what was typed, and the dialog stays open so a wrong one can be retyped.
  */
 export function ConfirmDialog({
   open,
@@ -670,15 +672,24 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
   pending,
+  password = false,
 }: {
   open: boolean;
   title: string;
   message: ReactNode;
   confirmLabel?: string;
-  onConfirm: () => void;
+  onConfirm: (password: string) => void;
   onCancel: () => void;
   pending?: boolean;
+  password?: boolean;
 }) {
+  const [typed, setTyped] = useState('');
+  const formId = useId();
+  // Never keep a password around between openings.
+  useEffect(() => {
+    if (!open) setTyped('');
+  }, [open]);
+
   return (
     <Modal
       open={open}
@@ -690,13 +701,40 @@ export function ConfirmDialog({
           <Button variant="secondary" onClick={onCancel} disabled={pending}>
             Cancel
           </Button>
-          <Button variant="destructive" onClick={onConfirm} loading={pending}>
+          <Button
+            variant="destructive"
+            type={password ? 'submit' : 'button'}
+            form={password ? formId : undefined}
+            onClick={password ? undefined : () => onConfirm('')}
+            loading={pending}
+            disabled={password && !typed}
+          >
             {confirmLabel}
           </Button>
         </>
       }
     >
       <div className="text-ink">{message}</div>
+      {password ? (
+        <form
+          id={formId}
+          className="mt-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (typed) onConfirm(typed);
+          }}
+        >
+          <Input
+            label="Your password"
+            hint="The password you sign in with. Needed because this cannot be undone."
+            type="password"
+            autoComplete="current-password"
+            autoFocus
+            value={typed}
+            onChange={(event) => setTyped(event.target.value)}
+          />
+        </form>
+      ) : null}
     </Modal>
   );
 }

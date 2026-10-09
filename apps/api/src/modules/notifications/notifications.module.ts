@@ -36,20 +36,20 @@ export class NotificationsService {
     private readonly push: PushService,
   ) {}
 
-  /** A staff member's bell (and their devices). */
-  async notify(recipientId: string, note: NewNotification): Promise<void> {
+  /** A staff member's bell (and their devices, unless `push` is false: the caller pushes itself). */
+  async notify(recipientId: string, note: NewNotification, push = true): Promise<void> {
     await this.store(recipientId, note);
-    this.push.send('staff', recipientId, note);
+    if (push) this.push.send('staff', recipientId, note);
   }
 
   /**
    * A portal client's bell, unless they turned in-app notifications off in
    * Settings. Their devices still get the push: that is its own switch, per device.
    */
-  async notifyClient(clientId: string, note: NewNotification): Promise<void> {
+  async notifyClient(clientId: string, note: NewNotification, push = true): Promise<void> {
     const prefs = await this.db.notificationPreferences.findFirstWhere({ owner_id: clientId, owner_type: 'Client' });
     if (prefs?.in_app_enabled !== false) await this.store(clientId, note);
-    this.push.send('client', clientId, note);
+    if (push) this.push.send('client', clientId, note);
   }
 
   private async store(recipientId: string, note: NewNotification): Promise<void> {
@@ -65,9 +65,9 @@ export class NotificationsService {
   }
 
   /** Every Admin, except whoever caused it. */
-  async notifyAdmins(note: NewNotification, exceptId?: string): Promise<void> {
+  async notifyAdmins(note: NewNotification, exceptId?: string, push = true): Promise<void> {
     const admins = await this.db.staffUsers.findAll((row) => row.role === 'Admin' && row.id !== exceptId);
-    for (const admin of admins) await this.notify(admin.id, note);
+    for (const admin of admins) await this.notify(admin.id, note, push);
   }
 
   /**
@@ -112,6 +112,6 @@ export class NotificationsController {
 @Module({
   controllers: [NotificationsController, PushController],
   providers: [NotificationsService, PushService],
-  exports: [NotificationsService],
+  exports: [NotificationsService, PushService],
 })
 export class NotificationsModule {}

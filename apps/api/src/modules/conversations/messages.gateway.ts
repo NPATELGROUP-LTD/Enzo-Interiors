@@ -171,11 +171,15 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
   }
 
   /**
-   * Deliver a new message to the room, then email the other side if nobody
-   * there was connected. Used by the socket send and the HTTP send alike.
+   * Deliver a new message to the room, push it to the other side's devices,
+   * then email (and ring the bell of) the other side if nobody there was
+   * connected. Used by the socket send and the HTTP send alike.
    */
   async publish(sender: AuthPrincipal, conversation: Conversation, message: Message): Promise<void> {
     const reached = await this.deliver(conversation, 'message:new', message);
+    void this.conversations.pushMessage(sender, conversation).catch((error: unknown) => {
+      this.logger.error(`Message push failed: ${error instanceof Error ? error.message : String(error)}`);
+    });
     const recipientOnline = reached.some((p) => (sender.kind === 'Client' ? p.kind === 'Staff' : p.kind === 'Client'));
     if (!recipientOnline) {
       await this.conversations.notifyOffline(sender, conversation).catch((error: unknown) => {

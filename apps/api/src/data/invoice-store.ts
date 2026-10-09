@@ -73,6 +73,22 @@ export class InvoiceStore {
   }
 
   /**
+   * Delete an invoice (its lines cascade) and recompute the client's lifetime
+   * value in the same transaction, so deleting a Paid one takes its money out
+   * of total_spent too. False when it was already gone.
+   */
+  async remove(id: string): Promise<boolean> {
+    return this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findUnique({ where: { id }, select: { client_id: true } });
+      if (!invoice) return false;
+      await tx.invoice.delete({ where: { id } });
+      const paid = await tx.invoice.aggregate({ where: { client_id: invoice.client_id, status: 'Paid' }, _sum: { amount: true } });
+      await tx.client.updateMany({ where: { id: invoice.client_id }, data: { total_spent: paid._sum.amount ?? 0 } });
+      return true;
+    });
+  }
+
+  /**
    * Paid + the client's lifetime value, together. Null when the invoice is not
    * in a payable state (missing, Draft, or already Paid), so a double click or
    * two admins cannot record the payment twice.

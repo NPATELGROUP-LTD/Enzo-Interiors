@@ -44,6 +44,7 @@ import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
 import { Badge, Desktop } from './Desktop';
+import { PushPrompt } from '@/components/PushToggle';
 import { Notifications } from './Notifications';
 import { SearchPalette } from './SearchPalette';
 
@@ -637,6 +638,7 @@ export function AdminLayout() {
         </>
       }
     />
+    <PushPrompt detail="Messages from clients, new bookings and anything waiting on you, even when the app is closed." />
     </>
   );
 }
