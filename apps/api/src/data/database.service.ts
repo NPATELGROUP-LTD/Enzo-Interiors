@@ -209,6 +209,42 @@ export class DatabaseService {
     });
   }
 
+  /**
+   * Delete a project in one transaction. Its documents and invoices belong to
+   * the client, so they stay on the client's record, no longer linked to it.
+   */
+  async deleteProject(id: string): Promise<{ documents: number; invoices: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const documents = await tx.documentRecord.updateMany({ where: { project_id: id }, data: { project_id: null } });
+      const invoices = await tx.invoice.updateMany({ where: { project_id: id }, data: { project_id: null } });
+      await tx.project.delete({ where: { id } });
+      return { documents: documents.count, invoices: invoices.count };
+    });
+  }
+
+  /**
+   * Delete a client and everything that is only theirs, in one transaction:
+   * projects, invoices (paid too; lines cascade), documents, the conversation,
+   * their bell, devices and preferences. Returns the storage keys of their
+   * files for the caller to remove once the rows are gone. Activity logs stay.
+   */
+  async deleteClient(id: string): Promise<{ storageKeys: string[]; projects: number; invoices: number }> {
+    return this.prisma.$transaction(async (tx) => {
+      const conversations = await tx.conversation.findMany({ where: { client_id: id }, select: { id: true } });
+      await tx.message.deleteMany({ where: { conversation_id: { in: conversations.map((row) => row.id) } } });
+      await tx.conversation.deleteMany({ where: { client_id: id } });
+      const documents = await tx.documentRecord.findMany({ where: { client_id: id }, select: { storage_url: true } });
+      await tx.documentRecord.deleteMany({ where: { client_id: id } });
+      const invoices = await tx.invoice.deleteMany({ where: { client_id: id } });
+      const projects = await tx.project.deleteMany({ where: { client_id: id } });
+      await tx.notification.deleteMany({ where: { recipient_id: id } });
+      await tx.pushSubscription.deleteMany({ where: { owner_type: 'client', owner_id: id } });
+      await tx.notificationPreference.deleteMany({ where: { owner_type: 'Client', owner_id: id } });
+      await tx.client.delete({ where: { id } });
+      return { storageKeys: documents.map((row) => row.storage_url), projects: projects.count, invoices: invoices.count };
+    });
+  }
+
   /** Surfaced for the startup log. Credentials are never included. */
   get target(): string {
     const url = process.env.DATABASE_URL ?? '';

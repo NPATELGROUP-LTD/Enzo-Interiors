@@ -21,8 +21,15 @@ const isIos = () =>
 const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
 
+/**
+ * The running service worker. `ready` waits for it to install on a first
+ * visit (getRegistration() is still empty then); dev builds have none, so
+ * give up after a few seconds rather than hang.
+ */
 async function registration(): Promise<ServiceWorkerRegistration | undefined> {
-  return navigator.serviceWorker.getRegistration();
+  if (!('serviceWorker' in navigator)) return undefined;
+  const timeout = new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), 4000));
+  return Promise.race([navigator.serviceWorker.ready, timeout]);
 }
 
 async function publicKey(): Promise<string | null> {
@@ -39,6 +46,24 @@ export async function pushState(): Promise<PushState> {
   return (await reg.pushManager.getSubscription()) && Notification.permission === 'granted' ? 'on' : 'off';
 }
 
+/**
+ * Subscribe this browser with the server's current key and (re)register it
+ * with the API for whoever is signed in. A subscription made with an older key
+ * (the keys were changed) is replaced, or the push service would refuse it.
+ */
+async function subscribe(reg: ServiceWorkerRegistration, key: string): Promise<void> {
+  const wanted = fromBase64Url(key);
+  let subscription = await reg.pushManager.getSubscription();
+  const current = subscription?.options.applicationServerKey;
+  if (subscription && current && !sameBytes(new Uint8Array(current), wanted)) {
+    await subscription.unsubscribe();
+    subscription = null;
+  }
+  subscription ??= await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: wanted });
+  const json = subscription.toJSON();
+  await api.post('/push/subscribe', { endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth });
+}
+
 /** Ask (only now, on the click), subscribe, and tell the API. Returns the new state. */
 export async function enablePush(): Promise<PushState> {
   const reg = await registration();
@@ -46,11 +71,23 @@ export async function enablePush(): Promise<PushState> {
   if (!reg || !key) return pushState();
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off';
-  const subscription =
-    (await reg.pushManager.getSubscription()) ??
-    (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: fromBase64Url(key) }));
-  const json = subscription.toJSON();
-  await api.post('/push/subscribe', { endpoint: json.endpoint, p256dh: json.keys?.p256dh, auth: json.keys?.auth });
+  await subscribe(reg, key);
+  return 'on';
+}
+
+/**
+ * On every start while signed in: if this device already allowed
+ * notifications, make sure the API has it for the person signed in now. Sign
+ * out removes the device, so without this the next sign-in on the same phone
+ * would quietly get nothing. Never asks: no permission prompt from here.
+ */
+export async function syncPush(): Promise<PushState> {
+  const state = await pushState();
+  if (state !== 'on' && !(state === 'off' && Notification.permission === 'granted')) return state;
+  const reg = await registration();
+  const key = await publicKey();
+  if (!reg || !key) return state;
+  await subscribe(reg, key);
   return 'on';
 }
 
@@ -70,6 +107,10 @@ export async function disablePush(token: string | null): Promise<void> {
     }).catch(() => undefined);
   }
   await subscription.unsubscribe().catch(() => undefined);
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && a.every((byte, i) => byte === b[i]);
 }
 
 function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {

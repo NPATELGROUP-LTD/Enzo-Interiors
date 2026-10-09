@@ -182,19 +182,17 @@ export function ClientsPage() {
     }
   };
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (password: string) => {
     if (!deleting) return;
     setDeletePending(true);
     try {
-      await api.delete(`/clients/${deleting.id}`);
+      await api.delete(`/clients/${deleting.id}`, { password });
       toast.success(`${deleting.name} deleted.`);
       setDeleting(null);
       await clients.refetch();
     } catch (caught) {
-      // The API refuses while projects/invoices still reference the
-      // client, and its message names them — surface it verbatim.
+      // Stays open: a mistyped password is retyped, not re-clicked from the start.
       toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this client.');
-      setDeleting(null);
     } finally {
       setDeletePending(false);
     }
@@ -440,15 +438,17 @@ export function ClientsPage() {
         title={`Delete ${deleting?.name ?? 'client'}?`}
         message={
           <>
-            <p>This permanently removes the client record along with their conversations and documents.</p>
-            <p className="mt-2 text-ink-muted">
-              If they have projects or invoices, the deletion will be refused — set them to Inactive instead.
+            <p>
+              This permanently deletes the client and everything that belongs to them: their projects, invoices
+              (paid ones too), documents and messages. Their portal sign-in stops working.
             </p>
+            <p className="mt-2 text-ink-muted">It cannot be undone. To keep their history, set them to Inactive instead.</p>
           </>
         }
         confirmLabel="Delete client"
+        password
         pending={deletePending}
-        onConfirm={confirmDelete}
+        onConfirm={(password) => void confirmDelete(password)}
         onCancel={() => setDeleting(null)}
       />
     </div>

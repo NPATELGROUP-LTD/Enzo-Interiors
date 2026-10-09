@@ -163,8 +163,18 @@ test('an Admin creates, reads, updates, moves and deletes a project; assignees h
   const detail = await json<Detail>(await call('GET', `/projects/${id}/detail`, tokens.admin));
   assert.ok(detail.activity.length > 0);
 
-  assert.equal((await call('DELETE', `/projects/${id}`, tokens.admin)).status, 200);
+  // Deleting needs the Admin's password again; its invoices stay on the client, unlinked.
+  const invoiceId = `inv_pdel_${run}`;
+  await prisma.invoice.create({
+    data: { id: invoiceId, number: `PD-${run}`, client_id: MINE.id, project_id: id, amount: 60, vat_rate: 20, status: 'Paid', due_date: new Date() },
+  });
+  assert.equal((await call('DELETE', `/projects/${id}`, tokens.admin)).status, 403, 'no password');
+  assert.equal((await call('DELETE', `/projects/${id}`, tokens.admin, { password: 'not-it' })).status, 403, 'wrong password');
+  assert.equal((await call('DELETE', `/projects/${id}`, tokens.admin, { password: ADMIN.password })).status, 200);
   assert.equal((await call('GET', `/projects/${id}`, tokens.admin)).status, 404);
+  const kept = await prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+  assert.equal(kept.project_id, null);
+  await prisma.invoice.delete({ where: { id: invoiceId } });
 });
 
 test('an Editor is refused on every /projects route', async () => {

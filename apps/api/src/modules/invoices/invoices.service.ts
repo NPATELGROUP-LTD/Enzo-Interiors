@@ -23,6 +23,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { ItemInput } from '../../data/invoice-store';
 import { DatabaseService } from '../../data/database.service';
+import { confirmPassword } from '../auth/reauth';
 import { NotificationsService } from '../notifications/notifications.module';
 import { MAX_AMOUNT, lateMs, splitGross, sumMoney, totalsOf } from './totals';
 
@@ -379,22 +380,23 @@ export class InvoicesService {
     return this.findOne(principal, id);
   }
 
-  async remove(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
+  /**
+   * A Paid invoice is a financial record: deleting one needs the Admin's
+   * password again, and takes its amount out of the client's lifetime value.
+   */
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
     const invoice = await this.db.invoices.findById(id);
     if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === 'Paid') await confirmPassword(this.db, principal, password);
 
-    if (invoice.status === 'Paid') {
-      throw new BadRequestException('A paid invoice is a financial record and cannot be deleted.');
-    }
-
-    await this.db.invoices.delete(id); // its lines go with it (foreign key cascade)
+    if (!(await this.db.invoiceStore.remove(id))) throw new NotFoundException('Invoice not found');
 
     await this.activity.record({
       principal,
       action: 'invoice_delete',
       targetTable: 'invoices',
       targetId: id,
-      details: { number: invoice.number, amount: invoice.amount },
+      details: { number: invoice.number, amount: invoice.amount, status: invoice.status },
     });
     return { id, deleted: true };
   }

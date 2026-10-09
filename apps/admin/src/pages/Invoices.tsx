@@ -304,13 +304,14 @@ export function InvoicesPage() {
     }
   };
 
-  const doDelete = async () => {
+  const doDelete = async (password: string) => {
     if (!deleting) return;
-    if (await act(() => api.delete(`/invoices/${deleting.id}`), `${deleting.number} deleted.`, 'Could not delete this invoice.')) {
+    const body = deleting.status === 'Paid' ? { password } : undefined;
+    if (await act(() => api.delete(`/invoices/${deleting.id}`, body), `${deleting.number} deleted.`, 'Could not delete this invoice.')) {
       toggle(deleting.id, false);
       if (openId === deleting.id) update({ open: null }, true);
-    }
-    setDeleting(null);
+      setDeleting(null);
+    } else if (deleting.status !== 'Paid') setDeleting(null);
   };
 
   const openNew = () => update({ new: '1' });
@@ -500,16 +501,14 @@ export function InvoicesPage() {
                           <SealCheck size={16} aria-hidden="true" />
                         </button>
                       ) : null}
-                      {invoice.status !== 'Paid' ? (
-                        <button
-                          type="button"
-                          onClick={() => setDeleting(invoice)}
-                          aria-label={`Delete ${invoice.number}`}
-                          className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
-                        >
-                          <Trash size={16} aria-hidden="true" />
-                        </button>
-                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => setDeleting(invoice)}
+                        aria-label={`Delete ${invoice.number}`}
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
+                      >
+                        <Trash size={16} aria-hidden="true" />
+                      </button>
                     </div>
                   </Td>
                 </tr>
@@ -551,10 +550,15 @@ export function InvoicesPage() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting?.number ?? 'invoice'}?`}
-        message="A deleted invoice cannot be restored."
+        message={
+          deleting?.status === 'Paid'
+            ? 'This invoice is paid. Deleting it removes the payment record and takes its amount off the client’s total spent. It cannot be restored.'
+            : 'A deleted invoice cannot be restored.'
+        }
         confirmLabel="Delete invoice"
+        password={deleting?.status === 'Paid'}
         pending={pending}
-        onConfirm={doDelete}
+        onConfirm={(password) => void doDelete(password)}
         onCancel={() => setDeleting(null)}
       />
     </div>
@@ -760,11 +764,13 @@ function InvoiceEditor({
           <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
             Print / Save as PDF
           </Button>
+          {invoice ? (
+            <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => onDelete(invoice)}>
+              Delete
+            </Button>
+          ) : null}
           {invoice && invoice.status === 'Draft' ? (
             <>
-              <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => onDelete(invoice)}>
-                Delete
-              </Button>
               <Button
                 variant="secondary"
                 icon={<PaperPlaneRight size={16} aria-hidden="true" />}
