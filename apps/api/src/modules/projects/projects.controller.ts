@@ -10,9 +10,11 @@ import {
   Post,
   Put,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
+import { PasswordConfirmDto } from '../auth/reauth';
 import { NotificationsModule } from '../notifications/notifications.module';
 import {
   CreateProjectDto,
@@ -121,11 +123,12 @@ export class ProjectsController {
     return this.projects.requestChanges(principal, id, dto);
   }
 
-  /** Refuses while invoices reference it; documents are detached, not deleted. */
+  /** Needs `password` (the Admin's own); its documents and invoices stay on the client. */
   @Delete(':id')
   @Roles('Admin')
-  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.projects.remove(principal, id);
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.projects.remove(principal, id, dto.password);
   }
 }
 

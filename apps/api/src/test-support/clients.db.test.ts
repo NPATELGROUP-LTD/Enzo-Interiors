@@ -102,8 +102,17 @@ test('an Admin creates, reads, updates and deletes a client; no password goes in
   assert.ok(list.some((row) => row.id === id) && list.some((row) => row.id === OTHER.id));
   assert.equal((await call('GET', `/clients/${id}/detail`, tokens.admin)).status, 200);
 
-  assert.equal((await call('DELETE', `/clients/${id}`, tokens.admin)).status, 200);
+  // Deleting needs the Admin's password again, and takes the client's projects and invoices with it.
+  await prisma.project.create({ data: { id: `prj_cdel_${run}`, client_id: id, name: 'Gone', type: 'Kitchen', status: 'Design' } });
+  await prisma.invoice.create({
+    data: { id: `inv_cdel_${run}`, number: `CD-${run}`, client_id: id, amount: 60, vat_rate: 20, status: 'Paid', due_date: new Date() },
+  });
+  assert.equal((await call('DELETE', `/clients/${id}`, tokens.admin)).status, 403, 'no password');
+  assert.equal((await call('DELETE', `/clients/${id}`, tokens.admin, { password: 'not-it' })).status, 403, 'wrong password');
+  assert.equal((await call('DELETE', `/clients/${id}`, tokens.admin, { password: ADMIN.password })).status, 200);
   assert.equal((await call('GET', `/clients/${id}`, tokens.admin)).status, 404);
+  assert.equal(await prisma.project.count({ where: { client_id: id } }), 0);
+  assert.equal(await prisma.invoice.count({ where: { client_id: id } }), 0);
 });
 
 test('an Editor is refused on every /clients route', async () => {

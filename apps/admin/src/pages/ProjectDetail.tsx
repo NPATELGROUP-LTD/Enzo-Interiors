@@ -53,6 +53,7 @@ export function ProjectDetailPage() {
   const [tab, setTab] = useState('timeline');
   const [savingProgress, setSavingProgress] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [removing, setRemoving] = useState(false);
 
   if (loading) return <LoadingState label="Loading project…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -94,14 +95,17 @@ export function ProjectDetailPage() {
     setSavingProgress(false);
   };
 
-  const remove = async () => {
-    setDeleting(false);
+  const remove = async (password: string) => {
+    setRemoving(true);
     try {
-      await api.delete(`/projects/${project.id}`);
+      await api.delete(`/projects/${project.id}`, { password });
       toast.success(`${project.name} deleted.`);
       navigate('/projects', { replace: true });
     } catch (caught) {
+      // Stays open: a mistyped password is retyped, not re-clicked from the start.
       toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this project.');
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -402,9 +406,11 @@ export function ProjectDetailPage() {
       <ConfirmDialog
         open={deleting}
         title={`Delete ${project.name}?`}
-        message="Its documents stay on the client’s record. A project with invoices cannot be deleted."
-        confirmLabel="Delete"
-        onConfirm={() => void remove()}
+        message="The project is deleted for good. Its documents and invoices stay on the client’s record, no longer linked to it."
+        confirmLabel="Delete project"
+        password
+        pending={removing}
+        onConfirm={(password) => void remove(password)}
         onCancel={() => setDeleting(false)}
       />
     </div>

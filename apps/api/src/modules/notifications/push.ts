@@ -25,6 +25,8 @@ export interface PushMessage {
   body?: string | null;
   /** A path in the receiving app, e.g. /projects/123. The service worker opens it. */
   link?: string | null;
+  /** Same tag = replaces the earlier notification (one per chat), still alerting. */
+  tag?: string;
 }
 
 /** Devices per person. A new one past this drops their oldest. */
@@ -127,7 +129,7 @@ export class PushService {
   private async deliver(owner: PushOwner, ownerId: string, message: PushMessage): Promise<void> {
     const rows = await this.db.pushSubscriptions.findWhere({ owner_type: owner, owner_id: ownerId });
     if (rows.length === 0) return;
-    const payload = JSON.stringify({ title: message.title, body: message.body ?? '', url: message.link ?? '/' });
+    const payload = JSON.stringify({ title: message.title, body: message.body ?? '', url: message.link ?? '/', tag: message.tag });
     await Promise.all(
       rows.map(async (row) => {
         try {

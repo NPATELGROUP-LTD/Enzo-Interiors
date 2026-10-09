@@ -7,6 +7,7 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
+import { confirmPassword } from '../auth/reauth';
 import { sumMoney } from '../invoices/totals';
 import { doneStage, loadStages } from '../projects/stages';
 import { CreateClientDto, UpdateClientDto } from './dto';
@@ -164,51 +165,25 @@ export class ClientsService {
   }
 
   /**
-   * Delete a client.
-   *
-   * Refuses while dependent records exist rather than cascading. The schema
-   * doc scopes cascades tightly — a client delete must never silently take
-   * invoices or projects with it, because those are financial and operational
-   * records. The admin is told what to clear first.
+   * Delete a client and everything that is only theirs: projects, invoices
+   * (paid ones too), documents and messages. Irreversible, so it needs the
+   * Admin's password again. Rows go in one transaction; their files are
+   * removed from storage afterwards, best effort. The activity log keeps a line.
    */
-  async remove(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
     const client = await this.db.clients.findById(id);
     if (!client) throw new NotFoundException('Client not found');
+    await confirmPassword(this.db, principal, password);
 
-    const [projects, invoices] = await Promise.all([
-      this.db.projects.countWhere({ client_id: id }),
-      this.db.invoices.countWhere({ client_id: id }),
-    ]);
-
-    const blockers: string[] = [];
-    if (projects > 0) blockers.push(`${projects} project${projects === 1 ? '' : 's'}`);
-    if (invoices > 0) blockers.push(`${invoices} invoice${invoices === 1 ? '' : 's'}`);
-    if (blockers.length > 0) {
-      throw new BadRequestException(
-        `Cannot delete ${client.name} while ${blockers.join(', ')} still reference them. ` +
-          'Remove or reassign those records first, or set the client to Inactive instead.',
-      );
-    }
-
-    // Only records that belong exclusively to this client and carry no
-    // financial meaning are cleaned up alongside them.
-    const conversations = await this.db.conversations.findWhere({ client_id: id });
-    if (conversations.length > 0) {
-      await this.db.messages.deleteWhere({ conversation_id: { in: conversations.map((row) => row.id) } });
-    }
-    await this.db.conversations.deleteWhere({ client_id: id });
-    const documents = await this.db.documents.findWhere({ client_id: id });
-    await this.db.documents.deleteWhere({ client_id: id });
-    for (const document of documents) await this.storage.remove(document.storage_url);
-    await this.db.notificationPreferences.deleteWhere({ owner_type: 'Client', owner_id: id });
-    await this.db.clients.delete(id);
+    const removed = await this.db.deleteClient(id);
+    for (const key of removed.storageKeys) await this.storage.remove(key);
 
     await this.activity.record({
       principal,
       action: 'client_delete',
       targetTable: 'clients',
       targetId: id,
-      details: { name: client.name, email: client.email },
+      details: { name: client.name, email: client.email, projects: removed.projects, invoices: removed.invoices },
     });
     return { id, deleted: true };
   }

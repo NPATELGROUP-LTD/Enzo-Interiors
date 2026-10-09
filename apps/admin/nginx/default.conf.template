@@ -25,6 +25,11 @@ server {
     include /etc/nginx/conf.d/security.inc;
     add_header Cache-Control "no-cache";
   }
+  # Pulled into sw.js by importScripts: a stale copy would keep old push handlers.
+  location = /push-sw.js {
+    include /etc/nginx/conf.d/security.inc;
+    add_header Cache-Control "no-cache";
+  }
 
   gzip on;
   gzip_types text/css application/javascript application/json image/svg+xml;

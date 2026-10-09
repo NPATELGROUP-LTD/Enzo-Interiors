@@ -88,7 +88,7 @@ the gross payable and is computed in the API with `Prisma.Decimal`
 an invoice with no lines keeps its stored amount. Lines/VAT edit only on a Draft
 (or in the request that moves it back to Draft); Draft -> Sent -> Overdue, Paid
 only via mark-paid (one transaction with the client's `total_spent`, refuses a
-repeat). `project_id` must belong to the invoice's client. Numbers retry on a
+repeat); a Paid one is deleted only with the Admin's password. `project_id` must belong to the invoice's client. Numbers retry on a
 unique clash. An invoice also carries a job block, a fixed £ `discount` taken
 off the subtotal BEFORE VAT, per-line `section`/`detail` (a 0-priced line is a
 quantity-only row) and a display-only `payment_schedule`. Admin and portal
@@ -108,6 +108,17 @@ Frontends read them via `useStages()` and pass them to `projectTone(status, stag
 `VAPID_SUBJECT` are set (`npm run push:keys`; changing keys drops every
 subscription). Endpoints are allowlisted to the browser push services.
 `/notifications` serves both bells; each caller sees only its own rows.
+After sign-in both apps show a "Turn on notifications?" card (the tap browsers
+require before asking; iPhone in Safari gets the Home Screen step) and silently
+re-register an already-allowed device on every start (`syncPush`), since sign-out
+removes it. Every chat message is pushed to the other side (tag per chat) whether
+or not they are connected; the bell + email keep the offline/15-minute rule.
+
+**Re-authenticated deletes:** deleting a client (with all their projects,
+invoices incl. Paid, documents, messages, in one transaction), a project
+(its invoices and documents stay on the client, unlinked) or a Paid invoice
+(total_spent recomputed) needs `{ password }` in the DELETE body
+(`modules/auth/reauth.ts`; wrong = 403, throttled 10/15 min).
 
 **Dashboard** (`modules/dashboard`, all SQL counts/sums, no table read whole):
 `/dashboard/admin` (Admin: money from invoices via `Prisma.Decimal`, enquiries,

@@ -1,7 +1,9 @@
 import { Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
+import { PasswordConfirmDto } from '../auth/reauth';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CreateInvoiceDto, InvoicesService, UpdateInvoiceDto } from './invoices.service';
 
@@ -62,10 +64,12 @@ export class InvoicesController {
     return this.invoices.markPaid(principal, id);
   }
 
+  /** A Paid one needs `password` (the Admin's own) in the body. */
   @Delete(':id')
   @Roles('Admin')
-  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.invoices.remove(principal, id);
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.invoices.remove(principal, id, dto.password);
   }
 }
 

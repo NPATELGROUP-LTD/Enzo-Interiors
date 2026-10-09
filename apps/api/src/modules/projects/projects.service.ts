@@ -5,6 +5,7 @@ import { Project, ProjectStageConfig } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
+import { confirmPassword } from '../auth/reauth';
 import { NotificationsService } from '../notifications/notifications.module';
 import {
   CreateProjectDto,
@@ -351,29 +352,23 @@ export class ProjectsService {
   }
 
   /** Admin only (controller). */
-  async remove(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
+  /**
+   * Needs the Admin's password again. Documents and invoices belong to the
+   * client: they are unlinked and stay on the client's record, never deleted.
+   */
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
     const project = await this.db.projects.findById(id);
     if (!project) throw new NotFoundException('Project not found');
+    await confirmPassword(this.db, principal, password);
 
-    const invoiceCount = await this.db.invoices.countWhere({ project_id: id });
-    if (invoiceCount > 0) {
-      throw new BadRequestException(
-        `Cannot delete "${project.name}" while ${invoiceCount} invoice${invoiceCount === 1 ? '' : 's'} reference it. ` +
-          'Detach or delete those invoices first.',
-      );
-    }
-
-    // Documents belong to the client; detach rather than delete so the file
-    // stays on the client's record instead of silently disappearing.
-    const detached = await this.db.documents.updateWhere({ project_id: id }, { project_id: null });
-    await this.db.projects.delete(id);
+    const detached = await this.db.deleteProject(id);
 
     await this.activity.record({
       principal,
       action: 'project_delete',
       targetTable: 'projects',
       targetId: id,
-      details: { name: project.name, detached_documents: detached },
+      details: { name: project.name, detached_documents: detached.documents, detached_invoices: detached.invoices },
     });
     return { id, deleted: true };
   }
