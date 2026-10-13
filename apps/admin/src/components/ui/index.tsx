@@ -625,7 +625,7 @@ export function Modal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={clsx(
-          'relative max-h-[92vh] w-full overflow-y-auto rounded-t-[16px] bg-surface shadow-window sm:rounded-[16px]',
+          'relative max-h-[92dvh] w-full overflow-y-auto overscroll-contain rounded-t-[16px] bg-surface pb-[env(safe-area-inset-bottom)] shadow-window sm:rounded-[16px] sm:pb-0',
           width === 'sm' && 'sm:max-w-md',
           width === 'md' && 'sm:max-w-2xl',
           width === 'lg' && 'sm:max-w-4xl',
