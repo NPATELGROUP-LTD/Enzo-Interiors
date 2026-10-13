@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter,
-  users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Your own
+  users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Below xl the menu bar collapses into one app-name · current-page button that opens a page-menu popover (as in the portal; each screen lists its own sub-views). Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
   accept an invitation). **Messages** (`/messages`, Admin + Designers; `?client=` opens

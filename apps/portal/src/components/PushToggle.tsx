@@ -1,5 +1,6 @@
 import { BellRinging } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 
 import { Button, Toggle } from '@/components/ui';
 import { tokenStore } from '@/lib/api';
@@ -73,13 +74,15 @@ export function PushPrompt({ detail }: { detail: string }) {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const { pathname } = useLocation();
 
   useEffect(() => {
     syncPush().then(setState, () => setState(null));
   }, []);
 
   const asking = state === 'off' && 'Notification' in window && Notification.permission === 'default';
-  if (!(asking || state === 'install') || dismissedRecently()) return null;
+  // Not over a chat's composer: the card shows on the next page instead.
+  if (!(asking || state === 'install') || dismissedRecently() || pathname.startsWith('/messages')) return null;
 
   const dismiss = () => {
     try {

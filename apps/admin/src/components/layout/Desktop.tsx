@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import {
+  CaretDown,
   CaretLeft,
   MagnifyingGlass,
   Moon,
@@ -7,6 +8,7 @@ import {
   Sun,
   UserCircle,
   WifiSlash,
+  type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -22,11 +24,13 @@ import { useTheme } from '@/lib/theme';
  * inset with rounded corners the way a Mac app window sits on the desktop.
  * The menu bar starts with the app's name (plain text, not a menu) and the
  * app's menus (AdminLayout's CMS, Bookings, Settings); on the right are
- * search, the bell and your own account menu. The window's title bar carries
+ * search, the bell and your own account menu. Below xl there is no room for the
+ * menus, so the name and the current page become one button that opens every
+ * page as a list (the same page menu as apps/portal). The window's title bar carries
  * the traffic lights, a back button, the title and its own actions.
  *
- * apps/portal has an older copy of this file, with its pages listed inline in
- * the menu bar. It is not part of v1 and was left as it was.
+ * apps/portal has its own copy of this shell (its pages inline, no menus); the
+ * two share the look, not the code.
  *
  * Stacking note: the window is deliberately NOT positioned, transformed or
  * blurred. Any of those would trap the pages' `fixed` modals inside it. Only
@@ -85,8 +89,19 @@ export function Badge({ count, inverted = false }: { count: number; inverted?: b
   );
 }
 
+/** One entry of the page menu (below xl): where it goes, and whether you are there. */
+export interface DesktopPage {
+  to: string;
+  label: string;
+  Icon: PhosphorIcon;
+  active: boolean;
+  /** Count shown beside the label (unread messages, new enquiries). */
+  badge?: number;
+}
+
 export function Desktop({
   appName,
+  pages,
   menus,
   title,
   back,
@@ -97,7 +112,9 @@ export function Desktop({
   status,
 }: {
   appName: string;
-  /** The app's menus, after its name in the menu bar. */
+  /** Every page, listed by the page menu below xl. */
+  pages: DesktopPage[];
+  /** The app's menus, after its name in the menu bar (xl and up). */
   menus?: ReactNode;
   /** The window's title: a name, or a breadcrumb trail. */
   title: ReactNode;
@@ -120,11 +137,15 @@ export function Desktop({
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLElement>(null);
+  const current = pages.find((page) => page.active);
+  // Pending counts on the pages you are not on, so the closed button still tells you.
+  const pending = pages.reduce((sum, page) => sum + (page.active ? 0 : (page.badge ?? 0)), 0);
 
   // A new page starts at the top of the window, and open menus get out of the way.
   useEffect(() => {
     // A section link (#hero) scrolls itself; anything else starts at the top.
     if (!window.location.hash) scrollRef.current?.scrollTo({ top: 0 });
+    hidePopover('page-menu');
     hidePopover('user-menu');
     hidePopover('notifications-menu');
   }, [pathname]);
@@ -149,11 +170,22 @@ export function Desktop({
     <div className="wallpaper flex h-dvh flex-col overflow-hidden text-ink">
       {/* ---------------------------------------------------------- Menu bar */}
       <header className="glass relative z-40 flex h-10 shrink-0 items-center gap-0.5 border-b border-glass-border px-2 text-[13px] font-semibold pointer-coarse:h-12">
-        {/* The app's name, where a Mac keeps it. Just a name: nothing to click. */}
-        <span className="hidden shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold sm:inline">
+        {/* Below xl the name and the current page are the page menu. */}
+        <button
+          type="button"
+          popoverTarget="page-menu"
+          className="flex h-8 min-w-0 items-center gap-1 rounded-[6px] px-2 font-bold hover:bg-ink/10 pointer-coarse:h-10 xl:hidden"
+        >
+          <span className="shrink-0 whitespace-nowrap">{appName}</span>
+          {current ? <span className="hidden min-w-0 truncate font-medium text-ink-muted min-[380px]:inline">· {current.label}</span> : null}
+          <CaretDown size={12} aria-hidden="true" className="shrink-0 text-ink-muted" />
+          <Badge count={pending} />
+        </button>
+        {/* From xl up, the app's name where a Mac keeps it (just a name: nothing to click), then its menus. */}
+        <span className="hidden shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold xl:inline">
           {appName}
         </span>
-        {menus}
+        <div className="hidden xl:contents">{menus}</div>
 
         <span className="ml-auto flex shrink-0 items-center gap-1">
           {onSearch ? (
@@ -199,6 +231,33 @@ export function Desktop({
           </button>
         </span>
       </header>
+
+      {/* Page menu (below xl): native popover, so light-dismiss and Escape come free. */}
+      <div
+        id="page-menu"
+        popover="auto"
+        className="glass fixed inset-auto left-2 top-11 m-0 max-h-[calc(100dvh-4rem)] w-64 overflow-y-auto rounded-[12px] border border-glass-border p-1.5 text-sm text-ink shadow-window pointer-coarse:top-[3.25rem]"
+      >
+        <nav aria-label="Pages">
+          <ul>
+            {pages.map(({ to, label, Icon, active, badge }) => (
+              <li key={to}>
+                <Link
+                  to={to}
+                  aria-current={active ? 'page' : undefined}
+                  // Same page, new query: the path is unchanged, so close it here too.
+                  onClick={() => hidePopover('page-menu')}
+                  className={clsx(menuItem, active ? 'bg-green-900 font-semibold text-on-primary' : 'hover:bg-ink/[0.08]')}
+                >
+                  <Icon size={17} aria-hidden="true" weight={active ? 'fill' : 'regular'} />
+                  <span className="flex-1">{label}</span>
+                  <Badge count={badge ?? 0} inverted={active} />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      </div>
 
       {/* Account menu. */}
       <div
@@ -248,7 +307,7 @@ export function Desktop({
       {/* One window on the desktop, inset from the menu bar and the screen's
           edges with rounded corners, the way a Mac app window sits. Each page
           still lays itself out across the window's full width. */}
-      <div className="flex min-h-0 flex-1 flex-col p-2 sm:p-3">
+      <div className="flex min-h-0 flex-1 flex-col px-1.5 pb-[calc(env(safe-area-inset-bottom)+0.375rem)] pt-1.5 sm:p-3">
       <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] bg-canvas shadow-window">
         <div className="grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border bg-surface px-3">
           <div className="flex min-w-0 items-center gap-3">
