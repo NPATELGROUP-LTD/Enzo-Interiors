@@ -177,6 +177,19 @@
      * which is what the brief's type scale actually specifies.
      */
     -webkit-text-size-adjust: 100%;
+    /* An installed app does not rubber-band the page or pull to refresh. */
+    overscroll-behavior: none;
+  }
+
+  /* Taps act at once (no double-tap-zoom wait) and show no grey flash. */
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  [role="button"] {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
 
   body {
@@ -188,6 +201,7 @@
     font-weight: 500;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
   }
 
   /* Brief type scale. Desktop / mobile sizes with the stated tracking. */
@@ -339,6 +353,21 @@
 }
 .rows > *:nth-child(odd) {
   background: var(--stripe);
+}
+
+/*
+ * iOS zooms the page when a field under 16px takes focus. Touch screens get
+ * 16px fields (the themed Select's button included); a mouse keeps the 14px
+ * body size. Unlayered so it beats the text-sm and text-[13px] on individual
+ * fields.
+ */
+@media (pointer: coarse) {
+  input,
+  textarea,
+  select,
+  [role="combobox"] {
+    font-size: 16px;
+  }
 }
 
 /*

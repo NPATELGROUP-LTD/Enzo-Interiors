@@ -5,14 +5,20 @@ import {
   Buildings,
   CalendarBlank,
   CalendarPlus,
+  ChatCircle,
   Check,
   CloudCheck,
   FilePlus,
+  GearSix,
   ImagesSquare,
   Kanban,
   ListBullets,
   Question,
+  Receipt,
+  SquaresFour,
   Star,
+  Tray,
+  User,
   UserPlus,
   UsersThree,
   type Icon as PhosphorIcon,
@@ -43,7 +49,7 @@ import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
-import { Badge, Desktop } from './Desktop';
+import { Badge, Desktop, type DesktopPage } from './Desktop';
 import { PushPrompt } from '@/components/PushToggle';
 import { Notifications } from './Notifications';
 import { SearchPalette } from './SearchPalette';
@@ -555,6 +561,7 @@ export function AdminLayout() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
   const { title, back } = useWindowTitle();
+  const { pathname } = useLocation();
 
   // Keyed on refetch, which is stable per path; `overview` itself is a new
   // object every render and would re-render every screen below on each one.
@@ -580,6 +587,28 @@ export function AdminLayout() {
     }
   };
 
+  // The page menu (below xl): the same pages, in the same order, as the menu bar.
+  const at = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
+  const pages: DesktopPage[] = [
+    ...(canSeeClients ? [{ to: '/', label: 'Dashboard', Icon: SquaresFour, active: pathname === '/' }] : []),
+    { to: '/cms', label: 'CMS', Icon: Browsers, active: at('/cms') || SECTIONS.some(({ to }) => at(to)) },
+    ...(canSeeClients
+      ? [
+          { to: '/clients', label: 'Clients', Icon: User, active: at('/clients') },
+          { to: '/projects', label: 'Projects', Icon: Kanban, active: at('/projects') },
+          { to: '/messages', label: 'Messages', Icon: ChatCircle, active: at('/messages'), badge: unreadMessages },
+        ]
+      : []),
+    ...(isAdmin
+      ? [
+          { to: '/invoices', label: 'Invoices', Icon: Receipt, active: at('/invoices') },
+          { to: '/enquiries', label: 'Enquiries', Icon: Tray, active: at('/enquiries'), badge: enquiries.data?.new_count ?? 0 },
+          { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
+          { to: '/settings', label: 'Settings', Icon: GearSix, active: at('/settings') },
+        ]
+      : []),
+  ];
+
   const context = useMemo<CmsShell>(
     () => ({ overview: overview.data, error: overview.error, refresh, openSearch, refreshEnquiries: () => void refreshEnquiries() }),
     [overview.data, overview.error, refresh, openSearch, refreshEnquiries],
@@ -594,6 +623,7 @@ export function AdminLayout() {
     />
     <Desktop
       appName="Enzo Interiors"
+      pages={pages}
       onSearch={openSearch}
       settingsTo={isAdmin ? '/settings' : '/account'}
       menus={
@@ -630,9 +660,9 @@ export function AdminLayout() {
               onClick={publishAll}
               loading={publishing}
               icon={<CloudCheck size={16} />}
-              className="min-h-8 px-2.5 text-[13px] pointer-fine:min-h-8"
+              className="min-h-8 whitespace-nowrap px-2.5 text-[13px] pointer-fine:min-h-8"
             >
-              Publish all ({unpublished})
+              Publish<span className="hidden sm:inline">&nbsp;all</span>&nbsp;({unpublished})
             </Button>
           ) : null}
         </>
