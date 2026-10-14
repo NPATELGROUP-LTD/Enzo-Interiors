@@ -1,0 +1,32 @@
+node_modules/
+dist/
+build/
+.next/
+.turbo/
+coverage/
+storybook-static/
+
+.env
+.env.local
+.env.*.local
+
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+*.tsbuildinfo
+# Playwright CLI output (may contain credentials)
+.playwright-cli/
+
+# Other tools' local state, never part of the codebase.
+.pnpm-store/
+.kilo/
+.claude/worktrees/
+.claude/settings.local.json

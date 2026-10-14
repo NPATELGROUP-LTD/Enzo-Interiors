@@ -1,0 +1,372 @@
+[
+  {
+    "id": "svc-kitchen",
+    "key": "site/svc-kitchen.jpg",
+    "alt": "Fitted kitchen with dark cabinetry under dramatic lighting",
+    "source": "unsplash"
+  },
+  {
+    "id": "svc-bedroom",
+    "key": "site/svc-bedroom.jpg",
+    "alt": "Fitted bedroom in warm tones",
+    "source": "unsplash"
+  },
+  {
+    "id": "svc-media-wall",
+    "key": "site/svc-media-wall.jpg",
+    "alt": "Modern media wall",
+    "source": "unsplash"
+  },
+  {
+    "id": "svc-wardrobe",
+    "key": "site/svc-wardrobe.jpg",
+    "alt": "Luxury walk-in wardrobe",
+    "source": "unsplash"
+  },
+  {
+    "id": "pf-sage-kitchen",
+    "key": "site/pf-sage-kitchen.jpg",
+    "alt": "Sage green fitted kitchen",
+    "source": "unsplash"
+  },
+  {
+    "id": "pf-dark-kitchen",
+    "key": "site/pf-dark-kitchen.jpg",
+    "alt": "Dark, moody luxury kitchen",
+    "source": "unsplash"
+  },
+  {
+    "id": "pf-contemporary-bedroom",
+    "key": "site/pf-contemporary-bedroom.jpg",
+    "alt": "Contemporary bedroom in warm tones",
+    "source": "unsplash"
+  },
+  {
+    "id": "pf-living-room",
+    "key": "site/pf-living-room.jpg",
+    "alt": "Warm living room with a media wall",
+    "source": "unsplash"
+  },
+  {
+    "id": "pf-ensuite",
+    "key": "site/pf-ensuite.jpg",
+    "alt": "Marble ensuite bathroom",
+    "source": "unsplash"
+  },
+  {
+    "id": "about-workshop",
+    "key": "site/about-workshop.jpg",
+    "alt": "The Enzo Interiors workshop",
+    "source": "unsplash"
+  },
+  {
+    "id": "milestone-bench",
+    "key": "site/milestone-bench.jpg",
+    "alt": "A workbench and tools",
+    "source": "unsplash"
+  },
+  {
+    "id": "milestone-first-kitchen",
+    "key": "site/milestone-first-kitchen.jpg",
+    "alt": "The first fitted kitchen",
+    "source": "unsplash"
+  },
+  {
+    "id": "milestone-own-fitters",
+    "key": "site/milestone-own-fitters.jpg",
+    "alt": "Fitters at work",
+    "source": "unsplash"
+  },
+  {
+    "id": "milestone-fifty-rooms",
+    "key": "site/milestone-fifty-rooms.jpg",
+    "alt": "A finished living room",
+    "source": "unsplash"
+  },
+  {
+    "id": "team-oyz-khan",
+    "key": "site/team-oyz-khan.jpg",
+    "alt": "Portrait of Oyz Khan",
+    "source": "unsplash"
+  },
+  {
+    "id": "team-rhea-kaur",
+    "key": "site/team-rhea-kaur.jpg",
+    "alt": "Portrait of Rhea Kaur",
+    "source": "unsplash"
+  },
+  {
+    "id": "team-tom-bradley",
+    "key": "site/team-tom-bradley.jpg",
+    "alt": "Portrait of Tom Bradley",
+    "source": "unsplash"
+  },
+  {
+    "id": "team-marek-nowak",
+    "key": "site/team-marek-nowak.jpg",
+    "alt": "Portrait of Marek Nowak",
+    "source": "unsplash"
+  },
+  {
+    "id": "face-women-1",
+    "key": "site/face-women-1.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-men-2",
+    "key": "site/face-men-2.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-women-3",
+    "key": "site/face-women-3.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-men-4",
+    "key": "site/face-men-4.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-women-5",
+    "key": "site/face-women-5.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-men-7",
+    "key": "site/face-men-7.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-women-6",
+    "key": "site/face-women-6.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-men-9",
+    "key": "site/face-men-9.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "face-women-8",
+    "key": "site/face-women-8.jpg",
+    "alt": "",
+    "source": "randomuser"
+  },
+  {
+    "id": "local-bedroom",
+    "key": "site/local-bedroom.jpg",
+    "alt": "Bespoke bedroom interior by Enzo Interiors",
+    "title": "Bespoke Bedroom",
+    "source": "site"
+  },
+  {
+    "id": "local-wardrobes",
+    "key": "site/local-wardrobes.jpg",
+    "alt": "Bespoke fitted wardrobes by Enzo Interiors",
+    "title": "Bespoke Wardrobes",
+    "source": "site"
+  },
+  {
+    "id": "local-kitchen",
+    "key": "site/local-kitchen.jpg",
+    "alt": "Bespoke kitchen interior by Enzo Interiors",
+    "title": "Bespoke Kitchen",
+    "source": "site"
+  },
+  {
+    "id": "local-media-wall",
+    "key": "site/local-media-wall.jpg",
+    "alt": "Bespoke media wall interior by Enzo Interiors",
+    "title": "Bespoke Media Wall",
+    "source": "site"
+  },
+  {
+    "id": "logo-forest",
+    "key": "site/logo-forest.png",
+    "alt": "Enzo Interiors",
+    "source": "site"
+  },
+  {
+    "id": "logo-white",
+    "key": "site/logo-white.png",
+    "alt": "Enzo Interiors",
+    "source": "site"
+  },
+  {
+    "id": "kitchen-dark-walnut-island",
+    "key": "site/clients/kitchen-dark-walnut-island.jpg",
+    "alt": "Dark handleless kitchen with a lit walnut island, bar stools and a stone splashback",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-black-shaker-marble",
+    "key": "site/clients/kitchen-black-shaker-marble.jpg",
+    "alt": "Black shaker kitchen with a marble-effect island and full-height splashback",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-walnut-handleless-brass",
+    "key": "site/clients/kitchen-walnut-handleless-brass.jpg",
+    "alt": "Walnut and charcoal handleless kitchen with brass trims and a lit glass-fronted display unit",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-grey-green-island",
+    "key": "site/clients/kitchen-grey-green-island.jpg",
+    "alt": "Grey-green fitted kitchen with a breakfast island and pendant lights",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-navy-shaker-island",
+    "key": "site/clients/kitchen-navy-shaker-island.jpg",
+    "alt": "Navy kitchen with an island and timber bar stools",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-sage-island",
+    "key": "site/clients/kitchen-sage-island.jpg",
+    "alt": "Light kitchen with tall cream larder units and a sage island with a waterfall worktop",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-blue-shaker-compact",
+    "key": "site/clients/kitchen-blue-shaker-compact.jpg",
+    "alt": "Compact L-shaped kitchen in blue and cream with a ceramic sink",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-walnut-black-marble",
+    "key": "site/clients/kitchen-walnut-black-marble.jpg",
+    "alt": "Walnut L-shaped kitchen with a black marble-effect splashback and a lit open shelf unit",
+    "source": "client"
+  },
+  {
+    "id": "kitchen-walnut-island-breakfast",
+    "key": "site/clients/kitchen-walnut-island-breakfast.jpg",
+    "alt": "Walnut kitchen with a stone island and a timber breakfast bar",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-oak-cashmere-bed-wall",
+    "key": "site/clients/bedroom-oak-cashmere-bed-wall.jpg",
+    "alt": "Fitted bedroom with cashmere wardrobes framing the bed and an oak overbed unit",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-cream-walnut-overbed",
+    "key": "site/clients/bedroom-cream-walnut-overbed.jpg",
+    "alt": "Fitted bedroom with cream wardrobes, walnut trim and a lit overbed unit",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-tv-recess-wardrobes",
+    "key": "site/clients/bedroom-tv-recess-wardrobes.jpg",
+    "alt": "White fitted bedroom wardrobes around a slatted TV recess with drawers below",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-loft-eaves-desk",
+    "key": "site/clients/bedroom-loft-eaves-desk.jpg",
+    "alt": "Loft bedroom with fitted eaves wardrobes and a built-in desk under the window",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-white-wardrobes-desk",
+    "key": "site/clients/bedroom-white-wardrobes-desk.jpg",
+    "alt": "Bright bedroom with white fitted wardrobes and a dressing desk",
+    "source": "client"
+  },
+  {
+    "id": "bedroom-walnut-panel-bed",
+    "key": "site/clients/bedroom-walnut-panel-bed.jpg",
+    "alt": "Panelled bed wall with lit floating bedsides and an LED-lit bed plinth",
+    "source": "client"
+  },
+  {
+    "id": "wardrobe-charcoal-bed-recess",
+    "key": "site/clients/wardrobe-charcoal-bed-recess.jpg",
+    "alt": "Charcoal fitted wardrobes built around a recessed bed with a slatted headboard",
+    "source": "client"
+  },
+  {
+    "id": "wardrobe-walnut-open-bedroom",
+    "key": "site/clients/wardrobe-walnut-open-bedroom.jpg",
+    "alt": "Open walnut wardrobe with hanging rails and shelving in a bedroom",
+    "source": "client"
+  },
+  {
+    "id": "wardrobe-cream-gold-trim",
+    "key": "site/clients/wardrobe-cream-gold-trim.jpg",
+    "alt": "Wall of cream fitted wardrobes with a dressing area and corner shelving",
+    "source": "client"
+  },
+  {
+    "id": "wardrobe-walk-in-lit",
+    "key": "site/clients/wardrobe-walk-in-lit.jpg",
+    "alt": "Lit oak walk-in wardrobe with double hanging rails and shelves",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-walnut-fire-shelves",
+    "key": "site/clients/mediawall-walnut-fire-shelves.jpg",
+    "alt": "Elm-effect media wall with a recessed TV, electric fire and lit side shelving",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-dark-walnut-fire",
+    "key": "site/clients/mediawall-dark-walnut-fire.jpg",
+    "alt": "Dark slatted media wall with an electric fire, wall lights and an LED-lit plinth",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-warm-oak-fire",
+    "key": "site/clients/mediawall-warm-oak-fire.jpg",
+    "alt": "Living room media wall with a backlit TV panel, electric fire and overhead storage",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-walnut-bookcases",
+    "key": "site/clients/mediawall-walnut-bookcases.jpg",
+    "alt": "Walnut media wall with lit bookcases, slatted TV panel and electric fire",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-walnut-marble-stairs",
+    "key": "site/clients/mediawall-walnut-marble-stairs.jpg",
+    "alt": "Walnut media unit with a marble-effect TV wall and lit overhead shelving",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-alcove-shelving-fire",
+    "key": "site/clients/mediawall-alcove-shelving-fire.jpg",
+    "alt": "Alcove shelving either side of a slatted TV wall and fireplace",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-floating-walnut",
+    "key": "site/clients/mediawall-floating-walnut.jpg",
+    "alt": "Floating walnut TV unit against a dark panelled feature wall",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-marble-bookcase-fire",
+    "key": "site/clients/mediawall-marble-bookcase-fire.jpg",
+    "alt": "Media wall with a dark marble-effect TV panel, lit bookcase and electric fire",
+    "source": "client"
+  },
+  {
+    "id": "mediawall-floating-oak-lit",
+    "key": "site/clients/mediawall-floating-oak-lit.jpg",
+    "alt": "Floating oak TV unit with a backlit feature panel",
+    "source": "client"
+  }
+]

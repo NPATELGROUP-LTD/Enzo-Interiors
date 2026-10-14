@@ -1,0 +1,33 @@
+{
+  "name": "@enzo-interiors/portal",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Enzo Interiors — Client self-service portal (React + Vite SPA, PWA).",
+  "scripts": {
+    "dev": "vite --port 5175 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --port 5175 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src"
+  },
+  "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
+    "clsx": "^2.1.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.9.4",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/node": "^24.7.0",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.1",
+    "@vitejs/plugin-react": "^5.0.4",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9",
+    "vite-plugin-pwa": "^1.0.3"
+  }
+}

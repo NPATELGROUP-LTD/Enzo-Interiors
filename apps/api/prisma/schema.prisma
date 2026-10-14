@@ -1,0 +1,637 @@
+// Enzo Interiors — PostgreSQL schema.
+//
+// A 1:1 translation of docs/Enzo_Interiors_Backend_Schema_v2.0.md section 3,
+// plus the CMS tables added for v1. Field names are snake_case and match the
+// documented column names exactly, so src/common/types/domain.ts maps onto a
+// row with no rename pass and PrismaRepository can stay generic.
+//
+// Money is Decimal(12,2), never float — see src/common/util/money.ts.
+// Timestamps are timestamptz; PrismaRepository converts them to and from the
+// ISO-8601 strings the domain types use, so no service learns about Date.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/* -------------------------------------------------------------------------- */
+/* CRM tables (Backend Schema 3.1 - 3.18)                                     */
+/* -------------------------------------------------------------------------- */
+
+model StaffUser {
+  id               String    @id
+  name             String
+  email            String    @unique
+  password_hash    String
+  role             String
+  // Bumped on every password change or reset. A JWT carrying a different
+  // `tv` is rejected, which is what signs every other session out.
+  token_version    Int       @default(0)
+  // sha256 of the emailed reset token; the token itself is never stored.
+  // Also carries an invitation: an invited account has no password yet
+  // (password_hash is empty) until the emailed link is used.
+  reset_token_hash String?   @unique
+  reset_expires_at DateTime? @db.Timestamptz(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  // Two-step sign-in, chosen once at the first sign-in: "email" | "totp".
+  // Null = not chosen yet.
+  two_factor_method String?
+  // The authenticator app's secret, sealed with APP_ENCRYPTION_KEY (core/crypto.ts).
+  totp_secret_enc   String?
+  // Set once the first code from the app has been accepted.
+  totp_confirmed_at DateTime? @db.Timestamptz(6)
+  // The last 30-second step accepted, so one code cannot be used twice.
+  totp_last_step    Int?
+  // sha256 hex of each unused one-time recovery code.
+  recovery_hashes   Json?
+  // sha256 of the emailed sign-in code, its expiry and wrong guesses so far.
+  login_code_hash       String?
+  login_code_expires_at DateTime? @db.Timestamptz(6)
+  login_code_attempts   Int       @default(0)
+  // The linked Google account ("Sign in with Google"): its stable id and address.
+  google_sub        String?   @unique
+  google_email      String?
+
+  @@map("staff_users")
+}
+
+model Client {
+  id                String   @id
+  name              String
+  email             String   @unique
+  phone             String?
+  address           String?
+  status            String
+  assigned_staff_id String?
+  joined_date       DateTime @db.Timestamptz(6)
+  total_spent       Decimal  @default(0) @db.Decimal(12, 2)
+  notes             String?
+  password_hash     String
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  /// Portal sessions carry it; bumping it signs every one of them out.
+  token_version     Int      @default(0)
+
+  @@index([assigned_staff_id])
+  @@map("clients")
+}
+
+model Project {
+  id                    String   @id
+  client_id             String
+  name                  String
+  type                  String
+  status                String
+  progress_pct          Int      @default(0)
+  current_stage         String?
+  assigned_designer_id  String?
+  /// Who fits it: a Designer-role user. Either assignment gives access.
+  assigned_installer_id String?
+  client_visible        Boolean  @default(true)
+  created_at            DateTime @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([client_id])
+  @@index([assigned_designer_id])
+  @@index([assigned_installer_id])
+  @@map("projects")
+}
+
+model ComponentItem {
+  id          String   @id
+  name        String
+  category    String
+  unit_price  Decimal  @db.Decimal(12, 2)
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("components")
+}
+
+model Quote {
+  id         String   @id
+  client_id  String
+  service_id String
+  type       String
+  design_fee Decimal  @db.Decimal(12, 2)
+  subtotal   Decimal  @db.Decimal(12, 2)
+  vat_rate   Decimal  @db.Decimal(5, 2)
+  total      Decimal  @db.Decimal(12, 2)
+  status     String
+  invoice_id String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([client_id])
+  @@map("quotes")
+}
+
+// unit_price here is a POINT-IN-TIME SNAPSHOT of ComponentItem.unit_price.
+// Changing a component price must never rewrite this column. See
+// quotes.service.ts and Backend Schema section 6.
+model QuoteLineItem {
+  id             String  @id
+  quote_id       String
+  component_id   String
+  component_name String
+  quantity       Int
+  unit_price     Decimal @db.Decimal(12, 2)
+  line_total     Decimal @db.Decimal(12, 2)
+
+  @@index([quote_id])
+  @@map("quote_line_items")
+}
+
+model Invoice {
+  id         String    @id
+  number     String    @unique
+  client_id  String
+  project_id String?
+  quote_id   String?
+  amount     Decimal   @db.Decimal(12, 2)
+  vat_rate   Decimal   @db.Decimal(5, 2)
+  status     String
+  due_date   DateTime  @db.Timestamptz(6)
+  paid_at    DateTime? @db.Timestamptz(6)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  /// Fixed £ off the lines' subtotal, taken before VAT (modules/invoices/totals.ts).
+  discount         Decimal @default(0) @db.Decimal(12, 2)
+  job_name         String?
+  job_address      String?
+  job_notes        String?
+  /// [{label, amount, date}]: deposit received, due on delivery... Display only, never summed into amount.
+  payment_schedule Json    @default("[]")
+  items      InvoiceItem[]
+
+  @@index([client_id])
+  @@map("invoices")
+}
+
+/// Line items of an invoice: net (ex-VAT) prices; invoices.amount is derived from them.
+model InvoiceItem {
+  id          String   @id
+  invoice_id  String
+  description String
+  quantity    Decimal  @db.Decimal(10, 2)
+  unit_price  Decimal  @db.Decimal(12, 2)
+  /// The heading this line sits under ("Materials", "Add ons"); null = none.
+  section     String?
+  /// Second column of the printed invoice, e.g. "Replaced with quartz".
+  detail      String?
+  position    Int      @default(0)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  invoice     Invoice  @relation(fields: [invoice_id], references: [id], onDelete: Cascade)
+
+  @@index([invoice_id])
+  @@map("invoice_items")
+}
+
+model Booking {
+  id              String   @id
+  client_id       String
+  service_type    String
+  date_time       DateTime @db.Timestamptz(6)
+  status          String
+  linked_quote_id String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([client_id])
+  @@index([date_time])
+  @@map("bookings")
+}
+
+model AvailabilitySetting {
+  id                 String  @id
+  day_of_week        Int
+  start_time         String
+  end_time           String
+  slot_duration_mins Int
+  is_closed          Boolean @default(false)
+
+  @@map("availability_settings")
+}
+
+model Conversation {
+  id         String   @id
+  client_id  String
+  subject    String
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([client_id])
+  @@unique([client_id]) // one conversation per client (migration 11)
+  @@map("conversations")
+}
+
+model Message {
+  id              String    @id
+  conversation_id String
+  sender_id       String
+  sender_type     String
+  body            String
+  attachments     Json?
+  read_at         DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([conversation_id])
+  @@map("messages")
+}
+
+model SavedReplyTemplate {
+  id       String  @id
+  staff_id String?
+  title    String
+  body     String
+
+  @@map("saved_reply_templates")
+}
+
+model NotificationPreference {
+  id             String  @id
+  owner_id       String
+  owner_type     String
+  email_enabled  Boolean @default(true)
+  sms_enabled    Boolean @default(false)
+  in_app_enabled Boolean @default(true)
+
+  @@map("notification_preferences")
+}
+
+model DocumentRecord {
+  id             String   @id
+  client_id      String
+  project_id     String?
+  name           String
+  type           String
+  size_bytes     Int
+  upload_date    DateTime @db.Timestamptz(6)
+  client_visible Boolean  @default(false)
+  // S3 object KEY only. Never a full or signed URL — those are built at
+  // request time by the storage service. See CLAUDE.md Critical Do's.
+  storage_url    String
+
+  @@index([client_id])
+  @@map("documents")
+}
+
+model Testimonial {
+  id           String   @id
+  client_name  String
+  rating       Int
+  review_text  String
+  project_id   String?
+  is_published Boolean  @default(false)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("testimonials")
+}
+
+model PortfolioItem {
+  id             String  @id
+  project_id     String?
+  title          String
+  category       String
+  location       String?
+  year           Int?
+  duration_weeks Int?
+  description    String?
+  materials_used String?
+  image_urls     Json
+  is_published   Boolean @default(false)
+
+  @@map("portfolio_items")
+}
+
+model ContactSubmission {
+  id               String   @id
+  name             String
+  email            String
+  phone            String?
+  service_interest String?
+  message          String
+  status           String
+  // "contact" | "quote" | "booking": which form on the site sent it.
+  kind             String   @default("contact")
+  // The form's extra fields (tier, room, preferred date...), flat strings.
+  details          Json?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([status])
+  @@map("contact_submissions")
+}
+
+model BusinessSettings {
+  id                  String  @id
+  business_name       String
+  vat_rate            Decimal @db.Decimal(5, 2)
+  logo_url            String?
+  brand_primary_color String
+  email_from_address  String?
+
+  @@map("business_settings")
+}
+
+model ActivityLog {
+  id           String   @id
+  staff_id     String
+  actor_type   String
+  actor_name   String
+  action       String
+  target_table String
+  target_id    String
+  details      Json?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@map("activity_logs")
+}
+
+/* -------------------------------------------------------------------------- */
+/* CMS                                                                        */
+/* -------------------------------------------------------------------------- */
+
+// Every editable thing on the public site is one row here: a service, a
+// portfolio project, a testimonial, a team member, an FAQ, a nav link, and
+// each page copy tree.
+//
+// One table rather than eight because every one of them needs the same four
+// things — draft, published, ordering, audit — and nothing else needs to JOIN
+// on their innards. The field-level shape is described by the descriptors in
+// src/modules/cms/schemas.ts, which the admin fetches to render its forms, so
+// each shape is declared exactly once and drives both validation and UI.
+//
+// ponytail: content bodies are JSONB validated in the app layer, not columns
+// with constraints. Promote a field to a real column when something needs to
+// query or report on it, not before.
+model CmsEntry {
+  id           String    @id
+  // "pages" | "services" | "portfolio" | "testimonials" | "team" | "faqs"
+  // | "navigation" | "company"
+  collection   String
+  // Unique within the collection. For services this is also the route slug
+  // (/services/[category]); for pages it is the page key ("home", "legal").
+  slug         String
+  sort_order   Int       @default(0)
+  // The editable copy. Always present — this is what the admin loads.
+  draft        Json
+  // The live copy. Null until first publish, which is how "never published"
+  // is told apart from "published, then edited".
+  published    Json?
+  published_at DateTime? @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_by   String?
+  // An editor's "send for review": who asked (staff_users.id), when, and the
+  // note they left. Cleared when an admin publishes or sends it back.
+  review_by    String?
+  review_at    DateTime? @db.Timestamptz(6)
+  review_note  String?
+
+  @@unique([collection, slug])
+  @@index([collection, sort_order])
+  @@map("cms_entries")
+}
+
+// Every site image. The row holds the object KEY in the public bucket; the URL
+// is built from S3_PUBLIC_BASE_URL at read time. `source` is where the file
+// came from: "upload", "site", or "unsplash"/"randomuser" for placeholders
+// still waiting to be replaced (docs/prelaunch.md).
+model MediaAsset {
+  id          String   @id
+  storage_key String
+  alt         String
+  title       String?
+  source      String
+  width       Int?
+  height      Int?
+  byte_size   Int?
+  mime_type   String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("media_assets")
+}
+
+// General site settings. A single row, id "site".
+model SiteSettings {
+  id                  String    @id
+  // "live" | "coming_soon"
+  status              String    @default("coming_soon")
+  // Once set and passed, the site is live whatever `status` says.
+  launch_at           DateTime? @db.Timestamptz(6)
+  // Who receives enquiry notifications. Empty falls back to ADMIN_EMAIL.
+  notification_emails String[]  @default([])
+  // Brand: media ids. The logos replace company.logos on the site; a null
+  // favicon means the site's own /icon.png.
+  logo_light_id       String?   @default("logo-forest")
+  logo_dark_id        String?   @default("logo-white")
+  favicon_id          String?
+  // Shown in browsers set to dark mode; null = favicon_id for both.
+  favicon_dark_id     String?
+  // The studio's opening hours: { weekly, notes, note }. Null until first
+  // saved in Settings, and until then the company record's hours are used.
+  opening_hours       Json?
+  // Settings › Pages: { about: true, ... }. Null or a missing key = the
+  // default in modules/site-settings/pages.ts, computed on read.
+  pages               Json?
+  // Settings › Project stages: [{ name, progress, approval }], in order. Null =
+  // the default five in modules/projects/stages.ts, computed on read.
+  project_stages      Json?
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_by          String?
+
+  @@map("site_settings")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Consultation bookings                                                      */
+/* -------------------------------------------------------------------------- */
+
+// The schedule and the booking form's rules. A single row, id "booking".
+// ponytail: one JSONB body validated by the DTO, so a new rule is a code
+// change and never a migration. Promote a field to a column if SQL needs it.
+model BookingSettings {
+  id         String   @id
+  config     Json
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@map("booking_settings")
+}
+
+// A home consultation, booked on the website or by staff. Separate from the
+// CRM's `bookings`, which belongs to a client record the website never has.
+model Appointment {
+  id            String    @id
+  // Short code quoted in emails ("EZ-7K3Q9P").
+  reference     String    @unique
+  // services.slug at booking time, and its name, kept in case it is renamed.
+  service       String
+  service_label String
+  starts_at     DateTime  @db.Timestamptz(6)
+  ends_at       DateTime  @db.Timestamptz(6)
+  // starts_at as ISO while the booking holds its slot, null once cancelled.
+  // Unique, so the database itself refuses a second booking at the same time
+  // however close together two visitors click.
+  slot          String?   @unique
+  // "Confirmed" | "Cancelled"
+  status        String    @default("Confirmed")
+  name          String
+  email         String
+  phone         String?
+  address       String?
+  postcode      String?
+  notes         String?
+  // Anything else the form carried (the quote tier).
+  details       Json?
+  // "website" | "admin"
+  source        String
+  created_by    String?
+  cancelled_at  DateTime? @db.Timestamptz(6)
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime  @default(now()) @db.Timestamptz(6)
+  // The Google Calendar event mirroring this booking, and the calendar it is
+  // in. Null = not synced (no calendar connected, or the sync failed).
+  google_event_id        String?
+  calendar_connection_id String?
+  // Which of the connection's calendars the event is in, so a calendar change
+  // can still find (and move) events made before it.
+  google_calendar_id     String?
+
+  @@index([starts_at])
+  @@map("appointments")
+}
+
+// The admin's bell: one row per recipient.
+model Notification {
+  id           String    @id
+  recipient_id String
+  // "booking" | "review" | "review_reply" | "project"
+  kind         String
+  title        String
+  body         String?
+  // An admin path to open, e.g. /bookings?open=<id>.
+  link         String?
+  read_at      DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([recipient_id, created_at])
+  // The bell's unread count, polled every minute by every open admin.
+  @@index([recipient_id, read_at])
+  @@map("notifications")
+}
+
+// A browser's Web Push subscription (admin or portal PWA), one per device.
+// Sent to wherever a bell notification is created (modules/notifications).
+model PushSubscription {
+  id         String   @id
+  owner_id   String
+  // "staff" | "client": ids come from different tables, so every read names both.
+  owner_type String
+  // The push service URL. Unique: a re-subscribe from the same browser moves it.
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  user_agent String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([owner_type, owner_id, created_at])
+  @@map("push_subscriptions")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Newsletter                                                                 */
+/* -------------------------------------------------------------------------- */
+
+// Someone who asked for the newsletter. Double opt-in: "pending" until they
+// click the link in the confirmation email; only "confirmed" rows are sent to.
+model NewsletterSubscriber {
+  id              String    @id
+  // Lower-cased and trimmed, so one address is one row.
+  email           String    @unique
+  // "pending" | "confirmed" | "unsubscribed"
+  status          String    @default("pending")
+  // In the confirm and unsubscribe links. Random, never reused.
+  token           String    @unique
+  // Where they signed up: "coming_soon" | "footer".
+  source          String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  // The last confirmation email, so a form cannot be used to mail-bomb someone.
+  confirm_sent_at DateTime? @db.Timestamptz(6)
+  confirmed_at    DateTime? @db.Timestamptz(6)
+  unsubscribed_at DateTime? @db.Timestamptz(6)
+
+  @@index([status, created_at])
+  // Sending pages through confirmed subscribers in id order.
+  @@index([status, id])
+  @@map("newsletter_subscribers")
+}
+
+// One newsletter: its HTML body, and how far sending got.
+model NewsletterCampaign {
+  id           String    @id
+  subject      String
+  // The body as the admin wrote it, already sanitised; wrapped in the branded
+  // shell (logo, address, unsubscribe link) when sent.
+  html         String
+  // "draft" | "sending" | "sent"
+  status       String    @default("draft")
+  recipients   Int       @default(0)
+  sent_count   Int       @default(0)
+  failed_count Int       @default(0)
+  // The last subscriber id handled, so a restart carries on rather than
+  // starting again.
+  cursor       String?
+  created_by   String?
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+  sent_at      DateTime? @db.Timestamptz(6)
+
+  @@index([created_at])
+  @@map("newsletter_campaigns")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Two-step sign-in and Google Calendar                                       */
+/* -------------------------------------------------------------------------- */
+
+// A browser that ticked "remember this device": two-step sign-in is skipped
+// there until expires_at. The token lives in the browser; only its sha256 here.
+model TrustedDevice {
+  id            String   @id
+  staff_user_id String
+  token_hash    String   @unique
+  // A short summary of the user agent, for the account page ("Chrome on Windows").
+  label         String?
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  last_used_at  DateTime @default(now()) @db.Timestamptz(6)
+  expires_at    DateTime @db.Timestamptz(6)
+
+  @@index([staff_user_id])
+  @@map("trusted_devices")
+}
+
+// A Google Calendar bookings are copied into. v1 has one, the studio's, with
+// the fixed id "studio"; staff_user_id leaves room for per-staff calendars.
+model CalendarConnection {
+  id                String   @id
+  // Null = the studio calendar.
+  staff_user_id     String?
+  google_email      String
+  calendar_id       String   @default("primary")
+  calendar_name     String?
+  // Google's refresh token, sealed with APP_ENCRYPTION_KEY (core/crypto.ts).
+  refresh_token_enc String
+  // "connected" | "needs_reconnect" (Google refused the token).
+  status            String   @default("connected")
+  connected_by      String?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("calendar_connections")
+}

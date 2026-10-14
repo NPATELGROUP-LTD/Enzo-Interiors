@@ -1,0 +1,30 @@
+[
+  {
+    "id": "oyz-khan",
+    "name": "Oyz Khan",
+    "role": "Founder — surveys and drawings",
+    "note": "Comes to your house, measures every wall, and draws what he found.",
+    "imageId": "team-oyz-khan"
+  },
+  {
+    "id": "rhea-kaur",
+    "name": "Rhea Kaur",
+    "role": "Designer — 3D and finishes",
+    "note": "Builds the room in 3D so you can sign it off before anything is cut.",
+    "imageId": "team-rhea-kaur"
+  },
+  {
+    "id": "tom-bradley",
+    "name": "Tom Bradley",
+    "role": "Bench joiner — the workshop",
+    "note": "Cuts, edges and assembles every carcass on the bench in Leicester.",
+    "imageId": "team-tom-bradley"
+  },
+  {
+    "id": "marek-nowak",
+    "name": "Marek Nowak",
+    "role": "Lead fitter — installation",
+    "note": "The one in your room with a screwdriver, scribing it to your walls.",
+    "imageId": "team-marek-nowak"
+  }
+]

@@ -1,0 +1,284 @@
+{
+  "sheet": {
+    "contentsLabel": "Contents",
+    "contentsNavLabel": "On this page",
+    "updatedLabel": "Updated {updated}",
+    "questionsLabel": "Questions about this"
+  },
+  "privacy": {
+    "metadata": {
+      "title": "Privacy Policy — Enzo Interiors",
+      "description": "How Enzo Interiors collects, uses and protects your personal data, and the rights you have under UK GDPR.",
+      "ogImageId": ""
+    },
+    "index": "L1",
+    "eyebrow": "Privacy",
+    "title": "What we do with your information.",
+    "intro": "Short version: we collect what we need to measure your room, quote for it, build it and be paid for it — and nothing else. There is no tracking on this site, no advertising, and nothing is sold or shared for anyone else's marketing. The long version is below, in the order the law asks for it.",
+    "updated": "5 September 2026",
+    "clauses": [
+      {
+        "id": "who-we-are",
+        "heading": "Who we are",
+        "body": [
+          "Enzo Interiors designs, makes and fits bespoke interiors and fitted furniture in Leicester and across Leicestershire. For the purposes of UK data protection law we are the data controller for the personal data described in this notice.",
+          "Registered company: [REGISTERED COMPANY NAME], company number [COMPANY NUMBER], registered office [REGISTERED ADDRESS]. Information Commissioner's Office registration number: [ICO REGISTRATION NUMBER].",
+          "If you have a question about this notice or about how we handle your information, the quickest route is the contact page, or email [PRIVACY EMAIL]."
+        ]
+      },
+      {
+        "id": "what-we-collect",
+        "heading": "What we collect, and when",
+        "body": [
+          "We only collect information you give us, and only where you have asked us to do something with it. There is no tracking on this website and no profile is built from your browsing.",
+          [
+            "Enquiry and quote requests — your name, email address, phone number if you give one, the room or service you are asking about, and whatever you write in the message.",
+            "Booking a survey — the above, plus the address of the property to be surveyed and the times you are available, because we cannot come and measure a room without knowing where it is.",
+            "During a project — measurements, photographs of the rooms we are working in, drawings, correspondence, and the invoicing details needed to be paid.",
+            "Server logs — your IP address and browser user-agent are processed transiently by our hosting provider to serve the page and to protect against abuse. These are not used to identify you and are not combined with anything else."
+          ],
+          "We do not ask for, and would rather you did not send us, any special category data (health, beliefs, and so on). If a room has to be designed around a medical need or a disability, tell us only what we need in order to design it correctly."
+        ]
+      },
+      {
+        "id": "why-and-lawful-basis",
+        "heading": "Why we use it, and our lawful basis",
+        "body": [
+          "Under Article 6 of the UK GDPR every use of personal data needs a lawful basis. Ours are:",
+          [
+            "Steps taken at your request before entering a contract (Art. 6(1)(b)) — answering an enquiry, arranging and carrying out a survey, and preparing a quotation.",
+            "Performance of a contract (Art. 6(1)(b)) — designing, making, fitting and guaranteeing work you have ordered, and invoicing for it.",
+            "Legal obligation (Art. 6(1)(c)) — keeping accounting and tax records, and any records required by consumer law.",
+            "Legitimate interests (Art. 6(1)(f)) — keeping a record of the work we have done so we can honour the guarantee on it, and defending ourselves if a dispute arises. We have considered your interests against ours and consider this balance fair because the data is limited to what the job required.",
+            "Consent (Art. 6(1)(a)) — only for optional things, such as using a photograph of your finished room in our portfolio. We ask separately, in writing, and you can withdraw it at any time."
+          ],
+          "We do not sell your data, we do not share it for anyone else's marketing, and we do not send marketing email unless you have asked us to."
+        ]
+      },
+      {
+        "id": "photographs",
+        "heading": "Photographs of your home",
+        "body": [
+          "We photograph rooms during a survey and again on completion. Survey photographs are working documents — they exist so the workshop can see the wall it is building for — and they are never published.",
+          "Completion photographs are only ever used publicly with your separate written consent, and that consent is genuinely optional: it has no effect on the price, the timescale or anything else about your job. If you consent and later change your mind, tell us and we will remove the images from our website and social channels. We cannot recall copies other people have already saved or shared, and we will say so honestly rather than promise otherwise."
+        ]
+      },
+      {
+        "id": "sharing",
+        "heading": "Who else sees it",
+        "body": [
+          "As few people as possible. We do not use subcontracted fitters, so nobody outside our own team is in your home.",
+          [
+            "Our hosting and email providers, who process data on our instructions under a written contract (UK GDPR Art. 28).",
+            "Our accountant, for invoicing and statutory records.",
+            "Suppliers, where a specific item has to be ordered to your address — and then only the delivery details.",
+            "A public authority, where we are legally required to disclose something."
+          ],
+          "Where a processor is outside the UK, we rely on UK adequacy regulations or on the International Data Transfer Addendum, and we will tell you which if you ask."
+        ]
+      },
+      {
+        "id": "retention",
+        "heading": "How long we keep it",
+        "body": [
+          "Only as long as there is a reason to.",
+          [
+            "Enquiries that do not become jobs — up to 12 months, then deleted.",
+            "Survey notes and drawings for a quotation you did not accept — up to 12 months.",
+            "Completed projects — for the life of the workmanship guarantee plus 1 year, so we can honour a claim against the actual drawings.",
+            "Invoices and accounting records — 6 years after the end of the relevant financial year, as required by HMRC.",
+            "Consent records for photographs — for as long as the photograph is in use, plus 1 year."
+          ]
+        ]
+      },
+      {
+        "id": "your-rights",
+        "heading": "Your rights",
+        "body": [
+          "Under the UK GDPR you have the right to be informed, of access, to rectification, to erasure, to restrict processing, to data portability, to object, and rights relating to automated decision-making. We make no automated decisions about you and do no profiling.",
+          "To exercise any of these, email [PRIVACY EMAIL] or write to us at the registered office above. We will respond within one month. There is no charge, and we will not ask you to justify the request.",
+          "If you are unhappy with how we have handled your information you can complain to the Information Commissioner's Office at ico.org.uk, on 0303 123 1113, or at Wycliffe House, Water Lane, Wilmslow, Cheshire SK9 5AF. We would rather you came to us first so we can put it right, but you do not have to."
+        ]
+      },
+      {
+        "id": "security",
+        "heading": "Keeping it safe",
+        "body": [
+          "The website is served over HTTPS. Access to project records is limited to the people working on your job. Devices are password-protected and encrypted, and we review who has access when someone joins or leaves.",
+          "If a breach occurs that is likely to result in a risk to your rights and freedoms, we will report it to the ICO within 72 hours and tell you directly where the risk is high."
+        ]
+      },
+      {
+        "id": "changes",
+        "heading": "Changes to this notice",
+        "body": [
+          "This notice was last updated on {updated}. If we change it materially we will update the date at the top and, where the change affects how we use data you have already given us, we will contact you rather than rely on you noticing."
+        ]
+      }
+    ],
+    "contact": [
+      { "label": "Contact us", "href": "/contact" },
+      { "label": "Cookie policy", "href": "/cookies" },
+      { "label": "Terms & conditions", "href": "/terms" }
+    ]
+  },
+  "terms": {
+    "metadata": {
+      "title": "Terms & Conditions — Enzo Interiors",
+      "description": "Terms for using the Enzo Interiors website, and your statutory rights when you order fitted furniture from us.",
+      "ogImageId": ""
+    },
+    "index": "L2",
+    "eyebrow": "Terms",
+    "title": "What you can expect, and what we ask.",
+    "intro": "These terms cover using this website. The terms for a job — deposits, timings, variations and cancellation — come with your written quotation, because they depend on the room. Nothing here reduces the rights the Consumer Rights Act gives you, and clause 5 says what those are.",
+    "updated": "5 September 2026",
+    "clauses": [
+      {
+        "id": "who",
+        "heading": "Who these terms are with",
+        "body": [
+          "This website is operated by [REGISTERED COMPANY NAME], company number [COMPANY NUMBER], registered office [REGISTERED ADDRESS], VAT number [VAT NUMBER], trading as Enzo Interiors. References to “we”, “us” and “our” mean that company.",
+          "By using this website you accept these terms. If you do not accept them, please do not use the site."
+        ]
+      },
+      {
+        "id": "site-use",
+        "heading": "Using this website",
+        "body": [
+          "You may read, print and download material from this site for your own use in considering whether to engage us. You may not republish it, sell it, or use it to train an automated system, without our written permission.",
+          "We try to keep the site available and correct, but we do not guarantee that it will be uninterrupted or error-free, and we may change or withdraw any part of it without notice."
+        ]
+      },
+      {
+        "id": "content-accuracy",
+        "heading": "Prices, images and figures on this site",
+        "body": [
+          "Every figure on this website is indicative and is offered as a planning guide. It is not a quotation and it is not an offer capable of acceptance. We do not price a room we have not measured, and the only binding figure is the one in a written quotation issued after a survey.",
+          "3D models and renders on this site are illustrative. They show construction principles and typical arrangements, not your room. Photographs show work we have completed for other clients; timber, paint and stone vary between batches, and a finish will not be identical to a photograph of it.",
+          "Lead times quoted on this site are typical rather than promised. Your quotation will carry the lead time for your job."
+        ]
+      },
+      {
+        "id": "enquiries",
+        "heading": "Enquiries and surveys",
+        "body": [
+          "Submitting an enquiry or booking a survey does not create a contract for work and commits you to nothing. The survey is free and carries no obligation.",
+          "We ask that the property is accessible at the agreed time and that anyone whose agreement is needed for the work is available or has been consulted. If we cannot survey because access was not available, we will simply rearrange."
+        ]
+      },
+      {
+        "id": "your-rights",
+        "heading": "Your rights when you order work",
+        "body": [
+          "Nothing on this website or in our contract terms removes or limits your statutory rights. Under the Consumer Rights Act 2015 goods we supply must be of satisfactory quality, fit for purpose and as described, and services must be performed with reasonable care and skill.",
+          "Because we survey in your home, a contract signed there or shortly afterwards is likely to be an off-premises contract under the Consumer Contracts (Information, Cancellation and Additional Charges) Regulations 2013. That gives you 14 days to cancel without giving a reason. Bespoke goods can be excepted from that right, but only where you have expressly requested that we begin and have acknowledged that you will lose the right — we will never treat you as having waived it silently, and we do not start cutting before that point.",
+          "Full terms of supply — deposits, stage payments, variations, delays, guarantee and cancellation — are issued with your written quotation and form the contract. Please read them before you sign; ask us about anything in them and we will explain it in plain English."
+        ]
+      },
+      {
+        "id": "guarantee",
+        "heading": "Guarantee",
+        "body": [
+          "Our workmanship is guaranteed for [GUARANTEE PERIOD] from completion. The guarantee covers our joinery, our fixings and our fitting. It does not cover damage, misuse, alteration by others, or normal movement of the building and of natural materials.",
+          "Manufacturers' guarantees on appliances, hinges and runners are passed to you and run alongside this one; they do not replace it and they do not affect your statutory rights."
+        ]
+      },
+      {
+        "id": "liability",
+        "heading": "Liability",
+        "body": [
+          "We do not exclude or limit liability for death or personal injury caused by our negligence, for fraud, or for anything else that cannot lawfully be excluded — and we would not try to.",
+          "In relation to this website specifically, we are not liable for loss arising from reliance on indicative figures, illustrative renders or typical lead times published here, for the reasons set out above."
+        ]
+      },
+      {
+        "id": "complaints",
+        "heading": "If something goes wrong",
+        "body": [
+          "Tell us. Email [COMPLAINTS EMAIL] or call the number on the contact page, and we will acknowledge within [ACKNOWLEDGEMENT PERIOD] and set out what we propose to do.",
+          "If we cannot resolve it between us, you may be able to refer the matter to an alternative dispute resolution provider: [ADR PROVIDER, IF A MEMBER]. You can also seek advice from Citizens Advice on 0808 223 1133."
+        ]
+      },
+      {
+        "id": "law",
+        "heading": "Law and jurisdiction",
+        "body": [
+          "These terms are governed by the law of England and Wales, and the courts of England and Wales have jurisdiction. If you live in Scotland or Northern Ireland you may also bring proceedings in your own courts."
+        ]
+      }
+    ],
+    "contact": [
+      { "label": "Privacy policy", "href": "/privacy" },
+      { "label": "Cookie policy", "href": "/cookies" },
+      { "label": "Contact us", "href": "/contact" }
+    ]
+  },
+  "cookies": {
+    "metadata": {
+      "title": "Cookie Policy — Enzo Interiors",
+      "description": "Exactly what this website stores on your device, why, and how to change your mind.",
+      "ogImageId": ""
+    },
+    "index": "L3",
+    "eyebrow": "Cookies",
+    "title": "One item, and we asked first.",
+    "intro": "Most cookie policies are long because most websites store a lot. This one is short because this website stores almost nothing: a record of the choice you made about cookies, and — while you are filling it in — your progress through the booking form. The one third party is the Google Map in the footer, and it loads only if you allow it. No analytics, no advertising.",
+    "updated": "5 September 2026",
+    "clauses": [
+      {
+        "id": "what-we-set",
+        "heading": "Everything this site stores",
+        "body": [
+          "That is the whole list for this website itself. There is no analytics, no tag manager, no advertising pixel, no social embed, no session recording and no A/B testing. The Google Map is a third party and is covered below.",
+          [
+            "enzo.consent — remembers the choice you made in the cookie notice, so you are not asked on every page. Stored in your browser's local storage, not sent to our server, kept until you clear it or change your choice. Strictly necessary: without it we could not honour your decision.",
+            "Booking form progress — while you are part-way through the booking wizard, your answers are held in your browser so a refresh does not lose them. Cleared when you submit or leave. Strictly necessary for a service you asked for."
+          ],
+          "Our hosting provider processes your IP address transiently in its server logs in order to deliver the page and to defend against abuse. That is not a cookie, it is not used to identify you, and it is not combined with anything else — see the privacy notice for the detail."
+        ]
+      },
+      {
+        "id": "consent",
+        "heading": "What we ask permission for",
+        "body": [
+          "Under PECR we need your consent before storing or reading anything on your device that is not strictly necessary for a service you have asked for. Today one thing on this site falls into that category: “Maps and embedded content”, which shows the Google Map. “Accept recommended” allows it and leaves analytics off; “Reject all” keeps the map hidden, and you can still show it later with the button where it would be.",
+          "We have still built the mechanism properly, because the moment analytics is added it has to sit behind a real choice rather than be retro-fitted. If you allow analytics now, that permission only takes effect if and when we add it; if you refuse, we will not add it for you."
+        ]
+      },
+      {
+        "id": "changing-your-mind",
+        "heading": "Changing your mind",
+        "body": [
+          "You can change or withdraw your choice at any time, and it has to be as easy as giving it was — that is Article 7(3) of the UK GDPR, not a courtesy. Use the button below, or the “Cookie settings” link in the footer of every page.",
+          "You can also clear site data for this domain in your browser's settings, which has the same effect: we will simply ask again next time."
+        ]
+      },
+      {
+        "id": "third-parties",
+        "heading": "Third parties",
+        "body": [
+          "Google Maps — the map at the foot of each page, showing where we are. It is served by Google, which sets its own cookies and receives your IP address when the map loads; Google's privacy policy applies, and we do not see or control that data. It loads only once you have allowed “Maps and embedded content”, and withdrawing that choice removes it.",
+          "Anything else we add that sets its own cookies — a review widget, a booking integration — will be listed here by name and purpose before it goes live, and it will not load until you have allowed it.",
+          "Links from this site to other websites (for example our social profiles) take you to services with their own cookies and their own policies, over which we have no control."
+        ]
+      },
+      {
+        "id": "more",
+        "heading": "More about cookies generally",
+        "body": [
+          "The Information Commissioner's Office publishes plain-English guidance on cookies and similar technologies at ico.org.uk. If you think this site is not doing what this page says, tell us at [PRIVACY EMAIL] — and you can complain to the ICO directly at any time."
+        ]
+      }
+    ],
+    "contact": [
+      { "label": "Privacy policy", "href": "/privacy" },
+      { "label": "Terms & conditions", "href": "/terms" },
+      { "label": "Contact us", "href": "/contact" }
+    ],
+    "settingsBox": {
+      "heading": "Change your choice now",
+      "body": "This reopens the notice with your current answer in it. It takes effect immediately and applies to this browser."
+    }
+  }
+}

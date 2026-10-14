@@ -1,0 +1,4 @@
+packages:
+  - "apps/web"
+  # Only for the shared lint tooling at the root (eslint.config.js), which
+  # apps/web's eslint config extends. Every app installs itself with `npm ci`.

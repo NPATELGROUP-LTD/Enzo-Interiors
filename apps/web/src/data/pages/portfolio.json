@@ -1,0 +1,135 @@
+{
+  "metadata": {
+    "title": "Portfolio — Enzo Interiors",
+    "description": "Every kitchen, bedroom, media wall and wardrobe we have finished across Leicestershire — with the client, the location, the time on site and the materials specified.",
+    "ogImageId": ""
+  },
+  "masthead": {
+    "eyebrow": "01 — Archive",
+    "countLabel": "{count} finished",
+    "lines": [
+      "Every room",
+      "we have finished."
+    ],
+    "chooseLabel": "Choose a room",
+    "figures": [
+      {
+        "key": "rooms",
+        "label": "Rooms finished"
+      },
+      {
+        "key": "disciplines",
+        "label": "Disciplines"
+      },
+      {
+        "key": "towns",
+        "label": "Towns & villages"
+      },
+      {
+        "key": "years",
+        "label": "Years"
+      }
+    ]
+  },
+  "wall": {
+    "srHeading": "The work",
+    "index": "02",
+    "label": "Wall",
+    "datum": "{count} shown",
+    "lines": [
+      "All of it,",
+      "on one wall."
+    ],
+    "lede": "Filter by discipline and the wall rearranges rather than reloading. Any tile opens its case study.",
+    "allLabel": "All work",
+    "filterGroupLabel": "Filter by discipline",
+    "openTileLabel": "Open case study — {title}",
+    "tileMeta": "{category} — {year}",
+    "showMore": "Show {count} more",
+    "remaining": "({count} left)"
+  },
+  "anatomy": {
+    "srHeading": "One project in full",
+    "index": "03",
+    "label": "In full",
+    "datum": "{category} · {year}",
+    "lines": [
+      "One of them,",
+      "taken apart."
+    ],
+    "lede": "The wall above is nine thumbnails. This is what is behind one of them — who it was for, how long we were in their house, what it is made of, and what actually got decided.",
+    "ledeShort": "What is behind one of those thumbnails: who, where, how long, and what it is made of.",
+    "captionMeta": "{location} · {duration} on site",
+    "facts": [
+      {
+        "key": "client",
+        "label": "Client"
+      },
+      {
+        "key": "location",
+        "label": "Where"
+      },
+      {
+        "key": "duration",
+        "label": "On site"
+      },
+      {
+        "key": "year",
+        "label": "Finished"
+      }
+    ],
+    "runnerUpLabel": "Also on the bench",
+    "specifiedLabel": "Specified",
+    "openLabel": "Open the full record"
+  },
+  "close": {
+    "index": "04",
+    "label": "Your turn",
+    "heading": "We asked {count} other people these three things first.",
+    "lede": "Every room above started as three answers given at somebody’s kitchen table. None of them needed measurements, a budget worked out to the pound, or any idea what the finished thing should look like — that part is our job, and it starts after this.",
+    "questions": [
+      {
+        "ask": "Which room is it?",
+        "why": "A kitchen and a walk-in are different trades wearing the same coat. Knowing which one tells us who needs to come and look at it, and how long they should put aside."
+      },
+      {
+        "ask": "What is wrong with it now?",
+        "why": "Nobody replaces furniture that works. The thing that annoys you daily is usually the thing the design has to solve first — and it is rarely the thing people lead with."
+      },
+      {
+        "ask": "What would you rather not spend?",
+        "why": "Not a haggle. Knowing the ceiling early is what lets us say honestly whether the room you have described can be done for it, before either of us has spent an afternoon on drawings."
+      }
+    ],
+    "footerNote": "Answer them in about a minute. We reply the same working day, and the survey after it is free with nothing to sign.",
+    "ctaLabel": "Answer the three",
+    "ctaHref": "/contact#contact-docket",
+    "emptyHeading": "Our latest rooms are being photographed. Yours could be the first we show."
+  },
+  "caseStudy": {
+    "closeLabel": "Close case study",
+    "position": "{index} / {total}",
+    "specifiedLabel": "Specified",
+    "spec": [
+      {
+        "key": "client",
+        "label": "Client"
+      },
+      {
+        "key": "location",
+        "label": "Location"
+      },
+      {
+        "key": "duration",
+        "label": "On site"
+      },
+      {
+        "key": "year",
+        "label": "Completed"
+      }
+    ],
+    "previousLabel": "Previous",
+    "nextLabel": "Next",
+    "stepHint": "← → to step"
+  }
+}

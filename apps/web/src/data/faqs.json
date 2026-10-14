@@ -1,0 +1,92 @@
+[
+  {
+    "id": "general-duration",
+    "serviceId": null,
+    "q": "How long does a typical project take?",
+    "a": "Most projects run 4–8 weeks from first consultation to final installation, covering design, manufacture and fitting. Each discipline's own lead time is on its page."
+  },
+  {
+    "id": "general-consultation",
+    "serviceId": null,
+    "q": "Do you offer free consultations?",
+    "a": "Yes — a completely free, no-obligation home visit. We measure the space, photograph every wall, talk through how you use the room, and give you honest advice on what is worth doing."
+  },
+  {
+    "id": "general-areas",
+    "serviceId": null,
+    "q": "What areas do you cover?",
+    "a": "We are based in Leicester and cover the whole of Leicestershire, including Oadby, Wigston, Market Harborough, Loughborough and the surrounding villages."
+  },
+  {
+    "id": "general-materials",
+    "serviceId": null,
+    "q": "Can I choose my own materials and colours?",
+    "a": "Absolutely. Each discipline has its own range of finishes, and we bring physical samples to your home so you can see them in your own light before anything is ordered."
+  },
+  {
+    "id": "general-guarantee",
+    "serviceId": null,
+    "q": "Do you provide a guarantee?",
+    "a": "Every installation carries a five-year workmanship guarantee, in writing, whichever service you choose."
+  },
+  {
+    "id": "general-combine",
+    "serviceId": null,
+    "q": "Can you combine more than one service?",
+    "a": "Often, yes, and it usually works out better. A bedroom and its wardrobes designed together share finishes, and one visit and one fit means less disruption than booking them separately."
+  },
+  {
+    "id": "kitchens-duration",
+    "serviceId": "kitchens",
+    "q": "How long does a kitchen installation take?",
+    "a": "Typically 4-6 weeks from design approval to completion. Installation itself takes 3-5 days."
+  },
+  {
+    "id": "kitchens-removal",
+    "serviceId": "kitchens",
+    "q": "Do you remove the old kitchen?",
+    "a": "Yes, we handle full removal and disposal of your existing kitchen as part of the project."
+  },
+  {
+    "id": "kitchens-appliances",
+    "serviceId": "kitchens",
+    "q": "Can I keep my existing appliances?",
+    "a": "Absolutely. We design around your existing appliances or help you choose new ones."
+  },
+  {
+    "id": "bedrooms-sloped-ceilings",
+    "serviceId": "bedrooms",
+    "q": "Can you work with sloped ceilings?",
+    "a": "Yes! Fitted furniture is ideal for awkward spaces. We design around slopes and alcoves."
+  },
+  {
+    "id": "bedrooms-finishes",
+    "serviceId": "bedrooms",
+    "q": "What finishes are available?",
+    "a": "We offer over 100 finishes including wood grains, painted finishes, high gloss, and matt lacquer."
+  },
+  {
+    "id": "media-walls-fireplace",
+    "serviceId": "media-walls",
+    "q": "Can you integrate my existing fireplace?",
+    "a": "Yes, we can design around existing features or install new electric/bio-ethanol fireplaces."
+  },
+  {
+    "id": "media-walls-tv-size",
+    "serviceId": "media-walls",
+    "q": "Will it support my TV size?",
+    "a": "We engineer our media walls to support TVs up to 85 inches safely."
+  },
+  {
+    "id": "wardrobes-alcoves",
+    "serviceId": "wardrobes",
+    "q": "Can you fit wardrobes in alcoves?",
+    "a": "Absolutely. Fitted wardrobes are perfect for making the most of alcoves and awkward spaces."
+  },
+  {
+    "id": "wardrobes-fitting-time",
+    "serviceId": "wardrobes",
+    "q": "How long does fitting take?",
+    "a": "Most single wardrobes are fitted in a single day. Larger walk-in designs may take 2 days."
+  }
+]

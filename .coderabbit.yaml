@@ -1,0 +1,30 @@
+language: en-GB
+reviews:
+  profile: assertive
+  high_level_summary: true
+  path_filters:
+    - "!**/*.lock"
+    - "!**/package-lock.json"
+    - "!pnpm-lock.yaml"
+    - "!**/seed-media/**"
+    - "!promo-video/**"
+    - "!docs/**"
+    - "!.claude/**"
+    - "!.impeccable/**"
+    - "!**/*.{png,jpg,jpeg,webp,svg,ico,woff,woff2,mp4,webm}"
+  path_instructions:
+    - path: "apps/api/**"
+      instructions: |
+        Security review. Check: authn/authz on every controller route (@Roles, guards, client-token default deny),
+        IDOR/BOLA (AccessService scopes for clients/projects/documents/invoices), mass assignment, input validation,
+        SQL/Prisma raw query injection, file upload validation and S3 key handling, signed URL misuse, JWT/token_version
+        handling, 2FA/reset/invite flows, rate limiting, secrets in logs/errors, SSRF, CSRF/CORS, WebSocket auth,
+        Web Push endpoint allowlist, money handling (Decimal).
+    - path: "apps/{admin,portal,web}/**"
+      instructions: |
+        Security review. Check: XSS (dangerouslySetInnerHTML, unsanitised CMS/newsletter HTML), token storage,
+        open redirects, secrets in client bundles, service worker caching of authenticated data, postMessage/draft-mode handling.
+    - path: "docker-compose.yml"
+      instructions: "Check exposed ports, default credentials, secrets in env, container privileges."
+    - path: ".github/**"
+      instructions: "Check workflow permissions, untrusted input in run steps, secret exposure."

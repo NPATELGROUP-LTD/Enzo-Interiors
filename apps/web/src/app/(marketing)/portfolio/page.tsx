@@ -1,0 +1,52 @@
+// /portfolio — the archive.
+//
+// Four sections, no two sharing a layout or a mechanic. See
+// src/components/portfolio/ for the file map.
+//
+//   01  PortfolioMasthead   the fold: one full-bleed plate cutting through
+//                           the archive, over four counted figures (near-black)
+//   02  PortfolioWall       every project as a mosaic, filtered with a
+//                           Flip re-layout (near-black)
+//   03  PortfolioAnatomy    one project given the room the grid cannot:
+//                           the plate large, the record set out (cream)
+//   04  PortfolioClose      the ask, in the landing hero's own grammar,
+//                           with the archive counted (near-black)
+//
+// ── One list, not three ──
+// An earlier cut had a ruled register on the fold and a materials schedule
+// at §03, both of which listed all nine projects — so the page said the same
+// thing three times in three fonts. A later one replaced §03 with a catchment
+// plot, which enumerated them a third time in a different notation. The
+// archive is enumerated exactly once, in §02, where showing it is the point.
+// The fold sells; §03 goes deep on one record instead of shallow on all of
+// them; the close asks, and counts what the records add up to.
+//
+// Stays a Server Component: it fetches the records and hands them down.
+// Every section is written against `PortfolioItem[]` of any length, because
+// in production the client publishes projects themselves from the Admin
+// Content Manager — nothing assumes there are nine, and §01's figures and
+// §03's plot are both counted off whatever those records happen to say.
+//
+// TRD §9 calls this page out (alongside /services/[category]) for ISR/SSG
+// since it is image-heavy; `revalidate` re-generates it periodically
+// instead of on every request.
+import type { Metadata } from "next";
+import { PageUpdating } from "@/components/shared/PageUpdating";
+import { offMetadata, pageOff } from "@/lib/page-gate";
+import { pageMetadata } from "@/lib/seo";
+import { PortfolioRoot } from "@/components/portfolio/PortfolioRoot";
+import { getPage, getPortfolioItems } from "@/lib/content";
+
+export const revalidate = 3600;
+
+export async function generateMetadata(): Promise<Metadata> {
+  if (await pageOff("portfolio")) return offMetadata("portfolio");
+  const metadata = (await getPage("portfolio")).metadata;
+  return pageMetadata({ ...metadata, path: "/portfolio", ogKey: "portfolio" });
+}
+
+export default async function PortfolioPage() {
+  if (await pageOff("portfolio")) return <PageUpdating page="portfolio" />;
+  const [items, content] = await Promise.all([getPortfolioItems(), getPage("portfolio")]);
+  return <PortfolioRoot items={items} content={content} />;
+}
