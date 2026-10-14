@@ -9,8 +9,9 @@ import {
 } from 'react';
 
 import type { LoginResponse, Principal } from '@/types/api';
-import { ApiError, UNAUTHORIZED_EVENT, api, tokenStore } from './api';
+import { ApiError, UNAUTHORIZED_EVENT, api, renewSession, tokenStore } from './api';
 import { disablePush } from './push';
+import { reauthSocket } from './socket';
 
 const USER_CACHE_KEY = 'enzo-portal-user';
 
@@ -108,6 +109,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
+
+  // Keep a signed-in session alive: the API's tokens are short-lived, so renew
+  // one past half its life (checked every minute and when the tab comes back).
+  const signedIn = user !== null;
+  useEffect(() => {
+    if (!signedIn) return;
+    const renew = () => void renewSession().then((token) => token && reauthSocket());
+    renew();
+    const timer = setInterval(renew, 60_000);
+    document.addEventListener('visibilitychange', renew);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', renew);
+    };
+  }, [signedIn]);
 
   const login = useCallback(async (email: string, password: string) => {
     // The client login flow. Staff credentials are rejected here by design —
