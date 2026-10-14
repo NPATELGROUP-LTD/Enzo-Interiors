@@ -22,7 +22,7 @@ export function PushToggle() {
     try {
       if (next) setState(await enablePush());
       else {
-        await disablePush(tokenStore.get());
+        await disablePush(tokenStore.get(), true);
         setState('off');
       }
     } catch {
