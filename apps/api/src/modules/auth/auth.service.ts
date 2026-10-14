@@ -184,7 +184,7 @@ export class AuthService implements OnApplicationBootstrap {
     }
     if ((await this.limits.hit(`login:fail:${email}`, FAILURE_WINDOW)) >= ACCOUNT_FAILURES) {
       await this.limits.set(`login:lock:${email}`, ACCOUNT_LOCK);
-      this.logger.warn(`Sign-in for ${email} locked for 15 minutes after repeated failures from several addresses.`);
+      this.logger.warn(`Sign-in for ${maskEmail(email)} locked for 15 minutes after repeated failures from several addresses.`);
     }
   }
 
@@ -378,7 +378,7 @@ export class AuthService implements OnApplicationBootstrap {
     // so the token stays out of access logs and Referer headers.
     const link = `${this.adminUrl}/reset-password#token=${token}`;
     const sent = await this.mail.send({ to: staff.email, ...templates.passwordReset(staff.name, link) });
-    if (!sent) this.logger.warn(`Password reset requested for ${staff.email} but no email could be sent.`);
+    if (!sent) this.logger.warn(`Password reset requested for ${maskEmail(staff.email)} but no email could be sent.`);
   }
 
   /** POST /auth/admin/reset-password */

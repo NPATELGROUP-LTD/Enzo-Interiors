@@ -406,7 +406,7 @@ export class TwoFactorService {
       { id: staff.id, recovery_hashes: { equals: hashes } },
       { recovery_hashes: hashes.filter((stored) => stored !== hash) },
     );
-    if (spent === 1) this.logger.log(`${staff.email} signed in with a recovery code (${hashes.length - 1} left).`);
+    if (spent === 1) this.logger.log(`${maskEmail(staff.email)} signed in with a recovery code (${hashes.length - 1} left).`);
     return spent === 1;
   }
 
