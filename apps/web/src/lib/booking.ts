@@ -17,7 +17,8 @@ export interface Availability {
 }
 
 export async function fetchAvailability(from: string, to: string): Promise<Availability> {
-  const response = await fetch(`${API}/booking/availability?from=${from}&to=${to}`, { cache: "no-store" });
+  const query = new URLSearchParams({ from, to });
+  const response = await fetch(`${API}/booking/availability?${query}`, { cache: "no-store" });
   if (!response.ok) throw new Error(String(response.status));
   return (await response.json()) as Availability;
 }
