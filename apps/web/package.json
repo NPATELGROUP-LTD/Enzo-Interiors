@@ -8,7 +8,7 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
-    "test": "node --test src/lib/content/hours.test.mjs src/lib/content/merge.test.mjs src/lib/content/pages.test.mjs",
+    "test": "node --test src/lib/content/hours.test.mjs src/lib/content/merge.test.mjs src/lib/content/pages.test.mjs src/components/seo/json-ld.test.mjs",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },
