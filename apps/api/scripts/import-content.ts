@@ -169,6 +169,16 @@ export function untouched(entry: Pick<CmsEntry, 'updated_by' | 'draft' | 'publis
   return entry.updated_by === IMPORTER && entry.review_at === null && isDeepStrictEqual(entry.draft, entry.published);
 }
 
+/** "collection/slug" for each `cms_delete` log. One missing either is skipped, not keyed "undefined/…". */
+export function deletedKeys(logs: Array<{ details: Record<string, unknown> | null }>): Set<string> {
+  const keys = new Set<string>();
+  for (const { details } of logs) {
+    const { collection, slug } = (details ?? {}) as { collection?: string; slug?: string };
+    if (collection && slug) keys.add(`${collection}/${slug}`);
+  }
+  return keys;
+}
+
 interface Row {
   slug: string;
   body: Record<string, unknown>;
@@ -277,12 +287,7 @@ async function main(): Promise<void> {
 
   // Entries a person deleted in the CMS stay deleted: this runs on every
   // deploy, so without this they would be re-created from the shipped copy.
-  const deleted = new Set(
-    (await db.activityLogs.findWhere({ action: 'cms_delete' })).map((log) => {
-      const { collection, slug } = (log.details ?? {}) as { collection?: string; slug?: string };
-      return `${collection}/${slug}`;
-    }),
-  );
+  const deleted = deletedKeys(await db.activityLogs.findWhere({ action: 'cms_delete' }));
 
   for (const { collection, rows } of collections) {
     let added = 0;
