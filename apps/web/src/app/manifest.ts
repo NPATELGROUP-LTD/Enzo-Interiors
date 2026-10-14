@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
-import { getSiteStatus, mediaSrc } from "@/lib/content";
+import { getMedia, getSiteStatus } from "@/lib/content";
 
 /** Lets "Add to Home Screen" show the right name and mark. Not a PWA. */
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   // The favicon chosen in the admin's Settings, else the shipped one.
-  const favicon = (await getSiteStatus()).brand?.favicon;
+  const [site, media] = await Promise.all([getSiteStatus(), getMedia()]);
+  const favicon = site.brand?.favicon;
   return {
     name: "Enzo Interiors",
     short_name: "Enzo",
@@ -15,7 +16,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     theme_color: "#102E2D",
     icons: [
       favicon
-        ? { src: mediaSrc(favicon), sizes: "512x512" }
+        ? { src: media(favicon).src, sizes: "512x512" }
         : { src: "/icon.png", sizes: "512x512", type: "image/png" },
     ],
   };

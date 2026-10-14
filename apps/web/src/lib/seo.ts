@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { mediaSrc } from "@/lib/content";
+import { getMedia } from "@/lib/content";
 
 /** The canonical origin. Every canonical, OG and sitemap URL is built from it. */
 export const SITE_URL = (process.env.SITE_URL ?? "http://localhost:3000").replace(/\/+$/, "");
@@ -13,7 +13,7 @@ export const SITE_NAME = "Enzo Interiors";
  * page spells out the whole block. The share image is the one chosen in the
  * CMS (`metadata.ogImageId`) when there is one, otherwise the generated card.
  */
-export function pageMetadata({
+export async function pageMetadata({
   title,
   description,
   path,
@@ -25,8 +25,8 @@ export function pageMetadata({
   path: string;
   ogKey: string;
   ogImageId?: string | null;
-}): Metadata {
-  const custom = ogImageId ? mediaSrc(ogImageId) : "";
+}): Promise<Metadata> {
+  const custom = ogImageId ? (await getMedia())(ogImageId).src : "";
   const image = custom
     ? { url: custom, alt: title }
     : { url: `/og/${ogKey}`, width: 1200, height: 630, alt: title };

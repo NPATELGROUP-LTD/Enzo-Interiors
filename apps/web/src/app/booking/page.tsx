@@ -24,10 +24,10 @@ import { pageMetadata } from "@/lib/seo";
 import { BookingWizard } from "./BookingWizard";
 import {
   getCompany,
+  getMedia,
   getPage,
   getServiceDetails,
   getTestimonial,
-  media,
 } from "@/lib/content";
 
 // Every other route sets its own title; without this one the booking wizard
@@ -45,11 +45,12 @@ export default async function BookingPage({
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
   if (await pageOff("booking")) return <MarketingLayout><BookingByContact /></MarketingLayout>;
-  const [params, content, services, company] = await Promise.all([
+  const [params, content, services, company, media] = await Promise.all([
     searchParams,
     getPage("booking"),
     getServiceDetails(),
     getCompany(),
+    getMedia(),
   ]);
   const quote = await getTestimonial(content.panel.testimonialId);
 
