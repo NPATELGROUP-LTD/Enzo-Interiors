@@ -197,16 +197,18 @@ async function main(): Promise<void> {
   const db = new DatabaseService(prisma);
   await prisma.$connect();
 
+  /* ---- Media ------------------------------------------------------------ */
+  // Before the --force wipe: a missing S3 config or a failed upload must not
+  // leave the CMS emptied with nothing to re-import into.
+  const files = await uploadSeedMedia();
+  console.log(`Seed images: ${files.uploaded} uploaded, ${files.present} already in the bucket.
+`);
+
   if (FORCE) {
     console.log('--force: clearing cms_entries and media_assets first.\n');
     await db.cmsEntries.deleteMany(() => true);
     await db.mediaAssets.deleteMany(() => true);
   }
-
-  /* ---- Media ------------------------------------------------------------ */
-  const files = await uploadSeedMedia();
-  console.log(`Seed images: ${files.uploaded} uploaded, ${files.present} already in the bucket.
-`);
 
   const mediaRows = await readJson<
     Array<{ id: string; key: string; alt: string; title?: string; source: string }>
