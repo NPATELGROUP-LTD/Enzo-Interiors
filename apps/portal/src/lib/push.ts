@@ -16,6 +16,28 @@ export type PushState =
   | 'off'
   | 'on';
 
+/**
+ * Set when the person turns notifications off on this device (not on sign-out),
+ * so syncPush does not quietly re-subscribe a device whose permission is still
+ * 'granted'. Cleared again when they turn it back on.
+ */
+const OPT_OUT_KEY = 'enzo.pushOptOut';
+const optedOut = () => {
+  try {
+    return localStorage.getItem(OPT_OUT_KEY) === '1';
+  } catch {
+    return false;
+  }
+};
+const setOptOut = (value: boolean) => {
+  try {
+    if (value) localStorage.setItem(OPT_OUT_KEY, '1');
+    else localStorage.removeItem(OPT_OUT_KEY);
+  } catch {
+    /* private mode: the opt-out lasts until the page reloads, no longer */
+  }
+};
+
 const isIos = () =>
   /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const isStandalone = () =>
@@ -72,6 +94,7 @@ export async function enablePush(): Promise<PushState> {
   const permission = await Notification.requestPermission();
   if (permission !== 'granted') return permission === 'denied' ? 'denied' : 'off';
   await subscribe(reg, key);
+  setOptOut(false);
   return 'on';
 }
 
@@ -79,10 +102,12 @@ export async function enablePush(): Promise<PushState> {
  * On every start while signed in: if this device already allowed
  * notifications, make sure the API has it for the person signed in now. Sign
  * out removes the device, so without this the next sign-in on the same phone
- * would quietly get nothing. Never asks: no permission prompt from here.
+ * would quietly get nothing. Never asks: no permission prompt from here, and
+ * never for a device the person switched off.
  */
 export async function syncPush(): Promise<PushState> {
   const state = await pushState();
+  if (optedOut()) return state;
   if (state !== 'on' && !(state === 'off' && Notification.permission === 'granted')) return state;
   const reg = await registration();
   const key = await publicKey();
@@ -94,8 +119,11 @@ export async function syncPush(): Promise<PushState> {
 /**
  * Stop pushes to this device: forget it on the API (with the given session,
  * so sign-out can call this before the token is gone) and unsubscribe the browser.
+ * `optOut` is for the person turning it off (not sign-out): syncPush then leaves
+ * the device alone until they turn it back on.
  */
-export async function disablePush(token: string | null): Promise<void> {
+export async function disablePush(token: string | null, optOut = false): Promise<void> {
+  if (optOut) setOptOut(true);
   if (!('serviceWorker' in navigator)) return;
   const subscription = await (await registration())?.pushManager.getSubscription();
   if (!subscription) return;

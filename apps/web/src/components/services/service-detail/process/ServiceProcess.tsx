@@ -44,8 +44,11 @@ export function ServiceProcess({
   const index = variantIndex(position, VARIANTS.length, service.heroVariant);
   const Process = VARIANTS[index];
   const variants: ProcessVariantContent[] = content.variants;
+  // The authored copy can have fewer entries than there are layouts.
+  const copy = variants[index] ?? variants[0];
+  if (!copy) return null;
 
   return (
-    <Process steps={steps} id={id} content={variants[index]!} common={content} />
+    <Process steps={steps} id={id} content={copy} common={content} />
   );
 }

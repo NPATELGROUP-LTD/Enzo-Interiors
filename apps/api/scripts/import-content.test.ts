@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addMissing, deletedKeys, untouched } from './import-content';
+import { addMissing, deletedKeys, isNotFound, untouched } from './import-content';
 
 const body = { title: 'Kitchens', hero: { image: 'pf-1', alt: 'x' } };
 const entry = (patch: Record<string, unknown> = {}) => ({
@@ -35,4 +35,12 @@ test('deleted entries are keyed by collection and slug; malformed logs are skipp
     { details: null },
   ]);
   assert.deepEqual([...keys], ['faqs/parking']);
+});
+
+test('only a 404 from HeadObject means the image is missing', () => {
+  assert.equal(isNotFound({ name: 'NotFound', $metadata: { httpStatusCode: 404 } }), true);
+  assert.equal(isNotFound({ name: 'UnknownError', $metadata: { httpStatusCode: 404 } }), true);
+  assert.equal(isNotFound({ name: 'Forbidden', $metadata: { httpStatusCode: 403 } }), false);
+  assert.equal(isNotFound({ name: 'TimeoutError' }), false);
+  assert.equal(isNotFound(null), false);
 });

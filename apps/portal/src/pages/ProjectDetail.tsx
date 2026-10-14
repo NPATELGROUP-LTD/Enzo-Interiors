@@ -31,7 +31,7 @@ export function ProjectDetailPage() {
   const toast = useToast();
   const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<ProjectDetail>(
-    id ? `/projects/${id}/detail` : null,
+    id ? `/projects/${encodeURIComponent(id)}/detail` : null,
   );
 
   const [tab, setTab] = useState('timeline');

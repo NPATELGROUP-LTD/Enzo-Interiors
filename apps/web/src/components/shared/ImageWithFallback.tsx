@@ -14,13 +14,15 @@ const ERROR_IMG_SRC =
 export function ImageWithFallback(
   props: React.ImgHTMLAttributes<HTMLImageElement>,
 ) {
-  const [didError, setDidError] = useState(false);
+  const { src, alt, style, className, ...rest } = props;
+  // The src that failed, not a flag: one instance can be handed a new src
+  // (a sheet stepping through projects), and that one should get its chance.
+  const [failedSrc, setFailedSrc] = useState<typeof src>(undefined);
+  const didError = failedSrc !== undefined && failedSrc === src;
 
   const handleError = () => {
-    setDidError(true);
+    setFailedSrc(src);
   };
-
-  const { src, alt, style, className, ...rest } = props;
 
   return didError ? (
     <div

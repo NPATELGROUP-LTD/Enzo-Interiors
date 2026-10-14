@@ -428,6 +428,7 @@ export function Listbox({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? listId : undefined}
+        aria-activedescendant={open ? `${listId}-${active}` : undefined}
         aria-label={ariaLabel}
         aria-invalid={ariaInvalid}
         aria-describedby={describedBy}
@@ -463,6 +464,7 @@ export function Listbox({
               {options.map((o, i) => (
                 <li
                   key={o.value}
+                  id={`${listId}-${i}`}
                   role="option"
                   aria-selected={i === selected}
                   aria-disabled={o.disabled}

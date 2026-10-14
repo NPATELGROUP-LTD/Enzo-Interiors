@@ -166,7 +166,9 @@ export function MessagesPage() {
                 {messages.map((message, index) => {
                   const fromMe = message.sender_type === 'Client';
                   const previous = messages[index - 1];
-                  const newDay = !previous || previous.created_at.slice(0, 10) !== message.created_at.slice(0, 10);
+                  // Local days, like the label: the first 10 chars of the ISO string are the UTC day.
+                  const newDay =
+                    !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
                   return (
                     <li key={message.id}>
                       {newDay ? <p className="my-2 text-center text-xs text-ink-muted">{date(message.created_at)}</p> : null}

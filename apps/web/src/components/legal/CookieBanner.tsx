@@ -34,6 +34,8 @@ import { cn } from "@/lib/utils";
 export function CookieBanner({ content }: { content: SiteContent["cookieBanner"] }) {
   const consent = useConsent();
   const [reopened, setReopened] = useState(false);
+  // Escape on a first visit: closed for this view, no decision recorded.
+  const [dismissed, setDismissed] = useState(false);
   const [detail, setDetail] = useState(false);
   const [analytics, setAnalytics] = useState(false);
   const [functional, setFunctional] = useState(false);
@@ -57,7 +59,7 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
     return () => window.removeEventListener(REOPEN_EVENT, open);
   }, []);
 
-  const open = consent === null || reopened;
+  const open = (consent === null && !dismissed) || reopened;
 
   useEffect(() => {
     if (!open) return;
@@ -65,7 +67,10 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
       // Dismissing is not deciding: the panel closes for this view and the
       // question is asked again next time. Refusing by default is the only
       // reading that is safe under PECR.
-      if (event.key === "Escape") setReopened(false);
+      if (event.key === "Escape") {
+        setReopened(false);
+        setDismissed(true);
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);

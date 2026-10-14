@@ -10,7 +10,7 @@ services/
 └── service-detail/    only /services/[category]
     ├── variant.ts     how a page picks its design
     ├── hero/          4 designs + picker (+ heroParts: the shared chrome)
-    ├── included/      4 designs + picker
+    ├── included/      one design (the quotation sheet), no picker
     ├── model/         real three.js viewer + 4 units (scene/)
     ├── process/       4 designs + picker
     └── investment/    4 designs + picker (+ 2 shared controls)
@@ -69,21 +69,25 @@ facts in the same order, from `heroFacts.ts`. Colour for the buttons comes
 from `heroParts`' one `tone` prop, because a cream pill is invisible on the
 cream masthead — hence no `quoteCta` prop.
 
-**Included (A2)** — 1 two ruled columns with leader lines, a bill of
-quantities · 2 items alternating around a rule that draws as you scroll ·
-3 a wall that lays itself course by course as you scroll, in stretcher
-bond · 4 items hung from a rail on drops of varied length.
+**Included (A2)** — one design, the quotation sheet with the total left
+blank: the few lines that are on every quote we write, then the authored
+scope for this service, each line marked as priced per room rather than
+included. There is no picker; only its *ground* alternates with the variant
+index, so four service pages still do not read as one template.
 
-**Model (A3)** — a turnable 3D model of the product, one per discipline:
-1 a base run, worktop and island whose doors open · 2 a full-height bay
-whose doors slide apart · 3 a panelled wall whose lighting comes on · 4 a
-corner walk-in whose doors strip away to show the internals.
+**Model (A3)** — a real three.js viewer (`model/ModelViewer.tsx`, the scene
+in `model/scene/`), one turnable unit per discipline: 1 a base run, worktop
+and island whose doors open · 2 a full-height bay whose doors slide apart ·
+3 a panelled wall whose lighting comes on · 4 a corner walk-in whose doors
+strip away to show the internals. Scroll drives nothing: the camera flies
+between named viewpoints on click, a drag orbits it, wheel and pinch zoom,
+and one labelled control does what a photograph cannot.
 
-This replaced four material/finish displays. Four ways of listing the same
-finish names was four ways of showing a colour chart, and a colour chart is
-not what anyone is trying to picture — the object is. All four are CSS 3D
-built on `model/Box3D.tsx` and turned by `model/ModelStage.tsx`, so no
-second WebGL context is spent (the landing page already has one).
+It costs one WebGL context on one service page, and only if the visitor
+goes looking for it: the canvas waits behind an IntersectionObserver until
+the section is within 300px, and is never created under reduced motion,
+where a still photograph of the same room stands in. Mobile gets the model
+without the controls, as a slow hands-off loop.
 
 **Process (A4)** — 1 travels sideways as you scroll down · 2 vertical with a
 sticky stage counter · 3 each stage indented one step further · 4 a drawer

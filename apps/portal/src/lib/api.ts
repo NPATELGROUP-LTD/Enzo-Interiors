@@ -124,6 +124,11 @@ export async function downloadDocument(id: string): Promise<void> {
   const { url } = await request<{ url: string; expires_in: number }>(
     `/documents/${encodeURIComponent(id)}/download`,
   );
+  // Only ever follow a secure link. Dev builds also take the plain-http MinIO one.
+  const { protocol } = new URL(url, window.location.href);
+  if (protocol !== 'https:' && !(import.meta.env.DEV && protocol === 'http:')) {
+    throw new ApiError(502, 'The download link was not secure, so it was not opened.');
+  }
   window.location.assign(url);
 }
 

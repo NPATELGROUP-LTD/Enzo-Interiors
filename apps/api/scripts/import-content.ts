@@ -60,6 +60,12 @@ async function seedFiles(dir = SEED_MEDIA_DIR): Promise<string[]> {
   return out;
 }
 
+/** HeadObject on a missing key throws NotFound (404). A 403, a 5xx or a dropped connection is a real failure, not "not there yet". */
+export function isNotFound(error: unknown): boolean {
+  const e = error as { name?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return e?.name === 'NotFound' || e?.$metadata?.httpStatusCode === 404;
+}
+
 /**
  * Puts every seed-media file into the public bucket under site/, skipping
  * objects that are already there, so a re-run uploads nothing. Keys are
@@ -91,7 +97,10 @@ async function uploadSeedMedia(): Promise<{ uploaded: number; present: number }>
         const exists = await s3
           .send(new HeadObjectCommand({ Bucket: bucket, Key }))
           .then(() => true)
-          .catch(() => false);
+          .catch((error) => {
+            if (isNotFound(error)) return false;
+            throw error;
+          });
         if (exists) return;
         await s3.send(
           new PutObjectCommand({
@@ -197,16 +206,18 @@ async function main(): Promise<void> {
   const db = new DatabaseService(prisma);
   await prisma.$connect();
 
+  /* ---- Media ------------------------------------------------------------ */
+  // Before the --force wipe: a missing S3 config or a failed upload must not
+  // leave the CMS emptied with nothing to re-import into.
+  const files = await uploadSeedMedia();
+  console.log(`Seed images: ${files.uploaded} uploaded, ${files.present} already in the bucket.
+`);
+
   if (FORCE) {
     console.log('--force: clearing cms_entries and media_assets first.\n');
     await db.cmsEntries.deleteMany(() => true);
     await db.mediaAssets.deleteMany(() => true);
   }
-
-  /* ---- Media ------------------------------------------------------------ */
-  const files = await uploadSeedMedia();
-  console.log(`Seed images: ${files.uploaded} uploaded, ${files.present} already in the bucket.
-`);
 
   const mediaRows = await readJson<
     Array<{ id: string; key: string; alt: string; title?: string; source: string }>

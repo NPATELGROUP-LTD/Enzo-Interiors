@@ -138,7 +138,9 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
     { queries: { desktop: "(min-width: 1024px)" } },
   );
 
-  const current = stages[active]!;
+  const current = stages[active] ?? stages[0];
+  // The CMS can publish no stages; every other landing section renders nothing then too.
+  if (!current) return null;
 
   // Declared once, rendered in whichever of the two frames the current width
   // uses (see the comment at the sticky frame). Only ever one of them is
