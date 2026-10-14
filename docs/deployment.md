@@ -76,6 +76,13 @@ SMTP_HOST=... SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... MAIL_FROM="Enzo Interior
 
    The admin and web images bake the public URLs in at build time, so set
    them **before** the first deploy, and rebuild if they change.
+
+   Sessions are short: the API's tokens last `JWT_EXPIRES_IN` (default `1h`) and
+   the admin and portal renew them through `POST /auth/refresh`, for at most 12h
+   after sign-in. If Coolify still has `JWT_EXPIRES_IN=12h` from an older
+   `.env`, remove it or set `1h`. The admin and portal nginx serve a strict
+   Content-Security-Policy (`script-src 'self'`) built from `API_PUBLIC_URL` and
+   `MEDIA_BASE_URL`, so those two must be the real public URLs.
 3. Deploy. The one-shot `seed` service runs first on every deploy: migrations,
    then new files in `apps/api/seed-media` uploaded to the bucket and
    `apps/web/src/data` imported into the CMS (see 6, "Shipped content").
