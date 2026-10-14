@@ -568,6 +568,13 @@ export function Toggle({
 /* Modal                                                                      */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The open modals, oldest first. Each one listens for Escape on the document,
+ * so with a confirm dialog on top of an editor one keypress would close both;
+ * only the last to open answers.
+ */
+const openModals: symbol[] = [];
+
 export function Modal({
   open,
   onClose,
@@ -596,8 +603,10 @@ export function Modal({
   // Escape closes, and the body cannot scroll behind the overlay.
   useEffect(() => {
     if (!open) return;
+    const self = Symbol('modal');
+    openModals.push(self);
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeRef.current();
+      if (event.key === 'Escape' && openModals[openModals.length - 1] === self) closeRef.current();
     };
     document.addEventListener('keydown', onKeyDown);
     const previousOverflow = document.body.style.overflow;
@@ -607,6 +616,7 @@ export function Modal({
     if (!panelRef.current?.contains(document.activeElement)) panelRef.current?.focus();
     return () => {
       document.removeEventListener('keydown', onKeyDown);
+      openModals.splice(openModals.indexOf(self), 1);
       document.body.style.overflow = previousOverflow;
     };
   }, [open]);
