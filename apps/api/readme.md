@@ -36,6 +36,12 @@ Listens on **http://localhost:4000**. Then start `apps/admin` (5174) and
 | `npm run seed` | **Reset all data to a known-good state** |
 | `npm run typecheck` | `tsc --noEmit` over `src/` and `scripts/` |
 
+> **`npm run seed` wipes every table**, so it only runs when `NODE_ENV` is
+> `development` or `test`, and refuses if it is unset. Set it for the one
+> command: `NODE_ENV=development npm run seed` (bash), or
+> `$env:NODE_ENV='development'; npm run seed` (PowerShell). To seed anything
+> else on purpose, set `ALLOW_DESTRUCTIVE_SEED=yes`.
+
 > **Re-seeding while the API is running?** Stop it first. Repositories hold the
 > table in memory for fast reads, so a seed written by a separate process is not
 > picked up until the API restarts. Order: stop → `npm run seed` → `npm run dev`.

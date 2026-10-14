@@ -334,14 +334,22 @@ export class AuthService implements OnApplicationBootstrap {
     };
   }
 
-  /** PUT /auth/password — signs out every other session and returns a fresh token for this one. */
+  /**
+   * PUT /auth/password — signs out every other session and returns a fresh token for this one.
+   * A wrong current password counts toward the lockout like a wrong sign-in:
+   * a stolen session must not be a free oracle for the password.
+   */
   async changePassword(
     principal: AuthPrincipal,
     currentPassword: string,
     newPassword: string,
+    ip: string,
   ): Promise<LoginResult> {
+    const email = principal.email.toLowerCase();
+    await this.assertNotLocked(email, ip);
     const staff = await this.db.staffUsers.findById(principal.id);
     if (!staff || !(await verify(currentPassword, staff.password_hash))) {
+      await this.recordFailure(email, ip);
       throw new BadRequestException('Your current password is not correct.');
     }
     const updated = await this.setPassword(staff, newPassword);
