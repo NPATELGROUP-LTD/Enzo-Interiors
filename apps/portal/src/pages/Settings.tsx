@@ -17,7 +17,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api, tokenStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { connectSocket, disconnectSocket } from '@/lib/socket';
+import { reauthSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
 import type { NotificationPreference } from '@/types/api';
 
@@ -50,9 +50,8 @@ export function SettingsPage() {
         new_password: passwordForm.next,
       });
       tokenStore.set(session.access_token);
-      // The live connection was opened with the old token; open it again with the new one.
-      disconnectSocket();
-      connectSocket();
+      // The live connection was opened with the old token; reconnect it with the new one.
+      reauthSocket();
       toast.success('Password changed.');
       setPasswordForm({ current: '', next: '', confirm: '' });
     } catch (caught) {

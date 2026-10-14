@@ -11,6 +11,7 @@ import {
 import type { LoginResponse, Principal, StaffRole } from '@/types/api';
 import { ApiError, UNAUTHORIZED_EVENT, api, deviceStore, tokenStore } from './api';
 import { disablePush } from './push';
+import { reauthSocket } from './socket';
 
 const USER_CACHE_KEY = 'enzo-admin-user';
 
@@ -116,6 +117,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const adopt = useCallback((result: LoginResponse) => {
     tokenStore.set(result.access_token);
+    // A live socket was opened with the previous token; hand it the new one.
+    reauthSocket();
     if (result.deviceToken) deviceStore.set(result.deviceToken);
     userCache.write(result.user);
     setUser(result.user);
