@@ -9,7 +9,7 @@ import {
 } from 'react';
 
 import type { LoginResponse, Principal, StaffRole } from '@/types/api';
-import { ApiError, UNAUTHORIZED_EVENT, api, deviceStore, tokenStore } from './api';
+import { ApiError, UNAUTHORIZED_EVENT, api, deviceStore, renewSession, tokenStore } from './api';
 import { disablePush } from './push';
 import { reauthSocket } from './socket';
 
@@ -114,6 +114,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
     return () => window.removeEventListener(UNAUTHORIZED_EVENT, onUnauthorized);
   }, []);
+
+  // Keep a signed-in session alive: the API's tokens are short-lived, so renew
+  // one past half its life (checked every minute and when the tab comes back).
+  const signedIn = user !== null;
+  useEffect(() => {
+    if (!signedIn) return;
+    const renew = () => void renewSession().then((token) => token && reauthSocket());
+    renew();
+    const timer = setInterval(renew, 60_000);
+    document.addEventListener('visibilitychange', renew);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', renew);
+    };
+  }, [signedIn]);
 
   const adopt = useCallback((result: LoginResponse) => {
     tokenStore.set(result.access_token);

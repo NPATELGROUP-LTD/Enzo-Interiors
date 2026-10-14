@@ -4,7 +4,8 @@
 #
 # ${API_PUBLIC_URL} and ${MEDIA_BASE_URL} are substituted by the nginx image
 # at start (templates/*.template -> conf.d), so one image fits any host.
-add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: ${MEDIA_BASE_URL}/; connect-src 'self' ${API_PUBLIC_URL} ${MEDIA_BASE_URL}/; worker-src 'self'; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
+# $api_ws_origin is the API's wss:// twin, mapped in default.conf.
+add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: ${MEDIA_BASE_URL}/; connect-src 'self' ${API_PUBLIC_URL} $api_ws_origin ${MEDIA_BASE_URL}/; worker-src 'self'; manifest-src 'self'; frame-src 'none'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'" always;
 add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
 add_header X-Frame-Options "DENY" always;
 add_header X-Content-Type-Options "nosniff" always;

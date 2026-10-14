@@ -1,3 +1,11 @@
+# ${API_PUBLIC_URL} as a WebSocket origin (https://api -> wss://api), for the
+# CSP's connect-src: a source with scheme https does not cover wss, so without
+# this the browser blocks Socket.IO's websocket transport.
+map "${API_PUBLIC_URL}" $api_ws_origin {
+  default "";
+  "~^http(?<ws_s>s?)://(?<ws_host>[^/]+)" "ws${ws_s}://${ws_host}";
+}
+
 server {
   listen 80;
   server_name _;

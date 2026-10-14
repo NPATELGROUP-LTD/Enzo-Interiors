@@ -35,6 +35,10 @@ export interface JwtPayload {
   tv?: number;
   /** Only on single-use tokens (a 2FA challenge, Google's state); never on a session. */
   purpose?: string;
+  /** Set by jsonwebtoken at signing. */
+  iat?: number;
+  /** When the sign-in happened (epoch seconds), carried through refreshes so a session cannot be renewed forever. Absent = `iat`. */
+  at?: number;
 }
 
 /** Every role value that can appear on a principal. */

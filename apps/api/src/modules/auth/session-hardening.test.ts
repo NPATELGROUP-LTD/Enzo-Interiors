@@ -67,3 +67,21 @@ test('wrong current passwords lock the change-password form like a wrong sign-in
   assert.equal(t.row.token_version, 3);
   t.done();
 });
+
+test('refresh renews a live session, keeps its sign-in time, and stops 12h after sign-in', async () => {
+  const t = setup();
+  const claims = { sub: 's1', kind: 'Staff', role: 'Admin', name: 'Neel', email: 'neel@example.com', tv: 3 };
+  const now = Math.floor(Date.now() / 1000);
+
+  const fresh = await t.auth.refresh(principal, await jwt.signAsync({ ...claims, at: now - 3600 }));
+  assert.equal((await t.authenticate(fresh.access_token)).id, 's1');
+  assert.equal((jwt.decode(fresh.access_token) as { at: number }).at, now - 3600);
+
+  const stale = await jwt.signAsync({ ...claims, at: now - 13 * 3600 });
+  await assert.rejects(t.auth.refresh(principal, stale), /session has expired/);
+
+  // Revocation still wins: the guard refuses a bumped token_version before refresh is reached.
+  t.row.token_version = 4;
+  await assert.rejects(t.authenticate(fresh.access_token), /Invalid or expired session token/);
+  t.done();
+});
