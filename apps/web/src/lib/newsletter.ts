@@ -19,7 +19,8 @@ async function post(path: string, body: unknown): Promise<Response> {
 
 /** Resolves once the confirmation email is on its way; rejects with the API's message for a 429, else an empty one. */
 export async function subscribe(email: string, source: NewsletterSource, website: string): Promise<void> {
-  const response = await post("/newsletter", { email: email.trim(), source, website: website || undefined });
+  const response = await post("/newsletter", { email: email.trim(), source, website: website || undefined }).catch(() => null);
+  if (!response) throw new Error("");
   if (response.status === 429) throw new Error(await tooMany(response, ""));
   if (!response.ok) throw new Error("");
 }

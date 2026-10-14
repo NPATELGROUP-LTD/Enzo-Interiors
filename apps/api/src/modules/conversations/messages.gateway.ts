@@ -201,7 +201,9 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
   async adopt(conversation: Conversation): Promise<void> {
     for (const socket of await this.server.fetchSockets()) {
       const principal = await this.check(socket.data as SocketData, conversation.client_id);
-      if (principal) socket.join(room(conversation.id));
+      // 'signed-out' is a truthy string: without this guard an ended session would be let into the room.
+      if (principal === 'signed-out') socket.disconnect(true);
+      else if (principal) socket.join(room(conversation.id));
     }
   }
 

@@ -162,14 +162,25 @@ export function ContactWhen({
         <div className="mt-12 md:mt-16">
           {/* The week axis. Desktop only — see the note at the top. */}
           <div className="relative hidden md:block" aria-hidden="true">
-            <div className="ml-[13rem] flex justify-between border-b border-enzo-cream/15 pb-2">
+            {/* Each tick sits at week / span of the width, the same scale the
+                bars use. Spread evenly instead, the labels drift off their
+                weeks whenever the axis skips every other one. */}
+            <div className="relative ml-[13rem] h-6 border-b border-enzo-cream/15">
               {ticks.map((week) => (
                 <span
                   key={week}
-                  data-axis
-                  className="font-display text-[10px] font-semibold tabular-nums tracking-[0.14em] text-enzo-cream/45"
+                  className="absolute top-0"
+                  style={{
+                    left: `${(week / span) * 100}%`,
+                    transform: week === 0 ? undefined : week === span ? "translateX(-100%)" : "translateX(-50%)",
+                  }}
                 >
-                  {week === 0 ? content.axisStart : fill(content.axisWeek, { week })}
+                  <span
+                    data-axis
+                    className="font-display block text-[10px] font-semibold tabular-nums tracking-[0.14em] text-enzo-cream/45"
+                  >
+                    {week === 0 ? content.axisStart : fill(content.axisWeek, { week })}
+                  </span>
                 </span>
               ))}
             </div>
