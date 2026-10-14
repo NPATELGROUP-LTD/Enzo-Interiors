@@ -55,10 +55,8 @@ export class ActivityLogService {
 
   /** Newest first. */
   async list(limit = 200): Promise<ActivityLog[]> {
-    const rows = await this.db.activityLogs.findAll();
-    return rows
-      .sort((a, b) => b.created_at.localeCompare(a.created_at))
-      .slice(0, limit);
+    // Ordered and cut in PostgreSQL (created_at is indexed): the table only grows.
+    return this.db.activityLogs.findWhere({}, { orderBy: { created_at: 'desc' }, take: limit });
   }
 
   /** The audit trail for one record, newest first. Powers the detail-view tabs. */
