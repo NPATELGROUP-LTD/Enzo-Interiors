@@ -73,8 +73,8 @@ const NO_REVIEW = { review_by: null, review_at: null, review_note: null };
 /** Link-valued keys: anything named *href / *url, plus the nav's paths. */
 const LINK_KEY = /(href|url)$/i;
 const LINK_LIST_KEYS = new Set(['pageLinks', 'path']);
-/** Where a link on the public site may point. No javascript:, no data:, no //host. */
-const SAFE_LINK = /^(https:\/\/|mailto:|tel:|\/(?!\/)|#)/i;
+/** Where a link on the public site may point. No javascript:, no data:, no //host (or /\host, which browsers read the same way). */
+export const SAFE_LINK = /^(https:\/\/|mailto:|tel:|\/(?![/\\])|#)/i;
 const MAP_EMBED = 'https://www.google.com/maps/embed';
 
 /**
