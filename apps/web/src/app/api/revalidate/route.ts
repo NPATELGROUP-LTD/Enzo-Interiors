@@ -46,7 +46,11 @@ export async function POST(request: Request): Promise<NextResponse> {
   let reason = "unspecified";
   try {
     const body = (await request.json()) as { reason?: unknown };
-    if (typeof body.reason === "string") reason = body.reason;
+    if (typeof body.reason === "string") {
+      // It is logged and echoed back: no control characters (a newline would
+      // forge a log line) and a bounded length. Empty after that is "unspecified".
+      reason = body.reason.replace(/[\p{Cc}\p{Zl}\p{Zp}]/gu, " ").trim().slice(0, 200) || reason;
+    }
   } catch {
     // A publish with no body is still a valid publish.
   }

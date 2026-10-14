@@ -6,7 +6,7 @@ import "@/styles/theme.css";
 import { ComingSoon } from "@/components/coming-soon/ComingSoon";
 import { SmoothScroll } from "@/components/shared/SmoothScroll";
 import { Toaster } from "@/components/ui/sonner";
-import { getPage, getSiteStatus, isLive, mediaSrc, type SiteStatus } from "@/lib/content";
+import { getMedia, getPage, getSiteStatus, isLive, type MediaLookup, type SiteStatus } from "@/lib/content";
 import { SITE_NAME, SITE_URL } from "@/lib/seo";
 
 // next/font/google self-hosts and optimizes these at build time, and sets
@@ -51,9 +51,9 @@ const spaceGrotesk = Space_Grotesk({
  * A custom light icon without a dark one is used for both, rather than
  * pairing it with the shipped dark icon of a different design.
  */
-function favicons(brand: SiteStatus["brand"]): NonNullable<Metadata["icons"]> {
-  const light = brand?.favicon ? mediaSrc(brand.favicon) : "/icon.png";
-  const dark = brand?.faviconDark ? mediaSrc(brand.faviconDark) : brand?.favicon ? null : "/icon-dark.png";
+function favicons(brand: SiteStatus["brand"], media: MediaLookup): NonNullable<Metadata["icons"]> {
+  const light = brand?.favicon ? media(brand.favicon).src : "/icon.png";
+  const dark = brand?.faviconDark ? media(brand.faviconDark).src : brand?.favicon ? null : "/icon-dark.png";
   return {
     icon: [{ url: light }, ...(dark ? [{ url: dark, media: "(prefers-color-scheme: dark)" }] : [])],
     apple: brand?.favicon ? light : "/apple-icon.png",
@@ -65,14 +65,14 @@ function favicons(brand: SiteStatus["brand"]): NonNullable<Metadata["icons"]> {
  * title and share card on top (see lib/seo.ts).
  */
 export async function generateMetadata(): Promise<Metadata> {
-  const [{ metadata }, site] = await Promise.all([getPage("site"), getSiteStatus()]);
+  const [{ metadata }, site, media] = await Promise.all([getPage("site"), getSiteStatus(), getMedia()]);
   const verification = process.env.GOOGLE_SITE_VERIFICATION;
   return {
     metadataBase: new URL(SITE_URL),
     title: metadata.title,
     description: metadata.description,
     applicationName: SITE_NAME,
-    icons: favicons(site.brand),
+    icons: favicons(site.brand, media),
     openGraph: { type: "website", locale: "en_GB", siteName: SITE_NAME, images: ["/og/home"] },
     twitter: { card: "summary_large_image", images: ["/og/home/twitter"] },
     // Before launch every address is the coming-soon page; none of it

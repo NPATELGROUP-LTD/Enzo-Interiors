@@ -42,11 +42,11 @@ import { AboutColophon } from "@/components/about/AboutColophon";
 import { AboutClose } from "@/components/about/AboutClose";
 import {
   getCompany,
+  getMedia,
   getPage,
   getPortfolioItems,
   getServices,
   getTeam,
-  mediaSrc,
 } from "@/lib/content";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -57,12 +57,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function AboutPage() {
   if (await pageOff("about")) return <PageUpdating page="about" />;
-  const [services, projects, content, team, company] = await Promise.all([
+  const [services, projects, content, team, company, media] = await Promise.all([
     getServices(),
     getPortfolioItems(),
     getPage("about"),
     getTeam(),
     getCompany(),
+    getMedia(),
   ]);
 
   // The sentence is "We make ___ that fit.", so it wants a plain plural
@@ -79,7 +80,7 @@ export default async function AboutPage() {
     year: milestone.year,
     title: milestone.title,
     desc: milestone.desc,
-    image: mediaSrc(milestone.imageId),
+    image: media(milestone.imageId).src,
   }));
 
   const values: AboutValue[] = content.values.items.map((item) => ({
@@ -87,7 +88,7 @@ export default async function AboutPage() {
     promise: item.promise,
     instead: item.instead,
     body: item.body,
-    image: mediaSrc(item.imageId),
+    image: media(item.imageId).src,
   }));
 
   // Whose note §06 is, by id — the same record that appears on §05's bench,
@@ -98,7 +99,7 @@ export default async function AboutPage() {
     <div>
       <AboutStatement
         disciplines={disciplines}
-        portrait={mediaSrc(content.statement.portraitId)}
+        portrait={media(content.statement.portraitId).src}
         content={content.statement}
       />
       <AboutNumbers content={content.numbers} projectCount={projects.length} />
