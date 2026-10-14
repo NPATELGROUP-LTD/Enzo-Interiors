@@ -160,9 +160,10 @@ export class AuthController {
 
   /** Returns a new token: the old one, like every other session, is now void. */
   @Put('password')
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
   @Roles('Admin', 'Editor', 'Designer', 'Installer')
-  changePassword(@CurrentUser() principal: AuthPrincipal, @Body() dto: ChangePasswordDto) {
-    return this.auth.changePassword(principal, dto.current_password, dto.new_password);
+  changePassword(@CurrentUser() principal: AuthPrincipal, @Body() dto: ChangePasswordDto, @ClientIp() ip: string) {
+    return this.auth.changePassword(principal, dto.current_password, dto.new_password, ip);
   }
 
   @Put('profile')
