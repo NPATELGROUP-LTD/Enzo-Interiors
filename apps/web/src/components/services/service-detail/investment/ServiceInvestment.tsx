@@ -52,13 +52,16 @@ export function ServiceInvestment({
   const index = variantIndex(position, VARIANTS.length, service.heroVariant);
   const Investment = VARIANTS[index];
   const variants: InvestmentVariantContent[] = content.variants;
+  // The authored copy can have fewer entries than there are layouts.
+  const copy = variants[index] ?? variants[0];
+  if (!copy) return null;
 
   return (
     <Investment
       category={category}
       pricing={pricing}
       id={id}
-      content={variants[index]!}
+      content={copy}
       common={content}
       roomSizeContent={roomSizeContent}
     />
