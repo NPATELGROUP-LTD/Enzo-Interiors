@@ -27,7 +27,9 @@ export function variantIndex(
   count: number,
   override?: number,
 ): number {
-  const requested = override ?? Math.max(0, position);
+  // The override is CMS content: NaN, Infinity or 1.5 would index off the array.
+  const raw = override ?? Math.max(0, position);
+  const requested = Number.isFinite(raw) ? Math.floor(raw) : 0;
   return ((requested % count) + count) % count;
 }
 
