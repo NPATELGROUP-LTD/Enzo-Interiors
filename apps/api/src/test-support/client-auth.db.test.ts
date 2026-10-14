@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 
+import { JwtService } from '@nestjs/jwt';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
@@ -117,6 +118,29 @@ test('a staff token still opens what it did, and is not a portal session', async
   }
   const me = (await (await get('/auth/me', admin)).json()) as { kind: string };
   assert.equal(me.kind, 'Staff');
+});
+
+test('POST /auth/refresh renews a staff or client session and never revives a revoked one', async () => {
+  // The portal login is throttled to 10 per 15 minutes and this file is at the limit, so the client's token is signed directly.
+  const row = await prisma.client.findUniqueOrThrow({ where: { id: ACTIVE.id } });
+  const client = await app.nest.get(JwtService).signAsync({
+    sub: row.id, kind: 'Client', role: 'Client', name: row.name, email: row.email, tv: row.token_version,
+  });
+  const staff = await token('/auth/admin/login', ADMIN.email, ADMIN.password);
+  const refresh = (bearer?: string) =>
+    fetch(`${app.url}/auth/refresh`, { method: 'POST', headers: bearer ? { authorization: `Bearer ${bearer}` } : {} });
+
+  for (const [old, email] of [[client, ACTIVE.email], [staff, ADMIN.email]] as const) {
+    const res = await refresh(old);
+    assert.equal(res.status, 200, email);
+    const renewed = (await res.json()) as { access_token: string; user: { email: string } };
+    assert.equal(renewed.user.email, email);
+    assert.equal((await get('/auth/me', renewed.access_token)).status, 200, email);
+  }
+  assert.equal((await refresh()).status, 401, 'no token');
+
+  await prisma.client.update({ where: { id: ACTIVE.id }, data: { token_version: { increment: 1 } } });
+  assert.equal((await refresh(client)).status, 401, 'a bumped token_version cannot be refreshed');
 });
 
 test('changing a staff member\'s role signs them out', async () => {

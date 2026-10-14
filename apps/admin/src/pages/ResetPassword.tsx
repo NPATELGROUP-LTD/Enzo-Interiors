@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthScreen, FormError } from '@/components/layout/AuthScreen';
@@ -77,14 +77,21 @@ export function ForgotPasswordPage() {
 /**
  * Step two, from the emailed link. The token rides in the URL fragment, which
  * browsers never send to a server: it stays out of access logs and Referer
- * headers.
+ * headers. It is read once into state and the fragment is then removed, so it
+ * does not linger in the address bar, history entry or a screenshot.
  */
 export function ResetPasswordPage() {
   const navigate = useNavigate();
-  const params = new URLSearchParams(useLocation().hash.slice(1));
-  const token = params.get('token') ?? '';
-  // An invitation is the same link with invite=1: same page, friendlier words.
-  const invite = params.get('invite') === '1';
+  const hash = useLocation().hash;
+  const [{ token, invite }] = useState(() => {
+    const params = new URLSearchParams(hash.slice(1));
+    // An invitation is the same link with invite=1: same page, friendlier words.
+    return { token: params.get('token') ?? '', invite: params.get('invite') === '1' };
+  });
+  useEffect(() => {
+    // Keep history.state: the router stores its position in it.
+    if (window.location.hash) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.search);
+  }, []);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);

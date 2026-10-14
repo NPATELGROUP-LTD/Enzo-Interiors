@@ -39,7 +39,9 @@ function mustHaveSecret(config: ConfigService): string {
           // jsonwebtoken types this as a `ms` StringValue template literal
           // ("12h", "7d", ...). It comes from env as a plain string, so the
           // assertion is where that unavoidable widening is acknowledged.
-          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ?? '12h') as `${number}h`,
+          // Short on purpose: the SPAs keep the token in localStorage, so a
+          // stolen one should die soon. They renew it via POST /auth/refresh.
+          expiresIn: (config.get<string>('JWT_EXPIRES_IN') ?? '1h') as `${number}h`,
         },
       }),
     }),

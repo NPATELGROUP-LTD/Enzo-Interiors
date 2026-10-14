@@ -5,10 +5,10 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
-import { ApiError, api } from '@/lib/api';
+import { ApiError, api, downloadDocument } from '@/lib/api';
 import { date, fileSize, time } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
-import type { AttachableDocument, Conversation, DocumentDownload, Message, MessageAttachment } from '@/types/api';
+import type { AttachableDocument, Conversation, Message, MessageAttachment } from '@/types/api';
 
 const MAX_BODY = 5000;
 const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
@@ -166,7 +166,9 @@ export function MessagesPage() {
                 {messages.map((message, index) => {
                   const fromMe = message.sender_type === 'Client';
                   const previous = messages[index - 1];
-                  const newDay = !previous || previous.created_at.slice(0, 10) !== message.created_at.slice(0, 10);
+                  // Local days, like the label: the first 10 chars of the ISO string are the UTC day.
+                  const newDay =
+                    !previous || new Date(previous.created_at).toDateString() !== new Date(message.created_at).toDateString();
                   return (
                     <li key={message.id}>
                       {newDay ? <p className="my-2 text-center text-xs text-ink-muted">{date(message.created_at)}</p> : null}
@@ -292,8 +294,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
   if (!items?.length) return null;
   const open = async (attachment: MessageAttachment) => {
     try {
-      const { url } = await api.get<DocumentDownload>(`/documents/${attachment.document_id}/download`);
-      window.location.assign(url);
+      await downloadDocument(attachment.document_id);
     } catch (caught) {
       toast.error(errorText(caught, 'That file is no longer available.'));
     }

@@ -257,28 +257,30 @@ const load = cache(async (): Promise<Resolved> => {
 /* -------------------------------------------------------------------------- */
 
 /**
- * The media lookup, kept synchronous.
+ * A lookup over one bundle's media table.
  *
  * Media ids are embedded throughout the page copy — `content.hero.cta.card
  * .imageId` and so on — and are resolved inline while a component builds its
- * props, where there is nothing to await. So the map is module-level, starts
- * as the shipped media table, and is replaced the first time a bundle
- * resolves. Every caller reaches `media()` from inside a component that has
- * already awaited one of the getters below, so by then it holds CMS values;
- * before then it holds the shipped ones, which are correct for every image the
- * site was built with. Either way it never returns nothing for a known id.
+ * props, where there is nothing to await. So a render awaits `getMedia()` once
+ * and gets this synchronous function. It is built per bundle rather than held
+ * in a module-level variable: a shared one would be overwritten by whichever
+ * render resolved last, including a concurrent one reading a different bundle.
  */
-let MEDIA = new Map<string, MediaItem>(shippedMedia.map((row) => [row.id, row]));
+export type MediaLookup = (id: string | undefined | null) => MediaItem;
 
-/** The row for an id. Unknown ids resolve to an empty image rather than throwing:
- *  a mistyped id in the content should cost one picture, not the whole page. */
-export function media(id: string | undefined | null): MediaItem {
-  if (!id) return { id: "", src: "", alt: "", source: "" };
-  return MEDIA.get(id) ?? { id, src: "", alt: "", source: "" };
+/** Unknown ids resolve to an empty image rather than throwing: a mistyped id
+ *  in the content should cost one picture, not the whole page. */
+function mediaLookup(rows: MediaItem[]): MediaLookup {
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return (id) => {
+    if (!id) return { id: "", src: "", alt: "", source: "" };
+    return byId.get(id) ?? { id, src: "", alt: "", source: "" };
+  };
 }
 
-export function mediaSrc(id: string | undefined | null): string {
-  return media(id).src;
+/** The media lookup for the current bundle: `media(id).src`, `media(id).alt`. */
+export async function getMedia(): Promise<MediaLookup> {
+  return (await load()).media;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -287,6 +289,7 @@ export function mediaSrc(id: string | undefined | null): string {
 
 interface Resolved {
   bundle: Bundle;
+  media: MediaLookup;
   services: ServiceDetail[];
   servicesById: Map<string, ServiceDetail>;
   portfolio: PortfolioItem[];
@@ -310,7 +313,9 @@ const DAY_ORDER = [
 /** "10:00" -> minutes past midnight. */
 function toMinutes(clock: string): number {
   const [hour, minute] = clock.split(":").map(Number);
-  return (hour ?? 0) * 60 + (minute ?? 0);
+  const total = (hour ?? 0) * 60 + (minute ?? 0);
+  // A malformed CMS value ("ab:cd") is NaN, which `?? 0` does not catch.
+  return Number.isFinite(total) ? total : 0;
 }
 
 /** Narrows a detail record to the list shape the summary surfaces consume. */
@@ -320,10 +325,8 @@ function toService(detail: ServiceDetail): Service {
 }
 
 function resolve(bundle: Bundle): Resolved {
-  // The media map has to be in place before any join reads an image off it.
-  MEDIA = new Map<string, MediaItem>(
-    bundle.media.map((row) => [row.id, row]),
-  );
+  const media = mediaLookup(bundle.media);
+  const mediaSrc = (id: string | undefined | null): string => media(id).src;
 
   const faqsFor = (serviceId: string | null): FAQEntry[] =>
     bundle.faqs
@@ -469,6 +472,7 @@ function resolve(bundle: Bundle): Resolved {
 
   return {
     bundle,
+    media,
     services,
     servicesById,
     portfolio,

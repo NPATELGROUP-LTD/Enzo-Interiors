@@ -21,6 +21,8 @@ export async function GET(request: Request): Promise<Response> {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ token }),
       cache: "no-store",
+      // A hung API must not hold the request open; a timeout counts as a failed check.
+      signal: AbortSignal.timeout(5000),
     })
       .then((response) => response.ok)
       .catch(() => false));

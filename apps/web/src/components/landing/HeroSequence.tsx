@@ -750,7 +750,9 @@ export function HeroSequence({
     };
   }, [rooms, timeline]);
 
-  const activeRoom = rooms[activeRoomIndex]!;
+  const activeRoom = rooms[activeRoomIndex];
+  // Every hook is above: an empty room list (nothing published yet) renders nothing.
+  if (!activeRoom) return null;
   const showRoom = activeLayer === "room" || activeLayer === "hold";
   const loadProgress = roomProgress[activeRoomIndex] ?? 0;
   const loaderHidden = loadProgress === 100 || !showRoom;

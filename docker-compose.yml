@@ -180,7 +180,7 @@ services:
       PORT: 4000
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-enzo}?schema=public}
       JWT_SECRET: ${JWT_SECRET:?generate with openssl rand -base64 48}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       # The first administrator. Used only while staff_users is empty, so it
       # never overwrites an account; change the password in the admin after.
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}

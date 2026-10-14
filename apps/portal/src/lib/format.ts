@@ -70,11 +70,16 @@ export const relative = (iso: string | null | undefined): string => {
   if (Number.isNaN(target)) return '—';
 
   const diffMs = target - Date.now();
-  const diffDays = Math.round(diffMs / 86_400_000);
+  // Calendar days, not 24-hour blocks: 21:00 tonight viewed at 08:00 is today, not "Tomorrow".
+  const startOfDay = (ms: number) => {
+    const d = new Date(ms);
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  };
+  const diffDays = Math.round((startOfDay(target) - startOfDay(Date.now())) / 86_400_000);
 
   if (diffDays === 0) {
     const diffHours = Math.round(diffMs / 3_600_000);
-    if (Math.abs(diffHours) < 1) return 'Just now';
+    if (diffHours === 0) return diffMs >= 0 ? 'Within the hour' : 'Just now';
     return diffHours > 0 ? `In ${diffHours}h` : `${Math.abs(diffHours)}h ago`;
   }
   if (diffDays === 1) return 'Tomorrow';

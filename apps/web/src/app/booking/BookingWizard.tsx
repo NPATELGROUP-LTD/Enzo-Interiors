@@ -174,6 +174,8 @@ export function BookingWizard({
   const isLastMonth = lastBookable !== null && monthEnd >= lastBookable;
   const times = selectedDate ? (free?.days[selectedDate] ?? []) : [];
   const serviceLabel = services.find((s) => s.id === selectedService)?.label;
+  // The tier belongs to the service the quote request named: pick another and it no longer applies.
+  const tier = selectedService === initialService ? initialTier : undefined;
 
   const canProceed = () => {
     switch (step) {
@@ -213,13 +215,13 @@ export function BookingWizard({
         name: form.name,
         email: form.email,
         ...contact,
-        tier: initialTier,
+        tier,
         website: trap,
       },
       content.toast.error,
     )
       .then((result) => {
-        const suffix = initialTier ? fill(content.toast.tierSuffix, { tier: initialTier }) : "";
+        const suffix = tier ? fill(content.toast.tierSuffix, { tier }) : "";
         toast.success(fill(content.toast.message, { suffix }));
         setReference(result.reference ?? null);
         setStep(5);
@@ -341,9 +343,9 @@ export function BookingWizard({
                   {content.steps.service.heading}
                 </h2>
                 <p className="text-muted-foreground text-[14px] mt-2">{content.steps.service.lede}</p>
-                {initialTier && (
+                {tier && (
                   <p className="text-primary text-[13px] mt-2" style={{ fontWeight: 600 }}>
-                    {fill(content.steps.service.tierNote, { tier: initialTier })}
+                    {fill(content.steps.service.tierNote, { tier })}
                   </p>
                 )}
                 <div className="mt-8 grid grid-cols-2 gap-4">
@@ -604,7 +606,7 @@ export function BookingWizard({
                         <span className="text-secondary">{content.steps.confirmation.serviceLabel}</span>
                         <span className="text-foreground">
                           {serviceLabel}
-                          {initialTier ? fill(content.steps.confirmation.tierSuffix, { tier: initialTier }) : ""}
+                          {tier ? fill(content.steps.confirmation.tierSuffix, { tier }) : ""}
                         </span>
                       </div>
                       <div className="flex items-center gap-3">

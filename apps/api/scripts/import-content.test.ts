@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addMissing, untouched } from './import-content';
+import { addMissing, deletedKeys, isNotFound, untouched } from './import-content';
 
 const body = { title: 'Kitchens', hero: { image: 'pf-1', alt: 'x' } };
 const entry = (patch: Record<string, unknown> = {}) => ({
@@ -25,4 +25,22 @@ test('only entries no person has touched follow the shipped copy', () => {
 test('edited entries only gain keys they lack', () => {
   assert.deepEqual(addMissing({ a: '', b: { c: 1 } }, { a: 'new', b: { c: 2, d: 3 }, e: 4 }), { a: '', b: { c: 1, d: 3 }, e: 4 });
   assert.equal(addMissing({ a: 1 }, { a: 2 }), null);
+});
+
+test('deleted entries are keyed by collection and slug; malformed logs are skipped', () => {
+  const keys = deletedKeys([
+    { details: { collection: 'faqs', slug: 'parking' } },
+    { details: { collection: 'faqs' } },
+    { details: { slug: 'orphan' } },
+    { details: null },
+  ]);
+  assert.deepEqual([...keys], ['faqs/parking']);
+});
+
+test('only a 404 from HeadObject means the image is missing', () => {
+  assert.equal(isNotFound({ name: 'NotFound', $metadata: { httpStatusCode: 404 } }), true);
+  assert.equal(isNotFound({ name: 'UnknownError', $metadata: { httpStatusCode: 404 } }), true);
+  assert.equal(isNotFound({ name: 'Forbidden', $metadata: { httpStatusCode: 403 } }), false);
+  assert.equal(isNotFound({ name: 'TimeoutError' }), false);
+  assert.equal(isNotFound(null), false);
 });

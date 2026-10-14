@@ -94,6 +94,8 @@ const FAILURE_WINDOW = 60 * 60_000;
 const ACCOUNT_FAILURES = 50;
 const ACCOUNT_LOCK = 15 * 60_000;
 const RESET_TTL_MS = 30 * 60 * 1000;
+/** Longest a session can be kept alive by refreshing: what one token used to last. */
+const SESSION_MAX_SECONDS = 12 * 60 * 60;
 
 /**
  * The purpose of a portal set-password link. The link is a JWT naming the
@@ -184,7 +186,7 @@ export class AuthService implements OnApplicationBootstrap {
     }
     if ((await this.limits.hit(`login:fail:${email}`, FAILURE_WINDOW)) >= ACCOUNT_FAILURES) {
       await this.limits.set(`login:lock:${email}`, ACCOUNT_LOCK);
-      this.logger.warn(`Sign-in for ${email} locked for 15 minutes after repeated failures from several addresses.`);
+      this.logger.warn(`Sign-in for ${maskEmail(email)} locked for 15 minutes after repeated failures from several addresses.`);
     }
   }
 
@@ -334,14 +336,22 @@ export class AuthService implements OnApplicationBootstrap {
     };
   }
 
-  /** PUT /auth/password — signs out every other session and returns a fresh token for this one. */
+  /**
+   * PUT /auth/password — signs out every other session and returns a fresh token for this one.
+   * A wrong current password counts toward the lockout like a wrong sign-in:
+   * a stolen session must not be a free oracle for the password.
+   */
   async changePassword(
     principal: AuthPrincipal,
     currentPassword: string,
     newPassword: string,
+    ip: string,
   ): Promise<LoginResult> {
+    const email = principal.email.toLowerCase();
+    await this.assertNotLocked(email, ip);
     const staff = await this.db.staffUsers.findById(principal.id);
     if (!staff || !(await verify(currentPassword, staff.password_hash))) {
+      await this.recordFailure(email, ip);
       throw new BadRequestException('Your current password is not correct.');
     }
     const updated = await this.setPassword(staff, newPassword);
@@ -370,7 +380,7 @@ export class AuthService implements OnApplicationBootstrap {
     // so the token stays out of access logs and Referer headers.
     const link = `${this.adminUrl}/reset-password#token=${token}`;
     const sent = await this.mail.send({ to: staff.email, ...templates.passwordReset(staff.name, link) });
-    if (!sent) this.logger.warn(`Password reset requested for ${staff.email} but no email could be sent.`);
+    if (!sent) this.logger.warn(`Password reset requested for ${maskEmail(staff.email)} but no email could be sent.`);
   }
 
   /** POST /auth/admin/reset-password */
@@ -482,6 +492,30 @@ export class AuthService implements OnApplicationBootstrap {
     });
     if (!updated) throw new UnauthorizedException('Your account no longer exists.');
     return { ...principal, name: updated.name };
+  }
+
+  /**
+   * A fresh short-lived token for a still-valid one, so the SPAs can keep a
+   * session alive without a long-lived token sitting in localStorage. The
+   * sign-in time (`at`) is carried through, and a session older than
+   * SESSION_MAX_SECONDS is refused: a stolen token cannot be renewed forever.
+   * `principal` is already re-read from the database by the guard, and `tv`
+   * was checked against it there, so a revoked session never gets here.
+   */
+  async refresh(principal: AuthPrincipal, token: string): Promise<LoginResult> {
+    let old: JwtPayload;
+    try {
+      old = await this.jwt.verifyAsync<JwtPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired session token');
+    }
+    const at = old.at ?? old.iat ?? 0;
+    if (Date.now() / 1000 - at > SESSION_MAX_SECONDS) {
+      throw new UnauthorizedException('Your session has expired. Please sign in again.');
+    }
+    const { id, kind, role, name, email } = principal;
+    const payload: JwtPayload = { sub: id, kind, role, name, email, tv: old.tv, at };
+    return { access_token: await this.jwt.signAsync(payload), user: principal };
   }
 
   private async issue(staff: StaffUser): Promise<LoginResult> {

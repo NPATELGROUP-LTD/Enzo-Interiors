@@ -29,7 +29,7 @@ import {
 } from '@/components/cms/JsonEditor';
 import { DETAILS_GUIDE, PAGES, RETIRED, USED_ON, fieldLabel, hideKeys, isTechnical } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
-import { DETAILS_SECTION, orderKeys, splitSections } from '@/components/cms/paths';
+import { DETAILS_SECTION, blankLike, orderKeys, splitSections } from '@/components/cms/paths';
 import { SECTIONS, useCmsShell } from '@/components/layout/AdminLayout';
 import {
   Button,
@@ -418,12 +418,7 @@ export function CollectionPage({
       let draft: Record<string, unknown> = { ...schema.template };
       if (!schema.template && template) {
         const existing = await api.get<CmsEntry>(`/cms/collections/${collection}/${template.slug}`);
-        draft = Object.fromEntries(
-          Object.entries(existing.draft).map(([key, value]) => [
-            key,
-            typeof value === 'string' ? '' : Array.isArray(value) ? [] : value,
-          ]),
-        );
+        draft = blankLike(existing.draft) as Record<string, unknown>;
       }
       draft[schema.titleField] = name.trim();
       // A new project or review stays off the site until someone switches it on.

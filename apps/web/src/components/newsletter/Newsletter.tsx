@@ -111,13 +111,19 @@ export function NewsletterLinkAction({ mode, labels, tone = "dark" }: { mode: "c
     token.current = new URLSearchParams(window.location.search).get("token") ?? "";
     let cancelled = false;
     void (async () => {
-      const next = !token.current
-        ? "invalid"
-        : mode === "confirm"
-          ? ({ confirmed: "confirmed", unsubscribed: "gone", invalid: "invalid" } as const)[
-              await confirmSubscription(token.current)
-            ]
-          : null;
+      let next: "confirmed" | "gone" | "invalid" | null;
+      try {
+        next = !token.current
+          ? "invalid"
+          : mode === "confirm"
+            ? (({ confirmed: "confirmed", unsubscribed: "gone", invalid: "invalid" } as const)[
+                await confirmSubscription(token.current)
+              ] ?? "invalid") // anything unexpected is a failed confirmation
+            : null;
+      } catch {
+        // A reply that is not JSON, say: end on the failure message rather than "working" forever.
+        next = "invalid";
+      }
       if (next && !cancelled) setState(next);
     })();
     return () => {
@@ -127,7 +133,8 @@ export function NewsletterLinkAction({ mode, labels, tone = "dark" }: { mode: "c
 
   const leave = async () => {
     setState("working");
-    setState((await unsubscribe(token.current)) ? "unsubscribed" : "invalid");
+    const removed = await unsubscribe(token.current).catch(() => false);
+    setState(removed ? "unsubscribed" : "invalid");
   };
 
   const text = tone === "dark" ? "text-enzo-cream" : "text-primary";

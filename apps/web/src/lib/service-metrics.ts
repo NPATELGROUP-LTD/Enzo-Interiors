@@ -41,11 +41,14 @@ export const GBP = new Intl.NumberFormat("en-GB", {
   maximumFractionDigits: 0,
 });
 
-/** Parses a UK currency label like "£4,500" into 4500. Null if unparseable. */
+/**
+ * Parses a UK currency label like "£4,500" into 4500. Only the first figure:
+ * "£4,500 - £6,000" is 4500, not 45006000. Null if there is no number.
+ */
 export function parsePriceLabel(label: string): number | null {
-  const digits = label.replace(/[^0-9.]/g, "");
-  if (!digits) return null;
-  const value = Number(digits);
+  const figure = label.match(/\d[\d,]*(?:\.\d+)?/)?.[0];
+  if (!figure) return null;
+  const value = Number(figure.replace(/,/g, ""));
   return Number.isFinite(value) ? value : null;
 }
 

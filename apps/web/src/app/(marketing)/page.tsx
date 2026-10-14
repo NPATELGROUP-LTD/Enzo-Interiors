@@ -30,11 +30,11 @@ import { StudioInvite } from "@/components/landing/StudioInvite";
 import {
   getCompany,
   getHeroRooms,
+  getMedia,
   getPage,
   getPortfolioItems,
   getServices,
   getTestimonials,
-  media,
 } from "@/lib/content";
 import { pageMetadata } from "@/lib/seo";
 
@@ -44,7 +44,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function HomePage() {
-  const [services, testimonials, portfolioItems, content, rooms, company] =
+  const [services, testimonials, portfolioItems, content, rooms, company, media] =
     await Promise.all([
       getServices(),
       getTestimonials(),
@@ -52,6 +52,7 @@ export default async function HomePage() {
       getPage("home"),
       getHeroRooms(),
       getCompany(),
+      getMedia(),
     ]);
 
   // The hero's media ids are resolved here, on the server. The hero picks its

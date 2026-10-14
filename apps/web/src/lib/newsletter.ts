@@ -19,7 +19,8 @@ async function post(path: string, body: unknown): Promise<Response> {
 
 /** Resolves once the confirmation email is on its way; rejects with the API's message for a 429, else an empty one. */
 export async function subscribe(email: string, source: NewsletterSource, website: string): Promise<void> {
-  const response = await post("/newsletter", { email: email.trim(), source, website: website || undefined });
+  const response = await post("/newsletter", { email: email.trim(), source, website: website || undefined }).catch(() => null);
+  if (!response) throw new Error("");
   if (response.status === 429) throw new Error(await tooMany(response, ""));
   if (!response.ok) throw new Error("");
 }
@@ -28,8 +29,9 @@ export async function subscribe(email: string, source: NewsletterSource, website
 export async function confirmSubscription(token: string): Promise<"confirmed" | "unsubscribed" | "invalid"> {
   const response = await post("/newsletter/confirm", { token }).catch(() => null);
   if (!response?.ok) return "invalid";
-  const { status } = (await response.json()) as { status: "confirmed" | "unsubscribed" };
-  return status;
+  // A reply that is not JSON, or says something else, is a failed confirmation.
+  const body = (await response.json().catch(() => null)) as { status?: string } | null;
+  return body?.status === "confirmed" || body?.status === "unsubscribed" ? body.status : "invalid";
 }
 
 export async function unsubscribe(token: string): Promise<boolean> {

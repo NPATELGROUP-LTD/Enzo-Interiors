@@ -177,11 +177,17 @@ export class UsersService {
   /**
    * For a lost phone or inbox, or a taken-over account: they choose a method
    * again at their next sign-in, every remembered browser has to pass it
-   * again, the Google link is gone and the wrong-code pause is lifted.
+   * again, the Google link is gone and the wrong-code pause is lifted. For a
+   * taken-over account that also means signing out whoever holds a token, so
+   * token_version moves on (as in setRole) and open sockets drop with it.
    */
   async resetTwoFactor(principal: AuthPrincipal, id: string): Promise<void> {
     const staff = await this.require(id);
-    await this.db.staffUsers.update(id, { ...NO_TWO_FACTOR, updated_at: new Date().toISOString() });
+    await this.db.staffUsers.update(id, {
+      ...NO_TWO_FACTOR,
+      token_version: staff.token_version + 1,
+      updated_at: new Date().toISOString(),
+    });
     await this.db.trustedDevices.deleteMany((row) => row.staff_user_id === id);
     await this.limits.clear(codeFailuresKey(id));
     await this.activity.record({

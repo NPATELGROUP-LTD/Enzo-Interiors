@@ -894,18 +894,24 @@ function verifyReferentialIntegrity(): void {
 /* Run                                                                        */
 /* -------------------------------------------------------------------------- */
 
+/** The NODE_ENV values the destructive seed runs under without ALLOW_DESTRUCTIVE_SEED=yes. */
+const SEED_ENVS = ['development', 'test'];
+
 async function main(): Promise<void> {
   verifyReferentialIntegrity();
 
   // This wipes every table and replaces it with demo records whose passwords
   // are printed at the end. Running it against production would delete the
-  // real data and install publicly known credentials, so it refuses unless
-  // someone has very deliberately said otherwise.
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DESTRUCTIVE_SEED !== 'yes') {
+  // real data and install publicly known credentials, so it only runs when
+  // NODE_ENV says this is development or test, or someone has very
+  // deliberately said otherwise. An unset or unknown NODE_ENV (staging, a
+  // typo) is refused too: a missing variable must not mean "anything goes".
+  if (!SEED_ENVS.includes(process.env.NODE_ENV ?? '') && process.env.ALLOW_DESTRUCTIVE_SEED !== 'yes') {
     console.error(
       [
-        'Refusing to seed demo data with NODE_ENV=production.',
-        'This deletes all existing records. If you are certain, set ALLOW_DESTRUCTIVE_SEED=yes.',
+        `Refusing to seed demo data with NODE_ENV=${process.env.NODE_ENV || '(unset)'}.`,
+        'This deletes all existing records. It runs with NODE_ENV=development or test;',
+        'if you are certain, set ALLOW_DESTRUCTIVE_SEED=yes.',
       ].join(' '),
     );
     process.exit(1);

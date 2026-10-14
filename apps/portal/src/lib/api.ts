@@ -124,7 +124,41 @@ export async function downloadDocument(id: string): Promise<void> {
   const { url } = await request<{ url: string; expires_in: number }>(
     `/documents/${encodeURIComponent(id)}/download`,
   );
+  // Only ever follow a secure link. Dev builds also take the plain-http MinIO one.
+  const { protocol } = new URL(url, window.location.href);
+  if (protocol !== 'https:' && !(import.meta.env.DEV && protocol === 'http:')) {
+    throw new ApiError(502, 'The download link was not secure, so it was not opened.');
+  }
   window.location.assign(url);
+}
+
+/** True once the stored token is past half its life and not yet expired. A JWT's claims are readable by design. */
+function renewalDue(token: string): boolean {
+  try {
+    const { iat, exp } = JSON.parse(atob((token.split('.')[1] ?? '').replace(/-/g, '+').replace(/_/g, '/'))) as { iat: number; exp: number };
+    const now = Date.now() / 1000;
+    return now < exp && now > iat + (exp - iat) / 2;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Swap a token past half its life for a fresh one (POST /auth/refresh), so the
+ * short-lived token the API issues does not sign anyone out mid-use. Returns
+ * the new token, or null when nothing was due or the call failed: a failure is
+ * not worth a logout, the token simply runs out and the next request signs out.
+ */
+export async function renewSession(): Promise<string | null> {
+  const token = tokenStore.get();
+  if (!token || !renewalDue(token)) return null;
+  try {
+    const result = await request<{ access_token: string }>('/auth/refresh', { method: 'POST', allowUnauthorized: true });
+    tokenStore.set(result.access_token);
+    return result.access_token;
+  } catch {
+    return null;
+  }
 }
 
 export const api = {

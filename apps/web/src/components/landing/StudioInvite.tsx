@@ -178,8 +178,9 @@ export function StudioInvite({ items, content, company }: StudioInviteProps) {
           <span className="font-display text-[10px] font-semibold uppercase tracking-[0.28em] text-enzo-sage">
             {content.recentLabel}
           </span>
+          {instagram && (
           <a
-            href={instagram?.href ?? "#"}
+            href={instagram.href}
             target="_blank"
             rel="noopener noreferrer"
             className="group/ig inline-flex min-h-11 items-center gap-2.5 rounded-full border border-enzo-cream/20 px-4 py-2 text-[13px] text-enzo-cream/80 transition-colors duration-300 hover:border-enzo-sand hover:text-enzo-cream focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-enzo-sand focus-visible:ring-offset-4 focus-visible:ring-offset-enzo-dark"
@@ -188,8 +189,9 @@ export function StudioInvite({ items, content, company }: StudioInviteProps) {
               size={14}
               className="transition-transform duration-300 group-hover/ig:-rotate-12"
             />
-            {instagram?.handle ?? instagram?.label}
+            {instagram.handle ?? instagram.label}
           </a>
+          )}
         </div>
 
         {items.length ? (
