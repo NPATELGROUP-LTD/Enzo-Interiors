@@ -313,7 +313,9 @@ const DAY_ORDER = [
 /** "10:00" -> minutes past midnight. */
 function toMinutes(clock: string): number {
   const [hour, minute] = clock.split(":").map(Number);
-  return (hour ?? 0) * 60 + (minute ?? 0);
+  const total = (hour ?? 0) * 60 + (minute ?? 0);
+  // A malformed CMS value ("ab:cd") is NaN, which `?? 0` does not catch.
+  return Number.isFinite(total) ? total : 0;
 }
 
 /** Narrows a detail record to the list shape the summary surfaces consume. */
