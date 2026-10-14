@@ -29,8 +29,9 @@ export async function subscribe(email: string, source: NewsletterSource, website
 export async function confirmSubscription(token: string): Promise<"confirmed" | "unsubscribed" | "invalid"> {
   const response = await post("/newsletter/confirm", { token }).catch(() => null);
   if (!response?.ok) return "invalid";
-  const { status } = (await response.json()) as { status: "confirmed" | "unsubscribed" };
-  return status;
+  // A reply that is not JSON, or says something else, is a failed confirmation.
+  const body = (await response.json().catch(() => null)) as { status?: string } | null;
+  return body?.status === "confirmed" || body?.status === "unsubscribed" ? body.status : "invalid";
 }
 
 export async function unsubscribe(token: string): Promise<boolean> {

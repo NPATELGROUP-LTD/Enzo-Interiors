@@ -116,9 +116,9 @@ export function NewsletterLinkAction({ mode, labels, tone = "dark" }: { mode: "c
         next = !token.current
           ? "invalid"
           : mode === "confirm"
-            ? ({ confirmed: "confirmed", unsubscribed: "gone", invalid: "invalid" } as const)[
+            ? (({ confirmed: "confirmed", unsubscribed: "gone", invalid: "invalid" } as const)[
                 await confirmSubscription(token.current)
-              ]
+              ] ?? "invalid") // anything unexpected is a failed confirmation
             : null;
       } catch {
         // A reply that is not JSON, say: end on the failure message rather than "working" forever.
