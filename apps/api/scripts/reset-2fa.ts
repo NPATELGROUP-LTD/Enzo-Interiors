@@ -11,6 +11,9 @@
  * Their password is untouched.
  */
 
+import { isEmail } from 'class-validator';
+
+import { ActivityLogService } from '../src/core/activity-log.service';
 import { DatabaseService } from '../src/data/database.service';
 import { PrismaService } from '../src/data/prisma.service';
 import { RateLimitStore } from '../src/core/rate-limit';
@@ -18,7 +21,7 @@ import { NO_TWO_FACTOR, codeFailuresKey } from '../src/modules/auth/two-factor';
 
 async function main(): Promise<void> {
   const email = process.argv[2]?.trim().toLowerCase();
-  if (!email) {
+  if (!email || !isEmail(email)) {
     console.error('Usage: npm run auth:reset-2fa -- <email>');
     process.exit(1);
   }
@@ -44,6 +47,14 @@ async function main(): Promise<void> {
     });
     await limits.clear(codeFailuresKey(staff.id));
     limits.onApplicationShutdown();
+    // Nobody is signed in to a script, so the account itself stands in as the actor.
+    await new ActivityLogService(db).record({
+      principal: { id: staff.id, kind: 'Staff', role: staff.role, name: 'reset-2fa script', email: staff.email },
+      action: 'auth_reset_2fa',
+      targetTable: 'staff_users',
+      targetId: staff.id,
+      details: { email: staff.email, devices_forgotten: devices },
+    });
     console.log(`Two-step sign-in and Google link cleared for ${staff.email}; ${devices} remembered device(s) forgotten.`);
   } finally {
     await prisma.$disconnect();
