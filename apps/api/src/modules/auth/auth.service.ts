@@ -94,6 +94,8 @@ const FAILURE_WINDOW = 60 * 60_000;
 const ACCOUNT_FAILURES = 50;
 const ACCOUNT_LOCK = 15 * 60_000;
 const RESET_TTL_MS = 30 * 60 * 1000;
+/** Longest a session can be kept alive by refreshing: what one token used to last. */
+const SESSION_MAX_SECONDS = 12 * 60 * 60;
 
 /**
  * The purpose of a portal set-password link. The link is a JWT naming the
@@ -490,6 +492,30 @@ export class AuthService implements OnApplicationBootstrap {
     });
     if (!updated) throw new UnauthorizedException('Your account no longer exists.');
     return { ...principal, name: updated.name };
+  }
+
+  /**
+   * A fresh short-lived token for a still-valid one, so the SPAs can keep a
+   * session alive without a long-lived token sitting in localStorage. The
+   * sign-in time (`at`) is carried through, and a session older than
+   * SESSION_MAX_SECONDS is refused: a stolen token cannot be renewed forever.
+   * `principal` is already re-read from the database by the guard, and `tv`
+   * was checked against it there, so a revoked session never gets here.
+   */
+  async refresh(principal: AuthPrincipal, token: string): Promise<LoginResult> {
+    let old: JwtPayload;
+    try {
+      old = await this.jwt.verifyAsync<JwtPayload>(token);
+    } catch {
+      throw new UnauthorizedException('Invalid or expired session token');
+    }
+    const at = old.at ?? old.iat ?? 0;
+    if (Date.now() / 1000 - at > SESSION_MAX_SECONDS) {
+      throw new UnauthorizedException('Your session has expired. Please sign in again.');
+    }
+    const { id, kind, role, name, email } = principal;
+    const payload: JwtPayload = { sub: id, kind, role, name, email, tv: old.tv, at };
+    return { access_token: await this.jwt.signAsync(payload), user: principal };
   }
 
   private async issue(staff: StaffUser): Promise<LoginResult> {

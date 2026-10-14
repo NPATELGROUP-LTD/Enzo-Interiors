@@ -1,10 +1,11 @@
-import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, Post, Put, Req } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
+import { extractBearerToken } from '../../common/guards/jwt-auth.guard';
 import { STAFF_ROLES } from '../../common/types/domain';
 import { ClientIp } from '../../core/client-ip';
-import { AuthPrincipal } from '../../common/types/principal';
+import { AuthPrincipal, AuthenticatedRequest } from '../../common/types/principal';
 import { AuthService, LoginResult, Me } from './auth.service';
 import { ChallengeCodeDto, ChallengeDto, ChangePasswordDto, CodeDto, ForgotPasswordDto, LoginDto, PortalResetDto, ProfileDto, ResetPasswordDto } from './dto';
 import { DeviceView, TwoFactorService, TwoFactorStep } from './two-factor';
@@ -142,6 +143,15 @@ export class AuthController {
   @Roles(...STAFF_ROLES, 'Client')
   me(@CurrentUser() principal: AuthPrincipal): Promise<Me> {
     return this.auth.me(principal);
+  }
+
+  /** A new short-lived token for this one (staff and portal clients alike), up to 12h after sign-in. */
+  @Post('refresh')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @Roles(...STAFF_ROLES, 'Client')
+  refresh(@CurrentUser() principal: AuthPrincipal, @Req() request: AuthenticatedRequest): Promise<LoginResult> {
+    return this.auth.refresh(principal, extractBearerToken(request) ?? '');
   }
 
   /** Browsers that skip the code. Logging out leaves them; this is how to forget one. */
