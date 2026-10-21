@@ -387,6 +387,25 @@ ${link}`,
     };
   },
 
+  /** One template for every in-portal update a client chose to also get by email. */
+  notice(name: string, title: string, body: string | null, link: string): Rendered {
+    return {
+      subject: title,
+      html: layout(
+        title,
+        `${heading('Update', title)}
+${para(body ?? 'Sign in to your client portal to see the details.')}
+${button(link, 'Open your portal')}`,
+      ),
+      text: `Hi ${name},
+
+${title}${body ? `
+${body}` : ''}
+
+Open your portal: ${link}`,
+    };
+  },
+
   reviewRequested(editor: string, page: string, note: string | null, link: string): Rendered {
     const subject = `${editor} sent ${page} for review`;
     return {

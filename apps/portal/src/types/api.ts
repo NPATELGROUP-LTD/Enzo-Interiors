@@ -246,7 +246,12 @@ export interface NotificationPreference {
   email_enabled: boolean;
   sms_enabled: boolean;
   in_app_enabled: boolean;
+  /** What each kind of update may do, defaults filled in by the API. */
+  categories: Record<NotifyCategory, Record<NotifyChannel, boolean>>;
 }
+
+export type NotifyCategory = 'project' | 'invoice' | 'document' | 'message';
+export type NotifyChannel = 'in_app' | 'email' | 'push';
 
 /** GET /projects/:id/detail */
 export interface ProjectDetail {
