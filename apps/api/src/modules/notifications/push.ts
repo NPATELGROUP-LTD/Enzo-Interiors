@@ -118,6 +118,16 @@ export class PushService {
     await this.db.pushSubscriptions.deleteWhere({ endpoint, owner_type: ownerOf(principal), owner_id: principal.id });
   }
 
+  /** A test to the caller's own devices: how many were tried, and whether push is configured at all. */
+  async test(principal: AuthPrincipal): Promise<{ configured: boolean; devices: number }> {
+    const owner = ownerOf(principal);
+    const devices = (await this.db.pushSubscriptions.findWhere({ owner_type: owner, owner_id: principal.id })).length;
+    if (this.publicKey && devices > 0) {
+      this.send(owner, principal.id, { title: 'Test notification', body: 'Notifications are working on this device.', link: '/' });
+    }
+    return { configured: this.publicKey !== null, devices };
+  }
+
   /** Fire and forget: never slows down or fails the request that caused it. */
   send(owner: PushOwner, ownerId: string, message: PushMessage): void {
     if (!this.publicKey) return;
@@ -137,6 +147,8 @@ export class PushService {
             TTL: 24 * 60 * 60,
             timeout: 10_000,
           });
+          // Host only, never the endpoint (a bearer capability): enough to tell "sent" from "never tried".
+          this.logger.log(`Push accepted by ${new URL(row.endpoint).host}`);
         } catch (error) {
           const status = error instanceof webpush.WebPushError ? error.statusCode : undefined;
           // Gone: the browser unsubscribed or the app was removed. Forget it.
@@ -173,6 +185,14 @@ export class PushController {
   ) {
     const ua = req.headers['user-agent'];
     await this.push.subscribe(principal, dto, typeof ua === 'string' ? ua : undefined);
+  }
+
+  /** "Send a test notification" in Settings: tells the person whether anything was sent, and to how many devices. */
+  @Post('test')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  test(@CurrentUser() principal: AuthPrincipal) {
+    return this.push.test(principal);
   }
 
   @Delete('subscribe')

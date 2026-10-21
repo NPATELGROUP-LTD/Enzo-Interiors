@@ -4,13 +4,14 @@ import { useLocation } from 'react-router-dom';
 
 import { Button, Toggle } from '@/components/ui';
 import { tokenStore } from '@/lib/api';
-import { PUSH_MESSAGES, disablePush, enablePush, pushState, syncPush, type PushState } from '@/lib/push';
+import { PUSH_MESSAGES, disablePush, enablePush, pushState, syncPush, testPush, type PushState } from '@/lib/push';
 
 /** "Notifications on this device": Web Push for this browser only. */
 export function PushToggle() {
   const [state, setState] = useState<PushState | null>(null);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
 
   useEffect(() => {
     pushState().then(setState, () => setState('unsupported'));
@@ -32,6 +33,17 @@ export function PushToggle() {
     }
   };
 
+  const test = async () => {
+    setBusy(true);
+    try {
+      setTestResult(await testPush());
+    } catch {
+      setTestResult('Could not send the test. Try again in a moment.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const note = state && state !== 'on' && state !== 'off' ? PUSH_MESSAGES[state] : null;
   return (
     <div>
@@ -43,6 +55,14 @@ export function PushToggle() {
         onChange={(next) => void change(next)}
       />
       {note ? <p className="mt-1 text-xs text-ink-muted" role="status">{note}</p> : null}
+      {state === 'on' ? (
+        <div className="mt-1">
+          <button type="button" onClick={() => void test()} disabled={busy} className="text-link text-xs">
+            Send a test notification
+          </button>
+          {testResult ? <p className="mt-1 text-xs text-ink-muted" role="status">{testResult}</p> : null}
+        </div>
+      ) : null}
       {failed ? (
         <p className="mt-1 text-xs text-danger" role="alert">
           Could not change notifications on this device. Try again.
@@ -109,7 +129,7 @@ export function PushPrompt({ detail }: { detail: string }) {
 
   return (
     <div
-      role="dialog"
+      role="region"
       aria-labelledby="push-prompt-title"
       className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 rounded-card border border-border bg-surface p-4 shadow-window sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[22rem]"
     >

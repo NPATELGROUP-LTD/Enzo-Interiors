@@ -18,6 +18,7 @@ import { MODIFIER } from './SearchPalette';
 import { useAuth } from '@/lib/auth';
 import { initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
+import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
  * macOS-style app shell: a glass menu bar on top and one window below it,
@@ -331,7 +332,7 @@ export function Desktop({
         </div>
 
         <main ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
-          <Outlet context={context} />
+          <RouteBoundary><Outlet context={context} /></RouteBoundary>
         </main>
       </section>
       </div>

@@ -149,6 +149,18 @@ function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
   return bytes;
 }
 
+/**
+ * "Send a test notification": the API sends one to this person's own devices
+ * and says how many it tried, so "nothing arrived" can be told apart from
+ * "no device is registered" and "push is off on the server".
+ */
+export async function testPush(): Promise<string> {
+  const { configured, devices } = await api.post<{ configured: boolean; devices: number }>('/push/test');
+  if (!configured) return 'Notifications on devices are not set up on the server yet.';
+  if (devices === 0) return 'No device is registered for you yet. Turn notifications on for this device first.';
+  return `Sent to ${devices} device${devices === 1 ? '' : 's'}. If nothing appears within a few seconds, check this computer or phone allows notifications from your browser.`;
+}
+
 export const PUSH_MESSAGES: Record<Exclude<PushState, 'on' | 'off'>, string> = {
   unsupported: 'This browser cannot show notifications from the app.',
   install:
