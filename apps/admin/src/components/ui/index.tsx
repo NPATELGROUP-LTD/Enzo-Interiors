@@ -3,6 +3,8 @@ import {
   CaretDown,
   Check,
   CircleNotch,
+  Eye,
+  EyeSlash,
   WarningCircle,
   X,
 } from '@phosphor-icons/react';
@@ -256,18 +258,40 @@ export function Input({
   required,
   ...rest
 }: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string; hint?: string }) {
+  const [shown, setShown] = useState(false);
+  const isPassword = rest.type === 'password';
   return (
     <Field label={label} error={error} hint={hint} required={required}>
-      {(id, describedBy) => (
-        <input
-          {...rest}
-          id={id}
-          required={required}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
-          className={clsx(FIELD_BASE, error && 'border-danger', rest.className)}
-        />
-      )}
+      {(id, describedBy) => {
+        const input = (
+          <input
+            {...rest}
+            type={isPassword && shown ? 'text' : rest.type}
+            id={id}
+            required={required}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
+            className={clsx(FIELD_BASE, error && 'border-danger', isPassword && 'pr-11', rest.className)}
+          />
+        );
+        // Every password field in the app gets the eye: see what you typed.
+        return isPassword ? (
+          <div className="relative">
+            {input}
+            <button
+              type="button"
+              onClick={() => setShown((value) => !value)}
+              aria-label={shown ? 'Hide password' : 'Show password'}
+              aria-pressed={shown}
+              className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-[7px] text-ink-muted hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35"
+            >
+              {shown ? <EyeSlash size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+            </button>
+          </div>
+        ) : (
+          input
+        );
+      }}
     </Field>
   );
 }

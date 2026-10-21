@@ -7,6 +7,7 @@ import {
   IsArray,
   IsDateString,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -45,8 +46,8 @@ export class InvoiceItemDto {
   @OptionalText() @IsOptional() @IsString() @MaxLength(300) detail?: string | null;
 
   @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Quantity must have at most 2 decimal places' })
-  @Min(0.01, { message: 'Quantity must be more than zero' })
+  @IsInt({ message: 'Quantity must be a whole number' })
+  @Min(1, { message: 'Quantity must be at least 1' })
   @Max(100_000)
   quantity!: number;
 
