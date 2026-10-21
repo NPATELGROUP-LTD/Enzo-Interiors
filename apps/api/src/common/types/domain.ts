@@ -315,6 +315,8 @@ export interface NotificationPreference extends BaseRecord {
   email_enabled: boolean;
   sms_enabled: boolean;
   in_app_enabled: boolean;
+  /** Per-type choices; null/missing = the defaults (modules/notifications/preferences.ts). */
+  categories?: Partial<Record<'project' | 'invoice' | 'document' | 'message', Partial<Record<'in_app' | 'email' | 'push', boolean>>>> | null;
 }
 
 /** Schema 3.13 */
@@ -543,7 +545,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry';
   title: string;
   body: string | null;
   link: string | null;

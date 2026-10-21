@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthScreen, FormError } from '@/components/layout/AuthScreen';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, LoadingState } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 /** Step one: ask for a link. The answer is the same whether or not the address has an account. */
@@ -96,10 +96,46 @@ export function ResetPasswordPage() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /** Null while the link is being checked; false once it is known to be used or expired. */
+  const [live, setLive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let current = true;
+    api
+      .post<{ valid: boolean }>('/auth/admin/reset-password/check', { token }, { allowUnauthorized: true })
+      .then((result) => current && setLive(result.valid))
+      // Cannot tell (offline, throttled): show the form, the API decides on submit.
+      .catch(() => current && setLive(true));
+    return () => {
+      current = false;
+    };
+  }, [token]);
 
   if (!token) {
     return (
       <AuthScreen title="This link is incomplete" lede="Open the link from the email again, or ask for a new one.">
+        <Link to="/forgot-password" className="text-link text-sm">
+          Send a new link
+        </Link>
+      </AuthScreen>
+    );
+  }
+
+  if (live === null) {
+    return (
+      <AuthScreen title="One moment" lede="Checking your link.">
+        <LoadingState label="Checking your link…" />
+      </AuthScreen>
+    );
+  }
+
+  if (!live) {
+    return (
+      <AuthScreen
+        title="This link has already been used or has expired"
+        lede="For your security each link works once. Ask for a new one and it will arrive in a moment."
+      >
         <Link to="/forgot-password" className="text-link text-sm">
           Send a new link
         </Link>

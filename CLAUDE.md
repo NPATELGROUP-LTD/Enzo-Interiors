@@ -114,6 +114,27 @@ re-register an already-allowed device on every start (`syncPush`), since sign-ou
 removes it. Every chat message is pushed to the other side (tag per chat) whether
 or not they are connected; the bell + email keep the offline/15-minute rule.
 
+**Client notification choices** (`modules/notifications/preferences.ts`):
+`notification_preferences.categories` (nullable JSONB, migration 15) holds, per
+kind of update (`project`, `invoice`, `document`, `message`), whether it may
+reach the client `in_app`, by `email` or by `push`; null = the old all-in-one
+`in_app_enabled` / `email_enabled` switches, push on. `NotificationsService.notifyClient`
+is the one gate for the bell, devices and email (one generic `templates.notice`;
+only to an Active client with a portal password); chat passes `push`/`email` false
+and checks `allows()` itself. `GET/PUT /notification-preferences` serve the full
+grid (portal Settings › Notifications). `store()` also emits `notification:new` to
+room `user:<id>` through `RealtimeService` (joined by `MessagesGateway` on connect),
+so both bells update and toast at once; the minute poll is the fallback.
+`POST /push/test` (Settings › "Send a test notification") says how many of the
+caller's devices were tried. Staff are also told of a new enquiry and of a
+client's approval / change request.
+
+**Password and invitation links:** a password reset does not lift a sign-in
+lockout (locks only expire). Staff reset/invite tokens are claimed with one
+conditional UPDATE; `POST /auth/admin/reset-password/check` and
+`POST /auth/portal/reset/check` tell the page a link was already used before a
+password is typed. Invoice line quantities are whole numbers (`@IsInt`).
+
 **Re-authenticated deletes:** deleting a client (with all their projects,
 invoices incl. Paid, documents, messages, in one transaction), a project
 (its invoices and documents stay on the client, unlinked) or a Paid invoice

@@ -46,7 +46,7 @@ export function useQuery<T>(path: string | null): QueryState<T> {
     } catch (caught) {
       if (id === requestId.current) {
         setError(
-          caught instanceof ApiError ? caught.message : 'Something went wrong loading this page.',
+          caught instanceof ApiError ? caught.message : 'We could not load this. Please try again.',
         );
       }
     } finally {
@@ -84,7 +84,7 @@ export function useMutation<TArgs extends unknown[], TResult>(
       try {
         return await fn(...args);
       } catch (caught) {
-        setError(caught instanceof ApiError ? caught.message : 'Something went wrong.');
+        setError(caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
         return null;
       } finally {
         setPending(false);

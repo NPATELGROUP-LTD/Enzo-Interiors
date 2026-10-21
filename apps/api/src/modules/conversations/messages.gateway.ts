@@ -18,6 +18,7 @@ import { authenticate } from '../../common/guards/jwt-auth.guard';
 import { Conversation, Message } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
+import { RealtimeService, userRoom } from '../notifications/realtime';
 import { ConversationsService, SendMessageDto } from './conversations.service';
 
 /** The room for a conversation. One room per thread. */
@@ -83,6 +84,7 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
     private readonly access: AccessService,
     private readonly jwt: JwtService,
     private readonly db: DatabaseService,
+    private readonly realtime: RealtimeService,
     config: ConfigService,
   ) {
     allowedOrigins = (config.get<string>('CORS_ORIGINS') ?? 'http://localhost:5174,http://localhost:5175')
@@ -93,6 +95,7 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
 
   /** The handshake: no valid session token, no connection (the client sees connect_error). */
   afterInit(server: Server): void {
+    this.realtime.server = server;
     server.use((socket, next) => {
       const token = socket.handshake.auth?.token;
       if (typeof token !== 'string' || !token) return next(new Error('Unauthorized'));
@@ -109,7 +112,8 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
   /** Join every thread this principal may see, so new messages arrive without asking. */
   async handleConnection(socket: AuthedSocket): Promise<void> {
     const visible = await this.conversations.list(socket.data.principal);
-    await socket.join(visible.map((conversation) => room(conversation.id)));
+    // Their own room too: the bell and toasts arrive on it (notifications/realtime.ts).
+    await socket.join([userRoom(socket.data.principal.id), ...visible.map((conversation) => room(conversation.id))]);
     socket.emit('connected', { conversations: visible.map((conversation) => conversation.id) });
   }
 

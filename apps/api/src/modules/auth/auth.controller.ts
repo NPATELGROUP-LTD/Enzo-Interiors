@@ -7,7 +7,7 @@ import { STAFF_ROLES } from '../../common/types/domain';
 import { ClientIp } from '../../core/client-ip';
 import { AuthPrincipal, AuthenticatedRequest } from '../../common/types/principal';
 import { AuthService, LoginResult, Me } from './auth.service';
-import { ChallengeCodeDto, ChallengeDto, ChangePasswordDto, CodeDto, ForgotPasswordDto, LoginDto, PortalResetDto, ProfileDto, ResetPasswordDto } from './dto';
+import { ChallengeCodeDto, ChallengeDto, ChangePasswordDto, CodeDto, ForgotPasswordDto, LinkTokenDto, LoginDto, PortalResetDto, ProfileDto, ResetPasswordDto } from './dto';
 import { DeviceView, TwoFactorService, TwoFactorStep } from './two-factor';
 
 const FIFTEEN_MINUTES = 15 * 60 * 1000;
@@ -42,8 +42,17 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
   @Post('portal/reset')
   @HttpCode(204)
-  async resetPortal(@Body() dto: PortalResetDto, @ClientIp() ip: string): Promise<void> {
-    await this.auth.resetPortalPassword(dto.token, dto.new_password, ip);
+  async resetPortal(@Body() dto: PortalResetDto): Promise<void> {
+    await this.auth.resetPortalPassword(dto.token, dto.new_password);
+  }
+
+  /** Is this set-password link still good? No side effects; lets the page refuse a used link up front. */
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('portal/reset/check')
+  @HttpCode(200)
+  async checkPortalLink(@Body() dto: LinkTokenDto): Promise<{ valid: boolean }> {
+    return { valid: await this.auth.portalLinkValid(dto.token) };
   }
 
   /**
@@ -131,8 +140,16 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: FIFTEEN_MINUTES } })
   @Post('admin/reset-password')
   @HttpCode(204)
-  async resetPassword(@Body() dto: ResetPasswordDto, @ClientIp() ip: string): Promise<void> {
-    await this.auth.resetPassword(dto.token, dto.new_password, ip);
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<void> {
+    await this.auth.resetPassword(dto.token, dto.new_password);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: FIFTEEN_MINUTES } })
+  @Post('admin/reset-password/check')
+  @HttpCode(200)
+  async checkResetLink(@Body() dto: LinkTokenDto): Promise<{ valid: boolean }> {
+    return { valid: await this.auth.resetLinkValid(dto.token) };
   }
 
   /**

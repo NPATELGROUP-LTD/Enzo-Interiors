@@ -1,11 +1,15 @@
-import { Body, Controller, Get, HttpCode, Injectable, Module, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Injectable, Logger, Module, Post } from '@nestjs/common';
 import { ArrayMaxSize, IsArray, IsOptional, IsString } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { Notification, STAFF_ROLES } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
+import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
+import { looksHashed } from '../auth/auth.service';
+import { NotifyCategory, NotifyChannel, allowed } from './preferences';
 import { PushController, PushService } from './push';
+import { RealtimeService } from './realtime';
 
 export class MarkReadDto {
   /** Omit to mark every notification read. */
@@ -17,6 +21,14 @@ export class MarkReadDto {
 }
 
 type NewNotification = Pick<Notification, 'kind' | 'title'> & Partial<Pick<Notification, 'body' | 'link'>>;
+
+/** Which of a client's choices (Settings › Notifications) governs each kind of update. Staff-only kinds have none. */
+const CATEGORY: Partial<Record<Notification['kind'], NotifyCategory>> = {
+  project: 'project',
+  invoice: 'invoice',
+  document: 'document',
+  message: 'message',
+};
 
 /**
  * The bell in the admin's and the portal's menu bars: new bookings, review
@@ -31,9 +43,14 @@ type NewNotification = Pick<Notification, 'kind' | 'title'> & Partial<Pick<Notif
  */
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+  private readonly portalUrl = (process.env.PORTAL_URL ?? 'http://localhost:5175').replace(/\/+$/, '');
+
   constructor(
     private readonly db: DatabaseService,
     private readonly push: PushService,
+    private readonly mail: MailService,
+    private readonly realtime: RealtimeService,
   ) {}
 
   /** A staff member's bell (and their devices, unless `push` is false: the caller pushes itself). */
@@ -42,18 +59,44 @@ export class NotificationsService {
     if (push) this.push.send('staff', recipientId, note);
   }
 
+  private prefsOf(clientId: string) {
+    return this.db.notificationPreferences.findFirstWhere({ owner_id: clientId, owner_type: 'Client' });
+  }
+
+  /** May this client be reached this way for this kind of update? (their Settings). */
+  async allows(clientId: string, category: NotifyCategory, channel: NotifyChannel): Promise<boolean> {
+    return allowed(await this.prefsOf(clientId), category, channel);
+  }
+
   /**
-   * A portal client's bell, unless they turned in-app notifications off in
-   * Settings. Their devices still get the push: that is its own switch, per device.
+   * The one gate for a portal client: the bell, their devices and their inbox,
+   * each only if their Settings allow that kind of update that way. A caller
+   * that pushes or emails itself (chat) passes `push` / `email` false.
    */
-  async notifyClient(clientId: string, note: NewNotification, push = true): Promise<void> {
-    const prefs = await this.db.notificationPreferences.findFirstWhere({ owner_id: clientId, owner_type: 'Client' });
-    if (prefs?.in_app_enabled !== false) await this.store(clientId, note);
-    if (push) this.push.send('client', clientId, note);
+  async notifyClient(clientId: string, note: NewNotification, push = true, email = true): Promise<void> {
+    const category = CATEGORY[note.kind];
+    const prefs = await this.prefsOf(clientId);
+    const on = (channel: NotifyChannel) => !category || allowed(prefs, category, channel);
+    if (on('in_app')) await this.store(clientId, note);
+    if (push && on('push')) this.push.send('client', clientId, note);
+    if (email && on('email')) void this.emailClient(clientId, note);
+  }
+
+  /** Only to someone who can sign in to the portal; never slows or fails the request that caused it. */
+  private async emailClient(clientId: string, note: NewNotification): Promise<void> {
+    try {
+      const client = await this.db.clients.findById(clientId);
+      if (!client || client.status !== 'Active' || !looksHashed(client.password_hash)) return;
+      const link = `${this.portalUrl}${note.link ?? ''}`;
+      const sent = await this.mail.send({ to: client.email, ...templates.notice(client.name, note.title, note.body ?? null, link) });
+      if (!sent) this.logger.warn(`Could not email "${note.title}" to a client (${clientId}).`);
+    } catch (error) {
+      this.logger.error(`Client email failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private async store(recipientId: string, note: NewNotification): Promise<void> {
-    await this.db.notifications.create({
+    const row = await this.db.notifications.create({
       recipient_id: recipientId,
       kind: note.kind,
       title: note.title,
@@ -62,6 +105,8 @@ export class NotificationsService {
       read_at: null,
       created_at: new Date().toISOString(),
     });
+    // The open bell and toast update at once; the minute poll stays as the fallback.
+    this.realtime.toUser(recipientId, 'notification:new', row);
   }
 
   /** Every Admin, except whoever caused it. */
@@ -111,7 +156,7 @@ export class NotificationsController {
 
 @Module({
   controllers: [NotificationsController, PushController],
-  providers: [NotificationsService, PushService],
-  exports: [NotificationsService, PushService],
+  providers: [NotificationsService, PushService, RealtimeService],
+  exports: [NotificationsService, PushService, RealtimeService],
 })
 export class NotificationsModule {}

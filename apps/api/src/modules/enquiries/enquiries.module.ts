@@ -44,6 +44,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
+import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
 
 /** At most 20 flat string fields of at most 500 characters: a form's extras, nothing more. */
@@ -134,6 +135,7 @@ export class EnquiriesService {
     private readonly mail: MailService,
     private readonly settings: SiteSettingsService,
     private readonly activity: ActivityLogService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   /** Newest first, filtered and cut in SQL. `new_count` feeds the menu badge. */
@@ -183,6 +185,11 @@ export class EnquiriesService {
       status: 'New',
       created_at: new Date().toISOString(),
     });
+
+    // The bell and every Admin's devices, whether or not any email address is set up.
+    void this.notifications
+      .notifyAdmins({ kind: 'enquiry', title: `New enquiry from ${row.name}`, body: row.service_interest ?? (row.message.slice(0, 120) || null), link: '/enquiries' })
+      .catch((error: unknown) => this.logger.error(`Enquiry bell failed: ${error instanceof Error ? error.message : String(error)}`));
 
     const to = await this.settings.notificationRecipients();
     if (!to.length) {
@@ -242,7 +249,7 @@ export class EnquiriesController {
 }
 
 @Module({
-  imports: [SiteSettingsModule],
+  imports: [SiteSettingsModule, NotificationsModule],
   controllers: [EnquiriesController],
   providers: [EnquiriesService],
 })

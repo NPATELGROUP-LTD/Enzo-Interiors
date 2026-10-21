@@ -690,7 +690,9 @@ function InvoiceEditor({
       const lines = rows.filter((row): row is LineRow => row.kind === 'line');
       if (lines.length === 0) return setError('Add at least one line.');
       if (lines.some((line) => !line.description.trim())) return setError('Name each line’s item, or remove the empty ones.');
-      if (lines.some((line) => !(Number(line.quantity) > 0))) return setError('Each quantity must be more than zero.');
+      if (lines.some((line) => !Number.isInteger(Number(line.quantity)) || Number(line.quantity) < 1)) {
+        return setError('Each quantity must be a whole number, 1 or more.');
+      }
       if (lines.some((line) => line.unit_price !== '' && !(Number(line.unit_price) >= 0))) return setError('Prices cannot be negative.');
       if (!(off >= 0)) return setError('The discount cannot be negative.');
       if (preview.net < 0) return setError('The discount cannot be more than the lines add up to.');
@@ -922,11 +924,14 @@ function InvoiceEditor({
                     />
                     <input
                       type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step="0.01"
+                      inputMode="numeric"
+                      min={1}
+                      step={1}
                       value={row.quantity}
-                      onChange={(event) => setRow(row.key, { quantity: event.target.value })}
+                      // Whole numbers only: the arrows step by 1 and a pasted 2.5 becomes 2.
+                      onChange={(event) =>
+                        setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })
+                      }
                       aria-label={`Line ${index + 1} quantity`}
                       placeholder="Qty"
                       className={clsx(FIELD_BASE, 'tabular')}

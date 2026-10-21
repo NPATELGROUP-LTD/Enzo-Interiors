@@ -51,6 +51,21 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * What a person reads when a request fails. The API's own plain-English
+ * message wins for 4xx; a server fault ("Internal server error") never
+ * reaches the screen as-is.
+ */
+const FALLBACK_MESSAGES: Record<number, string> = {
+  403: "You don't have access to this.",
+  404: "We couldn't find that.",
+  429: 'Too many attempts. Please wait a moment and try again.',
+};
+function friendlyMessage(status: number, apiMessage?: string): string {
+  if (status >= 500) return 'Something went wrong on our side. Please try again in a moment.';
+  return apiMessage ?? FALLBACK_MESSAGES[status] ?? 'That did not work. Please try again.';
+}
+
 /** Fired when the API rejects our token, so the app can bounce to login once. */
 export const UNAUTHORIZED_EVENT = 'enzo:unauthorized';
 
@@ -104,11 +119,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     // class-validator. Both need to reach the form.
     const raw = (payload as { message?: string | string[] } | null)?.message;
     const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    throw new ApiError(
-      response.status,
-      list[0] ?? `Request failed (${response.status})`,
-      list,
-    );
+    throw new ApiError(response.status, friendlyMessage(response.status, list[0]), list);
   }
 
   return payload as T;
