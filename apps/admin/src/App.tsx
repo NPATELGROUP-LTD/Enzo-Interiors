@@ -5,7 +5,7 @@ import { Button, LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
 import { CmsHome, CollectionPage, EntryPage } from './pages/Cms';
 import { LoginPage } from './pages/Login';
-import { NotFoundPage } from './pages/NotFound';
+import { NotFoundPage, SignedOutNotFound } from './pages/NotFound';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
 import { AccountPage } from './pages/Account';
 import { AppointmentsPage } from './pages/Appointments';
@@ -25,6 +25,12 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
   const { slug = '' } = useParams();
   return <EntryPage key={slug} collection={collection} slug={slug} basePath={basePath} />;
 }
+
+/** Addresses that are real screens once signed in, so signed out they go to sign-in and not a 404. */
+const isAppPath = (path: string) =>
+  ['/', '/cms', '/account', '/settings', '/clients', '/projects', '/messages', '/invoices', '/enquiries', '/bookings', ...SECTIONS.map(({ to }) => to)].some(
+    (base) => (base === '/' ? path === '/' : path === base || path.startsWith(`${base}/`)),
+  );
 
 /**
  * v1 routes: the dashboard (the landing page for Admin and Designers; Editors
@@ -50,7 +56,7 @@ export function App() {
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
+        <Route path="*" element={<SignedOutNotFound known={isAppPath} />} />
       </Routes>
     );
   }

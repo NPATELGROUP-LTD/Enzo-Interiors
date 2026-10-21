@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider } from './lib/auth';
 import { ThemeProvider } from './lib/theme';
@@ -19,7 +20,7 @@ createRoot(container).render(
         <ToastProvider>
           <AuthProvider>
             <BrowserRouter>
-              <App />
+              <ErrorBoundary screen><App /></ErrorBoundary>
             </BrowserRouter>
           </AuthProvider>
         </ToastProvider>
