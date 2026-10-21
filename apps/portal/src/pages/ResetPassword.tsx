@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 import { AuthScreen, FormError } from '@/components/layout/AuthScreen';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, LoadingState } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 
 /** Ask for a reset link. The answer is the same whether or not the address has an account. */
@@ -98,6 +98,21 @@ export function ResetPasswordPage() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /** Null while the link is being checked; false once it is known to be used or expired. */
+  const [live, setLive] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    let current = true;
+    api
+      .post<{ valid: boolean }>('/auth/portal/reset/check', { token }, { allowUnauthorized: true })
+      .then((result) => current && setLive(result.valid))
+      // Cannot tell (offline, throttled): show the form, the API decides on submit.
+      .catch(() => current && setLive(true));
+    return () => {
+      current = false;
+    };
+  }, [token]);
 
   if (!token) {
     return (
@@ -105,6 +120,37 @@ export function ResetPasswordPage() {
         <Link to="/forgot-password" className="text-link text-sm">
           Send a new link
         </Link>
+      </AuthScreen>
+    );
+  }
+
+  if (live === null) {
+    return (
+      <AuthScreen title="One moment" lede="Checking your link.">
+        <LoadingState label="Checking your link…" />
+      </AuthScreen>
+    );
+  }
+
+  if (!live) {
+    return (
+      <AuthScreen
+        title="This link has already been used or has expired"
+        lede={
+          invite
+            ? 'Ask Enzo Interiors to send you a new invitation.'
+            : 'For your security each link works once. Ask for a new one and it will arrive in a moment.'
+        }
+      >
+        {invite ? (
+          <Link to="/login" className="text-link text-sm">
+            Go to sign in
+          </Link>
+        ) : (
+          <Link to="/forgot-password" className="text-link text-sm">
+            Send a new link
+          </Link>
+        )}
       </AuthScreen>
     );
   }

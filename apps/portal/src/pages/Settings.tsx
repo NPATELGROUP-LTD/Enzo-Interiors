@@ -19,7 +19,20 @@ import { ApiError, api, tokenStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { reauthSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
-import type { NotificationPreference } from '@/types/api';
+import type { NotificationPreference, NotifyCategory, NotifyChannel } from '@/types/api';
+
+/** Rows and columns of Settings › Notifications. */
+const CATEGORIES: Array<{ id: NotifyCategory; label: string; description: string }> = [
+  { id: 'project', label: 'Project updates', description: 'A project shared with you, moving on, or needing your approval.' },
+  { id: 'invoice', label: 'Invoices', description: 'A new invoice from the studio.' },
+  { id: 'document', label: 'Files', description: 'Drawings, quotes and other files shared with you.' },
+  { id: 'message', label: 'Messages', description: 'A reply from the studio while you are away.' },
+];
+const CHANNELS: Array<{ id: NotifyChannel; label: string }> = [
+  { id: 'in_app', label: 'In the portal' },
+  { id: 'email', label: 'Email' },
+  { id: 'push', label: 'Phone & browser' },
+];
 
 export function SettingsPage() {
   const { user, logout } = useAuth();
@@ -63,9 +76,11 @@ export function SettingsPage() {
     }
   };
 
-  const savePreference = async (patch: Partial<NotificationPreference>) => {
+  const saveChoice = async (category: NotifyCategory, channel: NotifyChannel, next: boolean) => {
     try {
-      preferences.setData(await api.put<NotificationPreference>('/notification-preferences', patch));
+      preferences.setData(
+        await api.put<NotificationPreference>('/notification-preferences', { categories: { [category]: { [channel]: next } } }),
+      );
       toast.success('Preferences saved.');
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not save preferences.');
@@ -135,24 +150,30 @@ export function SettingsPage() {
               <LoadingState label="Loading your preferences…" />
             </div>
           ) : (
-            <div className="mt-4 grid gap-3 md:grid-cols-2 [&>div]:rounded-control [&>div]:bg-ink/[0.035] [&>div]:p-3">
-              <Toggle
-                label="Email"
-                description="Project updates, new documents and invoices."
-                checked={preferences.data.email_enabled}
-                onChange={(next) => void savePreference({ email_enabled: next })}
-              />
-              <Toggle
-                label="In the portal"
-                description="Updates shown when you sign in."
-                checked={preferences.data.in_app_enabled}
-                onChange={(next) => void savePreference({ in_app_enabled: next })}
-              />
-              <PushToggle />
+            <div className="mt-4 grid gap-3">
+              {CATEGORIES.map(({ id, label, description }) => (
+                <div key={id} className="rounded-control bg-ink/[0.035] p-3">
+                  <p className="text-sm font-semibold text-ink">{label}</p>
+                  <p className="mt-0.5 text-xs text-ink-muted">{description}</p>
+                  <div className="mt-2 grid gap-x-4 sm:grid-cols-3">
+                    {CHANNELS.map((channel) => (
+                      <Toggle
+                        key={channel.id}
+                        label={channel.label}
+                        checked={preferences.data!.categories[id][channel.id]}
+                        onChange={(next) => void saveChoice(id, channel.id, next)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-control bg-ink/[0.035] p-3">
+                <PushToggle />
+              </div>
             </div>
           )}
           <p className="mt-4 text-xs text-ink-muted">
-            Security emails, like a password change, are always sent.
+            “Phone & browser” only reaches devices where you turned notifications on, below. Security emails, like a password change, are always sent.
           </p>
         </Card>
       ) : null}

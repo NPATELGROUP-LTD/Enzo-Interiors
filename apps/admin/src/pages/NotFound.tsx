@@ -1,9 +1,26 @@
-import { Gear, MagnifyingGlass, SquaresFour } from '@phosphor-icons/react';
-import { Link, useLocation, useOutletContext } from 'react-router-dom';
+import { Gear, House, MagnifyingGlass, SquaresFour } from '@phosphor-icons/react';
+import { Link, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 
+import { CLIENT_ROLES, type CmsShell } from '@/components/layout/AdminLayout';
+import { AuthScreen } from '@/components/layout/AuthScreen';
 import { MODIFIER } from '@/components/layout/SearchPalette';
-import type { CmsShell } from '@/components/layout/AdminLayout';
 import { useAuth } from '@/lib/auth';
+
+/**
+ * Signed out at an address that is not a screen: a real screen's address goes
+ * on to sign-in (and back), anything else is told it does not exist.
+ */
+export function SignedOutNotFound({ known }: { known: (path: string) => boolean }) {
+  const { pathname } = useLocation();
+  if (known(pathname)) return <Navigate to="/login" replace />;
+  return (
+    <AuthScreen title="Page not found" lede="There is nothing at this address.">
+      <Link to="/login" className="text-link text-sm">
+        Go to sign in
+      </Link>
+    </AuthScreen>
+  );
+}
 
 /**
  * An address that is not a screen. Quiet, and three ways on from it: search,
@@ -11,7 +28,7 @@ import { useAuth } from '@/lib/auth';
  */
 export function NotFoundPage() {
   const { pathname } = useLocation();
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
   const { openSearch } = useOutletContext<CmsShell>();
   const option =
     'flex min-h-11 items-center gap-3 rounded-control px-3 text-left text-ink transition-colors hover:bg-ink/[0.05] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
@@ -33,6 +50,12 @@ export function NotFoundPage() {
             <span className="flex-1">Search for it</span>
             <kbd className="tabular text-xs text-ink-muted">{MODIFIER} K</kbd>
           </button>
+          {can(...CLIENT_ROLES) ? (
+            <Link to="/" className={option}>
+              <House size={18} aria-hidden="true" className="text-ink-muted" />
+              <span className="flex-1">Go to the dashboard</span>
+            </Link>
+          ) : null}
           <Link to="/cms" className={option}>
             <SquaresFour size={18} aria-hidden="true" className="text-ink-muted" />
             <span className="flex-1">Go to the CMS overview</span>

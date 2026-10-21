@@ -19,6 +19,7 @@ import { useTheme } from '@/lib/theme';
 
 import { PushPrompt } from '@/components/PushToggle';
 import { Notifications } from './Notifications';
+import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
  * macOS-style desktop shell: a glass menu bar on top and one window that fills
@@ -284,7 +285,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           </div>
 
           <main ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
-            <Outlet />
+            <RouteBoundary><Outlet /></RouteBoundary>
           </main>
         </section>
       </div>

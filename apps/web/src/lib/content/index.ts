@@ -352,7 +352,9 @@ function resolve(bundle: Bundle): Resolved {
       overview: row.overview,
       overviewShort: row.overviewShort,
       process: row.process,
-      pricing: row.pricing,
+      // A service made in the CMS starts blank and may have no tiers yet; the
+      // booking page maps over this to list the tiers a quote can hand over.
+      pricing: row.pricing ?? [],
       gallery: row.galleryIds.map(mediaSrc),
       faqs: faqsFor(row.id),
       timeline: row.timeline,

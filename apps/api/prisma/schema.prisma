@@ -259,6 +259,8 @@ model NotificationPreference {
   email_enabled  Boolean @default(true)
   sms_enabled    Boolean @default(false)
   in_app_enabled Boolean @default(true)
+  /// { project|invoice|document|message: { in_app, email, push } }; null = defaults.
+  categories     Json?
 
   @@map("notification_preferences")
 }
@@ -511,7 +513,7 @@ model Appointment {
 model Notification {
   id           String    @id
   recipient_id String
-  // "booking" | "review" | "review_reply" | "project"
+  // "booking" | "review" | "review_reply" | "project" | "message" | "invoice" | "document" | "enquiry"
   kind         String
   title        String
   body         String?

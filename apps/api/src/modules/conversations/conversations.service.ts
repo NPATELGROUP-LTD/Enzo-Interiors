@@ -275,7 +275,7 @@ export class ConversationsService {
     if (!client) return;
     const tag = `message:${conversation.id}`;
     if (sender.kind !== 'Client') {
-      if (!this.canUsePortal(client)) return;
+      if (!this.canUsePortal(client) || !(await this.notifications.allows(client.id, 'message', 'push'))) return;
       this.push.send('client', client.id, { title: 'New message from Enzo Interiors', link: '/messages', tag });
       return;
     }
@@ -299,11 +299,14 @@ export class ConversationsService {
     if (toClient) {
       // Only someone who can sign in to the portal is sent there.
       if (!this.canUsePortal(client)) return;
-      await this.notifications.notifyClient(client.id, { kind: 'message', title: 'New message from Enzo Interiors', link: '/messages' }, false);
-      await this.mail.send({
-        to: client.email,
-        ...templates.newMessage('Enzo Interiors', 'your client portal', `${this.portalUrl}/messages`),
-      });
+      // Pushed already (pushMessage); the email is the chat's own, so no generic notice.
+      await this.notifications.notifyClient(client.id, { kind: 'message', title: 'New message from Enzo Interiors', link: '/messages' }, false, false);
+      if (await this.notifications.allows(client.id, 'message', 'email')) {
+        await this.mail.send({
+          to: client.email,
+          ...templates.newMessage('Enzo Interiors', 'your client portal', `${this.portalUrl}/messages`),
+        });
+      }
       return;
     }
 

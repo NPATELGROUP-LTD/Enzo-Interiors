@@ -307,6 +307,7 @@ export class ProjectsService {
       targetId: id,
       details: { from: at.name, to: next.name, note: dto.note ?? null },
     });
+    await this.notifyStaffOfDecision(project, `Approved by the client: ${project.name}`, dto.note ?? undefined);
     return this.findOne(principal, id);
   }
 
@@ -348,6 +349,7 @@ export class ProjectsService {
       targetId: id,
       details: { from: at.name, to: previous.name, note: dto.note.trim() },
     });
+    await this.notifyStaffOfDecision(project, `Changes requested on ${project.name}`, dto.note.trim());
     return this.findOne(principal, id);
   }
 
@@ -426,11 +428,27 @@ export class ProjectsService {
     if (!project.client_visible) return;
     const shared = !before?.client_visible;
     if (!shared && before.status === project.status) return;
+    // Entering the approval stage is the one move that asks the client to do something.
+    const needsApproval = !shared && (await this.stages()).some((stage) => stage.approval && stage.name === project.status);
     await this.notifications.notifyClient(project.client_id, {
       kind: 'project',
-      title: shared ? `${project.name} is now in your portal` : `${project.name} has moved to ${project.status}`,
+      title: shared
+        ? `${project.name} is now in your portal`
+        : needsApproval
+          ? `${project.name} needs your approval`
+          : `${project.name} has moved to ${project.status}`,
+      body: needsApproval ? 'Review the design, then approve it or ask for changes.' : undefined,
       link: `/projects/${project.id}`,
     });
+  }
+
+  /** The client decided: every Admin and whoever designs or installs it hears, never the client themselves. */
+  private async notifyStaffOfDecision(project: Project, title: string, body?: string): Promise<void> {
+    const ids = new Set<string>(
+      [project.assigned_designer_id, project.assigned_installer_id].filter((id): id is string => Boolean(id)),
+    );
+    for (const admin of await this.db.staffUsers.findAll((row) => row.role === 'Admin')) ids.add(admin.id);
+    for (const id of ids) await this.notifications.notify(id, { kind: 'project', title, body, link: `/projects/${project.id}` });
   }
 
   /** The bell, for whoever was just put on the project (not whoever did it). */

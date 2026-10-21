@@ -1,16 +1,18 @@
-import { Bell, CalendarCheck, ChatCircleText, ChatsCircle, CheckCircle, Kanban } from '@phosphor-icons/react';
+import { Bell, CalendarCheck, ChatCircleText, ChatsCircle, CheckCircle, EnvelopeSimple, Kanban } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { useToast } from '@/components/ui/Toast';
 import { api } from '@/lib/api';
 import { relative } from '@/lib/format';
+import { connectSocket } from '@/lib/socket';
 
 import { Badge } from './Desktop';
 
 interface Note {
   id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'enquiry';
   title: string;
   body: string | null;
   link: string | null;
@@ -18,14 +20,15 @@ interface Note {
   created_at: string;
 }
 
-const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban, message: ChatsCircle };
+const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban, message: ChatsCircle, enquiry: EnvelopeSimple };
 
 /** How often the bell asks. It also asks whenever the window comes back into focus. */
 const POLL_MS = 60_000;
 
 /**
- * The bell in the menu bar: new bookings, pages sent for review, replies
- * to your own review requests, and projects you were put on. Opening one marks
+ * The bell in the menu bar: new bookings and enquiries, pages sent for review,
+ * replies to your own review requests, projects you were put on, and clients'
+ * approvals. Opening one marks
  * it read and goes to it.
  *
  * ponytail: polls once a minute rather than holding a socket open. Plenty for
@@ -34,6 +37,7 @@ const POLL_MS = 60_000;
  */
 export function Notifications({ onChange }: { onChange?: () => void }) {
   const navigate = useNavigate();
+  const toast = useToast();
   const [items, setItems] = useState<Note[]>([]);
   const [unread, setUnread] = useState(0);
   /** Null until the first answer; then whether the last load worked. */
@@ -71,6 +75,36 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
       window.removeEventListener('focus', onFocus);
     };
   }, [load]);
+
+  // Live: a new notification lands in the list, bumps the count and, if the
+  // window is in front, shows as a toast that opens what it is about. The
+  // minute poll above stays as the fallback.
+  useEffect(() => {
+    const socket = connectSocket();
+    if (!socket) return;
+    const onNew = (note: Note) => {
+      setItems((list) => (list.some((item) => item.id === note.id) ? list : [note, ...list].slice(0, 50)));
+      setUnread((count) => count + 1);
+      onChange?.();
+      if (document.hidden) return;
+      toast.notice(
+        note.title,
+        note.body,
+        note.link
+          ? () => {
+              setItems((list) => list.map((item) => (item.id === note.id ? { ...item, read_at: item.read_at ?? new Date().toISOString() } : item)));
+              setUnread((count) => Math.max(0, count - 1));
+              void api.post('/notifications/read', { ids: [note.id] }).catch(() => undefined);
+              navigate(note.link!);
+            }
+          : undefined,
+      );
+    };
+    socket.on('notification:new', onNew);
+    return () => {
+      socket.off('notification:new', onNew);
+    };
+  }, [navigate, onChange, toast]);
 
   const markRead = async (ids?: string[]) => {
     const now = new Date().toISOString();
@@ -122,7 +156,7 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
             {loaded === null ? (
               'Loading…'
             ) : loaded ? (
-              'Nothing yet. New bookings and review requests will show up here.'
+              'Nothing yet. New bookings, enquiries and review requests will show up here.'
             ) : (
               <>
                 Could not load notifications.{' '}

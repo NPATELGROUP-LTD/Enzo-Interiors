@@ -144,6 +144,38 @@ export function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
+  // The socket can miss messages while it is down (phone asleep, tab in the
+  // background, network switch). Catch up on reconnect, on coming back to the
+  // tab and when the network returns; and poll while the socket is down.
+  useEffect(() => {
+    const resync = () => {
+      if (document.hidden) return;
+      void conversations.refetch();
+      if (!activeId) return;
+      api
+        .get<Message[]>(`/conversations/${activeId}/messages`)
+        .then((thread) => {
+          setMessages(thread);
+          void api.put(`/conversations/${activeId}/read`).catch(() => undefined);
+        })
+        .catch(() => undefined);
+    };
+    const socket = connectSocket();
+    socket?.io.on('reconnect', resync);
+    document.addEventListener('visibilitychange', resync);
+    window.addEventListener('online', resync);
+    const poll = window.setInterval(() => {
+      if (!connectSocket()?.connected) resync();
+    }, 20_000);
+    return () => {
+      socket?.io.off('reconnect', resync);
+      document.removeEventListener('visibilitychange', resync);
+      window.removeEventListener('online', resync);
+      window.clearInterval(poll);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]);
+
   // Keep the newest message in view.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
