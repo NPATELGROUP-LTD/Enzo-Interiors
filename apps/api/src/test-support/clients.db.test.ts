@@ -177,11 +177,15 @@ test('an invitation sets the first password once, and the client can sign in', a
   assert.deepEqual(await res.json(), { emailed: true });
   assert.equal(mails.at(-1)?.to, NEWBIE.email);
   const token = linkToken();
+  const valid = async () =>
+    ((await (await call('POST', '/auth/portal/reset/check', undefined, { token })).json()) as { valid: boolean }).valid;
 
   // A set-password link is not a session.
   assert.equal((await call('GET', '/auth/me', token)).status, 401);
+  assert.equal(await valid(), true);
 
   assert.equal((await call('POST', '/auth/portal/reset', undefined, { token, new_password: NEW_PASSWORD })).status, 204);
+  assert.equal(await valid(), false, 'the page can refuse a used link before a password is typed');
   assert.equal((await call('POST', '/auth/portal/reset', undefined, { token, new_password: NEW_PASSWORD })).status, 400, 'works once');
   await signIn('/auth/portal/login', NEWBIE.email, NEW_PASSWORD);
 
@@ -208,4 +212,25 @@ test('forgot answers the same for an unknown address, and sends nothing', async 
   assert.equal(mails.length, before);
   // Nor is a forged or foreign token a way in.
   assert.equal((await call('POST', '/auth/portal/reset', undefined, { token: tokens.admin, new_password: NEW_PASSWORD })).status, 400);
+});
+
+test('a staff reset link works once, even when two requests race, and /check says so', async () => {
+  const staff = { id: `stf_rst_${run}`, email: `reset-${run}@test.enzo.local` };
+  await prisma.staffUser.create({ data: { ...staff, name: 'Reset Me', role: 'Editor', password_hash: await bcrypt.hash(PASSWORD, 4) } });
+  try {
+    assert.equal((await call('POST', '/auth/admin/forgot-password', undefined, { email: staff.email })).status, 204);
+    const token = linkToken();
+    const valid = async () =>
+      ((await (await call('POST', '/auth/admin/reset-password/check', undefined, { token })).json()) as { valid: boolean }).valid;
+    const reset = () => call('POST', '/auth/admin/reset-password', undefined, { token, new_password: NEW_PASSWORD });
+
+    assert.equal(await valid(), true);
+    const statuses = (await Promise.all([reset(), reset()])).map((res) => res.status).sort();
+    assert.deepEqual(statuses, [204, 400], 'exactly one of two racing requests wins');
+    assert.equal(await valid(), false);
+    assert.equal((await reset()).status, 400, 'works once');
+    await signIn('/auth/admin/login', staff.email, NEW_PASSWORD);
+  } finally {
+    await prisma.staffUser.deleteMany({ where: { id: staff.id } });
+  }
 });

@@ -190,15 +190,8 @@ export class AuthService implements OnApplicationBootstrap {
     }
   }
 
-  /** A reset proves ownership of the address: lifts its lock, and the resetting IP's. */
-  private clearLocks(email: string, ip: string): Promise<void> {
-    return this.limits.clear(
-      `login:lock:${email}`,
-      `login:fail:${email}`,
-      `login:lock:${ip}|${email}`,
-      `login:fail:${ip}|${email}`,
-    );
-  }
+  // A password reset deliberately does NOT lift a lockout: it would be a way
+  // round the rate limit. Locks only expire with time.
 
   private findByEmail(email: string): Promise<StaffUser | null> {
     const key = email.trim().toLowerCase();
@@ -365,11 +358,13 @@ export class AuthService implements OnApplicationBootstrap {
    * so it cannot be used to discover which addresses do.
    */
   async forgotPassword(email: string): Promise<void> {
-    const staff = await this.findByEmail(email);
-    if (!staff) return;
+    const address = email.trim().toLowerCase();
     // Three reset emails an hour per address, from anywhere: the form cannot
-    // be used to flood someone's inbox. Answered the same way either way.
-    if ((await this.limits.hit(`forgot:${staff.email.toLowerCase()}`, 60 * 60_000)) > 3) return;
+    // be used to flood someone's inbox. Counted before the lookup, so the
+    // answer and its timing are the same for every address.
+    if ((await this.limits.hit(`forgot:${address}`, 60 * 60_000)) > 3) return;
+    const staff = await this.findByEmail(address);
+    if (!staff) return;
 
     const token = randomBytes(32).toString('base64url');
     await this.db.staffUsers.update(staff.id, {
@@ -383,15 +378,31 @@ export class AuthService implements OnApplicationBootstrap {
     if (!sent) this.logger.warn(`Password reset requested for ${maskEmail(staff.email)} but no email could be sent.`);
   }
 
-  /** POST /auth/admin/reset-password */
-  async resetPassword(token: string, newPassword: string, ip: string): Promise<void> {
+  /** The staff row this live reset/invite token belongs to, or null (unknown, expired or already used). */
+  private async staffForToken(token: string): Promise<StaffUser | null> {
     const hash = digest(token);
     const staff = await this.db.staffUsers.findOne((row) => row.reset_token_hash === hash);
-    if (!staff || !staff.reset_expires_at || Date.parse(staff.reset_expires_at) < Date.now()) {
-      throw new BadRequestException('This reset link has expired or was already used. Ask for a new one.');
-    }
+    return staff?.reset_expires_at && Date.parse(staff.reset_expires_at) >= Date.now() ? staff : null;
+  }
+
+  /** POST /auth/admin/reset-password/check: is this link still good? Lets the page say so before a password is typed. */
+  async resetLinkValid(token: string): Promise<boolean> {
+    return (await this.staffForToken(token)) !== null;
+  }
+
+  /** POST /auth/admin/reset-password */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const expired = () => new BadRequestException('This link has expired or was already used. Ask for a new one.');
+    const staff = await this.staffForToken(token);
+    if (!staff) throw expired();
+    // Claim the token in one conditional UPDATE: two requests racing with the
+    // same link cannot both win.
+    const claimed = await this.db.staffUsers.updateWhere(
+      { id: staff.id, reset_token_hash: digest(token) },
+      { reset_token_hash: null, reset_expires_at: null },
+    );
+    if (claimed !== 1) throw expired();
     await this.setPassword(staff, newPassword);
-    await this.clearLocks(staff.email.toLowerCase(), ip);
   }
 
   /* ---- Portal passwords: invite, forgot, reset ---- */
@@ -420,36 +431,49 @@ export class AuthService implements OnApplicationBootstrap {
    */
   async forgotPortalPassword(email: string): Promise<void> {
     const address = email.trim().toLowerCase();
+    // Counted before the lookup: same answer and timing for every address.
+    if ((await this.limits.hit(`forgot:client:${address}`, 60 * 60_000)) > 3) return;
     const client = await this.db.clients.findFirstWhere({ email: { equals: address, mode: 'insensitive' } });
     if (!client || client.status !== 'Active' || !looksHashed(client.password_hash)) return;
-    if ((await this.limits.hit(`forgot:client:${address}`, 60 * 60_000)) > 3) return;
 
     const link = await this.portalLink(client, '30m', false);
     const sent = await this.mail.send({ to: client.email, ...templates.passwordReset(client.name, link) });
     if (!sent) this.logger.warn(`Portal reset requested for ${maskEmail(client.email)} but no email could be sent.`);
   }
 
-  /** POST /auth/portal/reset: the invitation and the forgotten password both land here. */
-  async resetPortalPassword(token: string, newPassword: string, ip: string): Promise<void> {
-    const expired = () => new BadRequestException('This link has expired or was already used. Ask for a new one.');
+  /** The client a live portal link belongs to, or null: bad signature, expired, wrong purpose, or already used (token_version moved on). */
+  private async portalLinkOwner(token: string): Promise<{ client: Client; tv: number } | null> {
     let claims: { sub?: string; tv?: number; purpose?: string };
     try {
       claims = await this.jwt.verifyAsync(token);
     } catch {
-      throw expired();
+      return null;
     }
-    if (claims.purpose !== PORTAL_PASSWORD || !claims.sub || typeof claims.tv !== 'number') throw expired();
+    if (claims.purpose !== PORTAL_PASSWORD || !claims.sub || typeof claims.tv !== 'number') return null;
     const client = await this.db.clients.findById(claims.sub);
-    if (!client || client.status !== 'Active') throw expired();
+    if (!client || client.status !== 'Active' || (client.token_version ?? 0) !== claims.tv) return null;
+    return { client, tv: claims.tv };
+  }
+
+  /** POST /auth/portal/reset/check: is this link still good? No side effects. */
+  async portalLinkValid(token: string): Promise<boolean> {
+    return (await this.portalLinkOwner(token)) !== null;
+  }
+
+  /** POST /auth/portal/reset: the invitation and the forgotten password both land here. */
+  async resetPortalPassword(token: string, newPassword: string): Promise<void> {
+    const expired = () => new BadRequestException('This link has expired or was already used. Ask for a new one.');
+    const owner = await this.portalLinkOwner(token);
+    if (!owner) throw expired();
+    const { client, tv } = owner;
 
     // Conditional on the version the link was signed with, in one UPDATE, so
     // two requests racing with the same link cannot both win.
     const changed = await this.db.clients.updateWhere(
-      { id: client.id, token_version: claims.tv },
-      { password_hash: await hashPassword(newPassword), token_version: claims.tv + 1, updated_at: new Date().toISOString() },
+      { id: client.id, token_version: tv },
+      { password_hash: await hashPassword(newPassword), token_version: tv + 1, updated_at: new Date().toISOString() },
     );
     if (changed !== 1) throw expired();
-    await this.clearLocks(`client:${client.email.toLowerCase()}`, ip);
     // Accepting an invitation sets the first password; nothing was "changed".
     if (looksHashed(client.password_hash)) {
       await this.mail.send({

@@ -93,6 +93,14 @@ export class PortalResetDto extends NewPasswordDto {
   token!: string;
 }
 
+/** Just the link's token: "is this still good?" before a password is typed. */
+export class LinkTokenDto {
+  @IsString()
+  @MinLength(20)
+  @MaxLength(2000)
+  token!: string;
+}
+
 export class ProfileDto {
   @IsString()
   @MinLength(2, { message: 'Enter your name.' })

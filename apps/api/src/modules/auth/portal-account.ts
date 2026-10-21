@@ -1,12 +1,14 @@
 import { Body, Controller, Get, Injectable, NotFoundException, Put } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsBoolean, IsOptional } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsOptional, ValidateNested } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { NotificationPreference } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ClientIp } from '../../core/client-ip';
 import { DatabaseService } from '../../data/database.service';
+import { NOTIFY_CATEGORIES, choicesOf } from '../notifications/preferences';
 import { AuthService, LoginResult } from './auth.service';
 import { ChangePasswordDto } from './dto';
 
@@ -15,11 +17,30 @@ import { ChangePasswordDto } from './dto';
  * their password at PUT /auth/password and have no preferences screen.
  */
 
+/** How one kind of update may reach the client. */
+class ChannelChoicesDto {
+  @IsOptional() @IsBoolean() in_app?: boolean;
+  @IsOptional() @IsBoolean() email?: boolean;
+  @IsOptional() @IsBoolean() push?: boolean;
+}
+
+class CategoryChoicesDto {
+  @IsOptional() @ValidateNested() @Type(() => ChannelChoicesDto) project?: ChannelChoicesDto;
+  @IsOptional() @ValidateNested() @Type(() => ChannelChoicesDto) invoice?: ChannelChoicesDto;
+  @IsOptional() @ValidateNested() @Type(() => ChannelChoicesDto) document?: ChannelChoicesDto;
+  @IsOptional() @ValidateNested() @Type(() => ChannelChoicesDto) message?: ChannelChoicesDto;
+}
+
 export class UpdateNotificationPreferencesDto {
   @IsOptional() @IsBoolean() email_enabled?: boolean;
   @IsOptional() @IsBoolean() sms_enabled?: boolean;
   @IsOptional() @IsBoolean() in_app_enabled?: boolean;
+  /** Per-type choices; only what is sent changes. */
+  @IsOptional() @ValidateNested() @Type(() => CategoryChoicesDto) categories?: CategoryChoicesDto;
 }
+
+/** The row, plus the full grid of what each kind of update may do (defaults filled in). */
+const view = (row: NotificationPreference) => ({ ...row, categories: choicesOf(row) });
 
 @Injectable()
 export class PortalAccountService {
@@ -38,11 +59,20 @@ export class PortalAccountService {
     );
   }
 
-  async update(principal: AuthPrincipal, dto: UpdateNotificationPreferencesDto): Promise<NotificationPreference> {
+  async view(principal: AuthPrincipal) {
+    return view(await this.preferences(principal));
+  }
+
+  async update(principal: AuthPrincipal, dto: UpdateNotificationPreferencesDto) {
     const current = await this.preferences(principal);
-    const updated = await this.db.notificationPreferences.update(current.id, dto);
+    const { categories, ...flags } = dto;
+    const merged = { ...current.categories };
+    for (const category of NOTIFY_CATEGORIES) {
+      if (categories?.[category]) merged[category] = { ...merged[category], ...JSON.parse(JSON.stringify(categories[category])) };
+    }
+    const updated = await this.db.notificationPreferences.update(current.id, { ...flags, ...(categories ? { categories: merged } : {}) });
     if (!updated) throw new NotFoundException('Notification preferences not found');
-    return updated;
+    return view(updated);
   }
 }
 
@@ -70,7 +100,7 @@ export class PortalPreferencesController {
 
   @Get()
   get(@CurrentUser() principal: AuthPrincipal) {
-    return this.account.preferences(principal);
+    return this.account.view(principal);
   }
 
   @Put()
