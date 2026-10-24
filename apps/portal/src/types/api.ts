@@ -211,6 +211,8 @@ export interface DocumentRecord {
   client_visible: boolean;
   client_name: string;
   project_name: string | null;
+  /** Whether it can be shown in the page (View) as well as downloaded. */
+  preview: 'pdf' | 'image' | null;
 }
 
 /** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */

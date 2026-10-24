@@ -67,6 +67,17 @@ const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
   ghost: 'bg-transparent text-ink border border-transparent hover:bg-surface-muted',
 };
 
+/** A Button's look, for a router Link that should read as one. */
+export const buttonClass = (variant: ButtonVariant = 'secondary', className?: string) =>
+  clsx(
+    // 44px on touch, 36px with a mouse; 8px corners — never a pill.
+    'inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3.5 text-sm font-semibold pointer-fine:min-h-9',
+    'transition-colors duration-[160ms] active:brightness-95',
+    'disabled:cursor-not-allowed disabled:opacity-50',
+    BUTTON_VARIANTS[variant],
+    className,
+  );
+
 export function Button({
   variant = 'secondary',
   loading = false,
@@ -77,18 +88,7 @@ export function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
-      {...rest}
-      disabled={disabled || loading}
-      className={clsx(
-        // 44px on touch, 36px with a mouse; 8px corners — never a pill.
-        'inline-flex min-h-11 items-center justify-center gap-2 rounded-control px-3.5 text-sm font-semibold pointer-fine:min-h-9',
-        'transition-colors duration-[160ms] active:brightness-95',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        BUTTON_VARIANTS[variant],
-        className,
-      )}
-    >
+    <button {...rest} disabled={disabled || loading} className={buttonClass(variant, className)}>
       {loading ? (
         <CircleNotch size={16} className="animate-spin" aria-hidden="true" />
       ) : (

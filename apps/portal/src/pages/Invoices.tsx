@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
+import { InvoiceDownloadButton } from '@/components/InvoiceDownload';
 import {
+  buttonClass,
   Card,
   EmptyState,
   ErrorState,
@@ -28,6 +30,7 @@ import type { Invoice } from '@/types/api';
  */
 export function InvoicesPage() {
   const invoices = useQuery<Invoice[]>('/invoices');
+  const navigate = useNavigate();
 
   const totals = useMemo(() => {
     const rows = invoices.data ?? [];
@@ -97,7 +100,40 @@ export function InvoicesPage() {
               />
             </Card>
           ) : (
-            <TableWrap className="max-sm:min-w-0">
+            <>
+            <ul className="space-y-3 sm:hidden">
+              {visible.map((invoice) => (
+                <li key={invoice.id}>
+                  <Card>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-semibold text-ink">{invoice.number}</p>
+                        <p className="truncate text-xs text-ink-muted">{invoice.project_name ?? invoice.job_name ?? ''}</p>
+                      </div>
+                      <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                        {invoiceLabel(invoice.status, invoice.is_overdue)}
+                      </StatusTag>
+                    </div>
+                    <div className="mt-3 flex items-end justify-between gap-3">
+                      <p className="text-xs text-ink-muted">
+                        Due {date(invoice.due_date)}
+                        {invoice.is_overdue ? <span className="text-danger"> · {invoice.days_overdue}d late</span> : null}
+                      </p>
+                      <p className="tabular text-lg font-semibold text-ink">{money(invoice.amount)}</p>
+                    </div>
+                    <div className="mt-3 flex gap-2 [&>*]:flex-1">
+                      <Link to={`/invoices/${invoice.id}`} className={buttonClass('secondary')} aria-label={`View invoice ${invoice.number}`}>
+                        View
+                      </Link>
+                      <InvoiceDownloadButton invoice={invoice} />
+                    </div>
+                  </Card>
+                </li>
+              ))}
+            </ul>
+
+            <div className="max-sm:hidden">
+            <TableWrap>
               <thead>
                 <tr>
                   <Th>Invoice</Th>
@@ -110,14 +146,18 @@ export function InvoicesPage() {
               </thead>
               <tbody>
                 {visible.map((invoice) => (
-                  <tr key={invoice.id} className="hover:bg-surface-muted/40">
+                  <tr
+                    key={invoice.id}
+                    className="cursor-pointer hover:bg-surface-muted/40"
+                    // The number stays the link for keyboards; a click anywhere else on the row opens it too.
+                    onClick={(event) => {
+                      if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices/${invoice.id}`);
+                    }}
+                  >
                     <Td className="whitespace-nowrap font-medium">
                       <Link to={`/invoices/${invoice.id}`} className="text-link">
                         {invoice.number}
                       </Link>
-                      <span className="block text-xs font-normal text-ink-muted sm:hidden">
-                        Due {date(invoice.due_date)}
-                      </span>
                     </Td>
                     <Td className="text-ink-muted max-sm:hidden">{invoice.project_name ?? '—'}</Td>
                     <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.created_at)}</Td>
@@ -144,6 +184,8 @@ export function InvoicesPage() {
                 ))}
               </tbody>
             </TableWrap>
+            </div>
+            </>
           )}
 
           <Card className="mt-4">

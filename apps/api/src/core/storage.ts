@@ -1,3 +1,5 @@
+import * as path from 'node:path';
+
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import {
   DeleteObjectCommand,
@@ -46,6 +48,22 @@ export function s3Clients(): { client: S3Client; signer: S3Client } | null {
 export const DOWNLOAD_TTL_SECONDS = 300;
 
 /**
+ * What the portal may show in the page rather than download. Read from the key's
+ * extension, which the API set from the sniffed type at upload, never from the name.
+ */
+const INLINE_TYPES: Record<string, 'application/pdf' | 'image/jpeg' | 'image/png' | 'image/webp'> = {
+  '.pdf': 'application/pdf',
+  '.jpg': 'image/jpeg',
+  '.png': 'image/png',
+  '.webp': 'image/webp',
+};
+export const inlineType = (key: string) => INLINE_TYPES[path.extname(key).toLowerCase()];
+export const previewOf = (key: string) => {
+  const type = inlineType(key);
+  return type ? (type === 'application/pdf' ? 'pdf' : 'image') : null;
+};
+
+/**
  * The PRIVATE bucket (S3_PRIVATE_BUCKET): client documents. Nothing in it is
  * public; the database holds object keys only, and every read is a presigned
  * GET made per request after an access check, never stored or cached.
@@ -69,8 +87,11 @@ export class PrivateStorage {
     );
   }
 
-  /** A GET link for `key` that downloads as `filename` and dies in five minutes. */
-  async downloadUrl(key: string, filename: string): Promise<string> {
+  /**
+   * A GET link for `key` that downloads as `filename` and dies in five minutes.
+   * Given `inlineType`, the browser shows it as that type instead (the portal's viewer).
+   */
+  async downloadUrl(key: string, filename: string, inlineType?: string): Promise<string> {
     // Header-safe ASCII fallback, plus the exact name for browsers that read filename*.
     const ascii = filename.replace(/[^\w.\- ()]+/g, '_').slice(0, 150) || 'document';
     return getSignedUrl(
@@ -78,8 +99,9 @@ export class PrivateStorage {
       new GetObjectCommand({
         Bucket: this.bucket,
         Key: key,
-        ResponseContentDisposition: `attachment; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        ResponseContentDisposition: `${inlineType ? 'inline' : 'attachment'}; filename="${ascii}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
         ResponseCacheControl: 'private, no-store',
+        ...(inlineType ? { ResponseContentType: inlineType } : {}),
       }),
       { expiresIn: DOWNLOAD_TTL_SECONDS },
     );

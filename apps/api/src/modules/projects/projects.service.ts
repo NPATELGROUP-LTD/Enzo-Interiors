@@ -4,6 +4,7 @@ import { AccessService } from '../../common/access/access.service';
 import { Project, ProjectStageConfig } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { previewOf } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { confirmPassword } from '../auth/reauth';
 import { NotificationsService } from '../notifications/notifications.module';
@@ -133,7 +134,7 @@ export class ProjectsService {
     return {
       project: this.forViewer(principal, [view!])[0]!,
       client: client ? { id: client.id, name: client.name, email: client.email } : null,
-      documents: documents.map(({ storage_url: _storage, ...document }) => document),
+      documents: documents.map(({ storage_url: key, ...document }) => ({ ...document, preview: previewOf(key) })),
       invoices,
       activity,
       /** The configured stages, with the current position marked. */
