@@ -379,6 +379,7 @@ MinIO only ever run in Docker (`docker-compose.yml`); there is no host database.
 # Everything, built as deployed (reads the root .env)
 docker compose up -d --build --wait
 docker compose run --rm seed              # re-run the content import (up runs it too)
+docker compose run --rm seed npm run mock:seed   # mock records + sign-ins beside real data; mock:clear removes them
 docker compose down --volumes             # wipe DB + uploads, start from nothing
 
 # Dev: DB + storage in Docker, apps on the host

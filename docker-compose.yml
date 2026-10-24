@@ -283,6 +283,9 @@ services:
       S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
       S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
       S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      # Only `npm run mock:seed` uses these (mock files, mock staff 2FA).
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-enzo-private}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
     command:
       - sh
       - -c
