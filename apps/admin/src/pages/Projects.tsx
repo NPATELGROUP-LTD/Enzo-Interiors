@@ -1,12 +1,15 @@
 import {
   DndContext,
-  PointerSensor,
+  DragOverlay,
+  MouseSensor,
+  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 import { Eye, EyeSlash, Plus } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
@@ -68,18 +71,14 @@ function ProjectCard({
   /** Admin only; absent for Designers. */
   onToggleVisible?: (project: Project) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: project.id,
-  });
+  // The card itself never moves: DragOverlay draws the moving copy above the
+  // page, so the board's scroll box cannot clip it. This one stays as the slot.
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
 
   return (
     <div
       ref={setNodeRef}
-      style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
-      className={clsx(
-        'rounded-[12px] bg-surface p-3 shadow-soft',
-        isDragging && 'opacity-50 shadow-overlay',
-      )}
+      className={clsx('rounded-[12px] bg-surface p-3 shadow-soft', isDragging && 'opacity-40')}
     >
       {/*
         Only this handle starts a drag. Making the whole card draggable would
@@ -91,12 +90,9 @@ function ProjectCard({
         role="button"
         tabIndex={-1}
         aria-label={`Drag ${project.name}`}
-        className="cursor-grab active:cursor-grabbing"
+        className="cursor-grab touch-manipulation active:cursor-grabbing"
       >
-        <p className="font-semibold leading-snug text-ink">{project.name}</p>
-        <p className="mt-0.5 text-xs text-ink-muted">
-          {project.client_name} · {SERVICE_LABELS[project.type]}
-        </p>
+        <CardTitle project={project} />
       </div>
 
       <div className="mt-3">
@@ -105,7 +101,7 @@ function ProjectCard({
 
       <p className="mt-2 text-xs text-ink-muted">{crew(project)}</p>
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         {/*
           The brief requires a "Move to…" control alongside drag-and-drop, so
           the board is operable by keyboard and by anyone who cannot drag.
@@ -114,11 +110,11 @@ function ProjectCard({
           value={project.status}
           onChange={(event) => onMove(project, event.target.value as ProjectStage)}
           aria-label={`Move ${project.name} to another stage`}
-          className="flex-1 text-xs"
+          className="min-w-28 flex-1 text-xs max-sm:basis-full"
         >
           {stages.map((stage) => (
             <option key={stage} value={stage}>
-              Move to {stage}
+              {stage === project.status ? stage : `Move to ${stage}`}
             </option>
           ))}
         </Listbox>
@@ -128,12 +124,11 @@ function ProjectCard({
             onClick={() => onToggleVisible(project)}
             aria-label={
               project.client_visible
-                ? `Hide ${project.name} from the client portal`
-                : `Show ${project.name} in the client portal`
+                ? `Visible: hide ${project.name} from the client portal`
+                : `Hidden: show ${project.name} in the client portal`
             }
-            title={project.client_visible ? 'Visible to client' : 'Hidden from client'}
             className={clsx(
-              'flex min-h-11 min-w-11 items-center justify-center rounded-control bg-ink/[0.05] transition-colors hover:bg-ink/[0.09]',
+              'flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-control bg-ink/[0.05] px-3 text-xs font-medium transition-colors hover:bg-ink/[0.09]',
               project.client_visible ? 'text-success' : 'text-ink-muted',
             )}
           >
@@ -142,6 +137,7 @@ function ProjectCard({
             ) : (
               <EyeSlash size={14} aria-hidden="true" />
             )}
+            {project.client_visible ? 'Visible' : 'Hidden'}
           </button>
         ) : null}
       </div>
@@ -150,6 +146,17 @@ function ProjectCard({
         Open project
       </Link>
     </div>
+  );
+}
+
+function CardTitle({ project }: { project: Project }) {
+  return (
+    <>
+      <p className="font-semibold leading-snug text-ink">{project.name}</p>
+      <p className="mt-0.5 text-xs text-ink-muted">
+        {project.client_name} · {SERVICE_LABELS[project.type]}
+      </p>
+    </>
   );
 }
 
@@ -392,9 +399,14 @@ export function ProjectsPage() {
     );
   const openCreate = () => update({ new: '1' });
 
-  // A pointer must travel 6px before a drag begins, so a click on the card's
-  // links and selects is not misread as the start of a drag.
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  // A mouse must travel 6px before a drag begins, so a click on the card's
+  // links and selects is not misread as the start of a drag. On touch a drag
+  // needs a short press, so a swipe still scrolls the board.
+  const sensors = useSensors(
+    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
+  );
+  const [dragging, setDragging] = useState<Project | null>(null);
 
   const byStage = useMemo(() => {
     const grouped: Record<ProjectStage, Project[]> = Object.fromEntries(stages.map((stage) => [stage, []]));
@@ -443,6 +455,7 @@ export function ProjectsPage() {
   };
 
   const onDragEnd = (event: DragEndEvent) => {
+    setDragging(null);
     const stage = event.over?.id as ProjectStage | undefined;
     if (!stage) return;
     const project = (projects.data ?? []).find((entry) => entry.id === event.active.id);
@@ -489,7 +502,12 @@ export function ProjectsPage() {
           }
         />
       ) : view === 'board' ? (
-        <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+        <DndContext
+          sensors={sensors}
+          onDragStart={(event) => setDragging(rows.find((entry) => entry.id === event.active.id) ?? null)}
+          onDragEnd={onDragEnd}
+          onDragCancel={() => setDragging(null)}
+        >
           {/* The board scrolls horizontally inside its own container so the
               page body never scrolls sideways on narrow screens. */}
           <div className="flex gap-3 overflow-x-auto pb-2">
@@ -504,18 +522,28 @@ export function ProjectsPage() {
               />
             ))}
           </div>
+          {createPortal(
+            <DragOverlay>
+              {dragging ? (
+                <div className="cursor-grabbing rounded-[12px] bg-surface p-3 shadow-overlay">
+                  <CardTitle project={dragging} />
+                </div>
+              ) : null}
+            </DragOverlay>,
+            document.body,
+          )}
         </DndContext>
       ) : (
-        <TableWrap>
+        <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
               <Th>Project</Th>
-              <Th>Client</Th>
+              <Th className="max-sm:hidden">Client</Th>
               <Th>Stage</Th>
-              <Th>Team</Th>
-              <Th>Progress</Th>
-              <Th>Client sees</Th>
-              <Th>Updated</Th>
+              <Th className="max-sm:hidden">Team</Th>
+              <Th className="max-sm:hidden">Progress</Th>
+              <Th className="max-sm:hidden">Client sees</Th>
+              <Th className="max-sm:hidden">Updated</Th>
             </tr>
           </thead>
           <tbody>
@@ -525,22 +553,25 @@ export function ProjectsPage() {
                   <Link to={`/projects/${project.id}`} className="text-link">
                     {project.name}
                   </Link>
-                  <p className="text-xs text-ink-muted">{SERVICE_LABELS[project.type]}</p>
+                  <p className="text-xs text-ink-muted">
+                    <span className="sm:hidden">{project.client_name} · </span>
+                    {SERVICE_LABELS[project.type]}
+                  </p>
                 </Td>
-                <Td className="text-ink">{project.client_name}</Td>
+                <Td className="text-ink max-sm:hidden">{project.client_name}</Td>
                 <Td>
                   <StatusTag tone={projectTone(project.status, stageList)}>{project.status}</StatusTag>
                 </Td>
-                <Td className="text-ink-muted">{crew(project)}</Td>
-                <Td className="min-w-36">
+                <Td className="text-ink-muted max-sm:hidden">{crew(project)}</Td>
+                <Td className="min-w-36 max-sm:hidden">
                   <Progress value={project.progress_pct} label={`${project.name} progress`} />
                 </Td>
-                <Td>
+                <Td className="max-sm:hidden">
                   <StatusTag tone={project.client_visible ? 'success' : 'neutral'}>
                     {project.client_visible ? 'Visible' : 'Hidden'}
                   </StatusTag>
                 </Td>
-                <Td className="whitespace-nowrap text-xs text-ink-muted">
+                <Td className="whitespace-nowrap text-xs text-ink-muted max-sm:hidden">
                   {dateTime(project.updated_at)}
                 </Td>
               </tr>

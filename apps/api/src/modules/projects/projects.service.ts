@@ -84,12 +84,18 @@ export class ProjectsService {
     const rows = await this.db.projects.findWhere(this.access.projectScope(principal), {
       orderBy: { updated_at: 'desc' },
     });
-    return this.decorate(rows);
+    return this.forViewer(principal, await this.decorate(rows));
   }
 
   async findOne(principal: AuthPrincipal, id: string): Promise<ProjectView> {
-    const [view] = await this.decorate([await this.access.requireProject(principal, id)]);
+    const [view] = this.forViewer(principal, await this.decorate([await this.access.requireProject(principal, id)]));
     return view!;
+  }
+
+  /** Clients see who works on their project by name only; staff ids are internal. */
+  private forViewer(principal: AuthPrincipal, views: ProjectView[]): ProjectView[] {
+    if (!this.access.isClient(principal)) return views;
+    return views.map((view) => ({ ...view, assigned_designer_id: null, assigned_installer_id: null }));
   }
 
   /**
@@ -125,7 +131,7 @@ export class ProjectsService {
     const position = stages.findIndex((stage) => stage.name === project.status);
 
     return {
-      project: view!,
+      project: this.forViewer(principal, [view!])[0]!,
       client: client ? { id: client.id, name: client.name, email: client.email } : null,
       documents: documents.map(({ storage_url: _storage, ...document }) => document),
       invoices,

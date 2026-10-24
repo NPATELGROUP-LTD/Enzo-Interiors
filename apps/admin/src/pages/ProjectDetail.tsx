@@ -162,9 +162,9 @@ export function ProjectDetailPage() {
         <Card className="lg:col-span-2">
           <p className="label-eyebrow">Stage</p>
           {/* Horizontal timeline of the configured stages. */}
-          <ol className="mt-4 flex items-center">
+          <ol className="mt-4 flex items-start">
             {timeline.map((step, index) => (
-              <li key={step.stage} className="flex flex-1 items-center last:flex-none">
+              <li key={step.stage} className="flex min-w-0 flex-1 items-start last:flex-none">
                 <div className="flex flex-col items-center gap-1.5">
                   <span
                     aria-hidden="true"
@@ -182,7 +182,8 @@ export function ProjectDetailPage() {
                   <span
                     className={clsx(
                       'whitespace-nowrap text-[11px] font-semibold',
-                      step.current ? 'text-green-900' : 'text-ink-muted',
+                      // Phones show only the current stage's name, so the line between steps keeps its room.
+                      step.current ? 'text-green-900' : 'text-ink-muted max-sm:sr-only',
                     )}
                   >
                     {step.stage}
@@ -192,7 +193,7 @@ export function ProjectDetailPage() {
                   <span
                     aria-hidden="true"
                     className={clsx(
-                      'mx-1 mb-5 h-px flex-1',
+                      'mx-1 mt-3.5 h-px min-w-3 flex-1',
                       timeline[index + 1]?.reached ? 'bg-green-900' : 'bg-border',
                     )}
                   />
