@@ -25,7 +25,7 @@ export interface ProjectStageConfig {
 }
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard' | 'Other';
 export type SubmissionStatus = 'New' | 'Contacted' | 'Converted' | 'Archived';
 export type SenderType = 'Client' | 'Staff';
 
@@ -36,6 +36,7 @@ export const DOCUMENT_TYPES: DocumentType[] = [
   'Invoice',
   'Plan',
   'MoodBoard',
+  'Other',
 ];
 export const SUBMISSION_STATUSES: SubmissionStatus[] = [
   'New',

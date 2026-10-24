@@ -74,7 +74,8 @@ export type SenderType = (typeof SENDER_TYPES)[number];
 export const OWNER_TYPES = ['Client', 'Staff'] as const;
 export type OwnerType = (typeof OWNER_TYPES)[number];
 
-export const DOCUMENT_TYPES = ['Contract', 'Invoice', 'Plan', 'MoodBoard'] as const;
+/** Other: a file sent in a chat (a photo of the room, a sketch). */
+export const DOCUMENT_TYPES = ['Contract', 'Invoice', 'Plan', 'MoodBoard', 'Other'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export const SUBMISSION_STATUSES = ['New', 'Contacted', 'Converted', 'Archived'] as const;

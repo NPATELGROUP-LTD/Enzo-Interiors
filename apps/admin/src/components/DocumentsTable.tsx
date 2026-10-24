@@ -32,6 +32,7 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   Contract: 'Contract',
   MoodBoard: 'Mood board',
   Invoice: 'Invoice',
+  Other: 'Other',
 };
 
 const message = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);

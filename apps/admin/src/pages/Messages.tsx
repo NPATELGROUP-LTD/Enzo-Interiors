@@ -1,19 +1,10 @@
 import clsx from 'clsx';
-import { CaretLeft, Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { CaretLeft, ChatText, Checks, Files, Paperclip, X } from '@phosphor-icons/react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import {
-  Button,
-  Card,
-  Checkbox,
-  EmptyState,
-  ErrorState,
-  LoadingState,
-  Modal,
-  PageHeader,
-  Select,
-} from '@/components/ui';
+import { BubbleMenu, Composer, MAX_BODY, MessageText, TOOL, UploadButton } from '@/components/chat';
+import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -25,10 +16,10 @@ import type {
   DocumentDownload,
   Message,
   MessageAttachment,
+  Project,
   SavedReply,
 } from '@/types/api';
 
-const MAX_BODY = 5000;
 const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
 
 /**
@@ -43,6 +34,9 @@ export function MessagesPage() {
   const [params, setParams] = useSearchParams();
   const conversations = useQuery<Conversation[]>('/conversations');
   const savedReplies = useQuery<SavedReply[]>('/saved-replies');
+  // A file from this device goes onto one of the client's shared projects.
+  // ponytail: whole scoped list filtered here; add ?client_id= if it grows large.
+  const projects = useQuery<Project[]>('/projects');
 
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -207,8 +201,7 @@ export function MessagesPage() {
     connectSocket()?.emit('conversation:typing', { conversationId: activeId });
   };
 
-  const send = async (event?: FormEvent) => {
-    event?.preventDefault();
+  const send = async () => {
     if (!activeId || sending || (!draft.trim() && attachments.length === 0)) return;
     setSending(true);
     try {
@@ -243,9 +236,6 @@ export function MessagesPage() {
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>
-      <div className={clsx(threadOpen && 'hidden lg:block')}>
-        <PageHeader title="Messages" description="Conversations with your clients. Open a client to start one." />
-      </div>
 
       {conversations.loading ? (
         <LoadingState label="Loading conversations…" />
@@ -257,9 +247,9 @@ export function MessagesPage() {
           />
         </Card>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[20rem_1fr]">
-          <Card className={clsx('overflow-y-auto p-0', threadOpen && 'hidden lg:block')}>
-            <ul className="rows">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-5 lg:grid-cols-[20rem_1fr]">
+          <Card className={clsx('overflow-hidden p-0', threadOpen && 'hidden lg:block')}>
+            <ul className="rows h-full overflow-y-auto overscroll-contain">
               {list.map((conversation) => (
                 <li key={conversation.id}>
                   <button
@@ -306,10 +296,13 @@ export function MessagesPage() {
             </ul>
           </Card>
 
-          <Card className={clsx('min-h-0 flex-col p-0', threadOpen ? 'flex' : 'hidden lg:flex')}>
+          <section
+            aria-label={active ? `Conversation with ${active.client_name}` : 'Conversation'}
+            className={clsx('min-h-0 min-w-0 flex-col', threadOpen ? 'flex' : 'hidden lg:flex')}
+          >
             {active ? (
               <>
-                <div className="flex items-center gap-1 bg-ink/[0.025] p-3">
+                <div className="flex items-center gap-1 pb-2">
                   <button
                     type="button"
                     onClick={() => setThreadOpen(false)}
@@ -318,12 +311,13 @@ export function MessagesPage() {
                   >
                     <CaretLeft size={18} aria-hidden="true" />
                   </button>
-                  <div className="min-w-0">
-                    <p className="truncate font-semibold text-ink">{active.client_name}</p>
-                    <p className="truncate text-xs text-ink-muted">
-                      {active.message_count} {active.message_count === 1 ? 'message' : 'messages'}
-                    </p>
-                  </div>
+                  <p className="min-w-0 truncate">
+                    <span className="font-semibold text-ink">{active.client_name}</span>
+                    <span className="text-xs text-ink-muted">
+                      {' '}
+                      · {active.message_count} {active.message_count === 1 ? 'message' : 'messages'}
+                    </span>
+                  </p>
                 </div>
 
                 <div
@@ -332,7 +326,7 @@ export function MessagesPage() {
                     const el = event.currentTarget;
                     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
                   }}
-                  className="flex-1 overflow-y-auto p-3"
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
                 >
                   {loadingThread ? (
                     <LoadingState label="Loading messages…" />
@@ -341,7 +335,7 @@ export function MessagesPage() {
                   ) : messages.length === 0 ? (
                     <EmptyState title="No messages yet" message={`Write to ${active.client_name} below.`} />
                   ) : (
-                    <ul className="flex flex-col gap-3">
+                    <ul className="flex flex-col gap-2">
                       {messages.map((message, index) => {
                         const fromStaff = message.sender_type === 'Staff';
                         const previous = messages[index - 1];
@@ -354,13 +348,12 @@ export function MessagesPage() {
                             <div className={clsx('flex', fromStaff ? 'justify-end' : 'justify-start')}>
                               <div
                                 className={clsx(
-                                  'max-w-[85%] rounded-card p-2.5 sm:max-w-[70%]',
+                                  'group relative max-w-[85%] rounded-card py-2 pl-3 pr-8 sm:max-w-[70%]',
                                   fromStaff ? 'bg-green-100' : 'bg-surface-muted',
                                 )}
                               >
-                                {message.body ? (
-                                  <p className="whitespace-pre-wrap break-words leading-relaxed text-ink">{message.body}</p>
-                                ) : null}
+                                <BubbleMenu actions={bubbleActions(message, toast)} />
+                                {message.body ? <MessageText text={message.body} /> : null}
                                 <Attachments items={message.attachments} />
                                 <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-muted">
                                   {fromStaff ? 'Enzo Interiors' : active.client_name} · {time(message.created_at)}
@@ -380,98 +373,62 @@ export function MessagesPage() {
                   {typingFrom ? <p className="mt-2 text-xs italic text-ink-muted">{typingFrom} is typing…</p> : null}
                 </div>
 
-                <form onSubmit={send} className="bg-ink/[0.025] p-3">
-                  {(savedReplies.data ?? []).length > 0 ? (
-                    <div className="mb-2">
-                      <Select
-                        label="Saved reply"
-                        value=""
-                        onChange={(event) => {
-                          const template = (savedReplies.data ?? []).find((entry) => entry.id === event.target.value);
-                          if (template) setDraft(template.body.slice(0, MAX_BODY));
-                        }}
+                <Composer
+                  value={draft}
+                  onChange={(next) => {
+                    setDraft(next);
+                    pingTyping();
+                  }}
+                  onSend={() => void send()}
+                  sending={sending}
+                  canSend={Boolean(draft.trim()) || attachments.length > 0}
+                  placeholder="Message"
+                  above={
+                    <Chips items={attachments} onRemove={(id) => setAttachments((c) => c.filter((a) => a.document_id !== id))} />
+                  }
+                  tools={
+                    <>
+                      <UploadButton
+                        clientId={active.client_id}
+                        projects={(projects.data ?? [])
+                          .filter((p) => p.client_id === active.client_id && p.client_visible)
+                          .map((p) => ({ id: p.id, name: p.name }))}
+                        onUploaded={(file) => setAttachments((current) => [...current, file].slice(0, 10))}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setPicking(true)}
+                        aria-label="Attach a shared file"
+                        title="Attach a file shared with this client"
+                        className={TOOL}
                       >
-                        <option value="">Insert a saved reply…</option>
-                        {(savedReplies.data ?? []).map((template) => (
-                          <option key={template.id} value={template.id}>
-                            {template.title}
-                            {template.staff_id === null ? ' (shared)' : ''}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                  ) : null}
-
-                  {attachments.length > 0 ? (
-                    <ul className="mb-2 flex flex-wrap gap-1.5">
-                      {attachments.map((attachment) => (
-                        <li
-                          key={attachment.document_id}
-                          className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
-                        >
-                          <Paperclip size={12} aria-hidden="true" />
-                          <span className="max-w-40 truncate">{attachment.name}</span>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setAttachments((current) => current.filter((a) => a.document_id !== attachment.document_id))
-                            }
-                            aria-label={`Remove ${attachment.name}`}
-                            className="text-ink-muted hover:text-danger"
+                        <Files size={20} aria-hidden="true" />
+                      </button>
+                      {(savedReplies.data ?? []).length > 0 ? (
+                        <label className={clsx(TOOL, 'relative cursor-pointer')} title="Insert a saved reply">
+                          <ChatText size={20} aria-hidden="true" />
+                          <select
+                            aria-label="Insert a saved reply"
+                            value=""
+                            onChange={(event) => {
+                              const template = (savedReplies.data ?? []).find((entry) => entry.id === event.target.value);
+                              if (template) setDraft(template.body.slice(0, MAX_BODY));
+                            }}
+                            className="absolute inset-0 cursor-pointer opacity-0"
                           >
-                            <X size={12} aria-hidden="true" />
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-
-                  <div className="flex items-end gap-2">
-                    <label htmlFor="message-body" className="sr-only">
-                      Message
-                    </label>
-                    <textarea
-                      id="message-body"
-                      value={draft}
-                      maxLength={MAX_BODY}
-                      onChange={(event) => {
-                        setDraft(event.target.value);
-                        pingTyping();
-                      }}
-                      onKeyDown={(event) => {
-                        // Enter sends; Shift+Enter is a new line.
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          void send();
-                        }
-                      }}
-                      rows={2}
-                      placeholder="Write a reply…"
-                      className="min-h-11 flex-1 resize-y rounded-control border border-border bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-ink-muted/70 focus:border-green-900"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setPicking(true)}
-                      aria-label="Attach a shared file"
-                      title="Attach a file shared with this client"
-                    >
-                      <Paperclip size={16} aria-hidden="true" />
-                    </Button>
-                    <Button
-                      type="submit"
-                      variant="primary"
-                      loading={sending}
-                      disabled={!draft.trim() && attachments.length === 0}
-                      icon={<PaperPlaneRight size={16} aria-hidden="true" />}
-                    >
-                      <span className="max-sm:sr-only">Send</span>
-                    </Button>
-                  </div>
-                  <p className="mt-1.5 hidden text-[11px] text-ink-muted pointer-fine:block">
-                    Enter to send, Shift+Enter for a new line
-                  </p>
-                </form>
+                            <option value="">Insert a saved reply…</option>
+                            {(savedReplies.data ?? []).map((template) => (
+                              <option key={template.id} value={template.id}>
+                                {template.title}
+                                {template.staff_id === null ? ' (shared)' : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </>
+                  }
+                />
 
                 {picking ? (
                   <AttachPicker
@@ -489,11 +446,68 @@ export function MessagesPage() {
             ) : (
               <EmptyState title="Select a conversation" message="Choose a client to read the thread." />
             )}
-          </Card>
+          </section>
         </div>
       )}
     </div>
   );
+}
+
+/** Opens a file through Documents' own access check. */
+async function download(documentId: string) {
+  const { url } = await api.get<DocumentDownload>(`/documents/${documentId}/download`);
+  window.location.assign(url);
+}
+
+/** The files about to be sent, each removable. */
+function Chips({ items, onRemove }: { items: MessageAttachment[]; onRemove: (id: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <ul className="mb-2 flex flex-wrap gap-1.5">
+      {items.map((attachment) => (
+        <li
+          key={attachment.document_id}
+          className="flex items-center gap-1.5 rounded-control bg-surface-muted py-1 pl-2 text-xs text-ink"
+        >
+          <Paperclip size={12} aria-hidden="true" />
+          <span className="max-w-40 truncate">{attachment.name}</span>
+          <button
+            type="button"
+            onClick={() => onRemove(attachment.document_id)}
+            aria-label={`Remove ${attachment.name}`}
+            className="flex h-6 w-7 items-center justify-center text-ink-muted hover:text-danger"
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A bubble's hover menu: copy its text, download its files. */
+function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
+  return [
+    ...(message.body
+      ? [
+          {
+            label: 'Copy text',
+            run: () =>
+              void navigator.clipboard.writeText(message.body).then(
+                () => toast.success('Copied'),
+                () => toast.error('Could not copy that text.'),
+              ),
+          },
+        ]
+      : []),
+    ...(message.attachments ?? []).map((attachment) => ({
+      label: `Download ${attachment.name}`,
+      run: () =>
+        void download(attachment.document_id).catch((caught) =>
+          toast.error(errorText(caught, 'That file is no longer available.')),
+        ),
+    })),
+  ];
 }
 
 /** Attachment chips; each opens through Documents' own access check. */
@@ -502,8 +516,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
   if (!items?.length) return null;
   const open = async (attachment: MessageAttachment) => {
     try {
-      const { url } = await api.get<DocumentDownload>(`/documents/${attachment.document_id}/download`);
-      window.location.assign(url);
+      await download(attachment.document_id);
     } catch (caught) {
       toast.error(errorText(caught, 'That file is no longer available.'));
     }

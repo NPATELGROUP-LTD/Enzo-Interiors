@@ -1,16 +1,17 @@
 import clsx from 'clsx';
-import { Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
-import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
+import { Checks, Files, Paperclip, X } from '@phosphor-icons/react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from '@/components/ui';
+import { BubbleMenu, Composer, MessageText, TOOL, UploadButton } from '@/components/chat';
+import { Button, Checkbox, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api, downloadDocument } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { date, fileSize, time } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
-import type { AttachableDocument, Conversation, Message, MessageAttachment } from '@/types/api';
+import type { AttachableDocument, Conversation, Message, MessageAttachment, Project } from '@/types/api';
 
-const MAX_BODY = 5000;
 const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
 
 /**
@@ -20,7 +21,10 @@ const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiE
  */
 export function MessagesPage() {
   const toast = useToast();
+  const { user } = useAuth();
   const conversations = useQuery<Conversation[]>('/conversations');
+  // A file from this device goes onto one of the client's shared projects.
+  const projects = useQuery<Project[]>('/projects');
   const conversation = conversations.data?.[0] ?? null;
   const activeId = conversation?.id ?? null;
   const refetchConversations = conversations.refetch;
@@ -154,8 +158,7 @@ export function MessagesPage() {
     connectSocket()?.emit('conversation:typing', { conversationId: activeId });
   };
 
-  const send = async (event?: FormEvent) => {
-    event?.preventDefault();
+  const send = async () => {
     if (sending || (!draft.trim() && attachments.length === 0)) return;
     setSending(true);
     try {
@@ -186,26 +189,22 @@ export function MessagesPage() {
       <p className="sr-only" aria-live="polite">
         {announce}
       </p>
-      <PageHeader title="Messages" description="Talk to the Enzo Interiors team." />
+      <p className="pb-2 text-xs text-ink-muted">
+        <span className="font-semibold text-ink">Enzo Interiors</span> · We usually reply within a working day, and
+        email you when we do.
+      </p>
 
       {conversations.loading ? (
         <LoadingState label="Loading your messages…" />
       ) : (
-        <Card className="flex min-h-0 flex-1 flex-col p-0">
-          <div className="bg-ink/[0.025] p-3">
-            <p className="font-semibold text-ink">Enzo Interiors</p>
-            <p className="text-xs text-ink-muted">
-              We usually reply within a working day. We will email you when there is a reply.
-            </p>
-          </div>
-
+        <>
           <div
             ref={scrollRef}
             onScroll={(event) => {
               const el = event.currentTarget;
               atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
             }}
-            className="flex-1 overflow-y-auto p-3"
+            className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
           >
             {loadingThread ? (
               <LoadingState label="Loading messages…" />
@@ -214,7 +213,7 @@ export function MessagesPage() {
             ) : messages.length === 0 ? (
               <EmptyState title="No messages yet" message="Ask us anything about your project. Write below to start." />
             ) : (
-              <ul className="flex flex-col gap-3">
+              <ul className="flex flex-col gap-2">
                 {messages.map((message, index) => {
                   const fromMe = message.sender_type === 'Client';
                   const previous = messages[index - 1];
@@ -227,13 +226,12 @@ export function MessagesPage() {
                       <div className={clsx('flex', fromMe ? 'justify-end' : 'justify-start')}>
                         <div
                           className={clsx(
-                            'max-w-[85%] rounded-card p-2.5 sm:max-w-[70%]',
+                            'group relative max-w-[85%] rounded-card py-2 pl-3 pr-8 sm:max-w-[70%]',
                             fromMe ? 'bg-green-100' : 'bg-surface-muted',
                           )}
                         >
-                          {message.body ? (
-                            <p className="whitespace-pre-wrap break-words leading-relaxed text-ink">{message.body}</p>
-                          ) : null}
+                          <BubbleMenu actions={bubbleActions(message, toast)} />
+                          {message.body ? <MessageText text={message.body} /> : null}
                           <Attachments items={message.attachments} />
                           <p className="mt-1 flex items-center gap-1 text-[11px] text-ink-muted">
                             {fromMe ? 'You' : 'Enzo Interiors'} · {time(message.created_at)}
@@ -253,75 +251,40 @@ export function MessagesPage() {
             {typing ? <p className="mt-2 text-xs italic text-ink-muted">Enzo Interiors is typing…</p> : null}
           </div>
 
-          <form onSubmit={send} className="bg-ink/[0.025] p-3">
-            {attachments.length > 0 ? (
-              <ul className="mb-2 flex flex-wrap gap-1.5">
-                {attachments.map((attachment) => (
-                  <li
-                    key={attachment.document_id}
-                    className="flex items-center gap-1.5 rounded-control bg-surface-muted px-2 py-1 text-xs text-ink"
+          <Composer
+            value={draft}
+            onChange={(next) => {
+              setDraft(next);
+              pingTyping();
+            }}
+            onSend={() => void send()}
+            sending={sending}
+            canSend={Boolean(draft.trim()) || attachments.length > 0}
+            placeholder="Message"
+            above={<Chips items={attachments} onRemove={(id) => setAttachments((c) => c.filter((a) => a.document_id !== id))} />}
+            tools={
+              <>
+                {user ? (
+                  <UploadButton
+                    clientId={user.id}
+                    projects={(projects.data ?? []).map((p) => ({ id: p.id, name: p.name }))}
+                    onUploaded={(file) => setAttachments((current) => [...current, file].slice(0, 10))}
+                  />
+                ) : null}
+                {activeId ? (
+                  <button
+                    type="button"
+                    onClick={() => setPicking(true)}
+                    aria-label="Attach one of your documents"
+                    title="Attach one of your documents"
+                    className={TOOL}
                   >
-                    <Paperclip size={12} aria-hidden="true" />
-                    <span className="max-w-40 truncate">{attachment.name}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setAttachments((current) => current.filter((a) => a.document_id !== attachment.document_id))
-                      }
-                      aria-label={`Remove ${attachment.name}`}
-                      className="text-ink-muted hover:text-danger"
-                    >
-                      <X size={12} aria-hidden="true" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-
-            <div className="flex items-end gap-2">
-              <label htmlFor="message-body" className="sr-only">
-                Message
-              </label>
-              <textarea
-                id="message-body"
-                value={draft}
-                maxLength={MAX_BODY}
-                onChange={(event) => {
-                  setDraft(event.target.value);
-                  pingTyping();
-                }}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && !event.shiftKey) {
-                    event.preventDefault();
-                    void send();
-                  }
-                }}
-                rows={2}
-                placeholder="Write a message…"
-                className="min-h-11 flex-1 resize-y rounded-control border border-border bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-ink-muted/70 focus:border-green-900"
-              />
-              {activeId ? (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => setPicking(true)}
-                  aria-label="Attach one of your documents"
-                  title="Attach one of your documents"
-                >
-                  <Paperclip size={16} aria-hidden="true" />
-                </Button>
-              ) : null}
-              <Button
-                type="submit"
-                variant="primary"
-                loading={sending}
-                disabled={!draft.trim() && attachments.length === 0}
-                icon={<PaperPlaneRight size={16} aria-hidden="true" />}
-              >
-                <span className="max-sm:sr-only">Send</span>
-              </Button>
-            </div>
-          </form>
+                    <Files size={20} aria-hidden="true" />
+                  </button>
+                ) : null}
+              </>
+            }
+          />
 
           {picking && activeId ? (
             <AttachPicker
@@ -334,10 +297,61 @@ export function MessagesPage() {
               }}
             />
           ) : null}
-        </Card>
+        </>
       )}
     </div>
   );
+}
+
+/** The files about to be sent, each removable. */
+function Chips({ items, onRemove }: { items: MessageAttachment[]; onRemove: (id: string) => void }) {
+  if (!items.length) return null;
+  return (
+    <ul className="mb-2 flex flex-wrap gap-1.5">
+      {items.map((attachment) => (
+        <li
+          key={attachment.document_id}
+          className="flex items-center gap-1.5 rounded-control bg-surface-muted py-1 pl-2 text-xs text-ink"
+        >
+          <Paperclip size={12} aria-hidden="true" />
+          <span className="max-w-40 truncate">{attachment.name}</span>
+          <button
+            type="button"
+            onClick={() => onRemove(attachment.document_id)}
+            aria-label={`Remove ${attachment.name}`}
+            className="flex h-6 w-7 items-center justify-center text-ink-muted hover:text-danger"
+          >
+            <X size={12} aria-hidden="true" />
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** A bubble's hover menu: copy its text, download its files. */
+function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
+  return [
+    ...(message.body
+      ? [
+          {
+            label: 'Copy text',
+            run: () =>
+              void navigator.clipboard.writeText(message.body).then(
+                () => toast.success('Copied'),
+                () => toast.error('Could not copy that text.'),
+              ),
+          },
+        ]
+      : []),
+    ...(message.attachments ?? []).map((attachment) => ({
+      label: `Download ${attachment.name}`,
+      run: () =>
+        void downloadDocument(attachment.document_id).catch((caught) =>
+          toast.error(errorText(caught, 'That file is no longer available.')),
+        ),
+    })),
+  ];
 }
 
 /** Attachment chips; each opens through the Documents download check. */

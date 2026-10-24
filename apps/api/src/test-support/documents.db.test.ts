@@ -153,6 +153,28 @@ test('uploads refuse other clients\' projects, disallowed types and oversize fil
   await json(await upload(tokens.admin, { client_id: MINE.id } as never), 400);
 });
 
+test('a chat upload: clients add files to their own shared projects only, always shared and typed Other', async () => {
+  const hidden = `prj_dhid_${run}`;
+  await prisma.project.create({
+    data: { id: hidden, client_id: MINE.id, name: 'Hidden', type: 'Kitchen', status: 'Design', client_visible: false },
+  });
+
+  const mine = await json<Doc>(await upload(tokens.mine, { ...mineFields(), type: 'Contract' }), 201);
+  assert.equal(mine.client_visible, true, 'what a client uploads is theirs to see');
+  assert.equal((await prisma.documentRecord.findUniqueOrThrow({ where: { id: mine.id } })).type, 'Other');
+
+  // Not theirs, or not shared with them yet: out of scope.
+  await json(await upload(tokens.mine, { client_id: OTHER.id, project_id: P.other }), 404);
+  await json(await upload(tokens.mine, mineFields(hidden)), 404);
+  await json(await upload(tokens.mine, { client_id: OTHER.id, project_id: P.assigned }), 400);
+
+  // Staff share a file from a chat only on a project the client can see.
+  const form = { ...mineFields(hidden), share: 'true' };
+  await json(await upload(tokens.admin, form), 400);
+  const shared = await json<Doc>(await upload(tokens.designer, { ...mineFields(), share: 'true' } as never), 201);
+  assert.equal(shared.client_visible, true);
+});
+
 test('Designers reach documents through their assigned projects only; Editors not at all', async () => {
   const own = await json<Doc>(await upload(tokens.designer, mineFields()), 201);
   const hidden = await json<Doc>(await upload(tokens.admin, mineFields(P.unassigned)), 201);
@@ -204,8 +226,7 @@ test('a client sees and downloads only their own shared documents', async () => 
   await json(await call('GET', `/documents/${internal.id}/download`, tokens.mine), 404);
   await json(await call('GET', `/documents/${shared.id}/download`, tokens.other), 404);
   assert.deepEqual(await json<Doc[]>(await call('GET', '/documents', tokens.other)), []);
-  // The portal reads and downloads; it never writes.
-  await json(await upload(tokens.mine, mineFields()), 403);
+  // The portal reads, downloads and adds a file in a chat (above); it never edits or deletes.
   await json(await call('GET', `/documents/${shared.id}`, tokens.mine), 403);
   await json(await call('DELETE', `/documents/${shared.id}`, tokens.mine), 403);
   await json(await call('PATCH', `/documents/${shared.id}/visibility`, tokens.mine, { client_visible: false }), 403);

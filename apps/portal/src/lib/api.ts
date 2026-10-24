@@ -79,16 +79,18 @@ interface RequestOptions {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, allowUnauthorized = false } = options;
   const token = tokenStore.get();
+  // A FormData body (a file upload) goes as-is: the browser sets the multipart boundary.
+  const json = body !== undefined && !(body instanceof FormData);
 
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(json ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: json ? JSON.stringify(body) : (body as FormData) } : {}),
     });
   } catch {
     // A network-level failure is the offline case, and the shell shows a
