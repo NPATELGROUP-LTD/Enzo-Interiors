@@ -44,9 +44,14 @@ export default async function BookingPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
 }) {
+  // Read before the switch below, in every state: reading the address is what
+  // makes this route dynamic. Behind it, a build that sees booking off (the
+  // offline defaults, as in Docker) prerendered the page as static, and once
+  // the live settings switched booking on every render failed with
+  // DYNAMIC_SERVER_USAGE, a 500.
+  const params = await searchParams;
   if (await pageOff("booking")) return <MarketingLayout><BookingByContact /></MarketingLayout>;
-  const [params, content, services, company, media] = await Promise.all([
-    searchParams,
+  const [content, services, company, media] = await Promise.all([
     getPage("booking"),
     getServiceDetails(),
     getCompany(),
