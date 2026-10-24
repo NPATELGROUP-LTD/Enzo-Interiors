@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import { Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 
 import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal, PageHeader } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
@@ -34,10 +34,15 @@ export function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [typing, setTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow new messages only while the reader is at the bottom of the thread.
+  const atBottom = useRef(true);
+  // Screen readers hear new replies only, not the whole history.
+  const [announce, setAnnounce] = useState('');
 
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
+    atBottom.current = true;
     setLoadingThread(true);
     setThreadError(null);
     api
@@ -76,6 +81,7 @@ export function MessagesPage() {
       setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
       if (message.sender_type === 'Staff') {
         setTyping(false);
+        setAnnounce(`New reply: ${message.body || 'an attachment'}`);
         void api.put(`/conversations/${activeId}/read`).catch(() => undefined);
       }
     };
@@ -134,9 +140,12 @@ export function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, typing]);
+  // Keep the newest message in view, once the thread has rendered (not while
+  // it still shows the loading state) and unless the reader scrolled up.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [messages, typing, loadingThread]);
 
   const lastPing = useRef(0);
   const pingTyping = () => {
@@ -156,6 +165,7 @@ export function MessagesPage() {
         body: draft.trim(),
         ...(attachments.length ? { document_ids: attachments.map((a) => a.document_id) } : {}),
       });
+      atBottom.current = true;
       setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
       setDraft('');
       setAttachments([]);
@@ -173,6 +183,9 @@ export function MessagesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
       <PageHeader title="Messages" description="Talk to the Enzo Interiors team." />
 
       {conversations.loading ? (
@@ -186,7 +199,14 @@ export function MessagesPage() {
             </p>
           </div>
 
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3" aria-live="polite">
+          <div
+            ref={scrollRef}
+            onScroll={(event) => {
+              const el = event.currentTarget;
+              atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            }}
+            className="flex-1 overflow-y-auto p-3"
+          >
             {loadingThread ? (
               <LoadingState label="Loading messages…" />
             ) : threadError ? (
@@ -298,7 +318,7 @@ export function MessagesPage() {
                 disabled={!draft.trim() && attachments.length === 0}
                 icon={<PaperPlaneRight size={16} aria-hidden="true" />}
               >
-                Send
+                <span className="max-sm:sr-only">Send</span>
               </Button>
             </div>
           </form>

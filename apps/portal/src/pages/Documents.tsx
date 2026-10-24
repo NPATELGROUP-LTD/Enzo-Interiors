@@ -107,27 +107,32 @@ export function DocumentsPage() {
         </Card>
       ) : (
         <>
-          <TableWrap>
+          <TableWrap className="max-sm:min-w-0">
             <thead>
               <tr>
                 <Th>Document</Th>
-                <Th>Type</Th>
-                <Th>Project</Th>
-                <Th>Added</Th>
-                <Th>Size</Th>
+                <Th className="max-sm:hidden">Type</Th>
+                <Th className="max-sm:hidden">Project</Th>
+                <Th className="max-sm:hidden">Added</Th>
+                <Th className="max-sm:hidden">Size</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
               {visible.map((document) => (
                 <tr key={document.id} className="hover:bg-surface-muted/40">
-                  <Td className="font-medium text-ink">{document.name}</Td>
-                  <Td>
+                  <Td className="font-medium text-ink [overflow-wrap:anywhere]">
+                    {document.name}
+                    <span className="block text-xs font-normal text-ink-muted sm:hidden">
+                      {DOCUMENT_LABELS[document.type]} · {fileSize(document.size_bytes)}
+                    </span>
+                  </Td>
+                  <Td className="max-sm:hidden">
                     <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
                   </Td>
-                  <Td className="text-ink-muted">{document.project_name ?? '—'}</Td>
-                  <Td className="whitespace-nowrap text-ink-muted">{date(document.upload_date)}</Td>
-                  <Td className="tabular whitespace-nowrap text-ink-muted">
+                  <Td className="text-ink-muted max-sm:hidden">{document.project_name ?? '—'}</Td>
+                  <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(document.upload_date)}</Td>
+                  <Td className="tabular whitespace-nowrap text-ink-muted max-sm:hidden">
                     {fileSize(document.size_bytes)}
                   </Td>
                   <Td>

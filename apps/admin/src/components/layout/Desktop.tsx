@@ -180,7 +180,11 @@ export function Desktop({
           <span className="shrink-0 whitespace-nowrap">{appName}</span>
           {current ? <span className="hidden min-w-0 truncate font-medium text-ink-muted min-[380px]:inline">· {current.label}</span> : null}
           <CaretDown size={12} aria-hidden="true" className="shrink-0 text-ink-muted" />
-          <Badge count={pending} />
+          {pending > 0 ? (
+            <span className="h-2 w-2 shrink-0 rounded-full bg-green-900">
+              <span className="sr-only">New items in other sections</span>
+            </span>
+          ) : null}
         </button>
         {/* From xl up, the app's name where a Mac keeps it (just a name: nothing to click), then its menus. */}
         <span className="hidden shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold xl:inline">
@@ -331,7 +335,7 @@ export function Desktop({
           <div className="flex items-center justify-end gap-1.5">{windowActions}</div>
         </div>
 
-        <main ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto">
+        <main ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
           <RouteBoundary><Outlet context={context} /></RouteBoundary>
         </main>
       </section>

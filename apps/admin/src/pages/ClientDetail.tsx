@@ -101,12 +101,21 @@ export function ClientDetailPage() {
         actions={
           <>
             {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+            {/* A client who cannot sign in to the portal would never see a message. */}
             <Button
               variant="secondary"
               icon={<ChatsCircle size={16} aria-hidden="true" />}
+              disabled={client.status !== 'Active' || !client.has_portal_access}
+              title={
+                client.status !== 'Active'
+                  ? 'Inactive clients cannot sign in to read messages'
+                  : client.has_portal_access
+                    ? undefined
+                    : 'Invite them to the portal first'
+              }
               onClick={() => navigate(`/messages?client=${encodeURIComponent(client.id)}`)}
             >
-              Message
+              {client.status === 'Active' && !client.has_portal_access ? 'Message (invite first)' : 'Message'}
             </Button>
             {isAdmin ? (
               <Button variant="secondary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setCreatingProject(true)}>
@@ -181,7 +190,7 @@ export function ClientDetailPage() {
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-wrap justify-between gap-2">
                   <dt className="text-ink-muted">{label}</dt>
-                  <dd className="text-right font-medium text-ink">{value}</dd>
+                  <dd className="min-w-0 text-right font-medium text-ink [overflow-wrap:anywhere]">{value}</dd>
                 </div>
               ))}
             </dl>

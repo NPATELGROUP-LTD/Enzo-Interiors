@@ -289,10 +289,10 @@ export function MediaField({
         {value.map((id, position) => {
           const asset = byId.get(id);
           return (
+            <span key={`${id}-${position}`} className="relative">
             <span
-              key={`${id}-${position}`}
               className={clsx(
-                'relative flex h-20 items-center justify-center overflow-hidden rounded-[10px]',
+                'flex h-20 items-center justify-center overflow-hidden rounded-[10px]',
                 logo === 'dark' ? 'w-40 bg-green-900' : logo ? 'w-40 bg-surface-muted' : 'w-28 bg-surface-muted',
               )}
             >
@@ -307,13 +307,16 @@ export function MediaField({
                 // showing an empty box, because the id is what to search for.
                 <span className="px-1 text-center text-[10px] leading-tight text-ink-muted">{id}</span>
               )}
+            </span>
               <button
                 type="button"
                 onClick={() => onChange(value.filter((_, index) => index !== position))}
                 aria-label={`Remove ${asset?.alt || id}`}
-                className="absolute right-0.5 top-0.5 rounded-full bg-ink/70 p-0.5 text-white hover:bg-ink"
+                className="group absolute -right-3 -top-3 flex h-8 w-8 items-center justify-center rounded-full"
               >
-                <X size={11} aria-hidden="true" />
+                <span className="rounded-full bg-ink/75 p-1 text-white shadow-soft group-hover:bg-ink">
+                  <X size={12} aria-hidden="true" />
+                </span>
               </button>
             </span>
           );

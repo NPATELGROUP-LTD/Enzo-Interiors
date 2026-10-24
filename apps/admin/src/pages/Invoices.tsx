@@ -425,7 +425,7 @@ export function InvoicesPage() {
             }
           />
         ) : (
-          <TableWrap>
+          <TableWrap className="max-sm:min-w-0">
             <thead>
               <tr>
                 <Th className="w-10">
@@ -438,12 +438,12 @@ export function InvoicesPage() {
                   />
                 </Th>
                 <Th>Number</Th>
-                <Th>Client</Th>
-                <Th>Project</Th>
+                <Th className="max-sm:hidden">Client</Th>
+                <Th className="max-sm:hidden">Project</Th>
                 <Th>Status</Th>
-                <Th>Due</Th>
+                <Th className="max-sm:hidden">Due</Th>
                 <Th className="text-right">Total</Th>
-                <Th className="text-right">Actions</Th>
+                <Th className="text-right max-sm:hidden">Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -466,18 +466,20 @@ export function InvoicesPage() {
                     >
                       {invoice.number}
                     </button>
+                    <span className="block text-xs font-normal text-ink-muted sm:hidden">{invoice.client_name}</span>
                   </Td>
-                  <Td className="text-ink">{invoice.client_name}</Td>
-                  <Td className="text-ink-muted">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
+                  <Td className="text-ink max-sm:hidden">{invoice.client_name}</Td>
+                  <Td className="text-ink-muted max-sm:hidden">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
                   <Td>
                     <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>{invoice.status}</StatusTag>
                     {invoice.is_overdue && invoice.status !== 'Overdue' ? (
                       <span className="ml-1.5 text-xs text-danger">{invoice.days_overdue}d late</span>
                     ) : null}
                   </Td>
-                  <Td className="whitespace-nowrap text-ink-muted">{date(invoice.due_date)}</Td>
+                  <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
                   <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">{money(invoice.amount)}</Td>
-                  <Td>
+                  {/* Phones act from the opened invoice, which has the same buttons. */}
+                  <Td className="max-sm:hidden">
                     <div className="flex justify-end gap-1">
                       {invoice.status === 'Draft' ? (
                         <button
@@ -624,6 +626,9 @@ function InvoiceEditor({
   const scheduleRows: PaymentScheduleRow[] = schedule
     .filter((row) => row.label.trim())
     .map((row) => ({ label: row.label.trim(), amount: Number(row.amount) || 0, date: row.date || null }));
+  // An invoice with no lines keeps its stored amount.
+  const payable = items.length > 0 ? preview.gross : (invoice?.amount ?? 0);
+  const scheduled = scheduleRows.reduce((total, row) => total + pennies(row.amount), 0) / 100;
 
   // What the sheet shows: the saved invoice with this form's edits laid over it.
   const sheet: Invoice = {
@@ -809,7 +814,7 @@ function InvoiceEditor({
           {lockNote ? <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">{lockNote}</p> : null}
 
           <Card className="flex flex-col gap-4">
-            <h2 className="font-semibold text-ink">Customer</h2>
+            <h2 className="text-lg font-semibold text-ink">Customer</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Select
                 label="Client"
@@ -856,7 +861,7 @@ function InvoiceEditor({
           </Card>
 
           <Card className="flex flex-col gap-4">
-            <h2 className="font-semibold text-ink">Job</h2>
+            <h2 className="text-lg font-semibold text-ink">Job</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Job name" value={jobName} maxLength={200} placeholder="Media wall" onChange={(event) => setJobName(event.target.value)} />
               <Input label="Job address" value={jobAddress} maxLength={300} onChange={(event) => setJobAddress(event.target.value)} />
@@ -875,7 +880,7 @@ function InvoiceEditor({
           {moneyEditable ? (
             <Card className="flex flex-col gap-3">
               <div>
-                <h2 className="font-semibold text-ink">Itemised list</h2>
+                <h2 className="text-lg font-semibold text-ink">Itemised list</h2>
                 <p className="mt-0.5 text-sm text-ink-muted">
                   Prices are before VAT. Leave a price blank for a quantity-only row, such as materials.
                 </p>
@@ -1035,7 +1040,7 @@ function InvoiceEditor({
 
           <Card className="flex flex-col gap-3">
             <div>
-              <h2 className="font-semibold text-ink">Payment schedule</h2>
+              <h2 className="text-lg font-semibold text-ink">Payment schedule</h2>
               <p className="mt-0.5 text-sm text-ink-muted">
                 Printed under the totals, e.g. deposit received, due on delivery, due on completion. It does not change the total.
               </p>
@@ -1078,6 +1083,11 @@ function InvoiceEditor({
                 </button>
               </div>
             ))}
+            {scheduleRows.length > 0 && pennies(scheduled) !== pennies(payable) ? (
+              <p role="status" className="text-sm text-warning">
+                The schedule adds up to {money(scheduled)} of {money(payable)} payable.
+              </p>
+            ) : null}
             <div>
               <Button
                 type="button"

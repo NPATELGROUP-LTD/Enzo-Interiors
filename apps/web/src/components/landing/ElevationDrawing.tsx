@@ -67,8 +67,8 @@ export function ElevationDrawing({ active, content, className }: ElevationDrawin
       // getTotalLength() on a non-rendered element throws InvalidStateError
       // in current Chromium, which escaped the layout effect and took the
       // whole page down. `pathLength: 1` needs no layout at all.
+      for (const stroke of strokes) stroke.setAttribute("pathLength", "1");
       gsap.set(strokes, {
-        attr: { pathLength: 1 },
         strokeDasharray: 1,
         strokeDashoffset: 1,
       });
