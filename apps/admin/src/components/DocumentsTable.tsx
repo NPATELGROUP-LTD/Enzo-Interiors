@@ -1,4 +1,4 @@
-import { DownloadSimple, Trash, UploadSimple } from '@phosphor-icons/react';
+import { DownloadSimple, Eye, Trash, UploadSimple } from '@phosphor-icons/react';
 import { useRef, useState, type FormEvent } from 'react';
 
 import {
@@ -15,11 +15,12 @@ import {
   Th,
   Toggle,
 } from '@/components/ui';
+import { useFileViewer } from '@/components/FileViewer';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, fileSize } from '@/lib/format';
-import type { DocumentDownload, DocumentRecord, DocumentType } from '@/types/api';
+import type { DocumentRecord, DocumentType } from '@/types/api';
 import { DOCUMENT_TYPES } from '@/types/api';
 
 type Row = Omit<DocumentRecord, 'client_name' | 'project_name'>;
@@ -56,15 +57,7 @@ export function DocumentsTable({
   const { isAdmin } = useAuth();
   const [deleting, setDeleting] = useState<Row | null>(null);
 
-  const download = async (row: Row) => {
-    try {
-      const { url } = await api.get<DocumentDownload>(`/documents/${row.id}/download`);
-      // Served as an attachment, so this downloads rather than navigating away.
-      window.location.assign(url);
-    } catch (caught) {
-      toast.error(message(caught, 'Could not download this file.'));
-    }
-  };
+  const files = useFileViewer();
 
   const setVisible = async (row: Row, next: boolean) => {
     try {
@@ -112,7 +105,16 @@ export function DocumentsTable({
           <tbody>
             {documents.map((row) => (
               <tr key={row.id}>
-                <Td className="font-medium text-ink">{row.name}</Td>
+                <Td className="font-medium text-ink">
+                  {/* The name opens it: shown in the page when it can be, else saved. */}
+                  <button
+                    type="button"
+                    onClick={() => void files.show(row)}
+                    className="text-left hover:text-green-900 hover:underline hover:underline-offset-2"
+                  >
+                    {row.name}
+                  </button>
+                </Td>
                 <Td>
                   <StatusTag tone="info">{TYPE_LABELS[row.type]}</StatusTag>
                 </Td>
@@ -136,10 +138,22 @@ export function DocumentsTable({
                 </Td>
                 <Td>
                   <div className="flex justify-end gap-1">
+                    {row.preview ? (
+                      <Button
+                        variant="ghost"
+                        icon={<Eye size={15} aria-hidden="true" />}
+                        loading={files.opening === row.id}
+                        onClick={() => void files.show(row)}
+                        aria-label={`View ${row.name}`}
+                      >
+                        View
+                      </Button>
+                    ) : null}
                     <Button
                       variant="ghost"
                       icon={<DownloadSimple size={15} aria-hidden="true" />}
-                      onClick={() => void download(row)}
+                      onClick={() => void files.download(row.id)}
+                      aria-label={`Download ${row.name}`}
                     >
                       Download
                     </Button>
@@ -166,6 +180,7 @@ export function DocumentsTable({
         onConfirm={() => void remove()}
         onCancel={() => setDeleting(null)}
       />
+      {files.viewer}
     </>
   );
 }

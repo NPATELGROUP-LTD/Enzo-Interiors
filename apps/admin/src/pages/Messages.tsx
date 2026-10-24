@@ -3,8 +3,9 @@ import { CaretLeft, ChatText, Checks, Files, Paperclip, X } from '@phosphor-icon
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { BubbleMenu, Composer, MAX_BODY, MessageText, TOOL, UploadButton } from '@/components/chat';
+import { BubbleMenu, Composer, MAX_BODY, MessageText, TOOL, ToolMenu, UploadButton } from '@/components/chat';
 import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
+import { downloadFile, useFileViewer } from '@/components/FileViewer';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -13,7 +14,6 @@ import { connectSocket } from '@/lib/socket';
 import type {
   AttachableDocument,
   Conversation,
-  DocumentDownload,
   Message,
   MessageAttachment,
   Project,
@@ -249,15 +249,16 @@ export function MessagesPage() {
       ) : (
         <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-5 lg:grid-cols-[20rem_1fr]">
           <Card className={clsx('overflow-hidden p-0', threadOpen && 'hidden lg:block')}>
-            <ul className="rows h-full overflow-y-auto overscroll-contain">
+            {/* Not `.rows`: its bleed margins made the list scroll sideways. */}
+            <ul className="flex h-full flex-col gap-0.5 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5">
               {list.map((conversation) => (
-                <li key={conversation.id}>
+                <li key={conversation.id} className="rounded-lg odd:bg-[var(--stripe)]">
                   <button
                     type="button"
                     onClick={() => openThread(conversation.id)}
                     aria-current={conversation.id === activeId}
                     className={clsx(
-                      'flex w-full gap-2.5 p-3 text-left transition-colors',
+                      'flex w-full gap-2.5 rounded-lg p-3 text-left transition-colors',
                       conversation.id === activeId ? 'bg-green-100' : 'hover:bg-surface-muted/60',
                     )}
                   >
@@ -405,26 +406,15 @@ export function MessagesPage() {
                         <Files size={20} aria-hidden="true" />
                       </button>
                       {(savedReplies.data ?? []).length > 0 ? (
-                        <label className={clsx(TOOL, 'relative cursor-pointer')} title="Insert a saved reply">
-                          <ChatText size={20} aria-hidden="true" />
-                          <select
-                            aria-label="Insert a saved reply"
-                            value=""
-                            onChange={(event) => {
-                              const template = (savedReplies.data ?? []).find((entry) => entry.id === event.target.value);
-                              if (template) setDraft(template.body.slice(0, MAX_BODY));
-                            }}
-                            className="absolute inset-0 cursor-pointer opacity-0"
-                          >
-                            <option value="">Insert a saved reply…</option>
-                            {(savedReplies.data ?? []).map((template) => (
-                              <option key={template.id} value={template.id}>
-                                {template.title}
-                                {template.staff_id === null ? ' (shared)' : ''}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                        <ToolMenu
+                          label="Insert a saved reply"
+                          icon={<ChatText size={20} aria-hidden="true" />}
+                          items={(savedReplies.data ?? []).map((template) => ({
+                            label: `${template.title}${template.staff_id === null ? ' (shared)' : ''}`,
+                            hint: template.body,
+                            run: () => setDraft(template.body.slice(0, MAX_BODY)),
+                          }))}
+                        />
                       ) : null}
                     </>
                   }
@@ -454,10 +444,6 @@ export function MessagesPage() {
 }
 
 /** Opens a file through Documents' own access check. */
-async function download(documentId: string) {
-  const { url } = await api.get<DocumentDownload>(`/documents/${documentId}/download`);
-  window.location.assign(url);
-}
 
 /** The files about to be sent, each removable. */
 function Chips({ items, onRemove }: { items: MessageAttachment[]; onRemove: (id: string) => void }) {
@@ -503,7 +489,7 @@ function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
     ...(message.attachments ?? []).map((attachment) => ({
       label: `Download ${attachment.name}`,
       run: () =>
-        void download(attachment.document_id).catch((caught) =>
+        void downloadFile(attachment.document_id).catch((caught) =>
           toast.error(errorText(caught, 'That file is no longer available.')),
         ),
     })),
@@ -512,16 +498,13 @@ function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
 
 /** Attachment chips; each opens through Documents' own access check. */
 function Attachments({ items }: { items: MessageAttachment[] | null }) {
-  const toast = useToast();
+  const files = useFileViewer();
   if (!items?.length) return null;
-  const open = async (attachment: MessageAttachment) => {
-    try {
-      await download(attachment.document_id);
-    } catch (caught) {
-      toast.error(errorText(caught, 'That file is no longer available.'));
-    }
-  };
+  // PDFs and images open in the page; anything else is saved.
+  const open = (attachment: MessageAttachment) => files.show({ id: attachment.document_id, name: attachment.name });
   return (
+    <>
+    {files.viewer}
     <ul className="mt-2 flex flex-col gap-1">
       {items.map((attachment) => (
         <li key={attachment.document_id}>
@@ -537,6 +520,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

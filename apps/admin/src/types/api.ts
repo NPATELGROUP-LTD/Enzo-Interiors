@@ -298,6 +298,8 @@ export interface DocumentRecord {
   client_visible: boolean;
   client_name: string;
   project_name: string | null;
+  /** How it can be shown in the page, from the type checked at upload; null = download only. */
+  preview: 'pdf' | 'image' | null;
 }
 
 /** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */

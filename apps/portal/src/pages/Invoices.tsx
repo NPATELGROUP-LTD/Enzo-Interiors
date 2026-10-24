@@ -102,7 +102,14 @@ export function InvoicesPage() {
             <>
             <ul className="space-y-3 sm:hidden">
               {visible.map((invoice) => (
-                <li key={invoice.id}>
+                <li
+                  key={invoice.id}
+                  // The whole card opens it; its own buttons keep their jobs.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices/${invoice.id}`);
+                  }}
+                  className="cursor-pointer"
+                >
                   <Card>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
