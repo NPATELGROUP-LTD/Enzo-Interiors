@@ -128,9 +128,9 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               onMouseLeave={() => arm(toast.id, toast.tone)}
               onFocus={() => hold(toast.id)}
               onBlur={() => arm(toast.id, toast.tone)}
-              className={`pointer-events-auto flex items-start gap-3 rounded-[12px] border border-border ${bg} p-3 shadow-window`}
+              className={`pointer-events-auto flex items-center gap-2.5 rounded-[12px] border border-border ${bg} py-2 pl-3 pr-1.5 shadow-window`}
             >
-              <Icon size={18} className={`mt-0.5 shrink-0 ${fg}`} aria-hidden="true" />
+              <Icon size={18} className={`shrink-0 ${fg}`} aria-hidden="true" />
               {open ? (
                 <button
                   type="button"
@@ -138,13 +138,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                     dismiss(toast.id);
                     open();
                   }}
-                  className="min-w-0 flex-1 rounded-control text-left text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+                  className="min-w-0 flex-1 rounded-control py-0.5 text-left text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
                 >
                   <span className="block font-semibold">{toast.message}</span>
                   {toast.body ? <span className="mt-0.5 line-clamp-2 block text-[13px] text-ink-muted">{toast.body}</span> : null}
                 </button>
               ) : (
-                <div className="min-w-0 flex-1 text-ink">
+                <div className="min-w-0 flex-1 py-0.5 text-ink">
                   <p className={toast.tone === 'notice' ? 'font-semibold' : undefined}>{toast.message}</p>
                   {toast.body ? <p className="mt-0.5 line-clamp-2 text-[13px] text-ink-muted">{toast.body}</p> : null}
                 </div>
@@ -153,7 +153,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                 type="button"
                 onClick={() => dismiss(toast.id)}
                 aria-label="Dismiss notification"
-                className="-mr-2 flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-ink"
+                className="flex size-8 shrink-0 items-center justify-center rounded-control text-ink-muted hover:bg-secondary-hover hover:text-ink pointer-coarse:size-10"
               >
                 <X size={16} aria-hidden="true" />
               </button>

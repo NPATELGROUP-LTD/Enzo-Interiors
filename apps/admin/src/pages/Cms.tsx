@@ -441,7 +441,6 @@ export function CollectionPage({
     <div className={PANE}>
       <PageHeader
         title={schema.label}
-        description={schema.description}
         actions={
           isAdmin && !schema.fixed ? (
             <Button variant="primary" onClick={() => setCreating(true)} icon={<Plus size={16} />}>

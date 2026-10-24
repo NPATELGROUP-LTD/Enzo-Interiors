@@ -41,7 +41,6 @@ export function DocumentsPage() {
     <>
       <PageHeader
         title="Documents"
-        description="Contracts, plans, mood boards and invoices for your projects."
       />
 
       <div className="mb-4 flex flex-wrap gap-3">

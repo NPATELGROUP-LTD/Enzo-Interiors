@@ -364,7 +364,7 @@ function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
           {PROJECT_VIEWS.map(({ id, label }) => (
             <MenuItem
               key={id}
-              to={id === 'board' ? '/projects' : `/projects?view=${id}`}
+              to={`/projects?view=${id}`}
               label={label}
               active={view === id}
               onChoose={close}

@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Trash } from '@phosphor-icons/react';
+import { Trash, UploadSimple } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -32,7 +32,7 @@ import type { ProjectDetail, ProjectStage } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
-import { DocumentsTable } from '@/components/DocumentsTable';
+import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
 
 import { useDesigners } from './Projects';
 
@@ -54,6 +54,7 @@ export function ProjectDetailPage() {
   );
   const designers = useDesigners(isAdmin);
   const [tab, setTab] = useState('timeline');
+  const [uploading, setUploading] = useState(false);
   const [savingNote, setSavingNote] = useState(false);
   const [asked, setAsked] = useState(0);
   const [askStage, setAskStage] = useState<ProjectStage | ''>('');
@@ -65,7 +66,8 @@ export function ProjectDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Project not found." />;
 
-  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision } = data;
+  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision } =
+    data;
 
   const patch = async (body: Record<string, unknown>, successMessage: string) => {
     try {
@@ -102,7 +104,12 @@ export function ProjectDetailPage() {
     setAsking(true);
     try {
       const note = String(new FormData(event.currentTarget).get('note') ?? '').trim();
-      await api.post('/change-requests', { kind: 'project_stage', project_id: project.id, status: askStage, note: note || undefined });
+      await api.post('/change-requests', {
+        kind: 'project_stage',
+        project_id: project.id,
+        status: askStage,
+        note: note || undefined,
+      });
       toast.success('Sent to the Admin for approval.');
       setAskStage('');
       setAsked((n) => n + 1);
@@ -137,8 +144,9 @@ export function ProjectDetailPage() {
       {/* Someone assigned before they stopped being a Designer still shows. */}
       {project[field] && !designers.some((member) => member.id === project[field]) ? (
         <option value={project[field] ?? ''}>
-          {(field === 'assigned_designer_id' ? project.assigned_designer_name : project.assigned_installer_name) ??
-            'Someone else'}
+          {(field === 'assigned_designer_id'
+            ? project.assigned_designer_name
+            : project.assigned_installer_name) ?? 'Someone else'}
         </option>
       ) : null}
       {designers.map((member) => (
@@ -153,12 +161,16 @@ export function ProjectDetailPage() {
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={project.name}
-        description={`${project.client_name ?? client?.name ?? 'Unknown client'} · ${SERVICE_LABELS[project.type]}`}
         actions={
           <>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
-              <Button variant="ghost" className="text-danger" icon={<Trash size={15} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+              <Button
+                variant="ghost"
+                className="text-danger"
+                icon={<Trash size={15} aria-hidden="true" />}
+                onClick={() => setDeleting(true)}
+              >
                 Delete
               </Button>
             ) : null}
@@ -308,16 +320,30 @@ export function ProjectDetailPage() {
         </Card>
       </div>
 
-      <Tabs
-        tabs={[
-          { id: 'timeline', label: 'Overview' },
-          { id: 'documents', label: 'Documents & mood boards', count: documents.length },
-          ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
-          { id: 'activity', label: 'Activity log', count: activity.length },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      {/* The Documents tab's Upload sits at the end of the tabs row. */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <Tabs
+            tabs={[
+              { id: 'timeline', label: 'Overview' },
+              { id: 'documents', label: 'Documents & mood boards', count: documents.length },
+              ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
+              { id: 'activity', label: 'Activity log', count: activity.length },
+            ]}
+            active={tab}
+            onChange={setTab}
+          />
+        </div>
+        {tab === 'documents' ? (
+          <Button
+            className="shrink-0"
+            icon={<UploadSimple size={15} aria-hidden="true" />}
+            onClick={() => setUploading(true)}
+          >
+            Upload
+          </Button>
+        ) : null}
+      </div>
 
       {tab === 'timeline' ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -325,7 +351,16 @@ export function ProjectDetailPage() {
             <p className="label-eyebrow">Project details</p>
             <dl className="mt-3 rows">
               {[
-                ['Client', client ? <Link key="client" to={`/clients/${client.id}`} className="text-link">{client.name}</Link> : '—'],
+                [
+                  'Client',
+                  client ? (
+                    <Link key="client" to={`/clients/${client.id}`} className="text-link">
+                      {client.name}
+                    </Link>
+                  ) : (
+                    '—'
+                  ),
+                ],
                 ['Service', SERVICE_LABELS[project.type]],
                 ['Stage', project.status],
                 ['Progress', `${project.progress_pct}%`],
@@ -367,10 +402,18 @@ export function ProjectDetailPage() {
         <DocumentsTable
           documents={documents}
           onChanged={refetch}
-          uploadTo={{ clientId: project.client_id, projectId: project.id }}
           emptyMessage="Plans, contracts and mood boards for this project appear here."
         />
       ) : null}
+      <UploadDialog
+        open={uploading}
+        target={{ clientId: project.client_id, projectId: project.id }}
+        onClose={() => setUploading(false)}
+        onUploaded={async () => {
+          setUploading(false);
+          await refetch();
+        }}
+      />
 
       {tab === 'invoices' && isAdmin ? (
         invoices.length === 0 ? (
@@ -394,11 +437,15 @@ export function ProjectDetailPage() {
                   className="cursor-pointer"
                   // The number stays the link for keyboards; a click anywhere else on the row opens it too.
                   onClick={(event) => {
-                    if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices?open=${invoice.id}`);
+                    if (!(event.target as HTMLElement).closest('a, button'))
+                      navigate(`/invoices?open=${invoice.id}`);
                   }}
                 >
                   <Td className="font-medium text-ink">
-                    <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
+                    <Link
+                      to={`/invoices?open=${invoice.id}`}
+                      className="underline-offset-2 hover:text-green-900 hover:underline"
+                    >
                       {invoice.number}
                     </Link>
                   </Td>

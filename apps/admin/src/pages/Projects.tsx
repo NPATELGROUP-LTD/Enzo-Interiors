@@ -378,6 +378,7 @@ export function useDesigners(enabled: boolean): StaffOption[] {
  */
 export function ProjectsPage() {
   const toast = useToast();
+  const navigate = useNavigate();
   const { isAdmin, can } = useAuth();
   const projects = useQuery<Project[]>('/projects');
   const clients = useQuery<Client[]>(isAdmin ? '/clients' : null);
@@ -385,7 +386,10 @@ export function ProjectsPage() {
   const { names: stages, stages: stageList } = useStages();
 
   const [params, setParams] = useSearchParams();
-  const view: View = PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ?? 'board';
+  // A phone opens the list: the board's wide columns are a long sideways swipe.
+  const view: View =
+    PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ??
+    (window.matchMedia('(max-width: 639px)').matches ? 'list' : 'board');
   const creating = isAdmin && params.get('new') === '1';
   /** Changes some of the address's parameters and keeps the rest (see Clients). */
   const update = (changes: Record<string, string | null>, replace = false) =>
@@ -473,7 +477,7 @@ export function ProjectsPage() {
         <Tabs
           tabs={PROJECT_VIEWS.map(({ id, label }) => ({ id, label }))}
           active={view}
-          onChange={(id) => update({ view: id === 'board' ? null : id })}
+          onChange={(id) => update({ view: id })}
         />
         {isAdmin ? (
           <div className="mb-4">
@@ -551,7 +555,13 @@ export function ProjectsPage() {
           </thead>
           <tbody>
             {rows.map((project) => (
-              <tr key={project.id} className="hover:bg-surface-muted/40">
+              <tr
+                key={project.id}
+                className="cursor-pointer hover:bg-surface-muted/40"
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest('a, button')) navigate(`/projects/${project.id}`);
+                }}
+              >
                 <Td>
                   <Link to={`/projects/${project.id}`} className="text-link">
                     {project.name}

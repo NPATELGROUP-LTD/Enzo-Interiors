@@ -27,6 +27,7 @@ import { toast } from "sonner";
 import { Honeypot } from "@/components/shared/Honeypot";
 import { ImageWithFallback } from "@/components/shared/ImageWithFallback";
 import { OpeningHoursList } from "@/components/shared/OpeningHoursList";
+import { SPAM_HINT } from "@/lib/utils";
 import {
   SlotTakenError,
   fetchAvailability,
@@ -222,7 +223,7 @@ export function BookingWizard({
     )
       .then((result) => {
         const suffix = tier ? fill(content.toast.tierSuffix, { tier }) : "";
-        toast.success(fill(content.toast.message, { suffix }));
+        toast.success(`${fill(content.toast.message, { suffix })} ${SPAM_HINT}`);
         setReference(result.reference ?? null);
         setStep(5);
       })
@@ -598,7 +599,7 @@ export function BookingWizard({
                     {content.steps.confirmation.heading}
                   </h2>
                   <p className="text-muted-foreground mt-3 text-[15px] max-w-md mx-auto">
-                    {content.steps.confirmation.body}
+                    {content.steps.confirmation.body} {SPAM_HINT}
                   </p>
                   <div className="mt-8 bg-white rounded-2xl p-6 max-w-sm mx-auto shadow-[0_2px_16px_rgba(0,0,0,0.04)] text-left">
                     <div className="space-y-3 text-[14px]">
