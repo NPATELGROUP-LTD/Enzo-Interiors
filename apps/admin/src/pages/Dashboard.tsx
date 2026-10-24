@@ -14,7 +14,7 @@ import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
 import { dateTime, moneyCompact, padCount, relative } from '@/lib/format';
 import { projectTone } from '@/lib/status';
-import type { AdminDashboard, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
+import type { AdminDashboard, ChangeRequest, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 /**
@@ -38,10 +38,13 @@ function BarChart({
     <div className="flex h-full min-h-40 gap-1.5" role="img" aria-label="Monthly totals">
       {data.map((point) => {
         const height = (point.value / max) * 100;
+        const shown = formatValue ? formatValue(point.value) : String(point.value);
+        // basis-0 + min-w-0: every month is the same width whatever its label says.
+        // A phone has no room for twelve amounts: there they show only as a hover title.
         return (
-          <div key={point.month} className="flex flex-1 flex-col items-center gap-1.5">
-            <span className="tabular text-[10px] font-semibold text-ink-muted">
-              {point.value > 0 ? (formatValue ? formatValue(point.value) : point.value) : ''}
+          <div key={point.month} title={`${point.label}: ${shown}`} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1.5">
+            <span className="tabular whitespace-nowrap text-[10px] font-semibold text-ink-muted max-sm:hidden">
+              {point.value > 0 ? shown : ''}
             </span>
             {/* flex-1 gives the bar a definite track, so its % height resolves. */}
             <div className="flex w-full flex-1 items-end">
@@ -131,6 +134,7 @@ function AwaitingDecision() {
 
 function AdminView() {
   const { data, loading, error, refetch } = useQuery<AdminDashboard>('/dashboard/admin');
+  const requests = useQuery<ChangeRequest[]>('/change-requests?status=Pending');
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading || !data) {
@@ -145,6 +149,23 @@ function AdminView() {
 
   return (
     <>
+      {requests.data?.length ? (
+        <Card accent="warning" className="mb-4 pl-5">
+          <p className="font-semibold text-ink">
+            {requests.data.length} change request{requests.data.length === 1 ? '' : 's'} waiting for you
+          </p>
+          <ul className="mt-2 flex flex-col gap-1 text-sm">
+            {requests.data.map((row) => (
+              <li key={row.id}>
+                <Link to={row.project_id ? `/projects/${row.project_id}` : `/clients/${row.client_id}`} className="text-link">
+                  {row.requested_name}: {row.kind === 'project_stage' ? `move to ${row.payload.status}` : `change ${Object.keys(row.payload).join(', ')}`}
+                </Link>
+                <span className="ml-2 text-xs text-ink-muted">{relative(row.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {/* Bento grid. Card order follows the brief's content-rules table. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard
@@ -362,6 +383,7 @@ export function DashboardPage() {
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
+        prominent
         title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
         description={isAdmin ? 'Everything that needs you today, in one place.' : 'Where your projects are up to.'}
       />

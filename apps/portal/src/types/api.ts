@@ -21,7 +21,7 @@ export interface ProjectStageConfig {
 }
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard' | 'Other';
 export type SenderType = 'Client' | 'Staff';
 
 export const DOCUMENT_TYPES: DocumentType[] = [
@@ -29,6 +29,7 @@ export const DOCUMENT_TYPES: DocumentType[] = [
   'Invoice',
   'Plan',
   'MoodBoard',
+  'Other',
 ];
 
 export const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -43,6 +44,7 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   Invoice: 'Invoice',
   Plan: 'Plan',
   MoodBoard: 'Mood board',
+  Other: 'Other',
 };
 
 /** Plain-English descriptions of the default stages; a stage the studio added has none. */
@@ -211,6 +213,8 @@ export interface DocumentRecord {
   client_visible: boolean;
   client_name: string;
   project_name: string | null;
+  /** Whether it can be shown in the page (View) as well as downloaded. */
+  preview: 'pdf' | 'image' | null;
 }
 
 /** GET /documents/:id/download: a five-minute link, fetched per click and never kept. */

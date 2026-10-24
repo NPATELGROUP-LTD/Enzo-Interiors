@@ -41,6 +41,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        // The invoice PDF code (jspdf and what it pulls in) loads on Download only; not on every install.
+        globIgnores: ['**/jspdf*.js', '**/html2canvas*.js', '**/purify*.js', '**/index.es-*.js'],
         // Never let a cached shell shadow a newer one.
         cleanupOutdatedCaches: true,
         // Web Push handlers (public/push-sw.js): show the notification, open its page.

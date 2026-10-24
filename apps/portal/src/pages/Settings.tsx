@@ -1,16 +1,21 @@
-import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
+import { Bell, PaintBrush, ShieldCheck, UserCircle } from '@phosphor-icons/react';
+import clsx from 'clsx';
+import { Fragment, useState, type FormEvent } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import {
   AppearancePicker,
   Button,
-  Card,
   ErrorState,
   Input,
   LoadingState,
   PageHeader,
+  PaneHeader,
+  SettingsGroup,
+  SettingsRow,
   Tabs,
   Toggle,
+  buttonClass,
 } from '@/components/ui';
 import { PushToggle } from '@/components/PushToggle';
 import { useToast } from '@/components/ui/Toast';
@@ -33,14 +38,26 @@ const CHANNELS: Array<{ id: NotifyChannel; label: string }> = [
   { id: 'email', label: 'Email' },
   { id: 'push', label: 'Phone & browser' },
 ];
+/** The notification grid: what it is, then one column per channel (from sm up). */
+const GRID = 'sm:grid sm:grid-cols-[minmax(0,1fr)_repeat(3,6.5rem)] sm:items-center sm:gap-x-2';
 
+const SECTIONS = [
+  { id: 'profile', label: 'Profile', Icon: UserCircle },
+  { id: 'notifications', label: 'Notifications', Icon: Bell },
+  { id: 'security', label: 'Security', Icon: ShieldCheck },
+  { id: 'appearance', label: 'Appearance', Icon: PaintBrush },
+];
+
+/** Laid out like System Settings: the panes down the left from lg, a segmented control below. */
 export function SettingsPage() {
   const { user, logout } = useAuth();
   const { theme, set: setTheme } = useTheme();
   const toast = useToast();
   const preferences = useQuery<NotificationPreference>('/notification-preferences');
 
-  const [tab, setTab] = useState('profile');
+  const [params, setParams] = useSearchParams();
+  const tab = SECTIONS.find(({ id }) => id === params.get('section'))?.id ?? 'profile';
+  const setTab = (id: string) => setParams(id === 'profile' ? {} : { section: id }, { replace: true });
   const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -89,168 +106,183 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" description="Your details, notifications and security." />
+      <PageHeader title="Settings" />
 
       <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
-      <Tabs
-        vertical
-        tabs={[
-          { id: 'profile', label: 'Profile' },
-          { id: 'notifications', label: 'Notifications' },
-          { id: 'security', label: 'Security' },
-          { id: 'appearance', label: 'Appearance' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
-
-      <div className="min-w-0">
-      {tab === 'profile' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card className="p-5">
-            <p className="label-eyebrow">Your details</p>
-            <dl className="mt-3 rows">
-              <div className="flex justify-between gap-3">
-                <dt className="text-ink-muted">Name</dt>
-                <dd className="font-medium text-ink">{user?.name}</dd>
-              </div>
-              <div className="flex justify-between gap-3">
-                <dt className="text-ink-muted">Email</dt>
-                <dd className="truncate font-medium text-ink">{user?.email}</dd>
-              </div>
-            </dl>
-          </Card>
-          <Card accent="success" className="flex flex-col p-5">
-            <p className="label-eyebrow">Something out of date?</p>
-            <p className="mt-2 text-ink">
-              To update your name, address or phone number, message the Enzo team and we will change
-              it for you.
-            </p>
-            <div className="mt-auto pt-4">
-              <Link to="/messages" className="text-link">
-                Message the team
-              </Link>
-            </div>
-          </Card>
+        <div className="lg:hidden">
+          <Tabs tabs={SECTIONS} active={tab} onChange={setTab} />
         </div>
-      ) : null}
+        <nav aria-label="Settings" className="hidden flex-col gap-px rounded-card bg-surface p-2 shadow-soft lg:flex">
+          {SECTIONS.map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              aria-current={id === tab ? 'page' : undefined}
+              onClick={() => setTab(id)}
+              className={clsx(
+                'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11',
+                id === tab ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]',
+              )}
+            >
+              <Icon size={16} aria-hidden="true" className="shrink-0" />
+              {label}
+            </button>
+          ))}
+        </nav>
 
-      {tab === 'notifications' ? (
-        <Card className="p-5">
-          <p className="label-eyebrow">How we contact you</p>
-          <p className="mt-1 text-ink-muted">
-            Choose how you would like to hear about project updates, messages and invoices.
-          </p>
-          {preferences.error ? (
-            <div className="mt-4">
-              <ErrorState message={preferences.error} onRetry={preferences.refetch} />
-            </div>
-          ) : preferences.loading || !preferences.data ? (
-            <div className="mt-4">
-              <LoadingState label="Loading your preferences…" />
-            </div>
-          ) : (
-            <div className="mt-4 grid gap-3">
-              {CATEGORIES.map(({ id, label, description }) => (
-                <div key={id} className="rounded-control bg-ink/[0.035] p-3">
-                  <p className="text-sm font-semibold text-ink">{label}</p>
-                  <p className="mt-0.5 text-xs text-ink-muted">{description}</p>
-                  <div className="mt-2 grid gap-x-4 sm:grid-cols-3">
-                    {CHANNELS.map((channel) => (
-                      <Toggle
-                        key={channel.id}
-                        label={channel.label}
-                        checked={preferences.data!.categories[id][channel.id]}
-                        onChange={(next) => void saveChoice(id, channel.id, next)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ))}
-              <div className="rounded-control bg-ink/[0.035] p-3">
-                <PushToggle />
-              </div>
-            </div>
-          )}
-          <p className="mt-4 text-xs text-ink-muted">
-            “Phone & browser” only reaches devices where you turned notifications on, below. Security emails, like a password change, are always sent.
-          </p>
-        </Card>
-      ) : null}
-
-      {tab === 'security' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <p className="label-eyebrow">Change password</p>
-            <form onSubmit={changePassword} className="mt-3 flex flex-col gap-4" noValidate>
-              <Input
-                label="Current password"
-                type="password"
-                autoComplete="current-password"
-                value={passwordForm.current}
-                onChange={(event) =>
-                  setPasswordForm({ ...passwordForm, current: event.target.value })
-                }
-                required
-              />
-              <Input
-                label="New password"
-                type="password"
-                autoComplete="new-password"
-                value={passwordForm.next}
-                onChange={(event) => setPasswordForm({ ...passwordForm, next: event.target.value })}
-                required
-              />
-              <Input
-                label="Confirm new password"
-                type="password"
-                autoComplete="new-password"
-                value={passwordForm.confirm}
-                onChange={(event) =>
-                  setPasswordForm({ ...passwordForm, confirm: event.target.value })
-                }
-                required
-              />
-              {passwordError ? (
-                <p
-                  role="alert"
-                  className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger"
+        <div className="min-w-0 max-w-3xl rounded-card bg-surface p-5 shadow-soft sm:p-6">
+          {tab === 'profile' ? (
+            <>
+              <PaneHeader title="Profile" help="Your details as the studio has them." />
+              <SettingsGroup>
+                <SettingsRow label="Name">
+                  <span className="text-sm text-ink">{user?.name}</span>
+                </SettingsRow>
+                <SettingsRow label="Email" help="Where we send updates, and what you sign in with.">
+                  <span className="truncate text-sm text-ink">{user?.email}</span>
+                </SettingsRow>
+              </SettingsGroup>
+              <SettingsGroup>
+                <SettingsRow
+                  label="Something out of date?"
+                  help="Message the team to change your name, address or phone number, and we will update it for you."
                 >
-                  {passwordError}
-                </p>
-              ) : null}
-              <div>
-                <Button type="submit" variant="primary" loading={passwordSaving}>
-                  Change password
-                </Button>
-              </div>
-            </form>
-          </Card>
+                  <Link to="/messages" className={buttonClass('secondary')}>
+                    Message the team
+                  </Link>
+                </SettingsRow>
+              </SettingsGroup>
+            </>
+          ) : null}
 
-          <Card>
-            <p className="label-eyebrow">Session</p>
-            <p className="mt-2 text-ink-muted">
-              You are signed in as {user?.email}. Signing out ends this session on this device.
-            </p>
-            <div className="mt-4">
-              <Button variant="destructive" onClick={logout}>
-                Sign out
-              </Button>
-            </div>
-          </Card>
+          {tab === 'notifications' ? (
+            <>
+              <PaneHeader
+                title="Notifications"
+                help="Choose how you would like to hear about project updates, messages and invoices."
+              />
+              {preferences.error ? (
+                <div className="mt-6">
+                  <ErrorState message={preferences.error} onRetry={preferences.refetch} />
+                </div>
+              ) : preferences.loading || !preferences.data ? (
+                <div className="mt-6">
+                  <LoadingState label="Loading your preferences…" />
+                </div>
+              ) : (
+                <>
+                  <SettingsGroup>
+                    <div className={clsx(GRID, 'hidden px-4 py-2 text-xs font-semibold text-ink-muted')}>
+                      <span>Update</span>
+                      {CHANNELS.map((channel) => (
+                        <span key={channel.id} className="text-center">
+                          {channel.label}
+                        </span>
+                      ))}
+                    </div>
+                    {CATEGORIES.map(({ id, label, description }) => (
+                      <div key={id} className={clsx(GRID, 'px-4 py-3')}>
+                        <div>
+                          <p className="text-sm font-medium text-ink">{label}</p>
+                          <p className="mt-0.5 text-[13px] text-ink-muted">{description}</p>
+                        </div>
+                        {CHANNELS.map((channel) => {
+                          const toggle = (hideLabel: boolean) => (
+                            <Toggle
+                              label={hideLabel ? `${label}: ${channel.label}` : channel.label}
+                              hideLabel={hideLabel}
+                              checked={preferences.data!.categories[id][channel.id]}
+                              onChange={(next) => void saveChoice(id, channel.id, next)}
+                            />
+                          );
+                          // A phone lists each switch with its name; from sm up the column header names it.
+                          return (
+                            <Fragment key={channel.id}>
+                              <div className="mt-1 sm:hidden">{toggle(false)}</div>
+                              <div className="mx-auto hidden w-fit sm:block">{toggle(true)}</div>
+                            </Fragment>
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </SettingsGroup>
+                  <SettingsGroup title="This device">
+                    <div className="px-4 py-3">
+                      <PushToggle />
+                    </div>
+                  </SettingsGroup>
+                </>
+              )}
+              <p className="mt-3 px-1 text-[13px] text-ink-muted">
+                “Phone & browser” only reaches devices where you turned notifications on. Security emails, like a password change, are always sent.
+              </p>
+            </>
+          ) : null}
+
+          {tab === 'security' ? (
+            <>
+              <PaneHeader title="Security" help="Your password, and this session." />
+              <SettingsGroup title="Password">
+                <form onSubmit={changePassword} className="flex max-w-md flex-col gap-4 p-4" noValidate>
+                  <input type="text" name="username" autoComplete="username" value={user?.email ?? ''} hidden readOnly />
+                  <Input
+                    label="Current password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={passwordForm.current}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, current: event.target.value })}
+                    required
+                  />
+                  <Input
+                    label="New password"
+                    type="password"
+                    autoComplete="new-password"
+                    hint="At least 12 characters. Changing it signs you out everywhere else."
+                    value={passwordForm.next}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, next: event.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Confirm new password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.confirm}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, confirm: event.target.value })}
+                    required
+                  />
+                  {passwordError ? (
+                    <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
+                      {passwordError}
+                    </p>
+                  ) : null}
+                  <div>
+                    <Button type="submit" variant="primary" loading={passwordSaving}>
+                      Change password
+                    </Button>
+                  </div>
+                </form>
+              </SettingsGroup>
+              <SettingsGroup title="Session">
+                <SettingsRow label={`Signed in as ${user?.email ?? ''}`} help="Signing out ends this session on this device.">
+                  <Button variant="destructive" onClick={logout}>
+                    Sign out
+                  </Button>
+                </SettingsRow>
+              </SettingsGroup>
+            </>
+          ) : null}
+
+          {tab === 'appearance' ? (
+            <>
+              <PaneHeader title="Appearance" help="Applies to this browser only." />
+              <SettingsGroup>
+                <div className="p-4">
+                  <AppearancePicker value={theme} onChange={setTheme} />
+                </div>
+              </SettingsGroup>
+            </>
+          ) : null}
         </div>
-      ) : null}
-
-      {tab === 'appearance' ? (
-        <Card className="p-5">
-          <p className="label-eyebrow">Theme</p>
-          <p className="mt-1 text-ink-muted">Applies to this browser only.</p>
-          <div className="mt-4">
-            <AppearancePicker value={theme} onChange={setTheme} />
-          </div>
-        </Card>
-      ) : null}
-      </div>
       </div>
     </>
   );

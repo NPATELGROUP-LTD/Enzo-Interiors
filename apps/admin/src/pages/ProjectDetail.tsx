@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Trash } from '@phosphor-icons/react';
+import { Trash, UploadSimple } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -31,27 +31,34 @@ import { invoiceTone, projectTone } from '@/lib/status';
 import type { ProjectDetail, ProjectStage } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
-import { DocumentsTable } from '@/components/DocumentsTable';
+import { ChangeRequests } from '@/components/ChangeRequests';
+import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
 
 import { useDesigners } from './Projects';
 
 /**
- * One project. Everyone who can open it moves its stage and keeps its
- * progress and status line up to date; only an Admin assigns the designer
- * and installer, sends it to the client, or deletes it (the API enforces it).
+ * One project. An Admin or Designer moves its stage and keeps its status line
+ * up to date (progress follows the stage); an Installer asks an Admin to move
+ * it. Only an Admin assigns the designer and installer, sends it to the
+ * client, or deletes it (the API enforces it).
  */
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const toast = useToast();
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
+  const canMove = can('Admin', 'Designer');
   const { stages } = useStages();
   const { data, loading, error, refetch } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
   const designers = useDesigners(isAdmin);
   const [tab, setTab] = useState('timeline');
-  const [savingProgress, setSavingProgress] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [savingNote, setSavingNote] = useState(false);
+  const [asked, setAsked] = useState(0);
+  const [askStage, setAskStage] = useState<ProjectStage | ''>('');
+  const [asking, setAsking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -59,7 +66,8 @@ export function ProjectDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Project not found." />;
 
-  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision } = data;
+  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision } =
+    data;
 
   const patch = async (body: Record<string, unknown>, successMessage: string) => {
     try {
@@ -81,18 +89,35 @@ export function ProjectDetailPage() {
     }
   };
 
-  const saveProgress = async (event: FormEvent<HTMLFormElement>) => {
+  const saveNote = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const progress = Number(form.get('progress_pct'));
-    if (!Number.isInteger(progress) || progress < 0 || progress > 100) {
-      toast.error('Progress is a whole number from 0 to 100.');
-      return;
+    setSavingNote(true);
+    const note = String(new FormData(event.currentTarget).get('current_stage') ?? '').trim();
+    await patch({ current_stage: note || null }, 'Saved.');
+    setSavingNote(false);
+  };
+
+  /** Installer: the Admin moves it, once they approve. */
+  const askToMove = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!askStage) return;
+    setAsking(true);
+    try {
+      const note = String(new FormData(event.currentTarget).get('note') ?? '').trim();
+      await api.post('/change-requests', {
+        kind: 'project_stage',
+        project_id: project.id,
+        status: askStage,
+        note: note || undefined,
+      });
+      toast.success('Sent to the Admin for approval.');
+      setAskStage('');
+      setAsked((n) => n + 1);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not send the request.');
+    } finally {
+      setAsking(false);
     }
-    setSavingProgress(true);
-    const note = String(form.get('current_stage') ?? '').trim();
-    await patch({ progress_pct: progress, current_stage: note || null }, 'Progress saved.');
-    setSavingProgress(false);
   };
 
   const remove = async (password: string) => {
@@ -119,8 +144,9 @@ export function ProjectDetailPage() {
       {/* Someone assigned before they stopped being a Designer still shows. */}
       {project[field] && !designers.some((member) => member.id === project[field]) ? (
         <option value={project[field] ?? ''}>
-          {(field === 'assigned_designer_id' ? project.assigned_designer_name : project.assigned_installer_name) ??
-            'Someone else'}
+          {(field === 'assigned_designer_id'
+            ? project.assigned_designer_name
+            : project.assigned_installer_name) ?? 'Someone else'}
         </option>
       ) : null}
       {designers.map((member) => (
@@ -135,18 +161,24 @@ export function ProjectDetailPage() {
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={project.name}
-        description={`${project.client_name ?? client?.name ?? 'Unknown client'} · ${SERVICE_LABELS[project.type]}`}
         actions={
           <>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
-              <Button variant="ghost" className="text-danger" icon={<Trash size={15} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+              <Button
+                variant="ghost"
+                className="text-danger"
+                icon={<Trash size={15} aria-hidden="true" />}
+                onClick={() => setDeleting(true)}
+              >
                 Delete
               </Button>
             ) : null}
           </>
         }
       />
+
+      <ChangeRequests key={asked} projectId={project.id} onDecided={() => void refetch()} />
 
       {awaiting_client_decision ? (
         <Card accent="warning" className="mb-4 pl-5">
@@ -206,48 +238,66 @@ export function ProjectDetailPage() {
             <Progress value={project.progress_pct} label="Project progress" />
           </div>
 
-          {/* Keyed on the saved values, so a stage move's new defaults show up. */}
-          <form
-            key={`${project.progress_pct}-${project.current_stage ?? ''}`}
-            onSubmit={saveProgress}
-            className="mt-4 grid items-end gap-3 sm:grid-cols-[7rem_1fr_auto]"
-          >
-            <Input
-              label="Progress (%)"
-              name="progress_pct"
-              type="number"
-              min={0}
-              max={100}
-              step={1}
-              defaultValue={project.progress_pct}
-            />
-            <Input
-              label="Where it’s at"
-              name="current_stage"
-              maxLength={80}
-              defaultValue={project.current_stage ?? ''}
-              placeholder="Drawings with the client"
-            />
-            <Button type="submit" variant="secondary" loading={savingProgress}>
-              Save
-            </Button>
-          </form>
+          {canMove ? (
+            // Keyed on the saved value, so a stage move's new note shows up.
+            <form
+              key={project.current_stage ?? ''}
+              onSubmit={saveNote}
+              className="mt-4 grid items-end gap-3 sm:grid-cols-[1fr_auto]"
+            >
+              <Input
+                label="Where it’s at"
+                name="current_stage"
+                maxLength={80}
+                defaultValue={project.current_stage ?? ''}
+                placeholder="Drawings with the client"
+              />
+              <Button type="submit" variant="secondary" loading={savingNote}>
+                Save
+              </Button>
+            </form>
+          ) : project.current_stage ? (
+            <p className="mt-4 text-sm text-ink-muted">{project.current_stage}</p>
+          ) : null}
         </Card>
 
         <Card>
           <p className="label-eyebrow">Controls</p>
           <div className="mt-3 flex flex-col gap-4">
-            <Select
-              label="Move to stage"
-              value={project.status}
-              onChange={(event) => void changeStage(event.target.value as ProjectStage)}
-            >
-              {timeline.map(({ stage }) => (
-                <option key={stage} value={stage}>
-                  {stage}
-                </option>
-              ))}
-            </Select>
+            {canMove ? (
+              <Select
+                label="Move to stage"
+                value={project.status}
+                onChange={(event) => void changeStage(event.target.value as ProjectStage)}
+              >
+                {timeline.map(({ stage }) => (
+                  <option key={stage} value={stage}>
+                    {stage}
+                  </option>
+                ))}
+              </Select>
+            ) : (
+              <form onSubmit={askToMove} className="flex flex-col gap-3">
+                <Select
+                  label="Request stage change"
+                  value={askStage}
+                  onChange={(event) => setAskStage(event.target.value as ProjectStage)}
+                >
+                  <option value="">Choose a stage…</option>
+                  {timeline
+                    .filter(({ stage }) => stage !== project.status)
+                    .map(({ stage }) => (
+                      <option key={stage} value={stage}>
+                        {stage}
+                      </option>
+                    ))}
+                </Select>
+                <Input label="Note for the Admin (optional)" name="note" maxLength={1000} />
+                <Button type="submit" variant="secondary" loading={asking} disabled={!askStage}>
+                  Send to Admin
+                </Button>
+              </form>
+            )}
 
             {isAdmin ? (
               <>
@@ -270,16 +320,30 @@ export function ProjectDetailPage() {
         </Card>
       </div>
 
-      <Tabs
-        tabs={[
-          { id: 'timeline', label: 'Overview' },
-          { id: 'documents', label: 'Documents & mood boards', count: documents.length },
-          ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
-          { id: 'activity', label: 'Activity log', count: activity.length },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      {/* The Documents tab's Upload sits at the end of the tabs row. */}
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          <Tabs
+            tabs={[
+              { id: 'timeline', label: 'Overview' },
+              { id: 'documents', label: 'Documents & mood boards', count: documents.length },
+              ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
+              { id: 'activity', label: 'Activity log', count: activity.length },
+            ]}
+            active={tab}
+            onChange={setTab}
+          />
+        </div>
+        {tab === 'documents' ? (
+          <Button
+            className="shrink-0"
+            icon={<UploadSimple size={15} aria-hidden="true" />}
+            onClick={() => setUploading(true)}
+          >
+            Upload
+          </Button>
+        ) : null}
+      </div>
 
       {tab === 'timeline' ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -287,7 +351,16 @@ export function ProjectDetailPage() {
             <p className="label-eyebrow">Project details</p>
             <dl className="mt-3 rows">
               {[
-                ['Client', client ? <Link key="client" to={`/clients/${client.id}`} className="text-link">{client.name}</Link> : '—'],
+                [
+                  'Client',
+                  client ? (
+                    <Link key="client" to={`/clients/${client.id}`} className="text-link">
+                      {client.name}
+                    </Link>
+                  ) : (
+                    '—'
+                  ),
+                ],
                 ['Service', SERVICE_LABELS[project.type]],
                 ['Stage', project.status],
                 ['Progress', `${project.progress_pct}%`],
@@ -329,10 +402,18 @@ export function ProjectDetailPage() {
         <DocumentsTable
           documents={documents}
           onChanged={refetch}
-          uploadTo={{ clientId: project.client_id, projectId: project.id }}
           emptyMessage="Plans, contracts and mood boards for this project appear here."
         />
       ) : null}
+      <UploadDialog
+        open={uploading}
+        target={{ clientId: project.client_id, projectId: project.id }}
+        onClose={() => setUploading(false)}
+        onUploaded={async () => {
+          setUploading(false);
+          await refetch();
+        }}
+      />
 
       {tab === 'invoices' && isAdmin ? (
         invoices.length === 0 ? (
@@ -351,9 +432,20 @@ export function ProjectDetailPage() {
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id}>
+                <tr
+                  key={invoice.id}
+                  className="cursor-pointer"
+                  // The number stays the link for keyboards; a click anywhere else on the row opens it too.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest('a, button'))
+                      navigate(`/invoices?open=${invoice.id}`);
+                  }}
+                >
                   <Td className="font-medium text-ink">
-                    <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
+                    <Link
+                      to={`/invoices?open=${invoice.id}`}
+                      className="underline-offset-2 hover:text-green-900 hover:underline"
+                    >
                       {invoice.number}
                     </Link>
                   </Td>

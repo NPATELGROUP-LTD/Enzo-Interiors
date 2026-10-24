@@ -7,12 +7,13 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { initials } from '@/lib/format';
+import { THEIR_SPAM_HINT, initials } from '@/lib/format';
 
-type Role = 'Admin' | 'Editor' | 'Designer';
+type Role = 'Admin' | 'Editor' | 'Designer' | 'Installer';
 
-const ROLES: Role[] = ['Editor', 'Designer', 'Admin'];
-const article = (role: Role) => (role === 'Admin' ? 'an Admin' : role === 'Editor' ? 'an Editor' : 'a Designer');
+const ROLES: Role[] = ['Editor', 'Designer', 'Installer', 'Admin'];
+const ARTICLE: Record<Role, string> = { Admin: 'an Admin', Editor: 'an Editor', Designer: 'a Designer', Installer: 'an Installer' };
+const article = (role: Role) => ARTICLE[role];
 
 interface User {
   id: string;
@@ -28,7 +29,8 @@ interface User {
 const ROLE_HELP: Record<Role, string> = {
   Admin: 'Everything: publishes, bookings, settings and users.',
   Editor: 'Edits the website and sends changes to an Admin to publish.',
-  Designer: 'Works the projects they are assigned to, and their clients. Can edit the website like an Editor.',
+  Designer: 'Works the projects they are assigned to and moves their stages. Asks an Admin to change client details.',
+  Installer: 'Sees the projects they are assigned to. Asks an Admin to move a stage.',
 };
 
 function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: () => void; onInvited: (user: User) => void }) {
@@ -56,7 +58,7 @@ function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: ()
       onInvited(user);
       toast.success(
         user.emailed
-          ? `Invitation sent to ${user.email}. The link lasts 7 days.`
+          ? `Invitation sent to ${user.email}. The link lasts 7 days. ${THEIR_SPAM_HINT}`
           : `${user.name} was added, but the email could not be sent. Check the mail settings, then resend it.`,
       );
       close();
@@ -128,7 +130,7 @@ export function UsersSection() {
     setBusy(row.id);
     try {
       const { emailed } = await api.post<{ emailed: boolean }>(`/users/${row.id}/invite`);
-      if (emailed) toast.success(`A new invitation is on its way to ${row.email}.`);
+      if (emailed) toast.success(`A new invitation is on its way to ${row.email}. ${THEIR_SPAM_HINT}`);
       else toast.error('The email could not be sent. Check the mail settings.');
       void users.refetch();
     } catch (caught) {

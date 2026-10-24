@@ -1,6 +1,7 @@
 import { ArrowLeft, Printer } from '@phosphor-icons/react';
 import { Link, useParams } from 'react-router-dom';
 
+import { InvoiceDownloadButton } from '@/components/InvoiceDownload';
 import { InvoicePreview, InvoicePrint, printWhenReady } from '@/components/invoice/InvoiceSheet';
 import { Button, Card, ErrorState, LoadingState, StatusTag } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
@@ -45,12 +46,15 @@ export function InvoiceDetailPage() {
             {invoiceLabel(invoice.status, invoice.is_overdue)}
           </StatusTag>
         </div>
-        <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
-          Print / Save as PDF
-        </Button>
+        <div className="flex gap-2">
+          <InvoiceDownloadButton invoice={invoice} />
+          <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
+            Print
+          </Button>
+        </div>
       </div>
 
-      {/* The A4 sheet shrinks to unreadable text on a phone; it is still one tap away through Print. */}
+      {/* The A4 sheet shrinks to unreadable text on a phone; Download and Print still give the sheet. */}
       <Card className="no-print sm:hidden">
         <p className="font-semibold text-ink">Invoice {invoice.number}</p>
         <p className="text-xs text-ink-muted">

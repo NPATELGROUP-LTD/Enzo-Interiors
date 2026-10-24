@@ -25,7 +25,7 @@ export interface ProjectStageConfig {
 }
 export type InvoiceStatus = 'Draft' | 'Sent' | 'Outstanding' | 'Paid' | 'Overdue';
 export type BookingStatus = 'Pending' | 'Confirmed' | 'Cancelled';
-export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard';
+export type DocumentType = 'Contract' | 'Invoice' | 'Plan' | 'MoodBoard' | 'Other';
 export type SubmissionStatus = 'New' | 'Contacted' | 'Converted' | 'Archived';
 export type SenderType = 'Client' | 'Staff';
 
@@ -36,6 +36,7 @@ export const DOCUMENT_TYPES: DocumentType[] = [
   'Invoice',
   'Plan',
   'MoodBoard',
+  'Other',
 ];
 export const SUBMISSION_STATUSES: SubmissionStatus[] = [
   'New',
@@ -124,6 +125,20 @@ export interface Client {
   has_portal_access: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** A Designer's client edit or an Installer's stage move, waiting for an Admin. */
+export interface ChangeRequest {
+  id: string;
+  kind: 'client_details' | 'project_stage';
+  client_id: string;
+  project_id: string | null;
+  requested_by: string;
+  requested_name: string;
+  payload: Partial<Record<'phone' | 'address' | 'notes' | 'status', string>>;
+  note: string | null;
+  status: 'Pending' | 'Approved' | 'Declined';
+  created_at: string;
 }
 
 export interface Project {

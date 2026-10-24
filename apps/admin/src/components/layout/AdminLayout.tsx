@@ -308,6 +308,8 @@ function BookingsMenu() {
 
 /** Who reaches the CRM (clients, projects): Admin, and Designers for their assigned work. Never Editors. */
 export const CLIENT_ROLES = ['Admin', 'Designer', 'Installer'] as const;
+/** Who edits the website: Admin and Editor. Never Designers or Installers. */
+export const CMS_ROLES = ['Admin', 'Editor'] as const;
 
 /** The lists on the Clients screen, addressed as /clients?view=inactive. */
 export const CLIENT_VIEWS = [
@@ -362,7 +364,7 @@ function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
           {PROJECT_VIEWS.map(({ id, label }) => (
             <MenuItem
               key={id}
-              to={id === 'board' ? '/projects' : `/projects?view=${id}`}
+              to={`/projects?view=${id}`}
               label={label}
               active={view === id}
               onChoose={close}
@@ -537,11 +539,12 @@ export function AdminLayout() {
   const toast = useToast();
   const { isAdmin, logout, can } = useAuth();
   const canSeeClients = can(...CLIENT_ROLES);
+  const canCms = can(...CMS_ROLES);
   const unreadMessages = useUnreadCount(canSeeClients);
   // The shell only exists while signed in: leaving it (sign-out) closes the socket.
   useEffect(() => () => disconnectSocket(), []);
   const { toggle: toggleTheme } = useTheme();
-  const overview = useQuery<CmsOverview>('/cms/overview');
+  const overview = useQuery<CmsOverview>(canCms ? '/cms/overview' : null);
   const enquiries = useQuery<{ new_count: number }>(isAdmin ? '/enquiries?limit=1' : null);
   const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
@@ -591,7 +594,7 @@ export function AdminLayout() {
   const at = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
   const pages: DesktopPage[] = [
     ...(canSeeClients ? [{ to: '/', label: 'Dashboard', Icon: SquaresFour, active: pathname === '/' }] : []),
-    { to: '/cms', label: 'CMS', Icon: Browsers, active: at('/cms') || SECTIONS.some(({ to }) => at(to)) },
+    ...(canCms ? [{ to: '/cms', label: 'CMS', Icon: Browsers, active: at('/cms') || SECTIONS.some(({ to }) => at(to)) }] : []),
     ...(canSeeClients
       ? [
           { to: '/clients', label: 'Clients', Icon: User, active: at('/clients') },
@@ -619,7 +622,7 @@ export function AdminLayout() {
     <SearchPalette
       open={searching}
       onClose={() => setSearching(false)}
-      actions={{ isAdmin, clients: canSeeClients, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
+      actions={{ isAdmin, clients: canSeeClients, cms: canCms, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
     />
     <Desktop
       appName="Enzo Interiors"
@@ -629,7 +632,7 @@ export function AdminLayout() {
       menus={
         <>
           {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
-          <CmsMenu counts={counts} />
+          {canCms ? <CmsMenu counts={counts} /> : null}
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}

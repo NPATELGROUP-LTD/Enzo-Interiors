@@ -32,11 +32,11 @@ type AdminRole = (typeof ADMIN_ROLES)[number];
 export class InviteDto {
   @IsString() @MinLength(2, { message: 'Enter their name.' }) @MaxLength(120) @Matches(NOT_IMPORTER, { message: 'Choose a different name.' }) name!: string;
   @IsEmail({}, { message: 'Enter a valid email address.' }) @MaxLength(254) email!: string;
-  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor or Designer.' }) role!: AdminRole;
+  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor, Designer or Installer.' }) role!: AdminRole;
 }
 
 export class RoleDto {
-  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor or Designer.' }) role!: AdminRole;
+  @IsIn(ADMIN_ROLES, { message: 'Choose Admin, Editor, Designer or Installer.' }) role!: AdminRole;
 }
 
 /** A person as the Users list shows them. Never carries a credential. */
@@ -55,8 +55,6 @@ export interface UserView {
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/** Installer is a legacy name for Designer. */
-const roleOf = (staff: StaffUser): AdminRole => (staff.role === 'Installer' ? 'Designer' : staff.role);
 
 function view(staff: StaffUser): UserView {
   const invited = !looksHashed(staff.password_hash);
@@ -64,7 +62,7 @@ function view(staff: StaffUser): UserView {
     id: staff.id,
     name: staff.name,
     email: staff.email,
-    role: roleOf(staff),
+    role: staff.role,
     status: invited ? 'Invited' : 'Active',
     inviteExpired: invited && (!staff.reset_expires_at || Date.parse(staff.reset_expires_at) < Date.now()),
     twoFactorMethod: staff.two_factor_method ?? null,
@@ -114,7 +112,7 @@ export class UsersService {
       reset_expires_at: new Date(Date.now() + INVITE_TTL_MS).toISOString(),
     });
     const link = `${this.adminUrl}/reset-password#token=${token}&invite=1`;
-    return this.mail.send({ to: staff.email, ...templates.invite(staff.name, principal.name, roleOf(staff), link) });
+    return this.mail.send({ to: staff.email, ...templates.invite(staff.name, principal.name, staff.role, link) });
   }
 
   async invite(principal: AuthPrincipal, dto: InviteDto): Promise<UserView & { emailed: boolean }> {

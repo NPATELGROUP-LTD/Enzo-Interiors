@@ -1,6 +1,6 @@
 import { MagnifyingGlass, PencilSimple, Plus, Trash } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { CLIENT_VIEWS } from '@/components/layout/AdminLayout';
 import {
@@ -55,12 +55,15 @@ type View = (typeof CLIENT_VIEWS)[number]['id'];
  * page; nobody types a password for them here.
  */
 export function ClientsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
+  // Installers read clients only; a Designer's edit goes to an Admin.
+  const canEdit = can('Admin', 'Designer');
   const toast = useToast();
   const clients = useQuery<Client[]>('/clients');
   // Who can look after an account: the admin's own people. Admin-only on the API.
   const staff = useQuery<Array<{ id: string; name: string }>>(isAdmin ? '/users' : null);
 
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const view: View = CLIENT_VIEWS.find(({ id }) => id === params.get('view'))?.id ?? 'all';
   const creating = isAdmin && params.get('new') === '1';
@@ -166,7 +169,16 @@ export function ClientsPage() {
 
     setSaving(true);
     try {
-      if (editing) {
+      if (editing && !isAdmin) {
+        await api.post('/change-requests', {
+          kind: 'client_details',
+          client_id: editing.id,
+          phone: contact.phone ?? '',
+          address: contact.address ?? '',
+          notes: contact.notes ?? '',
+        });
+        toast.success('Sent to the Admin for approval.');
+      } else if (editing) {
         await api.put<Client>(`/clients/${editing.id}`, payload);
         toast.success(`${editing.name} updated.`);
       } else {
@@ -288,7 +300,7 @@ export function ClientsPage() {
           onChange={(id) => update({ view: id === 'all' ? null : id })}
         />
         <div className="mb-4 flex flex-1 flex-wrap justify-end gap-3">
-          <div className="relative min-w-56 max-w-sm flex-1">
+          <div className="relative min-w-0 max-w-sm flex-1 sm:min-w-56">
             <MagnifyingGlass
               size={16}
               aria-hidden="true"
@@ -344,19 +356,25 @@ export function ClientsPage() {
           }
         />
       ) : (
-        <TableWrap>
+        <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
               <Th>Client</Th>
-              <Th>Contact</Th>
-              <Th>Joined</Th>
-              {isAdmin ? <Th className="text-right">Total spent</Th> : null}
+              <Th className="max-sm:hidden">Contact</Th>
+              <Th className="max-sm:hidden">Joined</Th>
+              {isAdmin ? <Th className="text-right max-sm:hidden">Total spent</Th> : null}
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
             {visible.map((client) => (
-              <tr key={client.id} className="hover:bg-surface-muted/40">
+              <tr
+                key={client.id}
+                className="cursor-pointer hover:bg-surface-muted/40"
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest('a, button')) navigate(`/clients/${client.id}`);
+                }}
+              >
                 <Td>
                   <Link to={`/clients/${client.id}`} className="text-link">
                     {client.name}
@@ -367,29 +385,34 @@ export function ClientsPage() {
                     </span>
                   ) : null}
                   {client.address ? (
-                    <p className="mt-0.5 max-w-xs truncate text-xs text-ink-muted">{client.address}</p>
+                    <p className="mt-0.5 max-w-xs truncate text-xs text-ink-muted max-sm:hidden">{client.address}</p>
                   ) : null}
+                  <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere] sm:hidden">
+                    {[client.email, client.phone].filter(Boolean).join(' · ')}
+                  </p>
                 </Td>
-                <Td>
+                <Td className="max-sm:hidden">
                   <p className="text-ink">{client.email}</p>
                   <p className="text-xs text-ink-muted">{client.phone ?? 'No phone'}</p>
                 </Td>
-                <Td className="whitespace-nowrap text-ink-muted">{date(client.joined_date)}</Td>
+                <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(client.joined_date)}</Td>
                 {isAdmin ? (
-                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink max-sm:hidden">
                     {money(client.total_spent ?? 0)}
                   </Td>
                 ) : null}
                 <Td>
                   <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(client)}
-                      aria-label={`Edit ${client.name}`}
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
-                    >
-                      <PencilSimple size={16} aria-hidden="true" />
-                    </button>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(client)}
+                        aria-label={`Edit ${client.name}`}
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
+                      >
+                        <PencilSimple size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
                     {isAdmin ? (
                       <button
                         type="button"
@@ -416,7 +439,7 @@ export function ClientsPage() {
           editing
             ? isAdmin
               ? 'Update this client’s details.'
-              : 'You can update their phone, address and notes.'
+              : 'Suggest a new phone, address or notes. An Admin approves it before it changes.'
             : 'Create a client record. Invite them to the portal from their page when you are ready.'
         }
         footer={
@@ -425,7 +448,7 @@ export function ClientsPage() {
               Cancel
             </Button>
             <Button type="submit" form="client-form" variant="primary" loading={saving}>
-              {editing ? 'Save changes' : 'Add client'}
+              {editing ? (isAdmin ? 'Save changes' : 'Send to Admin') : 'Add client'}
             </Button>
           </>
         }

@@ -21,11 +21,12 @@ import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { date, dateTime, humanise, money } from '@/lib/format';
+import { THEIR_SPAM_HINT, date, dateTime, humanise, money } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
+import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable } from '@/components/DocumentsTable';
 
 import { NewProjectDialog, useDesigners } from './Projects';
@@ -69,7 +70,7 @@ export function ClientDetailPage() {
     setInviting(true);
     try {
       const { emailed } = await api.post<{ emailed: boolean }>(`/clients/${client.id}/invite`);
-      if (emailed) toast.success(`Invitation sent to ${client.email}. The link lasts 7 days.`);
+      if (emailed) toast.success(`Invitation sent to ${client.email}. The link lasts 7 days. ${THEIR_SPAM_HINT}`);
       else toast.error('The invitation could not be emailed. Check Settings › Emails, then send it again.');
       await refetch();
     } catch (caught) {
@@ -97,7 +98,6 @@ export function ClientDetailPage() {
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={client.name}
-        description={[client.email, client.phone].filter(Boolean).join(' · ')}
         actions={
           <>
             {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
@@ -135,6 +135,8 @@ export function ClientDetailPage() {
           </>
         }
       />
+
+      <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isAdmin ? (

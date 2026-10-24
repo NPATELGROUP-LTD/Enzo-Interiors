@@ -79,16 +79,18 @@ interface RequestOptions {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, allowUnauthorized = false } = options;
   const token = tokenStore.get();
+  // A FormData body (a file upload) goes as-is: the browser sets the multipart boundary.
+  const json = body !== undefined && !(body instanceof FormData);
 
   let response: Response;
   try {
     response = await fetch(`${BASE_URL}${path}`, {
       method,
       headers: {
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+        ...(json ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined ? { body: json ? JSON.stringify(body) : (body as FormData) } : {}),
     });
   } catch {
     // A network-level failure is the offline case, and the shell shows a
@@ -131,16 +133,21 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
  * stored. The bucket answers with Content-Disposition: attachment, so the
  * browser saves the file and this page stays where it is.
  */
-export async function downloadDocument(id: string): Promise<void> {
+/** A five-minute link to one document: saved as a file, or with `inline` shown in the page. */
+export async function documentLink(id: string, inline = false): Promise<string> {
   const { url } = await request<{ url: string; expires_in: number }>(
-    `/documents/${encodeURIComponent(id)}/download`,
+    `/documents/${encodeURIComponent(id)}/download${inline ? '?inline=1' : ''}`,
   );
   // Only ever follow a secure link. Dev builds also take the plain-http MinIO one.
   const { protocol } = new URL(url, window.location.href);
   if (protocol !== 'https:' && !(import.meta.env.DEV && protocol === 'http:')) {
     throw new ApiError(502, 'The download link was not secure, so it was not opened.');
   }
-  window.location.assign(url);
+  return url;
+}
+
+export async function downloadDocument(id: string): Promise<void> {
+  window.location.assign(await documentLink(id));
 }
 
 /** True once the stored token is past half its life and not yet expired. A JWT's claims are readable by design. */

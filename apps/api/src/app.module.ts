@@ -11,6 +11,7 @@ import { RateLimitStore } from './core/rate-limit';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
+import { ChangeRequestsModule } from './modules/change-requests/change-requests.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ConversationsModule } from './modules/conversations/conversations.controller';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -72,6 +73,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     NewsletterModule,
     ClientsModule,
     ProjectsModule,
+    ChangeRequestsModule,
     InvoicesModule,
     DocumentsModule,
     DashboardModule,

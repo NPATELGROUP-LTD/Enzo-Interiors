@@ -4,6 +4,7 @@ import { AccessService } from '../../common/access/access.service';
 import { Project, ProjectStageConfig } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { previewOf } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { confirmPassword } from '../auth/reauth';
 import { NotificationsService } from '../notifications/notifications.module';
@@ -22,7 +23,7 @@ export interface ProjectView extends Project {
 }
 
 /** What a Designer may change on a project assigned to them. The rest is the Admin's. */
-const DESIGNER_FIELDS = new Set(['progress_pct', 'current_stage']);
+const DESIGNER_FIELDS = new Set(['current_stage']);
 
 /**
  * The CRM's projects. Which rows anyone reaches is AccessService's call
@@ -133,7 +134,7 @@ export class ProjectsService {
     return {
       project: this.forViewer(principal, [view!])[0]!,
       client: client ? { id: client.id, name: client.name, email: client.email } : null,
-      documents: documents.map(({ storage_url: _storage, ...document }) => document),
+      documents: documents.map(({ storage_url: key, ...document }) => ({ ...document, preview: previewOf(key) })),
       invoices,
       activity,
       /** The configured stages, with the current position marked. */
@@ -167,7 +168,7 @@ export class ProjectsService {
       name: dto.name.trim(),
       type: dto.type,
       status: stage.name,
-      progress_pct: dto.progress_pct ?? stage.progress,
+      progress_pct: stage.progress,
       current_stage: dto.current_stage ?? null,
       assigned_designer_id: dto.assigned_designer_id ?? null,
       assigned_installer_id: dto.assigned_installer_id ?? null,
@@ -208,7 +209,6 @@ export class ProjectsService {
     if (dto.assigned_designer_id !== undefined) patch.assigned_designer_id = dto.assigned_designer_id;
     if (dto.assigned_installer_id !== undefined) patch.assigned_installer_id = dto.assigned_installer_id;
     if (dto.client_visible !== undefined) patch.client_visible = dto.client_visible;
-    if (dto.progress_pct !== undefined) patch.progress_pct = dto.progress_pct;
 
     const updated = await this.db.projects.update(id, patch);
     if (!updated) throw new NotFoundException('Project not found');
@@ -267,7 +267,7 @@ export class ProjectsService {
 
     await this.db.projects.update(id, {
       status: dto.status,
-      progress_pct: dto.progress_pct ?? stage.progress,
+      progress_pct: stage.progress,
       current_stage: dto.current_stage ?? project.current_stage,
       updated_at: new Date().toISOString(),
     });
@@ -421,7 +421,7 @@ export class ProjectsService {
     if (!staffId) return;
     const staff = await this.db.staffUsers.findById(staffId);
     if (!staff || (staff.role !== 'Designer' && staff.role !== 'Installer')) {
-      throw new BadRequestException('Assign someone with the Designer role.');
+      throw new BadRequestException('Assign someone with the Designer or Installer role.');
     }
   }
 

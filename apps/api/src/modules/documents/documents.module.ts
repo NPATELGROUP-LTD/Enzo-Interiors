@@ -15,10 +15,12 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
@@ -26,7 +28,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { DOCUMENT_TYPES, DocumentRecord, DocumentType } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
-import { DOWNLOAD_TTL_SECONDS, PrivateStorage } from '../../core/storage';
+import { DOWNLOAD_TTL_SECONDS, inlineType, previewOf, PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 
@@ -61,7 +63,10 @@ interface UploadedDocument {
   buffer: Buffer;
 }
 
-/** Multipart fields alongside `file`. Visibility is not one: new files are internal. */
+/**
+ * Multipart fields alongside `file`. New staff files are internal unless
+ * `share` is "true" (a file sent in a chat goes to the client with it).
+ */
 export class UploadDocumentDto {
   @IsString() client_id!: string;
   @IsString() project_id!: string;
@@ -71,6 +76,8 @@ export class UploadDocumentDto {
 
   /** Defaults to the file's own name. */
   @IsOptional() @IsString() @MinLength(1) @MaxLength(160) name?: string;
+
+  @IsOptional() @IsIn(['true']) share?: 'true';
 }
 
 export class UpdateDocumentDto {
@@ -88,6 +95,8 @@ export class DocumentVisibilityDto {
 export type DocumentView = Omit<DocumentRecord, 'storage_url'> & {
   client_name: string;
   project_name: string | null;
+  /** Whether the portal can show it in the page. */
+  preview: 'pdf' | 'image' | null;
 };
 
 /**
@@ -120,9 +129,14 @@ export class DocumentsService {
     return view!;
   }
 
-  async downloadUrl(principal: AuthPrincipal, id: string): Promise<{ url: string; expires_in: number }> {
+  /** `inline` = a link the browser shows rather than saves; ignored for types it cannot show. */
+  async downloadUrl(principal: AuthPrincipal, id: string, inline = false): Promise<{ url: string; expires_in: number }> {
     const document = await this.require(principal, id);
-    const url = await this.storage.downloadUrl(document.storage_url, document.name);
+    const url = await this.storage.downloadUrl(
+      document.storage_url,
+      document.name,
+      inline ? inlineType(document.storage_url) : undefined,
+    );
     await this.activity.record({
       principal,
       action: 'document_download',
@@ -142,9 +156,16 @@ export class DocumentsService {
     const kind = FILE_TYPES[file.mimetype];
     if (!kind || !kind.matches(file.buffer)) throw new BadRequestException(TYPES_MESSAGE);
 
+    // A client reaches only their own shared projects (requireProject), and
+    // what they upload is theirs to see; a chat file is shared on purpose.
+    const fromClient = this.access.isClient(principal);
+    const share = fromClient || dto.share === 'true';
     const project = await this.access.requireProject(principal, dto.project_id);
     if (project.client_id !== dto.client_id) {
       throw new BadRequestException('That project belongs to a different client');
+    }
+    if (share && !project.client_visible) {
+      throw new BadRequestException('Send this project to the client before sharing files on it.');
     }
 
     const name = (dto.name ?? file.originalname).trim().slice(0, 160) || `document${kind.ext}`;
@@ -164,11 +185,12 @@ export class DocumentsService {
         client_id: project.client_id,
         project_id: project.id,
         name,
-        type: dto.type,
+        // A client cannot pass their file off as one of ours (a contract, an invoice).
+        type: fromClient ? 'Other' : dto.type,
         size_bytes: file.size,
         upload_date: new Date().toISOString(),
         // Closed by default: an Admin sends a file to the client on purpose.
-        client_visible: false,
+        client_visible: share,
         storage_url: key,
       });
     } catch (error) {
@@ -272,8 +294,9 @@ export class DocumentsService {
     ]);
     const clientName = new Map(clients.map((c) => [c.id, c.name]));
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
-    return rows.map(({ storage_url: _key, ...document }) => ({
+    return rows.map(({ storage_url: key, ...document }) => ({
       ...document,
+      preview: previewOf(key),
       client_name: clientName.get(document.client_id) ?? 'Unknown client',
       project_name: document.project_id ? (projectName.get(document.project_id) ?? null) : null,
     }));
@@ -304,13 +327,14 @@ export class DocumentsController {
   @Get(':id/download')
   @Roles('Admin', 'Designer', 'Installer', 'Client')
   @Header('Cache-Control', 'no-store')
-  download(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.documents.downloadUrl(principal, id);
+  download(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Query('inline') inline?: string) {
+    return this.documents.downloadUrl(principal, id, inline === '1');
   }
 
-  /** multipart/form-data: `file` plus the UploadDocumentDto fields. */
+  /** multipart/form-data: `file` plus the UploadDocumentDto fields. Clients upload from the chat. */
   @Post('upload')
-  @Roles('Admin', 'Designer', 'Installer')
+  @Roles('Admin', 'Designer', 'Installer', 'Client')
+  @Throttle({ default: { limit: 60, ttl: 15 * 60_000 } })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_DOCUMENT_BYTES, files: 1, fields: 10 } }))
   upload(
     @CurrentUser() principal: AuthPrincipal,

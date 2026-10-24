@@ -15,10 +15,10 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Navigate, NavLink, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, useParams } from 'react-router-dom';
 
 import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, ErrorState, FIELD_BASE, Input, Listbox, LoadingState, Toggle } from '@/components/ui';
+import { Button, ErrorState, FIELD_BASE, Input, LoadingState, PaneHeader, SettingsShell, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -82,22 +82,7 @@ function toLocalInput(iso: string | null): string {
 const ZONE = Intl.DateTimeFormat().resolvedOptions().timeZone;
 const LONG = new Intl.DateTimeFormat('en-GB', { dateStyle: 'full', timeStyle: 'short' });
 
-const HEADING = 'text-lg font-semibold tracking-tight text-ink';
 const HELP = 'mt-1 text-sm leading-relaxed text-ink-muted';
-const SIDEBAR_ROW =
-  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
-
-function PaneHeader({ title, help, action }: { title: string; help: ReactNode; action?: ReactNode }) {
-  return (
-    <header className="flex flex-wrap items-start justify-between gap-4">
-      <div>
-        <h2 className={HEADING}>{title}</h2>
-        <p className={clsx(HELP, 'max-w-[60ch]')}>{help}</p>
-      </div>
-      {action}
-    </header>
-  );
-}
 
 /**
  * The website, logo, email and booking settings, and who can sign in. Admin
@@ -106,7 +91,6 @@ function PaneHeader({ title, help, action }: { title: string; help: ReactNode; a
  */
 export function SiteSettingsPage() {
   const { section = '' } = useParams();
-  const navigate = useNavigate();
   if (!SETTINGS_SECTIONS.some((row) => row.id === section)) return <Navigate to="/settings/website" replace />;
 
   let pane: ReactNode;
@@ -118,46 +102,9 @@ export function SiteSettingsPage() {
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (
-    <div className="flex h-full min-h-0">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
-        <nav aria-label="Settings" className="flex flex-col gap-px px-2.5 py-5">
-          {SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
-            <NavLink
-              key={id}
-              to={`/settings/${id}`}
-              className={({ isActive }) =>
-                clsx(SIDEBAR_ROW, isActive ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')
-              }
-            >
-              <Icon size={16} aria-hidden="true" className="shrink-0" />
-              {label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
-      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must scroll in here, not stretch the page. */}
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
-        <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-          {/* No sidebar below lg: a native dropdown takes one line. */}
-          <label className="mb-7 block lg:hidden">
-            <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">Settings</span>
-            <Listbox
-              value={section}
-              onChange={(event) => navigate(`/settings/${event.target.value}`)}
-              className={clsx(FIELD_BASE, 'w-full')}
-            >
-              {SETTINGS_SECTIONS.map((row) => (
-                <option key={row.id} value={row.id}>
-                  {row.label}
-                </option>
-              ))}
-            </Listbox>
-          </label>
-          {pane}
-        </div>
-      </div>
-    </div>
+    <SettingsShell label="Settings" sections={SETTINGS_SECTIONS} active={section} to={(id) => `/settings/${id}`}>
+      {pane}
+    </SettingsShell>
   );
 }
 

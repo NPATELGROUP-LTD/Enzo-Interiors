@@ -67,13 +67,14 @@ function ProjectCard({
 }: {
   project: Project;
   stages: ProjectStage[];
-  onMove: (project: Project, stage: ProjectStage) => void;
+  /** Admin and Designer; absent for an Installer, who asks on the project page. */
+  onMove?: (project: Project, stage: ProjectStage) => void;
   /** Admin only; absent for Designers. */
   onToggleVisible?: (project: Project) => void;
 }) {
   // The card itself never moves: DragOverlay draws the moving copy above the
   // page, so the board's scroll box cannot clip it. This one stays as the slot.
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id, disabled: !onMove });
 
   return (
     <div
@@ -90,7 +91,7 @@ function ProjectCard({
         role="button"
         tabIndex={-1}
         aria-label={`Drag ${project.name}`}
-        className="cursor-grab touch-manipulation active:cursor-grabbing"
+        className={clsx(onMove && 'cursor-grab touch-manipulation active:cursor-grabbing')}
       >
         <CardTitle project={project} />
       </div>
@@ -106,18 +107,20 @@ function ProjectCard({
           The brief requires a "Move to…" control alongside drag-and-drop, so
           the board is operable by keyboard and by anyone who cannot drag.
         */}
-        <Listbox
-          value={project.status}
-          onChange={(event) => onMove(project, event.target.value as ProjectStage)}
-          aria-label={`Move ${project.name} to another stage`}
-          className="min-w-28 flex-1 text-xs max-sm:basis-full"
-        >
-          {stages.map((stage) => (
-            <option key={stage} value={stage}>
-              {stage === project.status ? stage : `Move to ${stage}`}
-            </option>
-          ))}
-        </Listbox>
+        {onMove ? (
+          <Listbox
+            value={project.status}
+            onChange={(event) => onMove(project, event.target.value as ProjectStage)}
+            aria-label={`Move ${project.name} to another stage`}
+            className="min-w-28 flex-1 text-xs max-sm:basis-full"
+          >
+            {stages.map((stage) => (
+              <option key={stage} value={stage}>
+                {stage === project.status ? stage : `Move to ${stage}`}
+              </option>
+            ))}
+          </Listbox>
+        ) : null}
         {onToggleVisible ? (
           <button
             type="button"
@@ -170,7 +173,7 @@ function Column({
   stage: ProjectStage;
   stages: ProjectStage[];
   projects: Project[];
-  onMove: (project: Project, stage: ProjectStage) => void;
+  onMove?: (project: Project, stage: ProjectStage) => void;
   onToggleVisible?: (project: Project) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
@@ -212,7 +215,7 @@ function Column({
 /* New project (Admin)                                                        */
 /* -------------------------------------------------------------------------- */
 
-/** Staff as Settings › Users lists them; only Designers are assigned to projects. */
+/** Staff as Settings › Users lists them; Designers and Installers are assigned to projects. */
 export interface StaffOption {
   id: string;
   name: string;
@@ -361,7 +364,7 @@ export function NewProjectDialog({
 /** Settings › Users, cut down to the people a project can be assigned to. Admin only. */
 export function useDesigners(enabled: boolean): StaffOption[] {
   const staff = useQuery<StaffOption[]>(enabled ? '/users' : null);
-  return useMemo(() => (staff.data ?? []).filter((member) => member.role === 'Designer'), [staff.data]);
+  return useMemo(() => (staff.data ?? []).filter((member) => member.role === 'Designer' || member.role === 'Installer'), [staff.data]);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -375,14 +378,18 @@ export function useDesigners(enabled: boolean): StaffOption[] {
  */
 export function ProjectsPage() {
   const toast = useToast();
-  const { isAdmin } = useAuth();
+  const navigate = useNavigate();
+  const { isAdmin, can } = useAuth();
   const projects = useQuery<Project[]>('/projects');
   const clients = useQuery<Client[]>(isAdmin ? '/clients' : null);
   const designers = useDesigners(isAdmin);
   const { names: stages, stages: stageList } = useStages();
 
   const [params, setParams] = useSearchParams();
-  const view: View = PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ?? 'board';
+  // A phone opens the list: the board's wide columns are a long sideways swipe.
+  const view: View =
+    PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ??
+    (window.matchMedia('(max-width: 639px)').matches ? 'list' : 'board');
   const creating = isAdmin && params.get('new') === '1';
   /** Changes some of the address's parameters and keeps the rest (see Clients). */
   const update = (changes: Record<string, string | null>, replace = false) =>
@@ -470,7 +477,7 @@ export function ProjectsPage() {
         <Tabs
           tabs={PROJECT_VIEWS.map(({ id, label }) => ({ id, label }))}
           active={view}
-          onChange={(id) => update({ view: id === 'board' ? null : id })}
+          onChange={(id) => update({ view: id })}
         />
         {isAdmin ? (
           <div className="mb-4">
@@ -517,7 +524,7 @@ export function ProjectsPage() {
                 stage={stage}
                 stages={stages}
                 projects={byStage[stage] ?? []}
-                onMove={moveProject}
+                onMove={can('Admin', 'Designer') ? moveProject : undefined}
                 onToggleVisible={isAdmin ? toggleVisible : undefined}
               />
             ))}
@@ -548,7 +555,13 @@ export function ProjectsPage() {
           </thead>
           <tbody>
             {rows.map((project) => (
-              <tr key={project.id} className="hover:bg-surface-muted/40">
+              <tr
+                key={project.id}
+                className="cursor-pointer hover:bg-surface-muted/40"
+                onClick={(event) => {
+                  if (!(event.target as HTMLElement).closest('a, button')) navigate(`/projects/${project.id}`);
+                }}
+              >
                 <Td>
                   <Link to={`/projects/${project.id}`} className="text-link">
                     {project.name}

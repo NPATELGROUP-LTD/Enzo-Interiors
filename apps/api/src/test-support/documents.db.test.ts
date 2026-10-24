@@ -135,6 +135,26 @@ test('an upload lands in the private bucket and downloads through a short-lived 
   assert.ok(Buffer.from(await file.arrayBuffer()).equals(PDF), 'the bytes that went up come back');
   assert.match(file.headers.get('content-disposition') ?? '', /^attachment; filename="Kitchen plan v1.pdf"/);
 
+  // ?inline=1 is the portal's viewer: shown in the page, as the type sniffed at upload.
+  assert.equal((doc as Doc & { preview: string }).preview, 'pdf');
+  const shown = await json<{ url: string }>(await call('GET', `/documents/${doc.id}/download?inline=1`, tokens.admin));
+  const inline = await fetch(shown.url);
+  assert.match(inline.headers.get('content-disposition') ?? '', /^inline; filename="Kitchen plan v1.pdf"/);
+  assert.equal(inline.headers.get('content-type'), 'application/pdf');
+
+  // A type the browser cannot show still downloads, whatever is asked.
+  const sheet = await json<Doc & { preview: string | null }>(
+    await upload(tokens.admin, mineFields(), {
+      bytes: Buffer.from('504b0304' + '00'.repeat(30), 'hex'),
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      name: 'Costs.xlsx',
+    }),
+    201,
+  );
+  assert.equal(sheet.preview, null);
+  const asked = await json<{ url: string }>(await call('GET', `/documents/${sheet.id}/download?inline=1`, tokens.admin));
+  assert.match((await fetch(asked.url)).headers.get('content-disposition') ?? '', /^attachment;/);
+
   // The bucket itself is not readable without a signature.
   const bare = new URL(url);
   bare.search = '';
@@ -151,6 +171,28 @@ test('uploads refuse other clients\' projects, disallowed types and oversize fil
   await json(await upload(tokens.admin, mineFields(), { bytes: big, type: 'application/pdf', name: 'big.pdf' }), 413);
   // project_id is required.
   await json(await upload(tokens.admin, { client_id: MINE.id } as never), 400);
+});
+
+test('a chat upload: clients add files to their own shared projects only, always shared and typed Other', async () => {
+  const hidden = `prj_dhid_${run}`;
+  await prisma.project.create({
+    data: { id: hidden, client_id: MINE.id, name: 'Hidden', type: 'Kitchen', status: 'Design', client_visible: false },
+  });
+
+  const mine = await json<Doc>(await upload(tokens.mine, { ...mineFields(), type: 'Contract' }), 201);
+  assert.equal(mine.client_visible, true, 'what a client uploads is theirs to see');
+  assert.equal((await prisma.documentRecord.findUniqueOrThrow({ where: { id: mine.id } })).type, 'Other');
+
+  // Not theirs, or not shared with them yet: out of scope.
+  await json(await upload(tokens.mine, { client_id: OTHER.id, project_id: P.other }), 404);
+  await json(await upload(tokens.mine, mineFields(hidden)), 404);
+  await json(await upload(tokens.mine, { client_id: OTHER.id, project_id: P.assigned }), 400);
+
+  // Staff share a file from a chat only on a project the client can see.
+  const form = { ...mineFields(hidden), share: 'true' };
+  await json(await upload(tokens.admin, form), 400);
+  const shared = await json<Doc>(await upload(tokens.designer, { ...mineFields(), share: 'true' } as never), 201);
+  assert.equal(shared.client_visible, true);
 });
 
 test('Designers reach documents through their assigned projects only; Editors not at all', async () => {
@@ -204,8 +246,7 @@ test('a client sees and downloads only their own shared documents', async () => 
   await json(await call('GET', `/documents/${internal.id}/download`, tokens.mine), 404);
   await json(await call('GET', `/documents/${shared.id}/download`, tokens.other), 404);
   assert.deepEqual(await json<Doc[]>(await call('GET', '/documents', tokens.other)), []);
-  // The portal reads and downloads; it never writes.
-  await json(await upload(tokens.mine, mineFields()), 403);
+  // The portal reads, downloads and adds a file in a chat (above); it never edits or deletes.
   await json(await call('GET', `/documents/${shared.id}`, tokens.mine), 403);
   await json(await call('DELETE', `/documents/${shared.id}`, tokens.mine), 403);
   await json(await call('PATCH', `/documents/${shared.id}/visibility`, tokens.mine, { client_visible: false }), 403);

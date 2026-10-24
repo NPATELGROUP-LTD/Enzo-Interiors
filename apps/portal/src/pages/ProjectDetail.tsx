@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowLeft } from '@phosphor-icons/react';
+import { ArrowLeft, CaretRight } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -17,7 +17,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
-import { DownloadButton } from '@/components/DownloadButton';
+import { DocumentActions } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
@@ -107,7 +107,6 @@ export function ProjectDetailPage() {
 
       <PageHeader
         title={project.name}
-        description={SERVICE_LABELS[project.type]}
         actions={<StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>}
       />
 
@@ -127,7 +126,7 @@ export function ProjectDetailPage() {
             your installation. If something is not right, tell us what to change and your designer
             will revise it — there is no limit on revisions.
           </p>
-          <div className="mt-4 flex flex-wrap gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Button
               variant="primary"
               onClick={() => {
@@ -267,7 +266,7 @@ export function ProjectDetailPage() {
                   <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
                 </div>
                 <div className="mt-3">
-                  <DownloadButton id={document.id} name={document.name} />
+                  <DocumentActions document={document} />
                 </div>
               </Card>
             ))}
@@ -298,7 +297,7 @@ export function ProjectDetailPage() {
                       {fileSize(document.size_bytes)}
                     </p>
                   </div>
-                  <DownloadButton id={document.id} name={document.name} />
+                  <DocumentActions document={document} />
                 </li>
               ))}
             </ul>
@@ -315,20 +314,23 @@ export function ProjectDetailPage() {
           <Card>
             <ul className="rows">
               {invoices.map((invoice) => (
-                <li
-                  key={invoice.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                >
-                  <div>
-                    <p className="font-medium text-ink">{invoice.number}</p>
-                    <p className="text-xs text-ink-muted">Due {date(invoice.due_date)}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="tabular font-semibold text-ink">{money(invoice.amount)}</span>
-                    <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-                      {invoiceLabel(invoice.status, invoice.is_overdue)}
-                    </StatusTag>
-                  </div>
+                <li key={invoice.id}>
+                  <Link
+                    to={`/invoices/${invoice.id}`}
+                    className="-mx-3 -my-2.5 flex flex-wrap items-center justify-between gap-3 rounded-[8px] px-3 py-2.5 hover:bg-surface-muted/60"
+                  >
+                    <div>
+                      <p className="font-medium text-ink">{invoice.number}</p>
+                      <p className="text-xs text-ink-muted">Due {date(invoice.due_date)}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="tabular font-semibold text-ink">{money(invoice.amount)}</span>
+                      <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                        {invoiceLabel(invoice.status, invoice.is_overdue)}
+                      </StatusTag>
+                      <CaretRight size={14} aria-hidden="true" className="text-ink-muted" />
+                    </div>
+                  </Link>
                 </li>
               ))}
             </ul>

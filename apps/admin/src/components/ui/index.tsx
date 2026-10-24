@@ -7,6 +7,7 @@ import {
   EyeSlash,
   WarningCircle,
   X,
+  type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import {
   Children,
@@ -24,7 +25,7 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 /**
  * The admin design system.
@@ -841,15 +842,30 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /* Layout helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A page's heading. Only the Dashboard shows it (`prominent`); everywhere else
+ * the window's title bar already names the page, so the heading is kept for
+ * screen readers alone and only the actions show.
+ */
 export function PageHeader({
   title,
   description,
   actions,
+  prominent = false,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  prominent?: boolean;
 }) {
+  if (!prominent) {
+    return (
+      <>
+        <h1 className="sr-only">{title}</h1>
+        {actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
+      </>
+    );
+  }
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div className="min-w-0 [overflow-wrap:anywhere]">
@@ -1095,5 +1111,110 @@ export function Checkbox({
       />
       <span className="text-sm text-ink">{label}</span>
     </label>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* System Settings layout                                                     */
+/* -------------------------------------------------------------------------- */
+
+export interface SettingsSection {
+  id: string;
+  label: string;
+  Icon: PhosphorIcon;
+}
+
+const SIDEBAR_ROW =
+  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
+
+/**
+ * Laid out like System Settings: the panes down the left, the open one on the
+ * right. Below lg there is no sidebar: a native dropdown takes one line.
+ */
+export function SettingsShell({
+  label,
+  sections,
+  active,
+  to,
+  children,
+}: {
+  label: string;
+  sections: SettingsSection[];
+  active: string;
+  to: (id: string) => string;
+  children: ReactNode;
+}) {
+  const navigate = useNavigate();
+  return (
+    <div className="flex h-full min-h-0">
+      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
+        <nav aria-label={label} className="flex flex-col gap-px px-2.5 py-5">
+          {sections.map(({ id, label: name, Icon }) => (
+            <Link
+              key={id}
+              to={to(id)}
+              aria-current={id === active ? 'page' : undefined}
+              className={clsx(SIDEBAR_ROW, id === active ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')}
+            >
+              <Icon size={16} aria-hidden="true" className="shrink-0" />
+              {name}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+
+      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must scroll in here, not stretch the page. */}
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
+        <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+          <label className="mb-7 block lg:hidden">
+            <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">{label}</span>
+            <Listbox value={active} onChange={(event) => navigate(to(event.target.value))} className={clsx(FIELD_BASE, 'w-full')}>
+              {sections.map((row) => (
+                <option key={row.id} value={row.id}>
+                  {row.label}
+                </option>
+              ))}
+            </Listbox>
+          </label>
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A pane's title, what it is for, and an optional action at the right. */
+export function PaneHeader({ title, help, action }: { title: string; help: ReactNode; action?: ReactNode }) {
+  return (
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
+        <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
+      </div>
+      {action}
+    </header>
+  );
+}
+
+/** A rounded group of settings rows, as in System Settings. */
+export function SettingsGroup({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <section className="mt-6 max-w-2xl">
+      {title ? <h3 className="mb-2 px-1 text-[13px] font-semibold text-ink-muted">{title}</h3> : null}
+      <div className="divide-y divide-border/70 rounded-[10px] border border-border bg-surface">{children}</div>
+    </section>
+  );
+}
+
+/** One setting: what it is on the left, its value or control on the right (below it on a phone). */
+export function SettingsRow({ label, help, children }: { label: ReactNode; help?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+      <div className="min-w-0 flex-1 basis-52">
+        <p className="text-sm font-medium text-ink">{label}</p>
+        {help ? <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">{help}</p> : null}
+      </div>
+      {children ? <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div> : null}
+    </div>
   );
 }

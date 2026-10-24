@@ -14,7 +14,7 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { DownloadButton } from '@/components/DownloadButton';
+import { DocumentActions } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { date, fileSize } from '@/lib/format';
 import type { DocumentRecord, DocumentType } from '@/types/api';
@@ -41,7 +41,6 @@ export function DocumentsPage() {
     <>
       <PageHeader
         title="Documents"
-        description="Contracts, plans, mood boards and invoices for your projects."
       />
 
       <div className="mb-4 flex flex-wrap gap-3">
@@ -107,7 +106,25 @@ export function DocumentsPage() {
         </Card>
       ) : (
         <>
-          <TableWrap className="max-sm:min-w-0">
+          <ul className="space-y-3 sm:hidden">
+            {visible.map((document) => (
+              <li key={document.id}>
+                <Card>
+                  <p className="font-medium text-ink [overflow-wrap:anywhere]">{document.name}</p>
+                  <p className="mt-1 text-xs text-ink-muted">
+                    {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} · {fileSize(document.size_bytes)}
+                  </p>
+                  {document.project_name ? (
+                    <p className="text-xs text-ink-muted">{document.project_name}</p>
+                  ) : null}
+                  <DocumentActions document={document} className="mt-3 flex gap-2 [&>button]:flex-1" />
+                </Card>
+              </li>
+            ))}
+          </ul>
+
+          <div className="max-sm:hidden">
+          <TableWrap>
             <thead>
               <tr>
                 <Th>Document</Th>
@@ -121,12 +138,7 @@ export function DocumentsPage() {
             <tbody>
               {visible.map((document) => (
                 <tr key={document.id} className="hover:bg-surface-muted/40">
-                  <Td className="font-medium text-ink [overflow-wrap:anywhere]">
-                    {document.name}
-                    <span className="block text-xs font-normal text-ink-muted sm:hidden">
-                      {DOCUMENT_LABELS[document.type]} · {fileSize(document.size_bytes)}
-                    </span>
-                  </Td>
+                  <Td className="font-medium text-ink [overflow-wrap:anywhere]">{document.name}</Td>
                   <Td className="max-sm:hidden">
                     <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
                   </Td>
@@ -136,14 +148,13 @@ export function DocumentsPage() {
                     {fileSize(document.size_bytes)}
                   </Td>
                   <Td>
-                    <div className="flex justify-end">
-                      <DownloadButton id={document.id} name={document.name} />
-                    </div>
+                    <DocumentActions document={document} />
                   </Td>
                 </tr>
               ))}
             </tbody>
           </TableWrap>
+          </div>
 
           <p className="mt-3 text-xs text-ink-muted">
             Showing {visible.length} of {documents.data?.length ?? 0} documents.

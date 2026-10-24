@@ -68,7 +68,7 @@ export class ReviewDto {
   note?: string;
 }
 
-const NO_REVIEW = { review_by: null, review_at: null, review_note: null };
+const NO_REVIEW = { review_by: null, review_at: null, review_note: null, review_feedback: null };
 
 /** Link-valued keys: anything named *href / *url, plus the nav's paths. */
 const LINK_KEY = /(href|url)$/i;
@@ -474,7 +474,7 @@ export class CmsService {
     }
     const at = new Date().toISOString();
     const text = note?.trim() || null;
-    await this.db.cmsEntries.update(entry.id, { review_by: principal.id, review_at: at, review_note: text });
+    await this.db.cmsEntries.update(entry.id, { review_by: principal.id, review_at: at, review_note: text, review_feedback: null });
 
     const title = this.label(entry);
     const path = this.adminPath(entry);
@@ -504,8 +504,10 @@ export class CmsService {
   async sendBack(principal: AuthPrincipal, collection: string, slug: string, note?: string): Promise<void> {
     const entry = await this.require(collection, slug);
     if (!entry.review_at) throw new BadRequestException('Nobody is waiting on a review of this.');
-    await this.db.cmsEntries.update(entry.id, NO_REVIEW);
-    await this.tellEditor(entry, principal, 'sent back', note?.trim() || null);
+    const feedback = note?.trim() || null;
+    // The note stays on the entry, so the editor still sees it after the bell is cleared.
+    await this.db.cmsEntries.update(entry.id, { ...NO_REVIEW, review_feedback: feedback });
+    await this.tellEditor(entry, principal, 'sent back', feedback);
     await this.activity.record({
       principal,
       action: 'cms_review_send_back',
@@ -696,13 +698,13 @@ export class CmsService {
 /**
  * The CMS.
  *
- * Editors (and the CRM's Designers) may write copy and send it for review;
- * only an Admin may publish it, add an entry or delete one. Installers have no
- * business here at all. Enforced by the guards, never by a check inside a
+ * Editors may write copy and send it for review; only an Admin may publish
+ * it, add an entry or delete one. Designers and Installers have no business
+ * here at all. Enforced by the guards, never by a check inside a
  * handler.
  */
 @Controller('cms')
-@Roles('Admin', 'Editor', 'Designer')
+@Roles('Admin', 'Editor')
 export class CmsController {
   constructor(private readonly cms: CmsService) {}
 

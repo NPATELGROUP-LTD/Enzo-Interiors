@@ -88,6 +88,8 @@ export interface CmsEntry {
   updated_by: string | null;
   isDirty: boolean;
   review: CmsReview | null;
+  /** The Admin's note from the last send-back; cleared on the next send or publish. */
+  review_feedback?: string | null;
 }
 
 export interface MediaAsset {
