@@ -17,7 +17,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
-import { DocumentActions } from '@/components/DownloadButton';
+import { DocumentActions, DocumentName } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
@@ -291,7 +291,9 @@ export function ProjectDetailPage() {
                   className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
                 >
                   <div className="min-w-0">
-                    <p className="truncate font-medium text-ink">{document.name}</p>
+                    <p className="truncate font-medium text-ink">
+                      <DocumentName document={document} className="block max-w-full truncate" />
+                    </p>
                     <p className="text-xs text-ink-muted">
                       {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} ·{' '}
                       {fileSize(document.size_bytes)}

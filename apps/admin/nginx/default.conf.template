@@ -6,6 +6,13 @@ map "${API_PUBLIC_URL}" $api_ws_origin {
   "~^http(?<ws_s>s?)://(?<ws_host>[^/]+)" "ws${ws_s}://${ws_host}";
 }
 
+# ${MEDIA_BASE_URL}'s origin alone (https://media/enzo-public -> https://media):
+# the file viewer shows private-bucket links, which sit beside the public bucket.
+map "${MEDIA_BASE_URL}" $media_origin {
+  default "";
+  "~^(?<media_o>https?://[^/]+)" $media_o;
+}
+
 server {
   listen 80;
   server_name _;

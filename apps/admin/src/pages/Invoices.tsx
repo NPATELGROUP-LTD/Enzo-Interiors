@@ -448,7 +448,14 @@ export function InvoicesPage() {
             </thead>
             <tbody>
               {visible.map((invoice) => (
-                <tr key={invoice.id} className={clsx('hover:bg-surface-muted/40', selected.has(invoice.id) && 'bg-green-100/40')}>
+                <tr
+                  key={invoice.id}
+                  // The whole row opens it; its own checkbox and buttons keep their jobs.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest('a, button, input, label')) update({ open: invoice.id });
+                  }}
+                  className={clsx('cursor-pointer hover:bg-surface-muted/40', selected.has(invoice.id) && 'bg-green-100/40')}
+                >
                   <Td>
                     <input
                       type="checkbox"

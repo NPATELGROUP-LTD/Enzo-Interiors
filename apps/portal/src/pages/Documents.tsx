@@ -14,7 +14,7 @@ import {
   Td,
   Th,
 } from '@/components/ui';
-import { DocumentActions } from '@/components/DownloadButton';
+import { DocumentActions, DocumentName } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
 import { date, fileSize } from '@/lib/format';
 import type { DocumentRecord, DocumentType } from '@/types/api';
@@ -110,7 +110,9 @@ export function DocumentsPage() {
             {visible.map((document) => (
               <li key={document.id}>
                 <Card>
-                  <p className="font-medium text-ink [overflow-wrap:anywhere]">{document.name}</p>
+                  <p className="font-medium text-ink [overflow-wrap:anywhere]">
+                    <DocumentName document={document} />
+                  </p>
                   <p className="mt-1 text-xs text-ink-muted">
                     {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} · {fileSize(document.size_bytes)}
                   </p>
@@ -138,7 +140,9 @@ export function DocumentsPage() {
             <tbody>
               {visible.map((document) => (
                 <tr key={document.id} className="hover:bg-surface-muted/40">
-                  <Td className="font-medium text-ink [overflow-wrap:anywhere]">{document.name}</Td>
+                  <Td className="font-medium text-ink [overflow-wrap:anywhere]">
+                    <DocumentName document={document} />
+                  </Td>
                   <Td className="max-sm:hidden">
                     <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
                   </Td>

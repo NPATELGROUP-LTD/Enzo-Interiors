@@ -40,7 +40,71 @@ export function MessageText({ text }: { text: string }) {
 
 export interface BubbleAction {
   label: string;
+  /** A second, quieter line under the label. */
+  hint?: string;
   run: () => void;
+}
+
+/** Closes a popover on Escape or a press outside `ref`. */
+function useDismiss(open: boolean, ref: React.RefObject<HTMLElement | null>, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const onEvent = (event: Event) => {
+      const outside = event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node);
+      if (outside) close();
+    };
+    document.addEventListener('pointerdown', onEvent);
+    document.addEventListener('keydown', onEvent);
+    return () => {
+      document.removeEventListener('pointerdown', onEvent);
+      document.removeEventListener('keydown', onEvent);
+    };
+  }, [open, ref, close]);
+}
+
+/** An icon in the composer's bar that opens a themed list above the bar. */
+export function ToolMenu({ label, icon, items }: { label: string; icon: ReactNode; items: BubbleAction[] }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useDismiss(open, ref, () => setOpen(false));
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        aria-label={label}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className={clsx(TOOL, open && 'text-green-900')}
+      >
+        {icon}
+      </button>
+      {open ? (
+        <div className="absolute bottom-12 left-0 z-20 w-72 max-w-[calc(100vw-2rem)] rounded-[10px] bg-surface p-1 shadow-overlay">
+          <p className="px-2.5 pb-1 pt-1.5 text-xs font-semibold text-ink-muted">{label}</p>
+          <ul role="menu" aria-label={label} className="max-h-72 overflow-y-auto overscroll-contain">
+            {items.map((item, index) => (
+              <li key={index} role="none">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setOpen(false);
+                    item.run();
+                  }}
+                  className="block w-full rounded-[7px] px-2.5 py-1.5 text-left hover:bg-ink/[0.06]"
+                >
+                  <span className="block truncate text-sm font-semibold text-ink">{item.label}</span>
+                  {item.hint ? <span className="block truncate text-xs text-ink-muted">{item.hint}</span> : null}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 /**
@@ -50,20 +114,7 @@ export interface BubbleAction {
 export function BubbleMenu({ actions }: { actions: BubbleAction[] }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const close = (event: Event) => {
-      const outside = event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node);
-      if (outside) setOpen(false);
-    };
-    document.addEventListener('pointerdown', close);
-    document.addEventListener('keydown', close);
-    return () => {
-      document.removeEventListener('pointerdown', close);
-      document.removeEventListener('keydown', close);
-    };
-  }, [open]);
+  useDismiss(open, ref, () => setOpen(false));
 
   if (!actions.length) return null;
   return (

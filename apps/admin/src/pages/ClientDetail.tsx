@@ -263,7 +263,13 @@ export function ClientDetailPage() {
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id}>
+                <tr
+                  key={invoice.id}
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices?open=${invoice.id}`);
+                  }}
+                  className="cursor-pointer hover:bg-surface-muted/40"
+                >
                   <Td className="font-medium text-ink">
                     <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
                       {invoice.number}

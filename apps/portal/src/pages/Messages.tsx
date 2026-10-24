@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 import { BubbleMenu, Composer, MessageText, TOOL, UploadButton } from '@/components/chat';
 import { Button, Checkbox, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
+import { useFileViewer } from '@/components/DownloadButton';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api, downloadDocument } from '@/lib/api';
@@ -356,16 +357,13 @@ function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
 
 /** Attachment chips; each opens through the Documents download check. */
 function Attachments({ items }: { items: MessageAttachment[] | null }) {
-  const toast = useToast();
+  const files = useFileViewer();
   if (!items?.length) return null;
-  const open = async (attachment: MessageAttachment) => {
-    try {
-      await downloadDocument(attachment.document_id);
-    } catch (caught) {
-      toast.error(errorText(caught, 'That file is no longer available.'));
-    }
-  };
+  // PDFs and images open in the page; anything else is saved.
+  const open = (attachment: MessageAttachment) => files.show({ id: attachment.document_id, name: attachment.name });
   return (
+    <>
+    {files.viewer}
     <ul className="mt-2 flex flex-col gap-1">
       {items.map((attachment) => (
         <li key={attachment.document_id}>
@@ -381,6 +379,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
         </li>
       ))}
     </ul>
+    </>
   );
 }
 

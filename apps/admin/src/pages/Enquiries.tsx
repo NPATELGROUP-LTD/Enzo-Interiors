@@ -122,7 +122,7 @@ export function EnquiriesPage() {
           }
         />
       ) : (
-        <div className="grid items-start gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
           <section aria-label="Enquiries" className={clsx(open && 'max-xl:hidden')}>
             <ul className="rounded-card bg-surface p-1.5 shadow-soft">
               {items.map((row) => (
@@ -147,7 +147,8 @@ export function EnquiriesPage() {
                         </span>
                         <span className="shrink-0 text-xs text-ink-muted">{KIND[row.kind]}</span>
                       </span>
-                      <span className="mt-0.5 block truncate text-[13px] text-ink-muted">
+                      {/* Two lines, wrapped; the full text opens with the row. */}
+                      <span className="mt-0.5 line-clamp-2 text-[13px] text-ink-muted [overflow-wrap:anywhere]">
                         {row.message || row.email}
                       </span>
                       <span className="mt-1.5 flex items-center gap-2 text-xs text-ink-muted">

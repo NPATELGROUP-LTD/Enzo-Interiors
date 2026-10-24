@@ -322,7 +322,8 @@ headers, resumed after a restart from `cursor`). Sign-up is on the
 coming-soon page and in the footer.
 
 **Rate limits:** `@nestjs/throttler` with counters in Redis (`REDIS_URL`,
-the `redis` compose service); unset or down = in memory, the API keeps
+the `redis` compose service, addressed as `enzo-redis`: on the shared coolify
+network `redis` is Coolify's own, password-protected Redis); unset or down = in memory, the API keeps
 serving (`core/rate-limit.ts`). 300/min per IP overall, tighter per public
 write; sign-in locks progressively. The edge (Cloudflare) rules are in
 `docs/prelaunch.md` → Rate limits.
