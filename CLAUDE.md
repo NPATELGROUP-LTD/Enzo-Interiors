@@ -85,6 +85,9 @@ move stays within the client; delete (and client delete) removes the object,
 best effort. `storage_url` holds the key and is never serialised; downloads
 are `GET /documents/:id/download` → `{url}`, a 5-minute attachment link signed
 per request (`S3_PRIVATE_BUCKET`, signed for the same public host as uploads).
+`?inline=1` signs an inline link instead (only PDF/JPG/PNG/WebP, judged by the key's
+extension, which the API set from the sniffed type); `preview` on a document says which.
+The portal's View shows it in a modal; its CSP allows the media origin in `img-src`/`frame-src`.
 Every `/clients`, `/projects`, `/invoices` and `/documents` route names its `@Roles`.
 Deferred: projects from appointments/enquiries.
 
@@ -173,8 +176,9 @@ hash is stored. Changing a client's email bumps `token_version` too.
   Clients reach it only by invitation: `/reset-password` (invite or reset; the
   token is read from the link and wiped from the address bar) and
   `/forgot-password`. Pages: Dashboard, Projects (+ detail: approve / request
-  changes, downloads), Invoices (+ printable detail), Documents (download =
-  `GET /documents/:id/download` per click, never stored), Settings (password
+  changes, downloads), Invoices (+ detail; Download = an A4
+  image PDF made in the browser, jspdf lazy-loaded, kept out of the precache; Print), Documents (View +
+  download = `GET /documents/:id/download` per click, never stored), Settings (password
   change adopts the returned token; email / in-portal preferences). Messages is
   a separate piece of work. Ports: dev 5175, docker 5275 (`PORTAL_PORT`);
   production host `PORTAL_HOST` (portal.enzointeriors.co.uk), compose service

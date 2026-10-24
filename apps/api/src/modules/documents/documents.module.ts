@@ -15,6 +15,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -27,7 +28,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { DOCUMENT_TYPES, DocumentRecord, DocumentType } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
-import { DOWNLOAD_TTL_SECONDS, PrivateStorage } from '../../core/storage';
+import { DOWNLOAD_TTL_SECONDS, inlineType, previewOf, PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 
@@ -94,6 +95,8 @@ export class DocumentVisibilityDto {
 export type DocumentView = Omit<DocumentRecord, 'storage_url'> & {
   client_name: string;
   project_name: string | null;
+  /** Whether the portal can show it in the page. */
+  preview: 'pdf' | 'image' | null;
 };
 
 /**
@@ -126,9 +129,14 @@ export class DocumentsService {
     return view!;
   }
 
-  async downloadUrl(principal: AuthPrincipal, id: string): Promise<{ url: string; expires_in: number }> {
+  /** `inline` = a link the browser shows rather than saves; ignored for types it cannot show. */
+  async downloadUrl(principal: AuthPrincipal, id: string, inline = false): Promise<{ url: string; expires_in: number }> {
     const document = await this.require(principal, id);
-    const url = await this.storage.downloadUrl(document.storage_url, document.name);
+    const url = await this.storage.downloadUrl(
+      document.storage_url,
+      document.name,
+      inline ? inlineType(document.storage_url) : undefined,
+    );
     await this.activity.record({
       principal,
       action: 'document_download',
@@ -286,8 +294,9 @@ export class DocumentsService {
     ]);
     const clientName = new Map(clients.map((c) => [c.id, c.name]));
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
-    return rows.map(({ storage_url: _key, ...document }) => ({
+    return rows.map(({ storage_url: key, ...document }) => ({
       ...document,
+      preview: previewOf(key),
       client_name: clientName.get(document.client_id) ?? 'Unknown client',
       project_name: document.project_id ? (projectName.get(document.project_id) ?? null) : null,
     }));
@@ -318,8 +327,8 @@ export class DocumentsController {
   @Get(':id/download')
   @Roles('Admin', 'Designer', 'Installer', 'Client')
   @Header('Cache-Control', 'no-store')
-  download(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.documents.downloadUrl(principal, id);
+  download(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Query('inline') inline?: string) {
+    return this.documents.downloadUrl(principal, id, inline === '1');
   }
 
   /** multipart/form-data: `file` plus the UploadDocumentDto fields. Clients upload from the chat. */

@@ -389,7 +389,14 @@ export function ProjectDetailPage() {
             </thead>
             <tbody>
               {invoices.map((invoice) => (
-                <tr key={invoice.id}>
+                <tr
+                  key={invoice.id}
+                  className="cursor-pointer"
+                  // The number stays the link for keyboards; a click anywhere else on the row opens it too.
+                  onClick={(event) => {
+                    if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices?open=${invoice.id}`);
+                  }}
+                >
                   <Td className="font-medium text-ink">
                     <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
                       {invoice.number}

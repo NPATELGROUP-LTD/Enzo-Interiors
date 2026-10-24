@@ -135,6 +135,26 @@ test('an upload lands in the private bucket and downloads through a short-lived 
   assert.ok(Buffer.from(await file.arrayBuffer()).equals(PDF), 'the bytes that went up come back');
   assert.match(file.headers.get('content-disposition') ?? '', /^attachment; filename="Kitchen plan v1.pdf"/);
 
+  // ?inline=1 is the portal's viewer: shown in the page, as the type sniffed at upload.
+  assert.equal((doc as Doc & { preview: string }).preview, 'pdf');
+  const shown = await json<{ url: string }>(await call('GET', `/documents/${doc.id}/download?inline=1`, tokens.admin));
+  const inline = await fetch(shown.url);
+  assert.match(inline.headers.get('content-disposition') ?? '', /^inline; filename="Kitchen plan v1.pdf"/);
+  assert.equal(inline.headers.get('content-type'), 'application/pdf');
+
+  // A type the browser cannot show still downloads, whatever is asked.
+  const sheet = await json<Doc & { preview: string | null }>(
+    await upload(tokens.admin, mineFields(), {
+      bytes: Buffer.from('504b0304' + '00'.repeat(30), 'hex'),
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      name: 'Costs.xlsx',
+    }),
+    201,
+  );
+  assert.equal(sheet.preview, null);
+  const asked = await json<{ url: string }>(await call('GET', `/documents/${sheet.id}/download?inline=1`, tokens.admin));
+  assert.match((await fetch(asked.url)).headers.get('content-disposition') ?? '', /^attachment;/);
+
   // The bucket itself is not readable without a signature.
   const bare = new URL(url);
   bare.search = '';
