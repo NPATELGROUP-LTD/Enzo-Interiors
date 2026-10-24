@@ -38,10 +38,13 @@ function BarChart({
     <div className="flex h-full min-h-40 gap-1.5" role="img" aria-label="Monthly totals">
       {data.map((point) => {
         const height = (point.value / max) * 100;
+        const shown = formatValue ? formatValue(point.value) : String(point.value);
+        // basis-0 + min-w-0: every month is the same width whatever its label says.
+        // A phone has no room for twelve amounts: there they show only as a hover title.
         return (
-          <div key={point.month} className="flex flex-1 flex-col items-center gap-1.5">
-            <span className="tabular text-[10px] font-semibold text-ink-muted">
-              {point.value > 0 ? (formatValue ? formatValue(point.value) : point.value) : ''}
+          <div key={point.month} title={`${point.label}: ${shown}`} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1.5">
+            <span className="tabular whitespace-nowrap text-[10px] font-semibold text-ink-muted max-sm:hidden">
+              {point.value > 0 ? shown : ''}
             </span>
             {/* flex-1 gives the bar a definite track, so its % height resolves. */}
             <div className="flex w-full flex-1 items-end">
@@ -380,6 +383,7 @@ export function DashboardPage() {
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
+        prominent
         title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
         description={isAdmin ? 'Everything that needs you today, in one place.' : 'Where your projects are up to.'}
       />

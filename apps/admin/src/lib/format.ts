@@ -113,3 +113,8 @@ export const initials = (name: string): string =>
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? '')
     .join('');
+
+/** Said wherever we email someone: mail filters often catch these. */
+export const SPAM_HINT = 'Not there? Check your spam or junk folder.';
+/** The same, for an email sent to someone else. */
+export const THEIR_SPAM_HINT = 'If it does not arrive, ask them to check their spam or junk folder.';

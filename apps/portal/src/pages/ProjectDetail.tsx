@@ -107,7 +107,6 @@ export function ProjectDetailPage() {
 
       <PageHeader
         title={project.name}
-        description={SERVICE_LABELS[project.type]}
         actions={<StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>}
       />
 

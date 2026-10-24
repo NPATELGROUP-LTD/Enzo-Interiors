@@ -1,7 +1,20 @@
+import { Bell, GoogleLogo, Key, PaintBrush, ShieldCheck, UserCircle } from '@phosphor-icons/react';
 import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { PushToggle } from '@/components/PushToggle';
-import { AppearancePicker, Button, Input, Modal } from '@/components/ui';
+import {
+  AppearancePicker,
+  Button,
+  FIELD_BASE,
+  Input,
+  Modal,
+  PaneHeader,
+  SettingsGroup,
+  SettingsRow,
+  SettingsShell,
+  type SettingsSection,
+} from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -16,15 +29,15 @@ const GOOGLE_ERRORS: Record<string, string> = {
   cancelled: 'Linking Google was cancelled.',
 };
 
-export const SECTION = 'max-w-2xl border-t border-border pt-7';
-export const HEADING = 'text-lg font-semibold tracking-tight text-ink';
-export const HELP = 'mt-1 text-sm leading-relaxed text-ink-muted';
-
-/** Your own account: your name, your password, how the app looks. Everyone has one. */
+/**
+ * Your own account: your name, your password, how you sign in, how the app
+ * looks. Everyone has one. Laid out like Settings, one pane per `?section=`.
+ */
 export function AccountPage() {
   const toast = useToast();
   const { user, adopt, update } = useAuth();
   const { theme, set } = useTheme();
+  const [params, setParams] = useSearchParams();
   const [name, setName] = useState(user?.name ?? '');
   const [savingName, setSavingName] = useState(false);
   const [current, setCurrent] = useState('');
@@ -43,16 +56,16 @@ export function AccountPage() {
 
   useEffect(() => {
     api.get<{ enabled: boolean }>('/auth/google/enabled').then((r) => setGoogleOn(r.enabled), () => undefined);
-    // Back from Google: say how it went, then drop the query.
-    const query = new URLSearchParams(window.location.search);
-    const result = query.get('google');
+    // Back from Google: say how it went, then swap the query for the Google pane.
+    const result = params.get('google');
     if (!result) return;
-    window.history.replaceState(null, '', window.location.pathname);
+    const reason = params.get('reason');
+    setParams({ section: 'google' }, { replace: true });
     if (result === 'linked') {
       toast.success('Google account linked.');
       void me.refetch();
     } else {
-      toast.error(GOOGLE_ERRORS[query.get('reason') ?? ''] ?? 'Could not link Google. Try again.');
+      toast.error(GOOGLE_ERRORS[reason ?? ''] ?? 'Could not link Google. Try again.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -126,105 +139,137 @@ export function AccountPage() {
     }
   };
 
+  const method = me.data?.twoFactorMethod;
+  const sections: SettingsSection[] = [
+    { id: 'profile', label: 'Profile', Icon: UserCircle },
+    { id: 'password', label: 'Password', Icon: Key },
+    { id: 'sign-in', label: 'Two-step sign-in', Icon: ShieldCheck },
+    ...(googleOn || me.data?.googleLinked ? [{ id: 'google', label: 'Google', Icon: GoogleLogo }] : []),
+    { id: 'notifications', label: 'Notifications', Icon: Bell },
+    { id: 'appearance', label: 'Appearance', Icon: PaintBrush },
+  ];
+  const active = sections.find(({ id }) => id === params.get('section'))?.id ?? 'profile';
+
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <header className="mb-8 flex items-center gap-4">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-900 text-lg font-bold text-on-primary">
-          {initials(user.name)}
-        </span>
-        <div className="min-w-0">
-          <h1 className="truncate text-2xl font-bold tracking-tight text-ink sm:text-[28px]">{user.name}</h1>
-          <p className="truncate text-ink-muted">
-            {user.email} · {role}
-          </p>
-        </div>
-      </header>
-
-      <section aria-labelledby="account-name" className={SECTION}>
-        <h2 id="account-name" className={HEADING}>
-          Your name
-        </h2>
-        <p className={HELP}>How you appear to the rest of the team, and on changes you make.</p>
-        <form onSubmit={saveName} className="mt-5 flex max-w-md flex-wrap items-end gap-3">
-          <div className="min-w-0 flex-1">
-            <Input label="Name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
+    <SettingsShell label="Account" sections={sections} active={active} to={(id) => `/account?section=${id}`}>
+      {active === 'profile' ? (
+        <>
+          <div className="flex max-w-2xl items-center gap-4">
+            <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-green-900 text-lg font-bold text-on-primary">
+              {initials(user.name)}
+            </span>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-bold tracking-tight text-ink">{user.name}</h1>
+              <p className="truncate text-ink-muted">
+                {user.email} · {role}
+              </p>
+            </div>
           </div>
-          <Button type="submit" loading={savingName} disabled={name.trim().length < 2 || name.trim() === user.name}>
-            Save
-          </Button>
-        </form>
-        <p className="mt-3 text-sm text-ink-muted">
-          You sign in with {user.email}. To change it, ask an Admin.
-        </p>
-      </section>
+          <SettingsGroup>
+            <form onSubmit={saveName}>
+              <SettingsRow label="Name" help="How you appear to the rest of the team, and on changes you make.">
+                <div className="w-56 max-w-full">
+                  <input
+                    aria-label="Name"
+                    autoComplete="name"
+                    value={name}
+                    onChange={(event) => setName(event.target.value)}
+                    className={FIELD_BASE}
+                  />
+                </div>
+                <Button type="submit" loading={savingName} disabled={name.trim().length < 2 || name.trim() === user.name}>
+                  Save
+                </Button>
+              </SettingsRow>
+            </form>
+            <SettingsRow label="Email" help="You sign in with it. To change it, ask an Admin.">
+              <span className="truncate text-sm text-ink">{user.email}</span>
+            </SettingsRow>
+            <SettingsRow label="Role" help="Only an Admin can change it.">
+              <span className="text-sm text-ink">{role}</span>
+            </SettingsRow>
+          </SettingsGroup>
+        </>
+      ) : null}
 
-      <section aria-labelledby="account-password" className={`${SECTION} mt-10`}>
-        <h2 id="account-password" className={HEADING}>
-          Password
-        </h2>
-        <p className={HELP}>Changing it signs you out on every other device.</p>
-        <form onSubmit={savePassword} className="mt-5 flex max-w-md flex-col gap-4" noValidate>
-          <input type="text" name="username" autoComplete="username" value={user.email} hidden readOnly />
-          <Input label="Current password" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} />
-          <Input label="New password" type="password" autoComplete="new-password" hint="At least 12 characters." value={next} onChange={(event) => setNext(event.target.value)} />
-          <Input label="New password again" type="password" autoComplete="new-password" value={again} onChange={(event) => setAgain(event.target.value)} />
-          {passwordError ? (
-            <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-sm text-danger">
-              {passwordError}
-            </p>
-          ) : null}
-          <div>
-            <Button type="submit" variant="primary" loading={savingPassword} disabled={!current || !next}>
-              Change password
-            </Button>
-          </div>
-        </form>
-      </section>
+      {active === 'password' ? (
+        <>
+          <PaneHeader title="Password" help="Changing it signs you out on every other device." />
+          <SettingsGroup>
+            <form onSubmit={savePassword} className="flex max-w-md flex-col gap-4 p-4" noValidate>
+              <input type="text" name="username" autoComplete="username" value={user.email} hidden readOnly />
+              <Input label="Current password" type="password" autoComplete="current-password" value={current} onChange={(event) => setCurrent(event.target.value)} />
+              <Input label="New password" type="password" autoComplete="new-password" hint="At least 12 characters." value={next} onChange={(event) => setNext(event.target.value)} />
+              <Input label="New password again" type="password" autoComplete="new-password" value={again} onChange={(event) => setAgain(event.target.value)} />
+              {passwordError ? (
+                <p role="alert" className="rounded-control bg-danger-bg px-3 py-2 text-sm text-danger">
+                  {passwordError}
+                </p>
+              ) : null}
+              <div>
+                <Button type="submit" variant="primary" loading={savingPassword} disabled={!current || !next}>
+                  Change password
+                </Button>
+              </div>
+            </form>
+          </SettingsGroup>
+        </>
+      ) : null}
 
-      <section aria-labelledby="account-2fa" className={`${SECTION} mt-10`}>
-        <h2 id="account-2fa" className={HEADING}>
-          Two-step sign-in
-        </h2>
-        <p className={HELP}>
-          {me.data?.twoFactorMethod === 'email'
-            ? `A code is emailed to ${user.email} each time you sign in.`
-            : me.data?.twoFactorMethod === 'totp'
-              ? 'You enter a code from your authenticator app each time you sign in.'
-              : 'Not set up yet. You will choose a method the next time you sign in.'}{' '}
-          Only an admin can reset it.
-        </p>
-
-        <h3 className="mt-6 text-[15px] font-semibold text-ink">Remembered devices</h3>
-        <p className={HELP}>These skip the code until they expire. A password change forgets them all.</p>
-        {devices.data?.length === 0 ? <p className="mt-3 text-sm text-ink-muted">No devices are remembered.</p> : null}
-        <ul className="mt-2 flex max-w-md flex-col">
-          {(devices.data ?? []).map((row, index) => (
-            <li key={row.id} className={`flex items-center gap-3 py-3 ${index > 0 ? 'border-t border-border/70' : ''}`}>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium text-ink">{row.label}</span>
-                <span className="block text-[13px] text-ink-muted">
-                  {row.last_used_at ? `Last used ${dateTime(row.last_used_at)}` : 'Not used since'} · expires {dateTime(row.expires_at)}
-                </span>
+      {active === 'sign-in' ? (
+        <>
+          <PaneHeader title="Two-step sign-in" help="After your password, a code proves it is you. Only an Admin can reset it." />
+          <SettingsGroup>
+            <SettingsRow
+              label="Method"
+              help={
+                method === 'email'
+                  ? `A code is emailed to ${user.email} each time you sign in.`
+                  : method === 'totp'
+                    ? 'You enter a code from your authenticator app each time you sign in.'
+                    : 'Not set up yet. You will choose a method the next time you sign in.'
+              }
+            >
+              <span className="text-sm text-ink">
+                {method === 'email' ? 'Email code' : method === 'totp' ? 'Authenticator app' : 'Not set up'}
               </span>
-              <Button variant="ghost" className="text-danger" onClick={() => void revoke(row.id)}>
-                Revoke
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {googleOn || me.data?.googleLinked ? (
-        <section aria-labelledby="account-google" className={`${SECTION} mt-10`}>
-          <h2 id="account-google" className={HEADING}>
-            Google
-          </h2>
-          <p className={HELP}>
-            {me.data?.googleLinked
-              ? `Linked to ${me.data.googleEmail}. You can sign in with Google instead of a password.`
-              : 'Link your Google account to sign in with it instead of a password.'}{' '}
-            Changing your password also removes the linked Google account.
+            </SettingsRow>
+          </SettingsGroup>
+          <SettingsGroup title="Remembered devices">
+            {devices.data?.length === 0 ? <SettingsRow label="No devices are remembered." /> : null}
+            {(devices.data ?? []).map((row) => (
+              <SettingsRow
+                key={row.id}
+                label={row.label}
+                help={`${row.last_used_at ? `Last used ${dateTime(row.last_used_at)}` : 'Not used since'} · expires ${dateTime(row.expires_at)}`}
+              >
+                <Button variant="ghost" className="text-danger" onClick={() => void revoke(row.id)}>
+                  Revoke
+                </Button>
+              </SettingsRow>
+            ))}
+          </SettingsGroup>
+          <p className="mt-2 max-w-2xl px-1 text-[13px] text-ink-muted">
+            These skip the code until they expire. A password change forgets them all.
           </p>
+        </>
+      ) : null}
+
+      {active === 'google' ? (
+        <>
+          <PaneHeader
+            title="Google"
+            help="Sign in with your Google account instead of a password. Changing your password also unlinks it."
+          />
+          <SettingsGroup>
+            <SettingsRow label="Google account" help={me.data?.googleLinked ? `Linked to ${me.data.googleEmail}.` : 'Not linked.'}>
+              {me.data?.googleLinked ? (
+                <Button onClick={() => void googleUnlink()}>Unlink</Button>
+              ) : (
+                <Button onClick={() => setLinking(true)}>Link Google account</Button>
+              )}
+            </SettingsRow>
+          </SettingsGroup>
           <Modal
             open={linking}
             onClose={() => {
@@ -258,35 +303,33 @@ export function AccountPage() {
               </div>
             </form>
           </Modal>
-          <div className="mt-4">
-            {me.data?.googleLinked ? (
-              <Button onClick={() => void googleUnlink()}>Unlink</Button>
-            ) : (
-              <Button onClick={() => setLinking(true)}>Link Google account</Button>
-            )}
-          </div>
-        </section>
+        </>
       ) : null}
 
-      <section aria-labelledby="account-push" className={`${SECTION} mt-10`}>
-        <h2 id="account-push" className={HEADING}>
-          Notifications
-        </h2>
-        <p className={HELP}>What rings your bell, on this device too. Each phone or computer is turned on separately.</p>
-        <div className="mt-5 max-w-md">
-          <PushToggle />
-        </div>
-      </section>
+      {active === 'notifications' ? (
+        <>
+          <PaneHeader
+            title="Notifications"
+            help="What rings your bell, on this device too. Each phone or computer is turned on separately."
+          />
+          <SettingsGroup>
+            <div className="px-4 py-3">
+              <PushToggle />
+            </div>
+          </SettingsGroup>
+        </>
+      ) : null}
 
-      <section aria-labelledby="account-look"className={`${SECTION} mt-10`}>
-        <h2 id="account-look" className={HEADING}>
-          Appearance
-        </h2>
-        <p className={HELP}>Only on this device.</p>
-        <div className="mt-5 max-w-md">
-          <AppearancePicker value={theme} onChange={set} />
-        </div>
-      </section>
-    </div>
+      {active === 'appearance' ? (
+        <>
+          <PaneHeader title="Appearance" help="Only on this device." />
+          <SettingsGroup>
+            <div className="p-4">
+              <AppearancePicker value={theme} onChange={set} />
+            </div>
+          </SettingsGroup>
+        </>
+      ) : null}
+    </SettingsShell>
   );
 }

@@ -1,4 +1,4 @@
-import { CaretRight, EnvelopeSimple, UserPlus } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, EnvelopeSimple, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -100,11 +100,13 @@ export function EnquiriesPage() {
 
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <Tabs
-        tabs={FILTERS}
-        active={filter}
-        onChange={(id) => setParams(id === 'all' ? {} : { view: id })}
-      />
+      <div className={clsx(open && 'max-xl:hidden')}>
+        <Tabs
+          tabs={FILTERS}
+          active={filter}
+          onChange={(id) => setParams(id === 'all' ? {} : { view: id })}
+        />
+      </div>
 
       {error ? (
         <ErrorState message={error} onRetry={() => void load()} />
@@ -121,7 +123,7 @@ export function EnquiriesPage() {
         />
       ) : (
         <div className="grid items-start gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <section aria-label="Enquiries">
+          <section aria-label="Enquiries" className={clsx(open && 'max-xl:hidden')}>
             <ul className="rounded-card bg-surface p-1.5 shadow-soft">
               {items.map((row) => (
                 <li key={row.id}>
@@ -172,9 +174,20 @@ export function EnquiriesPage() {
             ) : null}
           </section>
 
-          <aside aria-label="Enquiry" className="rounded-card bg-surface p-5 shadow-soft xl:sticky xl:top-6">
+          <aside
+            aria-label="Enquiry"
+            className={clsx('rounded-card bg-surface p-5 shadow-soft xl:sticky xl:top-6', !open && 'max-xl:hidden')}
+          >
             {open ? (
               <div className="flex flex-col gap-5">
+                <button
+                  type="button"
+                  onClick={() => select(null)}
+                  className={clsx('-my-2 -ml-2 flex min-h-11 w-fit items-center gap-1 rounded-control pr-2 text-[13px] font-semibold text-ink-muted hover:text-ink xl:hidden', FOCUS)}
+                >
+                  <CaretLeft size={16} aria-hidden="true" />
+                  All enquiries
+                </button>
                 <div>
                   <h2 className="text-lg font-semibold text-ink">{open.name}</h2>
                   <p className="mt-0.5 text-[13px] text-ink-muted">

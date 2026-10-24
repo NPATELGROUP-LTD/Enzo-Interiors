@@ -5,6 +5,7 @@ import { Check } from "lucide-react";
 import { Honeypot } from "@/components/shared/Honeypot";
 import { confirmSubscription, subscribe, unsubscribe, type NewsletterSource } from "@/lib/newsletter";
 import type { SiteContent } from "@/lib/content";
+import { SPAM_HINT } from "@/lib/utils";
 
 type Labels = SiteContent["footer"]["newsletter"];
 type LinkLabels = SiteContent["newsletter"];
@@ -77,7 +78,7 @@ export function NewsletterSignup({
             <span>
               {before}
               <span className={`font-medium ${light ? "text-enzo-forest" : "text-enzo-cream"}`}>{sentTo}</span>
-              {after}
+              {after} {SPAM_HINT}
             </span>
           </span>
         ) : state === "failed" ? (

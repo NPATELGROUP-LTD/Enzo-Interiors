@@ -52,7 +52,6 @@ export function InvoicesPage() {
     <>
       <PageHeader
         title="Invoices"
-        description="Your invoices and their current status."
       />
 
       {invoices.error ? (

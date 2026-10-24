@@ -546,17 +546,20 @@ export function Toggle({
   checked,
   onChange,
   disabled,
+  hideLabel = false,
 }: {
   label: string;
   description?: string;
   checked: boolean;
   onChange: (next: boolean) => void;
   disabled?: boolean;
+  /** Just the switch, e.g. in a grid whose column header says what it is. */
+  hideLabel?: boolean;
 }) {
   const id = useId();
   return (
-    <div className="flex items-start justify-between gap-4 py-1">
-      <div className="flex-1">
+    <div className={clsx('flex items-start justify-between py-1', !hideLabel && 'gap-4')}>
+      <div className={clsx(hideLabel ? 'sr-only' : 'flex-1')}>
         <label htmlFor={id} className="text-sm font-semibold text-ink">
           {label}
         </label>
@@ -793,15 +796,30 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /* Layout helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * A page's heading. Only the Dashboard shows it (`prominent`); everywhere else
+ * the window's title bar already names the page, so the heading is kept for
+ * screen readers alone and only the actions show.
+ */
 export function PageHeader({
   title,
   description,
   actions,
+  prominent = false,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
+  prominent?: boolean;
 }) {
+  if (!prominent) {
+    return (
+      <>
+        <h1 className="sr-only">{title}</h1>
+        {actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
+      </>
+    );
+  }
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div className="min-w-0 [overflow-wrap:anywhere]">
@@ -1004,5 +1022,42 @@ export function Checkbox({
       />
       <span className="text-sm text-ink">{label}</span>
     </label>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* System Settings rows                                                       */
+/* -------------------------------------------------------------------------- */
+
+/** A pane's title and what it is for. */
+export function PaneHeader({ title, help }: { title: string; help: ReactNode }) {
+  return (
+    <header>
+      <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
+      <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
+    </header>
+  );
+}
+
+/** A rounded group of settings rows, as in System Settings. */
+export function SettingsGroup({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <section className="mt-6">
+      {title ? <h3 className="mb-2 px-1 text-[13px] font-semibold text-ink-muted">{title}</h3> : null}
+      <div className="divide-y divide-border/70 rounded-[10px] border border-border bg-surface">{children}</div>
+    </section>
+  );
+}
+
+/** One setting: what it is on the left, its value or control on the right (below it on a phone). */
+export function SettingsRow({ label, help, children }: { label: ReactNode; help?: ReactNode; children?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3">
+      <div className="min-w-0 flex-1 basis-52">
+        <p className="text-sm font-medium text-ink">{label}</p>
+        {help ? <p className="mt-0.5 text-[13px] leading-relaxed text-ink-muted">{help}</p> : null}
+      </div>
+      {children ? <div className="flex min-w-0 max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div> : null}
+    </div>
   );
 }

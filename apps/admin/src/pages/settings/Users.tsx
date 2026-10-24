@@ -7,7 +7,7 @@ import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { initials } from '@/lib/format';
+import { THEIR_SPAM_HINT, initials } from '@/lib/format';
 
 type Role = 'Admin' | 'Editor' | 'Designer' | 'Installer';
 
@@ -58,7 +58,7 @@ function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: ()
       onInvited(user);
       toast.success(
         user.emailed
-          ? `Invitation sent to ${user.email}. The link lasts 7 days.`
+          ? `Invitation sent to ${user.email}. The link lasts 7 days. ${THEIR_SPAM_HINT}`
           : `${user.name} was added, but the email could not be sent. Check the mail settings, then resend it.`,
       );
       close();
@@ -130,7 +130,7 @@ export function UsersSection() {
     setBusy(row.id);
     try {
       const { emailed } = await api.post<{ emailed: boolean }>(`/users/${row.id}/invite`);
-      if (emailed) toast.success(`A new invitation is on its way to ${row.email}.`);
+      if (emailed) toast.success(`A new invitation is on its way to ${row.email}. ${THEIR_SPAM_HINT}`);
       else toast.error('The email could not be sent. Check the mail settings.');
       void users.refetch();
     } catch (caught) {

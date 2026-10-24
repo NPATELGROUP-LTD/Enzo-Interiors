@@ -35,7 +35,8 @@ const TYPE_LABELS: Record<DocumentType, string> = {
   Other: 'Other',
 };
 
-const message = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
+const message = (caught: unknown, fallback: string) =>
+  caught instanceof ApiError ? caught.message : fallback;
 
 /**
  * A project's or client's files. Anyone who can see the row downloads it (a
@@ -45,17 +46,14 @@ const message = (caught: unknown, fallback: string) => (caught instanceof ApiErr
 export function DocumentsTable({
   documents,
   onChanged,
-  uploadTo,
   emptyMessage,
 }: {
   documents: Row[];
   onChanged: () => Promise<unknown> | void;
-  uploadTo?: { clientId: string; projectId: string };
   emptyMessage: string;
 }) {
   const toast = useToast();
   const { isAdmin } = useAuth();
-  const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<Row | null>(null);
 
   const download = async (row: Row) => {
@@ -71,7 +69,9 @@ export function DocumentsTable({
   const setVisible = async (row: Row, next: boolean) => {
     try {
       await api.patch(`/documents/${row.id}/visibility`, { client_visible: next });
-      toast.success(next ? `${row.name} is now visible to the client.` : `${row.name} is internal only.`);
+      toast.success(
+        next ? `${row.name} is now visible to the client.` : `${row.name} is internal only.`,
+      );
       await onChanged();
     } catch (caught) {
       toast.error(message(caught, 'Could not change who can see this file.'));
@@ -93,14 +93,6 @@ export function DocumentsTable({
 
   return (
     <>
-      {uploadTo ? (
-        <div className="mb-3 flex justify-end">
-          <Button icon={<UploadSimple size={15} aria-hidden="true" />} onClick={() => setUploading(true)}>
-            Upload
-          </Button>
-        </div>
-      ) : null}
-
       {documents.length === 0 ? (
         <Card className="p-0">
           <EmptyState title="No documents" message={emptyMessage} />
@@ -125,7 +117,9 @@ export function DocumentsTable({
                   <StatusTag tone="info">{TYPE_LABELS[row.type]}</StatusTag>
                 </Td>
                 <Td className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
-                <Td className="tabular whitespace-nowrap text-ink-muted">{fileSize(row.size_bytes)}</Td>
+                <Td className="tabular whitespace-nowrap text-ink-muted">
+                  {fileSize(row.size_bytes)}
+                </Td>
                 <Td>
                   {isAdmin ? (
                     <Toggle
@@ -164,18 +158,6 @@ export function DocumentsTable({
         </TableWrap>
       )}
 
-      {uploadTo ? (
-        <UploadDialog
-          open={uploading}
-          target={uploadTo}
-          onClose={() => setUploading(false)}
-          onUploaded={async () => {
-            setUploading(false);
-            await onChanged();
-          }}
-        />
-      ) : null}
-
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting?.name ?? 'this file'}?`}
@@ -188,7 +170,8 @@ export function DocumentsTable({
   );
 }
 
-function UploadDialog({
+/** Upload one file to a project (its Documents tab carries the button). */
+export function UploadDialog({
   open,
   target,
   onClose,
@@ -280,16 +263,31 @@ function UploadDialog({
             onChange={(event) => choose(event.target.files?.[0])}
           />
           <div className="flex items-center gap-3">
-            <Button type="button" icon={<UploadSimple size={15} aria-hidden="true" />} onClick={() => fileInput.current?.click()}>
+            <Button
+              type="button"
+              icon={<UploadSimple size={15} aria-hidden="true" />}
+              onClick={() => fileInput.current?.click()}
+            >
               {file ? 'Choose another' : 'Choose file'}
             </Button>
             <p className="min-w-0 truncate text-ink-muted">
-              {file ? `${file.name} · ${fileSize(file.size)}` : 'PDF, image, Word, Excel or PowerPoint, up to 25 MB'}
+              {file
+                ? `${file.name} · ${fileSize(file.size)}`
+                : 'PDF, image, Word, Excel or PowerPoint, up to 25 MB'}
             </p>
           </div>
         </div>
-        <Input label="Name" value={name} maxLength={160} onChange={(event) => setName(event.target.value)} />
-        <Select label="Type" value={type} onChange={(event) => setType(event.target.value as DocumentType)}>
+        <Input
+          label="Name"
+          value={name}
+          maxLength={160}
+          onChange={(event) => setName(event.target.value)}
+        />
+        <Select
+          label="Type"
+          value={type}
+          onChange={(event) => setType(event.target.value as DocumentType)}
+        >
           {DOCUMENT_TYPES.map((option) => (
             <option key={option} value={option}>
               {TYPE_LABELS[option]}

@@ -24,7 +24,6 @@ export function ProjectsPage() {
     <>
       <PageHeader
         title="My Projects"
-        description="Everything Enzo Interiors is building for you."
       />
 
       {error ? (

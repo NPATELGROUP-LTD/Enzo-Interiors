@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 
 import { AuthScreen, FormError } from '@/components/layout/AuthScreen';
 import { Button, Checkbox, Input } from '@/components/ui';
+import { SPAM_HINT } from '@/lib/format';
 import { ApiError, api, deviceStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import type { LoginResponse, LoginStart } from '@/types/api';
@@ -292,9 +293,9 @@ function CodeStep({
 
   const lede =
     mailbox
-      ? `To set up an authenticator app, first enter the code we emailed to ${step.hint ?? 'you'}.`
+      ? `To set up an authenticator app, first enter the code we emailed to ${step.hint ?? 'you'}. ${SPAM_HINT}`
       : method === 'email'
-      ? `We emailed a code to ${step.hint ?? 'you'}.`
+      ? `We emailed a code to ${step.hint ?? 'you'}. ${SPAM_HINT}`
       : qr
         ? 'Scan the code with your authenticator app, then enter the code it shows.'
         : recovery
@@ -328,7 +329,7 @@ function CodeStep({
         {mailbox ? null : <Checkbox label="Remember this device for 30 days" checked={remember} onChange={setRemember} />}
         {sent && !error ? (
           <p role="status" className="text-sm text-ink-muted">
-            A new code is on its way to {step.hint}.
+            A new code is on its way to {step.hint}. {SPAM_HINT}
           </p>
         ) : null}
         <FormError message={error} />
