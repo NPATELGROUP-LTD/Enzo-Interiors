@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import { Button, Modal, Select } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
+import { linkHref, linkParts } from '@/lib/links';
 import type { MessageAttachment } from '@/types/api';
 
 /*
@@ -14,14 +15,6 @@ import type { MessageAttachment } from '@/types/api';
 
 export const MAX_BODY = 5000;
 
-/** http(s):// or www. up to the next space, without trailing punctuation. */
-const URL_RE = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,;:!?)\]'"])/gi;
-
-/** Text and links in order: odd indexes are the links. */
-export function linkParts(text: string): string[] {
-  return text.split(URL_RE);
-}
-
 /** A message body, with its web addresses as links. Text only: never HTML. */
 export function MessageText({ text }: { text: string }) {
   return (
@@ -30,10 +23,10 @@ export function MessageText({ text }: { text: string }) {
         index % 2 ? (
           <a
             key={index}
-            href={/^www\./i.test(part) ? `https://${part}` : part}
+            href={linkHref(part)}
             target="_blank"
             rel="noopener noreferrer nofollow"
-            className="text-link underline underline-offset-2 [overflow-wrap:anywhere]"
+            className="font-semibold text-green-900 underline decoration-1 underline-offset-2 [overflow-wrap:anywhere]"
           >
             {part}
           </a>

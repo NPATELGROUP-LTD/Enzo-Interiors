@@ -291,7 +291,7 @@ booking page's old `timeSlots` / `wordmark`). The default favicon is
 migration `11_conversation_per_client`; a lost create race re-reads the winner) (Admin all, Designer/Installer
 their projects' clients via AccessService, client their own, Editor none).
 Attachments are `documents` ids shared with that client (`sharedWithClient`),
-opened via `/documents/:id/download`. `MessagesGateway` authenticates the
+opened via `/documents/:id/download`. The chat's paperclip uploads from the device (`POST /documents/upload`; a client only to their own shared project, always shared and typed Other; staff with `share=true`, which needs a shared project). `MessagesGateway` authenticates the
 handshake and every event with the shared `authenticate()` (one PK read), and
 re-checks each room member before delivery, so a signed-out/demoted socket is
 dropped; HTTP send/read go through the same `publish`/`read`. Nobody on the
