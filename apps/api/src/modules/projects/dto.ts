@@ -1,5 +1,4 @@
-import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, MaxLength, Min, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { ProjectStage, SERVICE_TYPES, ServiceType } from '../../common/types/domain';
 
@@ -14,7 +13,6 @@ export class CreateProjectDto {
 
   /** One of the configured stages (checked by ProjectsService); omitted = the first. */
   @IsOptional() @IsString() @MaxLength(40) status?: ProjectStage;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
   @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
   @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
@@ -23,14 +21,13 @@ export class CreateProjectDto {
 }
 
 /**
- * PUT /projects/:id. A Designer may send only progress_pct and current_stage
- * (ProjectsService); the rest is the Admin's. The client is fixed at creation:
+ * PUT /projects/:id. A Designer may send only current_stage (ProjectsService);
+ * progress always follows the stage; the rest is the Admin's. The client is fixed at creation:
  * moving a project would strand its documents and invoices.
  */
 export class UpdateProjectDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(160) name?: string;
   @IsOptional() @IsIn(SERVICE_TYPES) type?: ServiceType;
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
   @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
   @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
@@ -43,7 +40,6 @@ export class UpdateProjectStageDto {
   /** One of the configured stages (checked by ProjectsService). */
   @IsString() @MaxLength(40) status!: ProjectStage;
 
-  @IsOptional() @Type(() => Number) @IsInt() @Min(0) @Max(100) progress_pct?: number;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
 }
 

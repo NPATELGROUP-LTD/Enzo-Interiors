@@ -1245,6 +1245,14 @@ export function EntryPage({
                   </Button>
                 ) : null}
               </div>
+            ) : entry.data.review_feedback ? (
+              <div role="status" className="mb-9 flex items-start gap-3 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
+                <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
+                <p className="min-w-0 flex-1">
+                  <span className="font-semibold">Sent back by an Admin.</span> Make the changes, then send it for review again.
+                  <span className="mt-1 block whitespace-pre-wrap italic text-ink-muted">“{entry.data.review_feedback}”</span>
+                </p>
+              </div>
             ) : null}
             {content}
             {/* No sidebar below lg: the switch follows the form instead. */}

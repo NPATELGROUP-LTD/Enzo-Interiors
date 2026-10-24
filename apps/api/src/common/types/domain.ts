@@ -32,14 +32,15 @@
 /**
  * Admin does everything. Editor writes website content (cannot publish) and
  * never reaches the CRM. Designer works the CRM projects assigned to them (as
- * designer or installer) and may also write content like an Editor. Installer
- * is a legacy value treated exactly as Designer.
+ * designer or installer): moves their stages, and asks an Admin to change a
+ * client's details. Installer sees the same projects but only asks an Admin to
+ * move a stage. Neither reaches the CMS.
  */
 export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
-/** The roles the admin invites and assigns (Installer shows as Designer). */
-export const ADMIN_ROLES = ['Admin', 'Editor', 'Designer'] as const;
+/** The roles the admin invites and assigns. */
+export const ADMIN_ROLES = STAFF_ROLES;
 
 export const CLIENT_STATUSES = ['Active', 'Inactive'] as const;
 export type ClientStatus = (typeof CLIENT_STATUSES)[number];
@@ -445,6 +446,7 @@ export interface CmsEntry extends BaseRecord {
   review_by: string | null;
   review_at: string | null;
   review_note: string | null;
+  review_feedback: string | null;
 }
 
 /**
@@ -545,11 +547,27 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry' | 'request';
   title: string;
   body: string | null;
   link: string | null;
   read_at: string | null;
+  created_at: string;
+}
+
+/** A Designer's client edit or an Installer's stage move, waiting for an Admin (modules/change-requests). */
+export interface ChangeRequest extends BaseRecord {
+  kind: 'client_details' | 'project_stage';
+  client_id: string;
+  project_id: string | null;
+  requested_by: string;
+  requested_name: string;
+  /** client_details: { phone?, address?, notes? }; project_stage: { status }. */
+  payload: Record<string, string>;
+  note: string | null;
+  status: 'Pending' | 'Approved' | 'Declined';
+  decided_by: string | null;
+  decided_at: string | null;
   created_at: string;
 }
 

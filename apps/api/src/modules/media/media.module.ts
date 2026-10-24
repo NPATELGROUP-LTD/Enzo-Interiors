@@ -444,7 +444,7 @@ export class MediaService {
 /* -------------------------------------------------------------------------- */
 
 @Controller('cms/media')
-@Roles('Admin', 'Editor', 'Designer')
+@Roles('Admin', 'Editor')
 export class MediaController {
   constructor(private readonly media: MediaService) {}
 

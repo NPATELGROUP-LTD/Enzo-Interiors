@@ -50,6 +50,8 @@ export interface PaletteActions {
   isAdmin: boolean;
   /** May open the CRM: clients and projects (Admin, Designer). */
   clients: boolean;
+  /** May open the CMS (Admin, Editor). */
+  cms: boolean;
   unpublished: number;
   publishAll: () => void;
   toggleTheme: () => void;
@@ -115,7 +117,7 @@ export function SearchPalette({ open, onClose, actions }: {
   // The words search, debounced; the local commands filter instantly.
   useEffect(() => {
     const q = query.trim();
-    if (q.length < 2) {
+    if (q.length < 2 || !actions.cms) {
       setHits(null);
       return;
     }
@@ -139,7 +141,7 @@ export function SearchPalette({ open, onClose, actions }: {
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, actions.cms]);
 
   const results = useMemo<Result[]>(() => {
     const go = (to: string) => () => {
@@ -147,32 +149,36 @@ export function SearchPalette({ open, onClose, actions }: {
       navigate(to);
     };
     const local: Result[] = [
-      { id: 'overview', group: 'Go to', label: 'Overview', detail: 'Everything on the website', Icon: SquaresFour, run: go('/cms') },
-      ...Object.entries(PAGES).map(([slug, page]) => ({
-        id: `page-${slug}`,
-        group: 'Pages',
-        label: page.name,
-        detail: page.path ?? 'On every page',
-        Icon: Browsers,
-        run: go(`/pages/${slug}`),
-      })),
-      ...Object.entries(PAGES).flatMap(([slug, page]) =>
-        page.sections.map(([key, name, help]) => ({
-          id: `section-${slug}-${key}`,
-          group: 'Sections',
-          label: `${page.name} › ${name}`,
-          detail: help,
-          Icon: TextAlignLeft,
-          run: go(`/pages/${slug}#${key}`),
-        })),
-      ),
-      ...SECTIONS.filter((row) => row.collection !== 'pages').map((row) => ({
-        id: `shared-${row.collection}`,
-        group: 'Shared content',
-        label: row.label,
-        Icon: row.Icon,
-        run: go(row.to),
-      })),
+      ...(actions.cms
+        ? [
+          { id: 'overview', group: 'Go to', label: 'Overview', detail: 'Everything on the website', Icon: SquaresFour, run: go('/cms') },
+          ...Object.entries(PAGES).map(([slug, page]) => ({
+            id: `page-${slug}`,
+            group: 'Pages',
+            label: page.name,
+            detail: page.path ?? 'On every page',
+            Icon: Browsers,
+            run: go(`/pages/${slug}`),
+          })),
+          ...Object.entries(PAGES).flatMap(([slug, page]) =>
+            page.sections.map(([key, name, help]) => ({
+              id: `section-${slug}-${key}`,
+              group: 'Sections',
+              label: `${page.name} › ${name}`,
+              detail: help,
+              Icon: TextAlignLeft,
+              run: go(`/pages/${slug}#${key}`),
+            })),
+          ),
+          ...SECTIONS.filter((row) => row.collection !== 'pages').map((row) => ({
+            id: `shared-${row.collection}`,
+            group: 'Shared content',
+            label: row.label,
+            Icon: row.Icon,
+            run: go(row.to),
+          })),
+          ]
+        : []),
       ...(actions.clients
         ? [
             { id: 'dashboard', group: 'Go to', label: 'Dashboard', detail: 'Projects, and for an Admin the money and enquiries', Icon: Gauge, run: go('/') },

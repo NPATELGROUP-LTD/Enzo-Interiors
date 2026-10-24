@@ -54,6 +54,8 @@ before(async () => {
 after(async () => {
   await prisma.project.deleteMany({ where: { id: { in: Object.values(PROJECTS) } } });
   await prisma.client.deleteMany({ where: { email: { contains: run } } });
+  await prisma.changeRequest.deleteMany({ where: { requested_by: DESIGNER.id } });
+  await prisma.notification.deleteMany({ where: { recipient_id: DESIGNER.id } });
   await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id] } } });
   await prisma.$disconnect();
   await app.close();
@@ -145,16 +147,28 @@ test('a Designer sees only the clients of their projects, and only their project
   assert.deepEqual(detail.projects.map((row) => row.id), [PROJECTS.assigned]);
 });
 
-test('a Designer edits only contact details and notes, and nothing Admin-only', async () => {
-  const ok = await call('PUT', `/clients/${MINE.id}`, tokens.designer, { phone: '0116 000 0000', notes: 'Prefers mornings' });
-  assert.equal(ok.status, 200);
-
-  for (const body of [{ email: `stolen-${run}@test.enzo.local` }, { assigned_staff_id: DESIGNER.id }, { status: 'Inactive' }, { total_spent: 1 }]) {
+test('a Designer asks an Admin to change contact details and notes; only an Admin writes', async () => {
+  for (const body of [{ notes: 'x' }, { email: `stolen-${run}@test.enzo.local` }, { status: 'Inactive' }, { total_spent: 1 }]) {
     assert.equal((await call('PUT', `/clients/${MINE.id}`, tokens.designer, body)).status, 403, JSON.stringify(body));
   }
-  // Not a field at all any more: refused by validation before anyone looks.
-  assert.equal((await call('PUT', `/clients/${MINE.id}`, tokens.designer, { password: 'hunter2hunter2' })).status, 400);
-  assert.equal((await call('PUT', `/clients/${OTHER.id}`, tokens.designer, { notes: 'x' })).status, 403);
+  const ask = (body: object) => call('POST', '/change-requests', tokens.designer, { kind: 'client_details', ...body });
+  assert.equal((await ask({ client_id: OTHER.id, notes: 'x' })).status, 403, 'outside their clients');
+  // Only phone, address and notes can be asked for.
+  assert.equal((await ask({ client_id: MINE.id, email: `stolen-${run}@test.enzo.local` })).status, 400);
+
+  const first = (await (await ask({ client_id: MINE.id, phone: `0116 ${run}`, notes: 'Prefers mornings' })).json()) as { id: string };
+  const asked = await ask({ client_id: MINE.id, phone: `0116 ${run}`, notes: 'Prefers afternoons' });
+  assert.equal(asked.status, 201);
+  const request = (await asked.json()) as { id: string; payload: Record<string, string> };
+  assert.equal(request.id, first.id, 'asking again replaces the pending one');
+  assert.deepEqual(request.payload, { phone: `0116 ${run}`, notes: 'Prefers afternoons' });
+  assert.notEqual((await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } })).notes, 'Prefers afternoons');
+
+  assert.equal((await call('POST', `/change-requests/${request.id}/approve`, tokens.designer)).status, 403);
+  assert.equal((await call('POST', `/change-requests/${request.id}/approve`, tokens.admin)).status, 200);
+  const changed = await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } });
+  assert.equal(changed.phone, `0116 ${run}`);
+  assert.equal(changed.notes, 'Prefers afternoons');
   assert.equal((await call('POST', '/clients', tokens.designer, { name: 'Nope', email: `nope2-${run}@test.enzo.local` })).status, 403);
   assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.designer)).status, 403);
   assert.equal((await call('DELETE', `/clients/${MINE.id}`, tokens.designer)).status, 403);

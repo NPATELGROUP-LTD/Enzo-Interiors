@@ -9,6 +9,7 @@ import {
   BookingSettingsRow,
   BusinessSettings,
   CalendarConnection,
+  ChangeRequest,
   Client,
   CmsEntry,
   ContactSubmission,
@@ -83,6 +84,7 @@ export class DatabaseService {
   readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
   readonly calendarConnections: PrismaRepository<CalendarConnection>;
+  readonly changeRequests: PrismaRepository<ChangeRequest>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -158,6 +160,9 @@ export class DatabaseService {
     this.pushSubscriptions = new PrismaRepository(prisma.pushSubscription, 'push_subscriptions', {
       dates: ['created_at'],
     });
+    this.changeRequests = new PrismaRepository(prisma.changeRequest, 'change_requests', {
+      dates: ['created_at', 'decided_at'],
+    });
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });
@@ -217,6 +222,7 @@ export class DatabaseService {
     return this.prisma.$transaction(async (tx) => {
       const documents = await tx.documentRecord.updateMany({ where: { project_id: id }, data: { project_id: null } });
       const invoices = await tx.invoice.updateMany({ where: { project_id: id }, data: { project_id: null } });
+      await tx.changeRequest.deleteMany({ where: { project_id: id } });
       await tx.project.delete({ where: { id } });
       return { documents: documents.count, invoices: invoices.count };
     });
@@ -240,6 +246,7 @@ export class DatabaseService {
       await tx.notification.deleteMany({ where: { recipient_id: id } });
       await tx.pushSubscription.deleteMany({ where: { owner_type: 'client', owner_id: id } });
       await tx.notificationPreference.deleteMany({ where: { owner_type: 'Client', owner_id: id } });
+      await tx.changeRequest.deleteMany({ where: { client_id: id } });
       await tx.client.delete({ where: { id } });
       return { storageKeys: documents.map((row) => row.storage_url), projects: projects.count, invoices: invoices.count };
     });

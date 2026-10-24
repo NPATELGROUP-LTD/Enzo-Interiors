@@ -55,7 +55,9 @@ type View = (typeof CLIENT_VIEWS)[number]['id'];
  * page; nobody types a password for them here.
  */
 export function ClientsPage() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, can } = useAuth();
+  // Installers read clients only; a Designer's edit goes to an Admin.
+  const canEdit = can('Admin', 'Designer');
   const toast = useToast();
   const clients = useQuery<Client[]>('/clients');
   // Who can look after an account: the admin's own people. Admin-only on the API.
@@ -166,7 +168,16 @@ export function ClientsPage() {
 
     setSaving(true);
     try {
-      if (editing) {
+      if (editing && !isAdmin) {
+        await api.post('/change-requests', {
+          kind: 'client_details',
+          client_id: editing.id,
+          phone: contact.phone ?? '',
+          address: contact.address ?? '',
+          notes: contact.notes ?? '',
+        });
+        toast.success('Sent to the Admin for approval.');
+      } else if (editing) {
         await api.put<Client>(`/clients/${editing.id}`, payload);
         toast.success(`${editing.name} updated.`);
       } else {
@@ -382,14 +393,16 @@ export function ClientsPage() {
                 ) : null}
                 <Td>
                   <div className="flex justify-end gap-1">
-                    <button
-                      type="button"
-                      onClick={() => openEdit(client)}
-                      aria-label={`Edit ${client.name}`}
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
-                    >
-                      <PencilSimple size={16} aria-hidden="true" />
-                    </button>
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => openEdit(client)}
+                        aria-label={`Edit ${client.name}`}
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
+                      >
+                        <PencilSimple size={16} aria-hidden="true" />
+                      </button>
+                    ) : null}
                     {isAdmin ? (
                       <button
                         type="button"
@@ -416,7 +429,7 @@ export function ClientsPage() {
           editing
             ? isAdmin
               ? 'Update this client’s details.'
-              : 'You can update their phone, address and notes.'
+              : 'Suggest a new phone, address or notes. An Admin approves it before it changes.'
             : 'Create a client record. Invite them to the portal from their page when you are ready.'
         }
         footer={
@@ -425,7 +438,7 @@ export function ClientsPage() {
               Cancel
             </Button>
             <Button type="submit" form="client-form" variant="primary" loading={saving}>
-              {editing ? 'Save changes' : 'Add client'}
+              {editing ? (isAdmin ? 'Save changes' : 'Send to Admin') : 'Add client'}
             </Button>
           </>
         }

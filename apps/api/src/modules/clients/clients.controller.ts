@@ -10,10 +10,10 @@ import { CreateClientDto, UpdateClientDto } from './dto';
 /**
  * The CRM client book.
  *
- * Every route names its roles: Admin, plus Designer (and Installer, treated
- * the same) where they may look. Editors and client tokens never get in.
- * Which rows a Designer reaches is AccessService's call (clients of projects
- * assigned to them), and which fields they may write is ClientsService's.
+ * Every route names its roles: Admin, plus Designer and Installer where they
+ * may look. Editors and client tokens never get in. Which rows a Designer or
+ * Installer reaches is AccessService's call (clients of projects assigned to
+ * them). Only an Admin writes; a Designer asks one (/change-requests).
  */
 @Controller('clients')
 export class ClientsController {
@@ -44,9 +44,8 @@ export class ClientsController {
     return this.clients.create(principal, dto);
   }
 
-  /** A Designer may change phone, address and notes of a client they can see. */
   @Put(':id')
-  @Roles('Admin', 'Designer', 'Installer')
+  @Roles('Admin')
   update(
     @CurrentUser() principal: AuthPrincipal,
     @Param('id') id: string,

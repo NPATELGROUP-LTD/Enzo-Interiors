@@ -353,6 +353,7 @@ async function main(): Promise<void> {
         review_by: null,
         review_at: null,
         review_note: null,
+        review_feedback: null,
       });
       added += 1;
     }
