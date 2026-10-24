@@ -186,3 +186,16 @@ export const api = {
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
   baseUrl: BASE_URL,
 };
+
+/** A five-minute link to one document: saved as a file, or with `inline` shown in the page. */
+export async function documentLink(id: string, inline = false): Promise<string> {
+  const { url } = await api.get<{ url: string }>(
+    `/documents/${encodeURIComponent(id)}/download${inline ? '?inline=1' : ''}`,
+  );
+  // Only ever follow a secure link. Dev builds also take the plain-http MinIO one.
+  const { protocol } = new URL(url, window.location.href);
+  if (protocol !== 'https:' && !(import.meta.env.DEV && protocol === 'http:')) {
+    throw new ApiError(502, 'The download link was not secure, so it was not opened.');
+  }
+  return url;
+}

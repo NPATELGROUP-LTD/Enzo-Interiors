@@ -30,8 +30,10 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1
 COPY --from=build /app/public ./public
 # Fonts and the mark for the generated share cards (src/app/og).
 COPY --from=build /app/assets ./assets
-COPY --from=build /app/.next/standalone ./
-COPY --from=build /app/.next/static ./.next/static
+# Owned by `node`: the server writes its page cache under .next at runtime
+# (after a content change), and a root-owned .next makes that fail.
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
 
 USER node
 EXPOSE 3000

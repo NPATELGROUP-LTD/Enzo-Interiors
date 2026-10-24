@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import { DownloadSimple, Eye } from '@phosphor-icons/react';
 import { useState } from 'react';
 
@@ -36,11 +37,80 @@ export function DownloadButton({ id, name }: { id: string; name: string }) {
   );
 }
 
+/** Which viewer a file's name suggests (chat attachments carry no type). Only a
+ *  hint: the API serves the file by the type it checked at upload, and as a
+ *  download when that type cannot be shown in a page. */
+export function previewOfName(name: string): Preview | null {
+  const ext = name.toLowerCase().split('.').pop() ?? '';
+  if (ext === 'pdf') return 'pdf';
+  return ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? 'image' : null;
+}
+
+type Preview = NonNullable<DocumentRecord['preview']>;
+type Openable = { id: string; name: string; preview?: Preview | null };
+
 /**
- * View (PDFs and images, shown in the page from a fresh five-minute link) and
- * Download. A browser with no PDF reader of its own in a page (Chrome on
- * Android) gets a link that opens the PDF in the phone's viewer instead.
+ * Opens a PDF or image in a dialog, from a fresh five-minute link made on
+ * click; anything else is saved. A browser with no PDF reader of its own in a
+ * page (Chrome on Android) gets a link that opens the PDF in the phone's
+ * viewer instead. Render `viewer` once; call `show` from any row.
  */
+export function useFileViewer() {
+  const toast = useToast();
+  const [shown, setShown] = useState<{ file: Openable; preview: Preview; link: string } | null>(null);
+  const [opening, setOpening] = useState<string | null>(null);
+
+  const show = async (file: Openable) => {
+    // The API's own answer when it gave one (null = cannot be shown).
+    const preview = file.preview !== undefined ? file.preview : previewOfName(file.name);
+    setOpening(file.id);
+    try {
+      if (preview) setShown({ file, preview, link: await documentLink(file.id, true) });
+      else await downloadDocument(file.id);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not open this file. Try again.');
+    } finally {
+      setOpening(null);
+    }
+  };
+
+  const viewer = (
+    <Modal
+      open={shown !== null}
+      onClose={() => setShown(null)}
+      title={shown?.file.name ?? ''}
+      width="lg"
+      footer={shown ? <DownloadButton id={shown.file.id} name={shown.file.name} /> : null}
+    >
+      {shown === null ? null : shown.preview === 'image' ? (
+        <img src={shown.link} alt={shown.file.name} className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control" />
+      ) : navigator.pdfViewerEnabled ? (
+        <iframe
+          src={shown.link}
+          title={shown.file.name}
+          className="h-[70dvh] w-full rounded-control border border-border bg-white"
+        />
+      ) : (
+        <p className="text-ink">
+          This browser cannot show a PDF inside the page.{' '}
+          <a
+            href={shown.link}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-semibold text-green-900 underline underline-offset-2"
+          >
+            Open the PDF
+          </a>{' '}
+          in your phone’s viewer instead.
+        </p>
+      )}
+    </Modal>
+  );
+
+  return { show, opening, viewer };
+}
+
+/** View (PDFs and images, shown in the page) and Download for one document. */
 export function DocumentActions({
   document,
   className = 'flex justify-end gap-2',
@@ -48,21 +118,7 @@ export function DocumentActions({
   document: Pick<DocumentRecord, 'id' | 'name' | 'preview'>;
   className?: string;
 }) {
-  const toast = useToast();
-  const [link, setLink] = useState<string | null>(null);
-  const [opening, setOpening] = useState(false);
-
-  const view = async () => {
-    setOpening(true);
-    try {
-      setLink(await documentLink(document.id, true));
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'Could not open this file. Try Download instead.');
-    } finally {
-      setOpening(false);
-    }
-  };
-
+  const files = useFileViewer();
   return (
     <div className={className}>
       {document.preview ? (
@@ -70,44 +126,38 @@ export function DocumentActions({
           variant="secondary"
           className="px-3 text-xs"
           icon={<Eye size={14} aria-hidden="true" />}
-          loading={opening}
-          onClick={view}
+          loading={files.opening === document.id}
+          onClick={() => void files.show(document)}
           aria-label={`View ${document.name}`}
         >
           View
         </Button>
       ) : null}
       <DownloadButton id={document.id} name={document.name} />
-      <Modal
-        open={link !== null}
-        onClose={() => setLink(null)}
-        title={document.name}
-        width="lg"
-        footer={<DownloadButton id={document.id} name={document.name} />}
-      >
-        {link === null ? null : document.preview === 'image' ? (
-          <img src={link} alt={document.name} className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control" />
-        ) : navigator.pdfViewerEnabled ? (
-          <iframe
-            src={link}
-            title={document.name}
-            className="h-[70dvh] w-full rounded-control border border-border bg-white"
-          />
-        ) : (
-          <p className="text-ink">
-            This browser cannot show a PDF inside the page.{' '}
-            <a
-              href={link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-semibold text-green-900 underline underline-offset-2"
-            >
-              Open the PDF
-            </a>{' '}
-            in your phone’s viewer instead.
-          </p>
-        )}
-      </Modal>
+      {files.viewer}
     </div>
+  );
+}
+
+/** A document's name that opens it: shown in the page when it can be, else saved. */
+export function DocumentName({
+  document,
+  className,
+}: {
+  document: Pick<DocumentRecord, 'id' | 'name' | 'preview'>;
+  className?: string;
+}) {
+  const files = useFileViewer();
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => void files.show(document)}
+        className={clsx('text-left hover:text-green-900 hover:underline hover:underline-offset-2', className)}
+      >
+        {document.name}
+      </button>
+      {files.viewer}
+    </>
   );
 }

@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useOutletContext, useParams } from 'react-router-dom';
 
 import { AdminLayout, CLIENT_ROLES, CMS_ROLES, SECTIONS } from './components/layout/AdminLayout';
 import { Button, LoadingState } from './components/ui';
@@ -21,6 +21,11 @@ import { SiteSettingsPage } from './pages/SiteSettings';
 import type { CmsCollection } from './types/cms';
 
 /** The slug comes from the address; keyed so each entry starts fresh. */
+/** A guard route's Outlet: hands the layout's context on, which a bare <Outlet /> drops. */
+function PassOn() {
+  return <Outlet context={useOutletContext()} />;
+}
+
 function EntryRoute({ collection, basePath }: { collection: CmsCollection; basePath: string }) {
   const { slug = '' } = useParams();
   return <EntryPage key={slug} collection={collection} slug={slug} basePath={basePath} />;
@@ -117,7 +122,7 @@ export function App() {
           element={user.role === 'Admin' ? <AppointmentsPage /> : <Navigate to={home} replace />}
         />
         {/* The CMS: Admin and Editor only. */}
-        <Route element={canCms ? <Outlet /> : <Navigate to="/" replace />}>
+        <Route element={canCms ? <PassOn /> : <Navigate to="/" replace />}>
           <Route path="/cms" element={<CmsHome />} />
           {SECTIONS.flatMap(({ to, collection }) =>
             // The overview lists every page, so there is no separate page list;
