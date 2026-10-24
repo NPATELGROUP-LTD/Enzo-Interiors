@@ -1,6 +1,6 @@
-import { Navigate, Route, Routes, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 
-import { AdminLayout, CLIENT_ROLES, SECTIONS } from './components/layout/AdminLayout';
+import { AdminLayout, CLIENT_ROLES, CMS_ROLES, SECTIONS } from './components/layout/AdminLayout';
 import { Button, LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
 import { CmsHome, CollectionPage, EntryPage } from './pages/Cms';
@@ -76,79 +76,85 @@ export function App() {
   }
 
   const canSeeClients = can(...CLIENT_ROLES);
+  const canCms = can(...CMS_ROLES);
+  // Where a page someone may not open sends them: their own landing page.
+  const home = canSeeClients ? '/' : '/cms';
 
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<AdminLayout />}>
-        {/* Admin and Designers land on the dashboard; an Editor has none and lands on the CMS. */}
-        <Route path="/" element={canSeeClients ? <DashboardPage /> : <Navigate to="/cms" replace />} />
-        <Route path="/cms" element={<CmsHome />} />
+        {/* Admin, Designers and Installers land on the dashboard; an Editor has none and lands on the CMS. */}
+        <Route path="/" element={canSeeClients ? <DashboardPage /> : <Navigate to={home} replace />} />
         <Route path="/account" element={<AccountPage />} />
         <Route
           path="/settings/:section?"
-          element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to="/cms" replace />}
+          element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
         />
         {/* Admin, and Designers for the clients of their projects; never Editors. */}
-        <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to="/cms" replace />} />
+        <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to={home} replace />} />
         <Route
           path="/clients/:id"
-          element={canSeeClients ? <ClientDetailPage /> : <Navigate to="/cms" replace />}
+          element={canSeeClients ? <ClientDetailPage /> : <Navigate to={home} replace />}
         />
         {/* Same people: Admin, and Designers for the projects assigned to them. */}
-        <Route path="/projects" element={canSeeClients ? <ProjectsPage /> : <Navigate to="/cms" replace />} />
+        <Route path="/projects" element={canSeeClients ? <ProjectsPage /> : <Navigate to={home} replace />} />
         <Route
           path="/projects/:id"
-          element={canSeeClients ? <ProjectDetailPage /> : <Navigate to="/cms" replace />}
+          element={canSeeClients ? <ProjectDetailPage /> : <Navigate to={home} replace />}
         />
-        <Route path="/messages" element={canSeeClients ? <MessagesPage /> : <Navigate to="/cms" replace />} />
+        <Route path="/messages" element={canSeeClients ? <MessagesPage /> : <Navigate to={home} replace />} />
         <Route
           path="/invoices"
-          element={user.role === 'Admin' ? <InvoicesPage /> : <Navigate to="/cms" replace />}
+          element={user.role === 'Admin' ? <InvoicesPage /> : <Navigate to={home} replace />}
         />
         <Route
           path="/enquiries"
-          element={user.role === 'Admin' ? <EnquiriesPage /> : <Navigate to="/cms" replace />}
+          element={user.role === 'Admin' ? <EnquiriesPage /> : <Navigate to={home} replace />}
         />
         <Route
           path="/bookings"
-          element={user.role === 'Admin' ? <AppointmentsPage /> : <Navigate to="/cms" replace />}
+          element={user.role === 'Admin' ? <AppointmentsPage /> : <Navigate to={home} replace />}
         />
-        {SECTIONS.flatMap(({ to, collection }) =>
-          // The overview lists every page, so there is no separate page list;
-          // and Company is one record, so it opens straight onto it.
-          collection === 'pages'
-            ? [
-                <Route key={to} path={to} element={<Navigate to="/cms" replace />} />,
-                <Route
-                  key={`${to}/:slug`}
-                  path={`${to}/:slug`}
-                  element={<EntryRoute collection="pages" basePath={to} />}
-                />,
-              ]
-            : collection === 'company'
-            ? [
-                <Route
-                  key={to}
-                  path={to}
-                  element={<EntryPage collection="company" slug="company" basePath={to} />}
-                />,
-              ]
-            : [
-                <Route
-                  key={to}
-                  path={to}
-                  element={
-                    <CollectionPage key={collection} collection={collection} basePath={to} />
-                  }
-                />,
-                <Route
-                  key={`${to}/:slug`}
-                  path={`${to}/:slug`}
-                  element={<EntryRoute collection={collection} basePath={to} />}
-                />,
-              ],
-        )}
+        {/* The CMS: Admin and Editor only. */}
+        <Route element={canCms ? <Outlet /> : <Navigate to="/" replace />}>
+          <Route path="/cms" element={<CmsHome />} />
+          {SECTIONS.flatMap(({ to, collection }) =>
+            // The overview lists every page, so there is no separate page list;
+            // and Company is one record, so it opens straight onto it.
+            collection === 'pages'
+              ? [
+                  <Route key={to} path={to} element={<Navigate to="/cms" replace />} />,
+                  <Route
+                    key={`${to}/:slug`}
+                    path={`${to}/:slug`}
+                    element={<EntryRoute collection="pages" basePath={to} />}
+                  />,
+                ]
+              : collection === 'company'
+              ? [
+                  <Route
+                    key={to}
+                    path={to}
+                    element={<EntryPage collection="company" slug="company" basePath={to} />}
+                  />,
+                ]
+              : [
+                  <Route
+                    key={to}
+                    path={to}
+                    element={
+                      <CollectionPage key={collection} collection={collection} basePath={to} />
+                    }
+                  />,
+                  <Route
+                    key={`${to}/:slug`}
+                    path={`${to}/:slug`}
+                    element={<EntryRoute collection={collection} basePath={to} />}
+                  />,
+                ],
+          )}
+        </Route>
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

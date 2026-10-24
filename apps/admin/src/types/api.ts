@@ -126,6 +126,20 @@ export interface Client {
   updated_at: string;
 }
 
+/** A Designer's client edit or an Installer's stage move, waiting for an Admin. */
+export interface ChangeRequest {
+  id: string;
+  kind: 'client_details' | 'project_stage';
+  client_id: string;
+  project_id: string | null;
+  requested_by: string;
+  requested_name: string;
+  payload: Partial<Record<'phone' | 'address' | 'notes' | 'status', string>>;
+  note: string | null;
+  status: 'Pending' | 'Approved' | 'Declined';
+  created_at: string;
+}
+
 export interface Project {
   id: string;
   client_id: string;

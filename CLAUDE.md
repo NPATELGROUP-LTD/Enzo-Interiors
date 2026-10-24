@@ -47,20 +47,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
 
-**Roles (v1):** Settings › Users assigns `Admin`, `Editor` or `Designer`
-(`Installer` is a legacy value shown and treated as Designer). `Admin` does
-everything. `Editor` (and `Designer`, the same in the CMS) edits the CMS and
-sends changes for review; cannot publish, add or delete entries, or see
-Bookings/Settings. Reviews live on the entry
+**Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
+`Installer`. `Admin` does everything. The CMS is Admin + `Editor` only (API
+`@Roles`, menu, routes and search): an Editor edits and sends changes for
+review; cannot publish, add or delete entries, or see Bookings/Settings. An
+Admin's send-back note stays on the entry (`cms_entries.review_feedback`)
+until the next send or publish. Reviews live on the entry
 (`cms_entries.review_*`) and clear on publish or send-back; both ends are told
 through `notifications` (the bell) and admins by email too. **Clients:** Admin
-all; `Designer` (and `Installer`) only clients with a project where
+all; `Designer` and `Installer` only clients with a project where
 `projects.assigned_designer_id` or `assigned_installer_id` is them
 (`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
-editing only phone/address/notes; Editors none. **Projects:** Admin all
+read-only; Editors none. Only an Admin writes a client. **Projects:** Admin all
 (create, delete, assignment, `client_visible`, default off); a Designer only
-projects they design or install (others 404), changing stage, `progress_pct`
-and `current_stage` only; stage moves are direct (no approval step). Being
+projects they design or install (others 404), moving the stage directly and
+editing `current_stage` only; an Installer reads the same and cannot move a
+stage. Nobody types `progress_pct`: it follows the stage. **Change requests**
+(`modules/change-requests`, migration 16): a Designer asks to change a
+client's phone/address/notes, an Installer asks to move a stage
+(`POST /change-requests`); one pending per person and target, asking again
+replaces it. Admins are told by the bell and see them on the client/project
+page and the dashboard; approve replays the change through
+`ClientsService.update` / `ProjectsService.changeStage` as the Admin (claimed
+with one conditional UPDATE), and the asker is told. Being
 assigned rings the bell. A client sees their own `client_visible` projects;
 project detail lists documents/invoices with that project_id AND its
 client_id, and for clients no Draft invoices, no internal documents, no

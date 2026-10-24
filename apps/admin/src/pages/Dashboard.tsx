@@ -14,7 +14,7 @@ import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
 import { dateTime, moneyCompact, padCount, relative } from '@/lib/format';
 import { projectTone } from '@/lib/status';
-import type { AdminDashboard, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
+import type { AdminDashboard, ChangeRequest, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 /**
@@ -131,6 +131,7 @@ function AwaitingDecision() {
 
 function AdminView() {
   const { data, loading, error, refetch } = useQuery<AdminDashboard>('/dashboard/admin');
+  const requests = useQuery<ChangeRequest[]>('/change-requests?status=Pending');
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading || !data) {
@@ -145,6 +146,23 @@ function AdminView() {
 
   return (
     <>
+      {requests.data?.length ? (
+        <Card accent="warning" className="mb-4 pl-5">
+          <p className="font-semibold text-ink">
+            {requests.data.length} change request{requests.data.length === 1 ? '' : 's'} waiting for you
+          </p>
+          <ul className="mt-2 flex flex-col gap-1 text-sm">
+            {requests.data.map((row) => (
+              <li key={row.id}>
+                <Link to={row.project_id ? `/projects/${row.project_id}` : `/clients/${row.client_id}`} className="text-link">
+                  {row.requested_name}: {row.kind === 'project_stage' ? `move to ${row.payload.status}` : `change ${Object.keys(row.payload).join(', ')}`}
+                </Link>
+                <span className="ml-2 text-xs text-ink-muted">{relative(row.created_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       {/* Bento grid. Card order follows the brief's content-rules table. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <MetricCard

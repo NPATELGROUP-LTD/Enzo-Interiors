@@ -393,6 +393,9 @@ model CmsEntry {
   review_by    String?
   review_at    DateTime? @db.Timestamptz(6)
   review_note  String?
+  // The Admin's note from the last send-back, shown to the editor until they
+  // send again or it is published.
+  review_feedback String?
 
   @@unique([collection, slug])
   @@index([collection, sort_order])
@@ -636,4 +639,28 @@ model CalendarConnection {
   updated_at        DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("calendar_connections")
+}
+
+// A Designer's client edit or an Installer's stage move, waiting for an Admin
+// (modules/change-requests). Approving replays it as the Admin.
+model ChangeRequest {
+  id             String    @id
+  // "client_details" | "project_stage"
+  kind           String
+  client_id      String
+  project_id     String?
+  requested_by   String
+  requested_name String
+  // client_details: { phone?, address?, notes? }; project_stage: { status }
+  payload        Json
+  note           String?
+  // "Pending" | "Approved" | "Declined"
+  status         String    @default("Pending")
+  decided_by     String?
+  decided_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status, created_at])
+  @@index([client_id])
+  @@map("change_requests")
 }

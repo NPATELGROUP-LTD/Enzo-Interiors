@@ -385,17 +385,26 @@ async function seed(): Promise<void> {
     })),
   });
 
-  /* bells: staff and clients, read and unread */
-  const NOTES: [string, string, string | null, string][] = [
-    ['enquiry', 'New enquiry from Enquirer 1', 'Hello, I would like a quote for a new room.', '/enquiries'],
+  /* bells: per role, only the kinds the app sends that role; read and unread */
+  type Note = [string, string, string | null, string];
+  const CREW: Note[] = [
     ['message', 'New message from Sarah Jones', null, `/messages?client=${cid('sarah')}`],
-    ['booking', 'New consultation booked', 'Grace Hall, Kitchens', '/bookings'],
     ['project', 'Sarah Jones approved "Main bedroom fitted wardrobes"', null, `/projects/${P}prj_wardrobe`],
-    ['review', 'Eve Editor (mock) sent Home for review', 'Changed the hero heading, please check the wording on mobile.', '/cms'],
   ];
+  const NOTES: Record<string, Note[]> = {
+    Admin: [
+      ['enquiry', 'New enquiry from Enquirer 1', 'Hello, I would like a quote for a new room.', '/enquiries'],
+      ...CREW,
+      ['booking', 'New consultation booked', 'Grace Hall, Kitchens', '/bookings'],
+      ['review', 'Eve Editor (mock) sent Home for review', 'Changed the hero heading, please check the wording on mobile.', '/cms'],
+    ],
+    Designer: CREW,
+    Installer: CREW,
+    Editor: [['review_reply', 'Maya Admin (mock) sent back Home', 'Keep the heading to one line on phones.', '/pages/home']],
+  };
   const bells: Prisma.NotificationCreateManyInput[] = [
-    ...STAFF.filter((s) => s.role !== 'Editor').flatMap((s) =>
-      NOTES.map(([kind, title, body, link], i) => ({ id: `${P}note_${s.id}_${i}`, recipient_id: s.id, kind, title, body, link, read_at: i > 2 ? ago(1) : null, created_at: ago(i, 8 + i) })),
+    ...STAFF.flatMap((s) =>
+      NOTES[s.role]!.map(([kind, title, body, link], i) => ({ id: `${P}note_${s.id}_${i}`, recipient_id: s.id, kind, title, body, link, read_at: i > 2 ? ago(1) : null, created_at: ago(i, 8 + i) })),
     ),
     ...['sarah', 'tom', 'long'].flatMap((c) => [
       { id: `${P}note_${c}_0`, recipient_id: cid(c), kind: 'project', title: 'Your project moved to Approval', body: 'Please review the design.', link: '/projects', read_at: null, created_at: ago(1) },

@@ -15,7 +15,7 @@ const run = randomUUID().slice(0, 8);
 const PASSWORD = 'project-password-123';
 const EDITOR = { id: `stf_ed_${run}`, email: `p-editor-${run}@test.enzo.local`, role: 'Editor' };
 const DESIGNER = { id: `stf_des_${run}`, email: `p-designer-${run}@test.enzo.local`, role: 'Designer' };
-const LEGACY = { id: `stf_inst_${run}`, email: `p-installer-${run}@test.enzo.local`, role: 'Installer' };
+const INSTALLER = { id: `stf_inst_${run}`, email: `p-installer-${run}@test.enzo.local`, role: 'Installer' };
 const MINE = { id: `cli_pmine_${run}`, email: `p-mine-${run}@test.enzo.local` };
 const OTHER = { id: `cli_pother_${run}`, email: `p-other-${run}@test.enzo.local` };
 const P = {
@@ -34,7 +34,7 @@ before(async () => {
   prisma = new PrismaClient();
 
   const password_hash = await bcrypt.hash(PASSWORD, 4);
-  for (const staff of [EDITOR, DESIGNER, LEGACY]) {
+  for (const staff of [EDITOR, DESIGNER, INSTALLER]) {
     await prisma.staffUser.create({ data: { ...staff, name: `Test ${staff.role} ${run}`, password_hash } });
   }
   const client = { joined_date: new Date(), status: 'Active', password_hash };
@@ -80,8 +80,9 @@ after(async () => {
   await prisma.documentRecord.deleteMany({ where: { id: { in: Object.values(DOCS) } } });
   await prisma.project.deleteMany({ where: { client_id: { in: [MINE.id, OTHER.id] } } });
   await prisma.client.deleteMany({ where: { id: { in: [MINE.id, OTHER.id] } } });
-  await prisma.notification.deleteMany({ where: { recipient_id: { in: [DESIGNER.id, LEGACY.id] } } });
-  await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id, LEGACY.id] } } });
+  await prisma.changeRequest.deleteMany({ where: { requested_by: INSTALLER.id } });
+  await prisma.notification.deleteMany({ where: { recipient_id: { in: [DESIGNER.id, INSTALLER.id] } } });
+  await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id, INSTALLER.id] } } });
   await prisma.$disconnect();
   await app.close();
 });
@@ -117,20 +118,20 @@ interface Detail {
 
 const ids = (rows: Array<{ id: string }>) => rows.map((row) => row.id).sort();
 
-test('Settings › Users shows and assigns Admin, Editor and Designer distinctly', async () => {
+test('Settings › Users shows and assigns Admin, Editor, Designer and Installer distinctly', async () => {
   const list = await json<Array<{ id: string; role: string }>>(await call('GET', '/users', tokens.admin));
   const roleOf = (id: string) => list.find((row) => row.id === id)?.role;
   assert.equal(roleOf(DESIGNER.id), 'Designer');
   assert.equal(roleOf(EDITOR.id), 'Editor');
-  assert.equal(roleOf(LEGACY.id), 'Designer', 'an Installer is listed as a Designer');
+  assert.equal(roleOf(INSTALLER.id), 'Installer');
 
-  const before = await prisma.staffUser.findUniqueOrThrow({ where: { id: LEGACY.id } });
-  assert.equal((await json<{ role: string }>(await call('PUT', `/users/${LEGACY.id}`, tokens.admin, { role: 'Editor' }))).role, 'Editor');
-  assert.equal((await json<{ role: string }>(await call('PUT', `/users/${LEGACY.id}`, tokens.admin, { role: 'Designer' }))).role, 'Designer');
-  const row = await prisma.staffUser.findUniqueOrThrow({ where: { id: LEGACY.id } });
-  assert.equal(row.role, 'Designer');
+  const before = await prisma.staffUser.findUniqueOrThrow({ where: { id: INSTALLER.id } });
+  assert.equal((await json<{ role: string }>(await call('PUT', `/users/${INSTALLER.id}`, tokens.admin, { role: 'Editor' }))).role, 'Editor');
+  assert.equal((await json<{ role: string }>(await call('PUT', `/users/${INSTALLER.id}`, tokens.admin, { role: 'Installer' }))).role, 'Installer');
+  const row = await prisma.staffUser.findUniqueOrThrow({ where: { id: INSTALLER.id } });
+  assert.equal(row.role, 'Installer');
   assert.equal(row.token_version, before.token_version + 2, 'each role change signs them out');
-  assert.equal((await call('PUT', `/users/${LEGACY.id}`, tokens.admin, { role: 'Installer' })).status, 400);
+  assert.equal((await call('PUT', `/users/${INSTALLER.id}`, tokens.admin, { role: 'Owner' })).status, 400);
 });
 
 test('an Admin creates, reads, updates, moves and deletes a project; assignees hear about it', async () => {
@@ -146,11 +147,11 @@ test('an Admin creates, reads, updates, moves and deletes a project; assignees h
 
   assert.ok(ids(await json(await call('GET', '/projects', tokens.admin))).includes(id));
   const put = await json<{ client_visible: boolean; assigned_installer_name: string }>(
-    await call('PUT', `/projects/${id}`, tokens.admin, { client_visible: true, assigned_installer_id: LEGACY.id }),
+    await call('PUT', `/projects/${id}`, tokens.admin, { client_visible: true, assigned_installer_id: INSTALLER.id }),
   );
   assert.equal(put.client_visible, true);
   assert.equal(put.assigned_installer_name, `Test Installer ${run}`);
-  assert.equal(await prisma.notification.count({ where: { recipient_id: LEGACY.id, link: `/projects/${id}` } }), 1);
+  assert.equal(await prisma.notification.count({ where: { recipient_id: INSTALLER.id, link: `/projects/${id}` } }), 1);
 
   // Only Designers are assigned; the client is fixed; stages are the five.
   assert.equal((await call('PUT', `/projects/${id}`, tokens.admin, { assigned_designer_id: EDITOR.id })).status, 400);
@@ -183,7 +184,7 @@ test('an Editor is refused on every /projects route', async () => {
     ['GET', `/projects/${P.designs}`],
     ['GET', `/projects/${P.designs}/detail`],
     ['POST', '/projects', { client_id: MINE.id, name: 'Nope', type: 'Kitchen' }],
-    ['PUT', `/projects/${P.designs}`, { progress_pct: 1 }],
+    ['PUT', `/projects/${P.designs}`, { current_stage: 'x' }],
     ['PATCH', `/projects/${P.designs}/stage`, { status: 'Design' }],
     ['DELETE', `/projects/${P.other}`],
   ];
@@ -192,17 +193,19 @@ test('an Editor is refused on every /projects route', async () => {
   }
 });
 
-test('a Designer sees only projects they design or install, and changes only stage and progress', async () => {
+test('a Designer sees only projects they design or install, and changes only the stage and its note', async () => {
   assert.deepEqual(ids(await json(await call('GET', '/projects', tokens.designer))), [P.designs, P.installs].sort());
 
   for (const id of [P.hidden, P.other]) {
     assert.equal((await call('GET', `/projects/${id}`, tokens.designer)).status, 404, id);
     assert.equal((await call('GET', `/projects/${id}/detail`, tokens.designer)).status, 404, id);
-    assert.equal((await call('PUT', `/projects/${id}`, tokens.designer, { progress_pct: 5 })).status, 404, id);
+    assert.equal((await call('PUT', `/projects/${id}`, tokens.designer, { current_stage: 'x' })).status, 404, id);
     assert.equal((await call('PATCH', `/projects/${id}/stage`, tokens.designer, { status: 'Design' })).status, 404, id);
   }
 
-  await json(await call('PUT', `/projects/${P.designs}`, tokens.designer, { progress_pct: 55, current_stage: 'Drawings out' }));
+  await json(await call('PUT', `/projects/${P.designs}`, tokens.designer, { current_stage: 'Drawings out' }));
+  // Progress follows the stage; nobody types it.
+  assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.designer, { progress_pct: 55 })).status, 400);
   assert.equal((await json<{ status: string }>(await call('PATCH', `/projects/${P.installs}/stage`, tokens.designer, { status: 'Installation' }))).status, 'Installation');
 
   for (const body of [{ client_visible: true }, { assigned_designer_id: null }, { assigned_installer_id: DESIGNER.id }, { name: 'Renamed' }]) {
@@ -212,7 +215,7 @@ test('a Designer sees only projects they design or install, and changes only sta
   assert.equal((await call('DELETE', `/projects/${P.designs}`, tokens.designer)).status, 403);
   const row = await prisma.project.findUniqueOrThrow({ where: { id: P.designs } });
   assert.equal(row.assigned_designer_id, DESIGNER.id);
-  assert.equal(row.progress_pct, 55);
+  assert.equal(row.current_stage, 'Drawings out');
 
   // Staff see internal documents and drafts, but never another client's file or a storage key.
   const detail = await json<Detail>(await call('GET', `/projects/${P.designs}/detail`, tokens.designer));
@@ -241,7 +244,7 @@ test('a client sees only their own shared projects, without drafts, internal fil
 
   // Staff-only routes stay shut to a client.
   assert.equal((await call('GET', `/projects/${P.designs}`, tokens.mine)).status, 403);
-  assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.mine, { progress_pct: 1 })).status, 403);
+  assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.mine, { current_stage: 'x' })).status, 403);
   assert.equal((await call('PATCH', `/projects/${P.designs}/stage`, tokens.mine, { status: 'Completed' })).status, 403);
 
   const approved = await json<{ status: string }>(await call('POST', `/projects/${P.designs}/approve`, tokens.mine, {}));
@@ -278,4 +281,33 @@ test('an Admin renames stages (projects follow) and cannot remove one still in u
     await prisma.siteSettings.update({ where: { id: 'site' }, data: { project_stages: Prisma.DbNull } });
     await prisma.project.updateMany({ where: { status: 'Designing' }, data: { status: 'Design' } });
   }
+});
+
+test('an Installer reads their projects but only asks an Admin to move a stage; neither reaches the CMS', async () => {
+  await prisma.project.update({ where: { id: P.other }, data: { assigned_installer_id: INSTALLER.id } });
+  const token = await signIn('/auth/admin/login', INSTALLER.email, PASSWORD);
+  assert.deepEqual(ids(await json(await call('GET', '/projects', token))), [P.other]);
+  assert.equal((await call('PATCH', `/projects/${P.other}/stage`, token, { status: 'Installation' })).status, 403);
+  assert.equal((await call('PUT', `/projects/${P.other}`, token, { current_stage: 'x' })).status, 403);
+  for (const who of [token, tokens.designer]) assert.equal((await call('GET', '/cms/overview', who)).status, 403);
+
+  const ask = (body: unknown) => call('POST', '/change-requests', token, body);
+  assert.equal((await ask({ kind: 'project_stage', project_id: P.designs, status: 'Installation' })).status, 404, 'not their project');
+  assert.equal((await ask({ kind: 'client_details', client_id: OTHER.id, notes: 'x' })).status, 403, 'Installers never edit clients');
+  assert.equal((await ask({ kind: 'project_stage', project_id: P.other, status: 'Nope' })).status, 400);
+  const asked = await json<{ id: string }>(await ask({ kind: 'project_stage', project_id: P.other, status: 'Installation', note: 'Fitted' }), 201);
+
+  assert.ok(ids(await json(await call('GET', '/change-requests?status=Pending', tokens.admin))).includes(asked.id));
+  assert.deepEqual(await json(await call('GET', '/change-requests', tokens.designer)), [], 'only your own');
+  assert.equal((await call('POST', `/change-requests/${asked.id}/approve`, token)).status, 403);
+  assert.equal((await prisma.project.findUniqueOrThrow({ where: { id: P.other } })).status, 'Design', 'nothing moves before approval');
+
+  await json(await call('POST', `/change-requests/${asked.id}/approve`, tokens.admin), 200);
+  assert.equal((await prisma.project.findUniqueOrThrow({ where: { id: P.other } })).status, 'Installation');
+  assert.equal((await call('POST', `/change-requests/${asked.id}/decline`, tokens.admin)).status, 404, 'decided once');
+
+  // Each bell is its own: the Installer hears the decision, never the Admins' "asks to" note.
+  const bell = await json<{ items: Array<{ kind: string; title: string }> }>(await call('GET', '/notifications', token));
+  assert.ok(bell.items.some((item) => item.kind === 'request' && item.title.includes('approved')));
+  assert.ok(!bell.items.some((item) => item.title.includes('asks to')));
 });

@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { AccessService } from '../../common/access/access.service';
 import { Client } from '../../common/types/domain';
@@ -27,9 +27,6 @@ export function toClientView(client: Client): ClientView {
   delete rest.token_version;
   return { ...rest, has_portal_access: looksHashed(password_hash) };
 }
-
-/** What a Designer may change on a client they can see. The rest is the Admin's. */
-const DESIGNER_FIELDS = new Set(['phone', 'address', 'notes']);
 
 @Injectable()
 export class ClientsService {
@@ -100,15 +97,10 @@ export class ClientsService {
     return this.view(principal, created);
   }
 
+  /** Admin only (controller); a Designer's edit arrives here when an Admin approves it. */
   async update(principal: AuthPrincipal, id: string, dto: UpdateClientDto): Promise<ClientView> {
     const existing = await this.require(principal, id);
     const fields = Object.keys(dto).filter((key) => dto[key as keyof UpdateClientDto] !== undefined);
-    if (!this.access.isAdmin(principal)) {
-      const adminOnly = fields.filter((key) => !DESIGNER_FIELDS.has(key));
-      if (adminOnly.length > 0) {
-        throw new ForbiddenException(`Only an Admin can change ${adminOnly.join(', ')}.`);
-      }
-    }
 
     const emailChanged = dto.email !== undefined && dto.email.trim().toLowerCase() !== existing.email.toLowerCase();
     if (emailChanged) await this.assertEmailFree(dto.email!);

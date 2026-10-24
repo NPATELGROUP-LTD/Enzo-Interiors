@@ -26,6 +26,7 @@ import { invoiceTone, projectTone } from '@/lib/status';
 import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
+import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable } from '@/components/DocumentsTable';
 
 import { NewProjectDialog, useDesigners } from './Projects';
@@ -135,6 +136,8 @@ export function ClientDetailPage() {
           </>
         }
       />
+
+      <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
       <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {isAdmin ? (

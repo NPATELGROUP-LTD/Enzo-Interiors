@@ -28,8 +28,9 @@ import { ProjectsService } from './projects.service';
 /**
  * The CRM's projects.
  *
- * Every route names its roles. Admin: everything. Designer (and Installer,
- * treated the same): the projects assigned to them, stage and progress only.
+ * Every route names its roles. Admin: everything. Designer: the projects
+ * assigned to them, stage and status note only. Installer: reads the same
+ * projects and asks an Admin to move a stage (/change-requests).
  * Client: their own shared projects, through the four routes the portal
  * calls (list, detail, approve, request changes). Editors never get in.
  */
@@ -77,9 +78,9 @@ export class ProjectsController {
     return this.projects.create(principal, dto);
   }
 
-  /** A Designer may send progress_pct and current_stage only (ProjectsService). */
+  /** A Designer may send current_stage only (ProjectsService). */
   @Put(':id')
-  @Roles('Admin', 'Designer', 'Installer')
+  @Roles('Admin', 'Designer')
   update(
     @CurrentUser() principal: AuthPrincipal,
     @Param('id') id: string,
@@ -90,7 +91,7 @@ export class ProjectsController {
 
   /** The documented Kanban stage endpoint. */
   @Patch(':id/stage')
-  @Roles('Admin', 'Designer', 'Installer')
+  @Roles('Admin', 'Designer')
   changeStage(
     @CurrentUser() principal: AuthPrincipal,
     @Param('id') id: string,
@@ -136,5 +137,6 @@ export class ProjectsController {
   imports: [NotificationsModule],
   controllers: [ProjectsController],
   providers: [ProjectsService],
+  exports: [ProjectsService],
 })
 export class ProjectsModule {}

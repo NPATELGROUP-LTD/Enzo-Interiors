@@ -1,4 +1,4 @@
-import { Bell, CalendarCheck, ChatCircleText, ChatsCircle, CheckCircle, EnvelopeSimple, Kanban } from '@phosphor-icons/react';
+import { Bell, CalendarCheck, ChatCircleText, ChatsCircle, CheckCircle, ClipboardText, EnvelopeSimple, Kanban } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { Badge } from './Desktop';
 
 interface Note {
   id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'enquiry';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'enquiry' | 'request';
   title: string;
   body: string | null;
   link: string | null;
@@ -20,7 +20,7 @@ interface Note {
   created_at: string;
 }
 
-const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban, message: ChatsCircle, enquiry: EnvelopeSimple };
+const ICONS = { booking: CalendarCheck, review: ChatCircleText, review_reply: CheckCircle, project: Kanban, message: ChatsCircle, enquiry: EnvelopeSimple, request: ClipboardText };
 
 /** How often the bell asks. It also asks whenever the window comes back into focus. */
 const POLL_MS = 60_000;
@@ -183,7 +183,8 @@ export function Notifications({ onChange }: { onChange?: () => void }) {
                         {item.title}
                       </span>
                       {item.body ? (
-                        <span className="mt-0.5 line-clamp-2 block text-[12.5px] leading-snug text-ink-muted">{item.body}</span>
+                        // In full: a review or send-back note is the point of the notification.
+                        <span className="mt-0.5 block whitespace-pre-wrap break-words text-[12.5px] leading-snug text-ink-muted">{item.body}</span>
                       ) : null}
                       <span className="mt-0.5 block text-[11.5px] text-ink-muted">{relative(item.created_at)}</span>
                     </span>
