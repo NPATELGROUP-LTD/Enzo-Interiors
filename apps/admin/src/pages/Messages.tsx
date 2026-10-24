@@ -1,6 +1,6 @@
 import clsx from 'clsx';
-import { Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { CaretLeft, Checks, Paperclip, PaperPlaneRight, X } from '@phosphor-icons/react';
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import {
@@ -54,6 +54,17 @@ export function MessagesPage() {
   const [sending, setSending] = useState(false);
   const [typingFrom, setTypingFrom] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Follow new messages only while the reader is at the bottom of the thread.
+  const atBottom = useRef(true);
+  // Phones show the list or one thread, never both squeezed together.
+  const [threadOpen, setThreadOpen] = useState(false);
+  // Screen readers hear new incoming messages only, not the whole history.
+  const [announce, setAnnounce] = useState('');
+  const openThread = (id: string) => {
+    atBottom.current = true;
+    setActiveId(id);
+    setThreadOpen(true);
+  };
 
   // ?client=… : open (or start) that client's conversation, then tidy the address.
   const clientParam = params.get('client');
@@ -63,22 +74,26 @@ export function MessagesPage() {
       .post<Conversation>('/conversations', { client_id: clientParam })
       .then(async (conversation) => {
         await conversations.refetch();
-        setActiveId(conversation.id);
+        openThread(conversation.id);
       })
       .catch((caught) => toast.error(errorText(caught, 'Could not open that conversation.')))
       .finally(() => setParams({}, { replace: true }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientParam]);
 
-  // Otherwise open the most recent one, so the screen is never empty.
+  // On a wide screen, otherwise open the most recent one so the thread pane is
+  // never empty. Phones start on the list: opening one marks it read.
   useEffect(() => {
-    if (!activeId && !clientParam && conversations.data?.length) setActiveId(conversations.data[0]!.id);
+    if (activeId || clientParam || !window.matchMedia('(min-width: 64rem)').matches) return;
+    const latest = conversations.data?.find((conversation) => conversation.message_count > 0);
+    if (latest) setActiveId(latest.id);
   }, [conversations.data, activeId, clientParam]);
 
   // Load the selected thread and mark it read.
   useEffect(() => {
     if (!activeId) return;
     let cancelled = false;
+    atBottom.current = true;
     setLoadingThread(true);
     setThreadError(null);
     setAttachments([]);
@@ -115,6 +130,7 @@ export function MessagesPage() {
         setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
         if (message.sender_type === 'Client') {
           setTypingFrom(null);
+          setAnnounce(`New message: ${message.body || 'an attachment'}`);
           void api.put(`/conversations/${activeId}/read`).catch(() => undefined);
         }
       }
@@ -176,10 +192,12 @@ export function MessagesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]);
 
-  // Keep the newest message in view.
-  useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [messages, typingFrom]);
+  // Keep the newest message in view, once the thread has rendered (not while
+  // it still shows the loading state) and unless the reader scrolled up.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (el && atBottom.current) el.scrollTop = el.scrollHeight;
+  }, [messages, typingFrom, loadingThread, threadOpen]);
 
   // Typing pings at most every two seconds.
   const lastPing = useRef(0);
@@ -198,6 +216,7 @@ export function MessagesPage() {
         body: draft.trim(),
         ...(attachments.length ? { document_ids: attachments.map((a) => a.document_id) } : {}),
       });
+      atBottom.current = true;
       setMessages((current) => (current.some((m) => m.id === message.id) ? current : [...current, message]));
       setDraft('');
       setAttachments([]);
@@ -209,7 +228,11 @@ export function MessagesPage() {
     }
   };
 
-  const list = conversations.data ?? [];
+  // A conversation opened from a client's page exists before anything is sent;
+  // it joins the list with its first message (or while it is open).
+  const list = (conversations.data ?? []).filter(
+    (conversation) => conversation.message_count > 0 || conversation.id === activeId,
+  );
   const active = list.find((conversation) => conversation.id === activeId);
   const lastOwn = [...messages].reverse().find((m) => m.sender_type === 'Staff');
 
@@ -217,7 +240,12 @@ export function MessagesPage() {
 
   return (
     <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-6 sm:px-8 sm:pb-8 lg:pt-8">
-      <PageHeader title="Messages" description="Conversations with your clients. Open a client to start one." />
+      <p className="sr-only" aria-live="polite">
+        {announce}
+      </p>
+      <div className={clsx(threadOpen && 'hidden lg:block')}>
+        <PageHeader title="Messages" description="Conversations with your clients. Open a client to start one." />
+      </div>
 
       {conversations.loading ? (
         <LoadingState label="Loading conversations…" />
@@ -229,14 +257,14 @@ export function MessagesPage() {
           />
         </Card>
       ) : (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)] gap-4 lg:grid-cols-[20rem_1fr] lg:grid-rows-[minmax(0,1fr)]">
-          <Card className="max-h-44 overflow-y-auto p-0 lg:max-h-none">
+        <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-4 lg:grid-cols-[20rem_1fr]">
+          <Card className={clsx('overflow-y-auto p-0', threadOpen && 'hidden lg:block')}>
             <ul className="rows">
               {list.map((conversation) => (
                 <li key={conversation.id}>
                   <button
                     type="button"
-                    onClick={() => setActiveId(conversation.id)}
+                    onClick={() => openThread(conversation.id)}
                     aria-current={conversation.id === activeId}
                     className={clsx(
                       'flex w-full gap-2.5 p-3 text-left transition-colors',
@@ -278,17 +306,34 @@ export function MessagesPage() {
             </ul>
           </Card>
 
-          <Card className="flex min-h-0 flex-col p-0">
+          <Card className={clsx('min-h-0 flex-col p-0', threadOpen ? 'flex' : 'hidden lg:flex')}>
             {active ? (
               <>
-                <div className="bg-ink/[0.025] p-3">
-                  <p className="truncate font-semibold text-ink">{active.client_name}</p>
-                  <p className="truncate text-xs text-ink-muted">
-                    {active.message_count} {active.message_count === 1 ? 'message' : 'messages'}
-                  </p>
+                <div className="flex items-center gap-1 bg-ink/[0.025] p-3">
+                  <button
+                    type="button"
+                    onClick={() => setThreadOpen(false)}
+                    aria-label="Back to conversations"
+                    className="-my-2 -ml-2 flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink hover:bg-ink/[0.05] lg:hidden"
+                  >
+                    <CaretLeft size={18} aria-hidden="true" />
+                  </button>
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-ink">{active.client_name}</p>
+                    <p className="truncate text-xs text-ink-muted">
+                      {active.message_count} {active.message_count === 1 ? 'message' : 'messages'}
+                    </p>
+                  </div>
                 </div>
 
-                <div ref={scrollRef} className="flex-1 overflow-y-auto p-3" aria-live="polite">
+                <div
+                  ref={scrollRef}
+                  onScroll={(event) => {
+                    const el = event.currentTarget;
+                    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  }}
+                  className="flex-1 overflow-y-auto p-3"
+                >
                   {loadingThread ? (
                     <LoadingState label="Loading messages…" />
                   ) : threadError ? (
@@ -401,7 +446,7 @@ export function MessagesPage() {
                         }
                       }}
                       rows={2}
-                      placeholder="Write a reply… (Enter to send, Shift+Enter for a new line)"
+                      placeholder="Write a reply…"
                       className="min-h-11 flex-1 resize-y rounded-control border border-border bg-surface px-3 py-2 leading-relaxed text-ink placeholder:text-ink-muted/70 focus:border-green-900"
                     />
                     <Button
@@ -420,9 +465,12 @@ export function MessagesPage() {
                       disabled={!draft.trim() && attachments.length === 0}
                       icon={<PaperPlaneRight size={16} aria-hidden="true" />}
                     >
-                      Send
+                      <span className="max-sm:sr-only">Send</span>
                     </Button>
                   </div>
+                  <p className="mt-1.5 hidden text-[11px] text-ink-muted pointer-fine:block">
+                    Enter to send, Shift+Enter for a new line
+                  </p>
                 </form>
 
                 {picking ? (

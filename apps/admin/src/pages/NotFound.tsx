@@ -48,7 +48,7 @@ export function NotFoundPage() {
           <button type="button" onClick={openSearch} className={option}>
             <MagnifyingGlass size={18} aria-hidden="true" className="text-ink-muted" />
             <span className="flex-1">Search for it</span>
-            <kbd className="tabular text-xs text-ink-muted">{MODIFIER} K</kbd>
+            <kbd className="tabular text-xs text-ink-muted pointer-coarse:hidden">{MODIFIER} K</kbd>
           </button>
           {can(...CLIENT_ROLES) ? (
             <Link to="/" className={option}>

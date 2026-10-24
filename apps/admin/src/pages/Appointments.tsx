@@ -187,8 +187,9 @@ export function AppointmentsPage() {
                       <span className="min-w-0">
                         <span className="block truncate font-semibold text-ink">{row.name}</span>
                         <span className="block truncate text-[13px] text-ink-muted">
-                          {[row.service_label, row.postcode, row.phone].filter(Boolean).join(' · ')}
+                          {[row.service_label, row.postcode].filter(Boolean).join(' · ')}
                         </span>
+                        {row.phone ? <span className="tabular block text-[13px] text-ink-muted">{row.phone}</span> : null}
                       </span>
                       <span className="col-start-2 text-[12px] text-ink-muted sm:col-start-3">
                         {row.source === 'admin' ? `Booked by ${row.created_by ?? 'staff'}` : 'Website'}

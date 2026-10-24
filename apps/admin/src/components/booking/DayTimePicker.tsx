@@ -25,10 +25,10 @@ export function studioToday(): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone: STUDIO_ZONE }).format(new Date());
 }
 
-/** "14:30" -> "2:30pm". */
+/** "9:5" -> "09:05": 24-hour, like every other time on the staff screens. */
 export function clock(time: string): string {
   const [h = 0, m = 0] = time.split(':').map(Number);
-  return `${h % 12 || 12}:${pad(m)}${h < 12 ? 'am' : 'pm'}`;
+  return `${pad(h)}:${pad(m)}`;
 }
 
 /**

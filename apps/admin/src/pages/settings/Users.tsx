@@ -223,14 +223,14 @@ export function UsersSection() {
                   </Button>
                 ) : null}
                 {self ? (
-                  <span className="px-2 text-sm text-ink-muted">{row.role}</span>
+                  <span className="order-last w-32 px-2 text-sm text-ink-muted">{row.role}</span>
                 ) : (
                   <Listbox
                     aria-label={`Role for ${row.name}`}
                     value={row.role}
                     disabled={busy === row.id}
                     onChange={(event) => void setRole(row, event.target.value as Role)}
-                    className="w-auto text-sm"
+                    className="order-last w-32 text-sm"
                   >
                     {ROLES.map((option) => (
                       <option key={option} value={option}>

@@ -68,7 +68,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
   { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
-  { id: 'users', label: 'Users', detail: 'Invite people, Admin or Editor', Icon: UsersThree },
+  { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
 ];
 
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
@@ -136,7 +136,8 @@ export function SiteSettingsPage() {
         </nav>
       </aside>
 
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
+      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must scroll in here, not stretch the page. */}
+      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
         <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
           {/* No sidebar below lg: a native dropdown takes one line. */}
           <label className="mb-7 block lg:hidden">

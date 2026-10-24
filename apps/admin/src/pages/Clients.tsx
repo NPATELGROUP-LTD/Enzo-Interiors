@@ -298,7 +298,7 @@ export function ClientsPage() {
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search name, email, phone or address"
+              placeholder="Search clients"
               aria-label="Search clients"
               className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900"
             />

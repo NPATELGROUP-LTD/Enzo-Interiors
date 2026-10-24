@@ -852,7 +852,7 @@ export function PageHeader({
 }) {
   return (
     <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-      <div>
+      <div className="min-w-0 [overflow-wrap:anywhere]">
         <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px] sm:leading-tight">{title}</h1>
         {description ? <p className="mt-1 max-w-2xl text-ink-muted">{description}</p> : null}
       </div>
@@ -870,7 +870,7 @@ export interface Crumb {
 
 /** "CMS › Services › Kitchens": every step but the last goes back there. */
 export function Crumbs({ items, className }: { items: Crumb[]; className?: string }) {
-  const step = 'rounded-[4px] text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35';
+  const step = 'rounded-[4px] text-ink-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center';
   return (
     <nav aria-label="Breadcrumb" className={clsx('min-w-0', className)}>
       <ol className="flex min-w-0 items-center gap-1.5 text-[13px] font-semibold">
@@ -910,10 +910,12 @@ export function Crumbs({ items, className }: { items: Crumb[]; className?: strin
  * Wide tables scroll inside their own box so the page body never scrolls
  * sideways, which is what keeps the 375px breakpoint usable.
  */
-export function TableWrap({ children }: { children: ReactNode }) {
+export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
-      <table className="data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left">{children}</table>
+      <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
+        {children}
+      </table>
     </div>
   );
 }
@@ -958,7 +960,7 @@ export function Tabs({
         role="tablist"
         aria-orientation={vertical ? 'vertical' : undefined}
         className={clsx(
-          'inline-flex gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
+          'inline-flex flex-wrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
           vertical && 'lg:flex lg:flex-col lg:gap-1 lg:rounded-card lg:bg-surface lg:p-2 lg:shadow-soft',
         )}
       >

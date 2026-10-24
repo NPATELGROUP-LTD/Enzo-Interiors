@@ -97,13 +97,13 @@ export function InvoicesPage() {
               />
             </Card>
           ) : (
-            <TableWrap>
+            <TableWrap className="max-sm:min-w-0">
               <thead>
                 <tr>
                   <Th>Invoice</Th>
-                  <Th>Project</Th>
-                  <Th>Issued</Th>
-                  <Th>Due</Th>
+                  <Th className="max-sm:hidden">Project</Th>
+                  <Th className="max-sm:hidden">Issued</Th>
+                  <Th className="max-sm:hidden">Due</Th>
                   <Th>Status</Th>
                   <Th className="text-right">Amount</Th>
                 </tr>
@@ -115,10 +115,13 @@ export function InvoicesPage() {
                       <Link to={`/invoices/${invoice.id}`} className="text-link">
                         {invoice.number}
                       </Link>
+                      <span className="block text-xs font-normal text-ink-muted sm:hidden">
+                        Due {date(invoice.due_date)}
+                      </span>
                     </Td>
-                    <Td className="text-ink-muted">{invoice.project_name ?? '—'}</Td>
-                    <Td className="whitespace-nowrap text-ink-muted">{date(invoice.created_at)}</Td>
-                    <Td className="whitespace-nowrap text-ink-muted">
+                    <Td className="text-ink-muted max-sm:hidden">{invoice.project_name ?? '—'}</Td>
+                    <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.created_at)}</Td>
+                    <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
                       {date(invoice.due_date)}
                       {invoice.is_overdue ? (
                         <span className="ml-1.5 text-xs text-danger">
