@@ -9,8 +9,9 @@
  * Keep them true to what the system does today:
  *  - the sign-in token, cached user, theme and notification choices are all
  *    localStorage (grep localStorage in src);
- *  - sign-in IP/device logging is NOT described because it is not built yet. When
- *    the access log lands, add it to `what-we-collect` and `retention` here;
+ *  - the access log (apps/api core/access-log.service) is described in
+ *    `what-we-collect`, `retention` and the Terms: IP, country and browser kind with
+ *    each sign-in, change and refusal, kept 90 days. Change both if it changes;
  *  - Google sign-in and Calendar are staff features no one uses, so Google is
  *    listed only for the typeface. Add it before anyone connects an account.
  *
@@ -91,10 +92,11 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Your project: its stages and progress, the designs you approve, the changes you ask for, and notes our team keep about the job.',
             'Documents and images we share with you, and any file you attach in Messages.',
             'Your invoices: the lines, amounts, dates, payment schedule and whether they are paid.',
+            'A security record of when you sign in and of requests that change something or are refused: the time, your IP address, the country it comes from and the kind of browser and system (for example “Chrome · Windows”). A failed sign-in keeps only a masked version of the address that was typed.',
             'Messages between you and our team, and whether they have been read.',
             'Your notification choices and, if you allow them, the address your browser gives us to send notifications to that device, with the browser’s name.',
           ],
-          'Your device’s IP address is handled by Cloudflare and our server to deliver pages and to slow down repeated sign-in attempts. Those counters last a short time.',
+          'Your device’s IP address is handled by Cloudflare and our server to deliver pages and to slow down repeated sign-in attempts. Those counters last a short time. We also keep it in a security record, as above.',
         ],
       },
       {
@@ -137,6 +139,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Your client and project records, including files, messages and notes: 6 years after your project is completed, then deleted or made anonymous.',
             'Your portal access: until you ask us to close it or your project work has ended. Closing it does not delete the records above.',
             'Short-lived items: password and invitation links last 30 minutes and 7 days, and a notification address stays until you turn notifications off or sign out.',
+            'The security record of sign-ins and requests, with the IP addresses in it: 90 days, then deleted.',
             'Backups roll over on a schedule, so deleted information drops out as they are replaced.',
           ],
         ],

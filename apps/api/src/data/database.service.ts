@@ -36,6 +36,7 @@ import {
   Testimonial,
   TrustedDevice,
 } from '../common/types/domain';
+import { AccessStore } from './access-store';
 import { AlertStore } from './alert-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
@@ -93,6 +94,7 @@ export class DatabaseService {
   readonly alertSettings: PrismaRepository<AlertSettings>;
   readonly alertEvents: PrismaRepository<AlertEvent>;
   readonly alertStore: AlertStore;
+  readonly accessStore: AccessStore;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -177,6 +179,7 @@ export class DatabaseService {
     this.alertSettings = new PrismaRepository(prisma.alertSettings, 'alert_settings', { dates: ['updated_at'] });
     this.alertEvents = new PrismaRepository(prisma.alertEvent, 'alert_events', { dates: ['first_at', 'last_at'] });
     this.alertStore = new AlertStore(prisma);
+    this.accessStore = new AccessStore(prisma);
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });

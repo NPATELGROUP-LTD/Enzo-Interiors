@@ -28,3 +28,14 @@ export function clientIp(req: { ip?: string; headers: Record<string, string | st
 export const ClientIp = createParamDecorator((_data: unknown, context: ExecutionContext): string =>
   clientIp(context.switchToHttp().getRequest()),
 );
+
+/**
+ * The visitor's country (two letters) from Cloudflare, believed on the same
+ * terms as the IP: only with TRUST_CLOUDFLARE=true. "XX" is Cloudflare for
+ * unknown; "T1" is Tor.
+ */
+export function clientCountry(req: { headers: Record<string, string | string[] | undefined> }): string | null {
+  if (process.env.TRUST_CLOUDFLARE !== 'true') return null;
+  const country = req.headers['cf-ipcountry'];
+  return typeof country === 'string' && /^[A-Z][A-Z0-9]$/.test(country) && country !== 'XX' ? country : null;
+}
