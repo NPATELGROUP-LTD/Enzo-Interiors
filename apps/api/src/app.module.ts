@@ -9,6 +9,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { CoreModule } from './core/core.module';
 import { RateLimitStore } from './core/rate-limit';
 import { AlertsModule } from './modules/alerts/alerts.module';
+import { InfraModule } from './modules/infra/infra.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
@@ -67,6 +68,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     MediaModule,
     SiteSettingsModule,
     AlertsModule,
+    InfraModule,
     CmsModule,
     EnquiriesModule,
     NotificationsModule,

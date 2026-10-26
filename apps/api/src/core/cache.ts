@@ -24,6 +24,9 @@ export class CacheService {
   private readonly inflight = new Map<string, Promise<unknown>>();
   private hits = 0;
   private misses = 0;
+  /** Since the process started; hits/misses above restart every ten minutes for the log line. */
+  private totalHits = 0;
+  private totalMisses = 0;
   private lastReport = Date.now();
   private lastWarning = 0;
 
@@ -31,8 +34,13 @@ export class CacheService {
 
   async get<T>(key: string): Promise<T | undefined> {
     const raw = await this.read(`cache:${key}`);
-    if (raw === undefined) this.misses++;
-    else this.hits++;
+    if (raw === undefined) {
+      this.misses++;
+      this.totalMisses++;
+    } else {
+      this.hits++;
+      this.totalHits++;
+    }
     this.report();
     return raw === undefined ? undefined : (JSON.parse(raw) as T);
   }
@@ -96,6 +104,20 @@ export class CacheService {
     const next = Number(this.memory.get(k)?.value ?? 0) + 1;
     this.memory.set(k, { value: String(next), expires: Infinity });
     return next;
+  }
+
+  /** For the Infra page: where values live, how many, and how often they were found since the process started. */
+  async stats(): Promise<{ backend: 'redis' | 'memory'; reachable: boolean; keys: number; memory_bytes: number | null; hits: number; misses: number }> {
+    const base = { hits: this.totalHits, misses: this.totalMisses };
+    const redis = this.store.redis;
+    if (!redis) return { backend: 'memory', reachable: true, keys: this.memory.size, memory_bytes: null, ...base };
+    try {
+      const [keys, info] = await Promise.all([redis.dbsize(), redis.info('memory')]);
+      const used = /used_memory:(\d+)/.exec(info);
+      return { backend: 'redis', reachable: true, keys, memory_bytes: used ? Number(used[1]) : null, ...base };
+    } catch {
+      return { backend: 'redis', reachable: false, keys: 0, memory_bytes: null, ...base };
+    }
   }
 
   private async read(k: string): Promise<string | undefined> {

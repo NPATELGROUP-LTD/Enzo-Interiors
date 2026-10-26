@@ -648,6 +648,8 @@ export type AlertSource = 'api' | 'web' | 'admin' | 'portal' | 'system';
 export interface AlertSettings extends BaseRecord {
   recipients: string[];
   errors_on: boolean;
+  digest_on: boolean;
+  digest_day: string | null;
   updated_at: string;
   updated_by: string | null;
 }
