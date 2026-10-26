@@ -29,6 +29,7 @@ import {
   ProjectStageConfig,
   SavedReplyTemplate,
   SiteSettings,
+  StaffRemovalRequest,
   StaffUser,
   Testimonial,
   TrustedDevice,
@@ -85,6 +86,7 @@ export class DatabaseService {
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
   readonly calendarConnections: PrismaRepository<CalendarConnection>;
   readonly changeRequests: PrismaRepository<ChangeRequest>;
+  readonly staffRemovalRequests: PrismaRepository<StaffRemovalRequest>;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -161,6 +163,9 @@ export class DatabaseService {
       dates: ['created_at'],
     });
     this.changeRequests = new PrismaRepository(prisma.changeRequest, 'change_requests', {
+      dates: ['created_at', 'decided_at'],
+    });
+    this.staffRemovalRequests = new PrismaRepository(prisma.staffRemovalRequest, 'staff_removal_requests', {
       dates: ['created_at', 'decided_at'],
     });
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {

@@ -2,18 +2,20 @@ import { EnvelopeSimple, Plus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useState, type FormEvent } from 'react';
 
-import { Button, ConfirmDialog, ErrorState, Input, Listbox, LoadingState, Modal, Select } from '@/components/ui';
+import { Button, ConfirmDialog, ErrorState, Input, Listbox, LoadingState, Modal, Select, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { THEIR_SPAM_HINT, initials } from '@/lib/format';
 
-type Role = 'Admin' | 'Editor' | 'Designer' | 'Installer';
+type Role = 'Admin' | 'Infra' | 'Editor' | 'Designer' | 'Installer';
 
-const ROLES: Role[] = ['Editor', 'Designer', 'Installer', 'Admin'];
-const ARTICLE: Record<Role, string> = { Admin: 'an Admin', Editor: 'an Editor', Designer: 'a Designer', Installer: 'an Installer' };
-const article = (role: Role) => ARTICLE[role];
+const ROLES: Role[] = ['Editor', 'Designer', 'Installer', 'Admin', 'Infra'];
+/** Admin and Infra accounts are the Infra manager's to manage; an Admin manages the rest. */
+const isPrivileged = (role: Role) => role === 'Admin' || role === 'Infra';
+const LABEL: Record<Role, string> = { Admin: 'Admin', Infra: 'Infra manager', Editor: 'Editor', Designer: 'Designer', Installer: 'Installer' };
+const ARTICLE: Record<Role, string> = { Admin: 'an Admin', Infra: 'an Infra manager', Editor: 'an Editor', Designer: 'a Designer', Installer: 'an Installer' };
 
 interface User {
   id: string;
@@ -26,14 +28,35 @@ interface User {
   created_at: string;
 }
 
+interface Removal {
+  id: string;
+  target_id: string;
+  target_name: string;
+  requested_name: string;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Declined';
+  created_at: string;
+}
+
 const ROLE_HELP: Record<Role, string> = {
-  Admin: 'Everything: publishes, bookings, settings and users.',
+  Admin: 'Runs the business: publishes, bookings, clients, invoices and projects.',
+  Infra: 'Runs the platform: users, website status and alerts. Sees no client, project, invoice, message or booking.',
   Editor: 'Edits the website and sends changes to an Admin to publish.',
   Designer: 'Works the projects they are assigned to and moves their stages. Asks an Admin to change client details.',
   Installer: 'Sees the projects they are assigned to. Asks an Admin to move a stage.',
 };
 
-function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: () => void; onInvited: (user: User) => void }) {
+function InviteDialog({
+  open,
+  roles,
+  onClose,
+  onInvited,
+}: {
+  open: boolean;
+  roles: Role[];
+  onClose: () => void;
+  onInvited: (user: User) => void;
+}) {
   const toast = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -75,9 +98,9 @@ function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: ()
         <Input label="Name" autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} />
         <Input label="Email" type="email" autoComplete="off" value={email} onChange={(event) => setEmail(event.target.value)} />
         <Select label="Role" value={role} hint={ROLE_HELP[role]} onChange={(event) => setRole(event.target.value as Role)}>
-          {ROLES.map((option) => (
+          {roles.map((option) => (
             <option key={option} value={option}>
-              {option}
+              {LABEL[option]}
             </option>
           ))}
         </Select>
@@ -99,18 +122,84 @@ function InviteDialog({ open, onClose, onInvited }: { open: boolean; onClose: ()
   );
 }
 
+/** A few words for the person who decides: why an Admin should go, or why a request is declined. */
+function NoteDialog({
+  open,
+  title,
+  label,
+  hint,
+  confirmLabel,
+  minLength,
+  onClose,
+  onSubmit,
+}: {
+  open: boolean;
+  title: string;
+  label: string;
+  hint?: string;
+  confirmLabel: string;
+  minLength: number;
+  onClose: () => void;
+  onSubmit: (note: string) => Promise<void>;
+}) {
+  const [note, setNote] = useState('');
+  const [pending, setPending] = useState(false);
+  const close = () => {
+    setNote('');
+    onClose();
+  };
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    setPending(true);
+    try {
+      await onSubmit(note.trim());
+      close();
+    } catch {
+      // The caller has already said what went wrong; the words stay for another go.
+    } finally {
+      setPending(false);
+    }
+  };
+  return (
+    <Modal open={open} onClose={close} title={title} width="sm">
+      <form onSubmit={submit} className="flex flex-col gap-4" noValidate>
+        <Textarea label={label} hint={hint} rows={3} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} autoFocus />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={close}>
+            Cancel
+          </Button>
+          <Button type="submit" variant="primary" loading={pending} disabled={note.trim().length < minLength}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 /** Settings › Users: who can sign in, and as what. */
 export function UsersSection() {
   const toast = useToast();
-  const { user: me } = useAuth();
+  const { user: me, isInfra } = useAuth();
   const users = useQuery<User[]>('/users');
+  const removals = useQuery<Removal[]>('/users/removal-requests');
   const [inviting, setInviting] = useState(false);
   const [removing, setRemoving] = useState<User | null>(null);
+  const [asking, setAsking] = useState<User | null>(null);
+  const [approving, setApproving] = useState<Removal | null>(null);
+  const [declining, setDeclining] = useState<Removal | null>(null);
   const [resetting, setResetting] = useState<User | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [working, setWorking] = useState(false);
 
   if (users.error) return <ErrorState message={users.error} onRetry={users.refetch} />;
   if (!users.data) return <LoadingState label="Loading users…" />;
+
+  // Infra manages every role; an Admin hands out and changes the three below Admin.
+  const roles = isInfra ? ROLES : ROLES.filter((role) => !isPrivileged(role));
+  const mayManage = (row: User) => isInfra || !isPrivileged(row.role);
+  const pending = (removals.data ?? []).filter((row) => row.status === 'Pending');
+  const requestFor = (row: User) => pending.find((request) => request.target_id === row.id);
 
   const replace = (next: User) => users.setData((list) => (list ?? []).map((row) => (row.id === next.id ? next : row)));
 
@@ -118,7 +207,7 @@ export function UsersSection() {
     setBusy(row.id);
     try {
       replace(await api.put<User>(`/users/${row.id}`, { role }));
-      toast.success(`${row.name} is now ${article(role)}.`);
+      toast.success(`${row.name} is now ${ARTICLE[role]}.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not change the role.');
     } finally {
@@ -153,16 +242,64 @@ export function UsersSection() {
     }
   };
 
-  const remove = async () => {
+  /** An Editor, Designer or Installer needs no password; an Admin or Infra manager does. */
+  const remove = async (password: string) => {
     const row = removing;
-    setRemoving(null);
     if (!row) return;
+    setWorking(true);
     try {
-      await api.delete(`/users/${row.id}`);
+      await api.delete(`/users/${row.id}`, isPrivileged(row.role) ? { password } : undefined);
       users.setData((list) => (list ?? []).filter((item) => item.id !== row.id));
+      void removals.refetch();
+      setRemoving(null);
       toast.success(`${row.name} can no longer sign in.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not remove them.');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const askToRemove = async (reason: string) => {
+    const row = asking;
+    if (!row) return;
+    try {
+      await api.post(`/users/${row.id}/removal-request`, { reason });
+      void removals.refetch();
+      toast.success(`An Infra manager has been asked to remove ${row.name}. You'll be told what they decide.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not send the request.');
+      throw caught;
+    }
+  };
+
+  const approve = async (password: string) => {
+    const request = approving;
+    if (!request) return;
+    setWorking(true);
+    try {
+      await api.post(`/users/removal-requests/${request.id}/approve`, { password });
+      users.setData((list) => (list ?? []).filter((item) => item.id !== request.target_id));
+      void removals.refetch();
+      setApproving(null);
+      toast.success(`${request.target_name} can no longer sign in.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not remove them.');
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const decline = async (note: string) => {
+    const request = declining;
+    if (!request) return;
+    try {
+      await api.post(`/users/removal-requests/${request.id}/decline`, { note });
+      void removals.refetch();
+      toast.success(`${request.target_name} stays. ${request.requested_name} will be told.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not decline the request.');
+      throw caught;
     }
   };
 
@@ -172,8 +309,9 @@ export function UsersSection() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-ink">Users</h2>
           <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">
-            Admins can do everything. Editors change the website and send their changes to an Admin, who
-            publishes them or sends them back. Designers work the projects assigned to them.
+            {isInfra
+              ? 'Infra managers look after who can sign in. Admins run the business and ask you to remove another Admin. Editors change the website and Designers work the projects assigned to them.'
+              : 'Admins run the business. Editors change the website and send their changes to an Admin, who publishes them or sends them back. Designers work the projects assigned to them. To remove another Admin, ask an Infra manager.'}
           </p>
         </div>
         <Button variant="primary" icon={<Plus size={16} />} onClick={() => setInviting(true)}>
@@ -181,9 +319,37 @@ export function UsersSection() {
         </Button>
       </header>
 
+      {isInfra && pending.length > 0 ? (
+        <section aria-label="Waiting for you" className="mt-6 rounded-card border border-warning/40 bg-warning-bg/50 p-4">
+          <h3 className="text-sm font-semibold text-ink">Waiting for you</h3>
+          <ul className="mt-2 flex flex-col divide-y divide-border/70">
+            {pending.map((request) => (
+              <li key={request.id} className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 first:pt-1 last:pb-0">
+                <span className="min-w-[14rem] flex-1 text-sm">
+                  <span className="block font-semibold text-ink">
+                    {request.requested_name} asks to remove {request.target_name}
+                  </span>
+                  <span className="block whitespace-pre-wrap break-words text-ink-muted">{request.reason}</span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <Button variant="ghost" onClick={() => setDeclining(request)}>
+                    Decline
+                  </Button>
+                  <Button variant="destructive" onClick={() => setApproving(request)}>
+                    Remove {request.target_name.split(' ')[0]}
+                  </Button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <ul className="mt-6 flex flex-col">
         {users.data.map((row, index) => {
           const self = row.id === me?.id;
+          const manage = mayManage(row);
+          const asked = requestFor(row);
           return (
             <li
               key={row.id}
@@ -219,13 +385,13 @@ export function UsersSection() {
                 </span>
               </span>
               <span className="flex flex-wrap items-center gap-2">
-                {row.status === 'Invited' ? (
+                {row.status === 'Invited' && manage ? (
                   <Button variant="ghost" icon={<EnvelopeSimple size={15} />} loading={busy === row.id} onClick={() => void resend(row)}>
                     Resend
                   </Button>
                 ) : null}
-                {self ? (
-                  <span className="order-last w-32 px-2 text-sm text-ink-muted">{row.role}</span>
+                {self || !manage ? (
+                  <span className="order-last w-32 px-2 text-sm text-ink-muted">{LABEL[row.role]}</span>
                 ) : (
                   <Listbox
                     aria-label={`Role for ${row.name}`}
@@ -234,23 +400,31 @@ export function UsersSection() {
                     onChange={(event) => void setRole(row, event.target.value as Role)}
                     className="order-last w-32 text-sm"
                   >
-                    {ROLES.map((option) => (
+                    {roles.map((option) => (
                       <option key={option} value={option}>
-                        {option}
+                        {LABEL[option]}
                       </option>
                     ))}
                   </Listbox>
                 )}
-                {row.twoFactorMethod ? (
+                {row.twoFactorMethod && manage ? (
                   <Button variant="ghost" onClick={() => setResetting(row)}>
                     Reset two-step sign-in
                   </Button>
                 ) : null}
-                {self ? null : (
+                {self ? null : manage ? (
                   <Button variant="ghost" className="text-danger" onClick={() => setRemoving(row)}>
                     Remove
                   </Button>
-                )}
+                ) : row.role === 'Admin' ? (
+                  asked ? (
+                    <span className="px-2 text-sm text-ink-muted">Removal requested</span>
+                  ) : (
+                    <Button variant="ghost" className="text-danger" onClick={() => setAsking(row)}>
+                      Request removal
+                    </Button>
+                  )
+                ) : null}
               </span>
             </li>
           );
@@ -259,6 +433,7 @@ export function UsersSection() {
 
       <InviteDialog
         open={inviting}
+        roles={roles}
         onClose={() => setInviting(false)}
         onInvited={(user) => users.setData((list) => [...(list ?? []), user])}
       />
@@ -275,8 +450,46 @@ export function UsersSection() {
         title={`Remove ${removing?.name ?? ''}?`}
         message="They are signed out at once and can no longer sign in. Their past changes stay as they are."
         confirmLabel="Remove"
-        onConfirm={() => void remove()}
+        password={removing !== null && isPrivileged(removing.role)}
+        pending={working}
+        onConfirm={(password) => void remove(password)}
         onCancel={() => setRemoving(null)}
+      />
+      <NoteDialog
+        open={asking !== null}
+        title={`Ask to remove ${asking?.name ?? ''}`}
+        label="Why should they go?"
+        hint="An Infra manager reads this before they decide."
+        confirmLabel="Send request"
+        minLength={5}
+        onClose={() => setAsking(null)}
+        onSubmit={askToRemove}
+      />
+      <ConfirmDialog
+        open={approving !== null}
+        title={`Remove ${approving?.target_name ?? ''}?`}
+        message={
+          <>
+            <p>
+              {approving?.requested_name} asked for this. They are signed out at once and can no longer sign in.
+            </p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-ink-muted">{approving?.reason}</p>
+          </>
+        }
+        confirmLabel="Remove"
+        password
+        pending={working}
+        onConfirm={(password) => void approve(password)}
+        onCancel={() => setApproving(null)}
+      />
+      <NoteDialog
+        open={declining !== null}
+        title={`Keep ${declining?.target_name ?? ''}?`}
+        label="A word for the person who asked (optional)"
+        confirmLabel="Decline request"
+        minLength={0}
+        onClose={() => setDeclining(null)}
+        onSubmit={decline}
       />
     </div>
   );

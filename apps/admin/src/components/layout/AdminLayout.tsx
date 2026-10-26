@@ -46,7 +46,7 @@ import { useAuth } from '@/lib/auth';
 import { disconnectSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
-import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
+import { SETTINGS_SECTIONS, settingsSections } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
 import { Badge, Desktop, type DesktopPage } from './Desktop';
@@ -418,10 +418,11 @@ function InvoicesMenu() {
 
 /** Settings: each pane, as in its sidebar. */
 function SettingsMenu() {
+  const { isInfra } = useAuth();
   return (
     <MenuBarMenu id="settings-menu" label="Settings" to="/settings">
       {(close) =>
-        SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
+        settingsSections(isInfra).map(({ id, label, Icon }) => (
           <MenuItem key={id} to={`/settings/${id}`} label={label} Icon={Icon} onChoose={close} />
         ))
       }
@@ -537,7 +538,9 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
 
 export function AdminLayout() {
   const toast = useToast();
-  const { isAdmin, logout, can } = useAuth();
+  const { isAdmin, isInfra, logout, can } = useAuth();
+  // Settings: an Admin has every pane, an Infra manager the ones that run the platform.
+  const canSettings = isAdmin || isInfra;
   const canSeeClients = can(...CLIENT_ROLES);
   const canCms = can(...CMS_ROLES);
   const unreadMessages = useUnreadCount(canSeeClients);
@@ -607,9 +610,9 @@ export function AdminLayout() {
           { to: '/invoices', label: 'Invoices', Icon: Receipt, active: at('/invoices') },
           { to: '/enquiries', label: 'Enquiries', Icon: Tray, active: at('/enquiries'), badge: enquiries.data?.new_count ?? 0 },
           { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
-          { to: '/settings', label: 'Settings', Icon: GearSix, active: at('/settings') },
         ]
       : []),
+    ...(canSettings ? [{ to: '/settings', label: 'Settings', Icon: GearSix, active: at('/settings') }] : []),
   ];
 
   const context = useMemo<CmsShell>(
@@ -628,7 +631,7 @@ export function AdminLayout() {
       appName="Enzo Interiors"
       pages={pages}
       onSearch={openSearch}
-      settingsTo={isAdmin ? '/settings' : '/account'}
+      settingsTo={canSettings ? '/settings' : '/account'}
       menus={
         <>
           {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
@@ -639,7 +642,7 @@ export function AdminLayout() {
           {isAdmin ? <InvoicesMenu /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
-          {isAdmin ? <SettingsMenu /> : null}
+          {canSettings ? <SettingsMenu /> : null}
         </>
       }
       status={<Notifications onChange={refresh} />}

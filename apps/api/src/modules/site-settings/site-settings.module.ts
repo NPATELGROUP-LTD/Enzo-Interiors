@@ -300,14 +300,15 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
 export class SiteSettingsController {
   constructor(private readonly settings: SiteSettingsService) {}
 
+  // Website status, page switches and notification emails: an Infra manager runs these too.
   @Get('settings')
-  @Roles('Admin')
+  @Roles('Admin', 'Infra')
   get() {
     return this.settings.view();
   }
 
   @Put('settings')
-  @Roles('Admin')
+  @Roles('Admin', 'Infra')
   update(@CurrentUser() principal: AuthPrincipal, @Body() dto: UpdateSiteSettingsDto) {
     return this.settings.update(principal, dto);
   }
@@ -325,7 +326,7 @@ export class SiteSettingsController {
   }
 
   @Post('settings/test-email')
-  @Roles('Admin')
+  @Roles('Admin', 'Infra')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   testEmail(@CurrentUser() principal: AuthPrincipal) {
