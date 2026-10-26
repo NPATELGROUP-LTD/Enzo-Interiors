@@ -887,7 +887,7 @@ export function Tabs({
         role="tablist"
         aria-orientation={vertical ? 'vertical' : undefined}
         className={clsx(
-          'inline-flex flex-wrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
+          'inline-flex gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
           vertical && 'lg:flex lg:flex-col lg:gap-1 lg:rounded-card lg:bg-surface lg:p-2 lg:shadow-soft',
         )}
       >
