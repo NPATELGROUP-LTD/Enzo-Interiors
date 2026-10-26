@@ -103,6 +103,12 @@ export class AlertService {
     return { sent, to };
   }
 
+  /** The morning summary, to the same people as the alerts. Not counted against the caps: it is one email a day. */
+  async sendDigest(rows: Array<[string, string]>): Promise<boolean> {
+    const to = await this.recipients();
+    return to.length ? this.deliver(to, `[${SITE}][DAILY] Overnight summary`, rows) : false;
+  }
+
   private async handle(raw: Alert): Promise<void> {
     const alert = {
       ...raw,

@@ -47,6 +47,10 @@ export class UpdateAlertsDto {
 
   @IsBoolean()
   errors_on!: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  digest_on?: boolean;
 }
 
 export class TestAlertDto {
@@ -109,6 +113,7 @@ export class AlertsController {
     return {
       recipients: row?.recipients ?? [],
       errors_on: row?.errors_on ?? true,
+      digest_on: row?.digest_on ?? true,
       updated_at: row?.updated_at ?? null,
       updated_by: row?.updated_by ?? null,
       /** Only that it exists: the addresses themselves stay in the server's settings. */
@@ -125,18 +130,19 @@ export class AlertsController {
     const patch = {
       recipients: [...new Set(dto.recipients.map((address) => address.trim().toLowerCase()))],
       errors_on: dto.errors_on,
+      ...(dto.digest_on === undefined ? {} : { digest_on: dto.digest_on }),
       updated_at: new Date().toISOString(),
       updated_by: principal.name,
     };
     if (await this.db.alertSettings.findById(ID)) await this.db.alertSettings.update(ID, patch);
-    else await this.db.alertSettings.create({ id: ID, ...patch });
+    else await this.db.alertSettings.create({ id: ID, digest_on: true, digest_day: null, ...patch });
     this.alerts.forgetSettings();
     await this.activity.record({
       principal,
       action: 'alert_settings_update',
       targetTable: 'alert_settings',
       targetId: ID,
-      details: { recipients: patch.recipients.length, errors_on: patch.errors_on },
+      details: { recipients: patch.recipients.length, errors_on: patch.errors_on, digest_on: dto.digest_on ?? null },
     });
     return this.overview();
   }
