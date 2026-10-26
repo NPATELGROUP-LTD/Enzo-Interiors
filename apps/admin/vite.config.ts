@@ -19,8 +19,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.png', 'apple-touch-icon.png', 'enzo-mark.png'],
       manifest: {
-        name: 'Enzo Interiors',
-        short_name: 'Enzo',
+        name: 'Enzo Interiors Admin',
+        short_name: 'Enzo Admin',
         description: 'Edit the words and pictures on the Enzo Interiors website.',
         // Standalone removes browser chrome so the portal feels like an app.
         display: 'standalone',
