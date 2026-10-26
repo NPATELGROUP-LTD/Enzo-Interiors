@@ -406,6 +406,26 @@ Open your portal: ${link}`,
     };
   },
 
+  /** To an Infra manager: something about who can sign in, which they decide. */
+  staffRequest(name: string, title: string, body: string, link: string): Rendered {
+    return {
+      subject: title,
+      html: layout(
+        title,
+        `${heading('Security', title)}
+<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap;margin:0 0 16px">${escapeHtml(body)}</div>
+${button(link, 'Review in Users')}`,
+      ),
+      text: `Hi ${name},
+
+${title}
+
+${body}
+
+Review it in Settings › Users: ${link}`,
+    };
+  },
+
   reviewRequested(editor: string, page: string, note: string | null, link: string): Rendered {
     const subject = `${editor} sent ${page} for review`;
     return {

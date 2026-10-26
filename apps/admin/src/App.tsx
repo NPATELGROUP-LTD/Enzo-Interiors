@@ -73,7 +73,7 @@ export function App() {
   }
 
   // The API refuses these accounts anyway; saying so beats a screen of errors.
-  if (user.kind !== 'Staff' || !['Admin', 'Editor', 'Designer', 'Installer'].includes(user.role)) {
+  if (user.kind !== 'Staff' || !['Admin', 'Infra', 'Editor', 'Designer', 'Installer'].includes(user.role)) {
     return (
       <div className="wallpaper flex min-h-dvh flex-col items-center justify-center gap-4 p-6 text-center">
         <p className="max-w-sm text-ink">
@@ -89,18 +89,18 @@ export function App() {
   const canSeeClients = can(...CLIENT_ROLES);
   const canCms = can(...CMS_ROLES);
   // Where a page someone may not open sends them: their own landing page.
-  const home = canSeeClients ? '/' : '/cms';
+  const home = canSeeClients ? '/' : user.role === 'Infra' ? '/settings' : '/cms';
 
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<AdminLayout />}>
-        {/* Admin, Designers and Installers land on the dashboard; an Editor has none and lands on the CMS. */}
+        {/* Admin, Designers and Installers land on the dashboard; an Editor has none and lands on the CMS; an Infra manager on Settings. */}
         <Route path="/" element={canSeeClients ? <DashboardPage /> : <Navigate to={home} replace />} />
         <Route path="/account" element={<AccountPage />} />
         <Route
           path="/settings/:section?"
-          element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
+          element={user.role === 'Admin' || user.role === 'Infra' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
         />
         {/* Admin, and Designers for the clients of their projects; never Editors. */}
         <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to={home} replace />} />

@@ -226,8 +226,8 @@ Sign-ins:
 
 - **Password:** one password for every mock account, printed by the seed
   (random unless `MOCK_PASSWORD` is set).
-- **Staff 2FA:** mock staff (`admin`, `designer`, `designer2`, `installer`,
-  `editor` @enzo-mock.test) use the authenticator method. Add the printed
+- **Staff 2FA:** mock staff (`admin`, `admin2`, `infra`, `designer`, `designer2`,
+  `installer`, `editor` @enzo-mock.test) use the authenticator method. Add the printed
   secret or `otpauth://` link to an authenticator app once. To keep the same
   password and secret across re-seeds, set `MOCK_PASSWORD` and
   `MOCK_TOTP_SECRET` to the printed values.

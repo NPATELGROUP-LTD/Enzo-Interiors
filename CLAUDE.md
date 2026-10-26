@@ -47,8 +47,32 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
 
+**Infra manager** (`staff_users.role = 'Infra'`, plain text, no migration): runs
+the platform, never the business. It reaches Settings › Website, Pages, Emails
+and Users (`GET/PUT /settings`, `/users`), the bell and its own account, and
+nothing else: no client, project, invoice, document, message, enquiry or booking
+(it is not an Admin to `AccessService`, and `infra.db.test.ts` asserts 403 on each
+of those routes). It lands on `/settings`. Only Infra invites, promotes, demotes,
+removes or resets two-step sign-in for an `Admin` or another Infra manager
+(`PRIVILEGED_ROLES`, `assertMayManage` in `modules/auth/users.ts`); removing one
+needs the caller's password again. An Admin manages Editor/Designer/Installer
+directly and asks for another Admin to go (`POST /users/:id/removal-request`,
+reason ≥ 5 characters, one pending per person): the Infra managers get the bell, a
+push and an email, then approve with their password
+(`POST /users/removal-requests/:id/approve`, claimed by one conditional UPDATE,
+reverted if it fails) or decline with a note; the Admin is told. Table
+`staff_removal_requests` (migration 17; `change_requests.client_id` is required,
+so it is not a kind there). Nobody removes or demotes themselves or the last Admin
+or the last Infra manager. The first Infra manager is made by script:
+`npm run auth:make-infra -- <email>` (Docker: `docker compose run --rm seed npm
+run auth:make-infra -- <email>`); use a separate login from the Admin. A route
+with no `@Roles` is open to every staff role, Infra included, so
+`infra.db.test.ts` lists the only four (own devices, own Google link) and fails
+on any new one. Mock data adds `infra@` and `admin2@` with a pending request.
+
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
-`Installer`. `Admin` does everything. The CMS is Admin + `Editor` only (API
+`Installer` (and, by an Infra manager, `Infra`). `Admin` does everything in the
+business. The CMS is Admin + `Editor` only (API
 `@Roles`, menu, routes and search): an Editor edits and sends changes for
 review; cannot publish, add or delete entries, or see Bookings/Settings. An
 Admin's send-back note stays on the entry (`cms_entries.review_feedback`)
@@ -369,8 +393,9 @@ codes. Logic in `modules/auth/two-factor.ts` + `totp.ts`; secrets sealed by
 30-day token kept in the admin's localStorage (survives logout; revoked on
 password change/reset and admin reset; listed under Account). Wrong codes: 5
 per emailed code, 20 per account per 24 h; code emails 3 per 15 min. Only an
-Admin can reset it (Settings › Users → Reset two-step sign-in, which also clears
-devices and the Google link) or `npm run auth:reset-2fa -- <email>` (Docker:
+Admin or Infra manager can reset it (Settings › Users → Reset two-step sign-in,
+which also clears devices and the Google link; an Admin's or Infra manager's only by
+an Infra manager) or `npm run auth:reset-2fa -- <email>` (Docker:
 `docker compose run --rm seed npm run auth:reset-2fa -- <email>`).
 `DISABLE_2FA=true` is the emergency switch (warns at boot). The server clock
 must be NTP-synced for authenticator codes.

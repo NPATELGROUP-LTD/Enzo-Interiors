@@ -28,6 +28,7 @@ import { BookingSchedule } from './settings/BookingSchedule';
 import { Newsletter } from './settings/Newsletter';
 import { OpeningHours } from './settings/OpeningHours';
 import { ProjectStages } from './settings/ProjectStages';
+import { useAuth } from '@/lib/auth';
 import { UsersSection } from './settings/Users';
 
 interface SiteSettings {
@@ -71,6 +72,12 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
 ];
 
+/** What an Infra manager can open: the platform's switches and who can sign in. The business's own panes stay the Admin's. */
+const INFRA_SECTIONS = new Set(['website', 'pages', 'emails', 'users']);
+
+export const settingsSections = (isInfra: boolean) =>
+  isInfra ? SETTINGS_SECTIONS.filter(({ id }) => INFRA_SECTIONS.has(id)) : SETTINGS_SECTIONS;
+
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
   if (!iso) return '';
@@ -91,7 +98,9 @@ const HELP = 'mt-1 text-sm leading-relaxed text-ink-muted';
  */
 export function SiteSettingsPage() {
   const { section = '' } = useParams();
-  if (!SETTINGS_SECTIONS.some((row) => row.id === section)) return <Navigate to="/settings/website" replace />;
+  const { isInfra } = useAuth();
+  const sections = settingsSections(isInfra);
+  if (!sections.some((row) => row.id === section)) return <Navigate to="/settings/website" replace />;
 
   let pane: ReactNode;
   if (section === 'booking') pane = <BookingSchedule />;
@@ -102,7 +111,7 @@ export function SiteSettingsPage() {
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (
-    <SettingsShell label="Settings" sections={SETTINGS_SECTIONS} active={section} to={(id) => `/settings/${id}`}>
+    <SettingsShell label="Settings" sections={sections} active={section} to={(id) => `/settings/${id}`}>
       {pane}
     </SettingsShell>
   );

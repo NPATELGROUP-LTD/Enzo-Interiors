@@ -149,8 +149,14 @@ calendar card. Two-step sign-in needs only the first and last items.
       is otherwise forgeable and rate limits can be dodged).
 - [ ] Settings › Booking schedule → connect the studio calendar and pick it;
       Account → link your own Google.
-- Locked out of two-step sign-in: an Admin uses Settings › Users → Reset
-  two-step sign-in; with no Admin, `docker compose run --rm seed npm run
+- First Infra manager (runs users and website status; sees no client data):
+  invite them from Settings › Users as any role (use a different email from your
+  Admin login) and let them accept, then `docker compose run --rm seed npm run
+  auth:make-infra -- <email>`. They invite the next one from Settings › Users. Admins can no longer remove or reset another Admin: they ask the Infra
+  manager (Settings › Users → Request removal).
+- Locked out of two-step sign-in: an Infra manager (for an Admin or Infra
+  manager) or an Admin (for anyone else) uses Settings › Users → Reset two-step
+  sign-in; with nobody left, `docker compose run --rm seed npm run
   auth:reset-2fa -- <email>`. `DISABLE_2FA=true` turns it off for everyone (the
   API warns at boot); remove it afterwards.
 

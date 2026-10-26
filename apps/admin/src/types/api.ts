@@ -10,7 +10,7 @@
  * mirrors most of the domain. apps/portal keeps a narrower copy of its own.
  */
 
-export type StaffRole = 'Admin' | 'Editor' | 'Designer' | 'Installer';
+export type StaffRole = 'Admin' | 'Infra' | 'Editor' | 'Designer' | 'Installer';
 export type PrincipalRole = StaffRole | 'Client';
 export type ClientStatus = 'Active' | 'Inactive';
 export type ServiceType = 'Kitchen' | 'Bedroom' | 'MediaWall' | 'Wardrobe';
