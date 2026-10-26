@@ -4,11 +4,13 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { PortalLayout } from './components/layout/PortalLayout';
 import { LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
+import { legalKind } from './lib/legal';
 import { connectSocket, disconnectSocket } from './lib/socket';
 import { DashboardPage } from './pages/Dashboard';
 import { DocumentsPage } from './pages/Documents';
 import { InvoiceDetailPage } from './pages/InvoiceDetail';
 import { InvoicesPage } from './pages/Invoices';
+import { LegalPage } from './pages/Legal';
 import { LoginPage } from './pages/Login';
 import { MessagesPage } from './pages/Messages';
 import { NotFoundPage, SignedOutNotFound } from './pages/NotFound';
@@ -40,6 +42,9 @@ export function App() {
   const { pathname } = useLocation();
   if (pathname === '/reset-password') return <ResetPasswordPage />;
   if (pathname === '/forgot-password' && !user) return <ForgotPasswordPage />;
+  // Privacy, Terms and Cookies open signed in or out, so the sign-in screen can link to them.
+  const legal = legalKind(pathname);
+  if (legal) return <LegalPage kind={legal} />;
 
   if (loading) {
     return (
