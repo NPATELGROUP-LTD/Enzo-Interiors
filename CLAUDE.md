@@ -89,8 +89,29 @@ instance. An alert carries the route as written, the status, the first line of t
 error (addresses, tokens, ids and query strings stripped by `alert-scrub.ts`) and
 `file:line`: never a body, a person or a client. Errors can be switched off in
 Settings; urgent and security cannot. `ALERT_FROM` unset sends from `MAIL_FROM`;
-SMTP unset sends nothing. Not yet built: security events (PR C), the Infra stats
-page and daily digest (PR D).
+SMTP unset sends nothing. Not yet built: the Infra stats page and daily digest
+(PR D), CI scanning and `docs/monitoring.md` (PR E).
+
+**Access log** (`core/access-log.service.ts`, `data/access-store.ts`, migration 19
+`access_events`; Settings › Security for Infra only, `GET /access-log`, Admin gets
+403): who signed in, what changed or was refused, from where. A middleware
+(`CoreModule.configure`) writes on `res.finish`, so a guard's or the rate limiter's
+refusal is seen too; `SignInNote` (an interceptor) tells it who a login response
+signed in. Logged: sign-ins (kind `signin`), every non-GET, every 4xx/5xx, and the
+reads in `READS` (downloads, exports, these logs being opened; repeats within a
+minute collapse). Not logged: plain successful GETs, unmatched paths, `QUIET`
+heartbeats. A row holds the route as a pattern (never the URL or a query), the first
+`:id`, status, IP (`clientIp`), country (`CF-IPCountry`, believed only with
+`TRUST_CLOUDFLARE=true`) and "Chrome · Windows" from `deviceOf`; never a body or a
+raw user agent. A failed sign-in keeps the typed address masked. Rows are deleted
+after 90 days (hourly, in the writer). Alerts it raises: a 429 on a sign-in route
+(lockout or rate limit), and a staff sign-in from a country or device not seen in the
+last 90 days (their first one is not). `ActivityLogService.record` also emails a
+`[SECURITY]` alert for `SECURITY_ACTIONS` (staff invited, role changed, removed,
+two-step reset, Admin removal requested, client/project/invoice deleted), naming who
+did it and never the target. `GET /activity-logs` is Admin + Infra; Infra gets
+`details: null` except on `PLATFORM_TABLES` rows. If the access log changes, change
+the privacy text in `apps/admin` and `apps/portal` `lib/legal.ts`.
 
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
 `Installer` (and, by an Infra manager, `Infra`). `Admin` does everything in the

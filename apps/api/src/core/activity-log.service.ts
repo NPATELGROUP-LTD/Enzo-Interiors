@@ -3,6 +3,23 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ActivityLog } from '../common/types/domain';
 import { AuthPrincipal } from '../common/types/principal';
 import { DatabaseService } from '../data/database.service';
+import { AlertService } from './alert.service';
+
+/**
+ * Actions that also email a security alert, with what to say. Account and
+ * access changes, and the deletes that cannot be undone. Names of clients and
+ * staff stay out of the sentence: it names only who did it.
+ */
+const SECURITY_ACTIONS: Record<string, string> = {
+  staff_invite: 'A staff account was invited',
+  staff_role_change: 'A staff role was changed',
+  staff_delete: 'A staff account was removed',
+  staff_reset_2fa: 'Two-step sign-in was reset for a staff account',
+  staff_removal_requested: 'Removal of an Admin was requested',
+  client_delete: 'A client was deleted',
+  project_delete: 'A project was deleted',
+  invoice_delete: 'An invoice was deleted',
+};
 
 export interface RecordActivityInput {
   principal: AuthPrincipal;
@@ -31,7 +48,10 @@ export interface RecordActivityInput {
 export class ActivityLogService {
   private readonly logger = new Logger(ActivityLogService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly alerts: AlertService,
+  ) {}
 
   async record(input: RecordActivityInput): Promise<void> {
     try {
@@ -45,6 +65,8 @@ export class ActivityLogService {
         details: input.details ?? null,
         created_at: new Date().toISOString(),
       });
+      const what = SECURITY_ACTIONS[input.action];
+      if (what) this.alerts.report({ kind: 'security', source: 'api', title: `${what} by ${input.principal.name}. See Settings › Security.` });
     } catch (error) {
       this.logger.error(
         `Failed to write activity log for ${input.action} on ${input.targetTable}/${input.targetId}`,

@@ -15,12 +15,13 @@ import {
   NotFoundException,
   Post,
   Put,
+  Query,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { APP_FILTER, BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { Request } from 'express';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
@@ -31,6 +32,7 @@ import { whereFrom } from '../../core/alert-scrub';
 import { AlertService } from '../../core/alert.service';
 import { MailService } from '../../core/mail.service';
 import { corsOrigins } from '../../core/origins';
+import type { AccessFilter } from '../../data/access-store';
 import { DatabaseService } from '../../data/database.service';
 
 const ID = 'alerts';
@@ -217,8 +219,46 @@ export class AlertingFilter extends BaseExceptionFilter {
   }
 }
 
+export class AccessLogQuery {
+  @IsOptional()
+  @IsIn(['all', 'signins', 'failures', 'changes'])
+  filter?: AccessFilter;
+
+  /** Part of a name, or an exact IP. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  q?: string;
+
+  /** The `at` of the last row you have; the next page is older than it. */
+  @IsOptional()
+  @IsDateString()
+  before?: string;
+}
+
+const PAGE = 100;
+
+/**
+ * Who signed in and what they changed, from where (core/access-log.service).
+ * The Infra manager only: it carries IP addresses and client names, so not even
+ * the Admin reads it. Looking at it is itself logged.
+ */
+@Controller('access-log')
+export class AccessLogController {
+  constructor(private readonly db: DatabaseService) {}
+
+  @Get()
+  @Roles('Infra')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async list(@Query() query: AccessLogQuery) {
+    const rows = await this.db.accessStore.list({ filter: query.filter ?? 'all', q: query.q?.trim() || undefined, before: query.before, take: PAGE + 1 });
+    const events = rows.slice(0, PAGE);
+    return { events, next: rows.length > PAGE ? events[events.length - 1]!.at : null };
+  }
+}
+
 @Module({
-  controllers: [AlertsController],
+  controllers: [AlertsController, AccessLogController],
   providers: [{ provide: APP_FILTER, useClass: AlertingFilter }],
 })
 export class AlertsModule {}

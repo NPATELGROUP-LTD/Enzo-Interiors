@@ -8,8 +8,9 @@
  * Keep them true to what the system does today:
  *  - the sign-in token, cached user, theme, notification choices and the
  *    remembered-device token are all localStorage (grep localStorage in src);
- *  - sign-in IP/device logging is NOT described because it is not built yet. When
- *    the access log lands, add it to `what-we-collect` and `retention` here;
+ *  - the access log (apps/api core/access-log.service) is described in
+ *    `what-we-collect`, `retention` and the Terms: IP, country and browser kind with
+ *    each sign-in, change and refusal, kept 90 days. Change both if it changes;
  *  - Google sign-in and Calendar exist in the API but no staff use them, so Google
  *    is not listed as a provider. Add it before anyone connects an account.
  *
@@ -92,9 +93,10 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Devices you asked us to remember: a label for the browser or device, when it was added and last used, and when it expires.',
             'Your notification choices and, if you allow them, the address your browser gives us to send notifications to that device, with the browser’s name.',
             'A record of what you change: your name, what you did, which record and when (the activity log).',
+            'A record of when you sign in, and of requests you make that change something or are refused: your name, the page or action, the time, your IP address, the country it comes from, and the kind of browser and system (for example “Chrome · Windows”). A failed sign-in keeps only a masked version of the address that was typed (the access log).',
             'What you write or upload: messages to clients, website drafts and files.',
           ],
-          'Your device’s IP address is handled by Cloudflare and our server to deliver pages and to slow down repeated sign-in attempts. Those counters last a short time.',
+          'Your device’s IP address is handled by Cloudflare and our server to deliver pages and to slow down repeated sign-in attempts. Those counters last a short time. The access log also keeps it, as above.',
         ],
       },
       {
@@ -103,7 +105,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         body: [
           [
             'To create your account, let you sign in and do your job: our legitimate interest in running the business and, for employees and contractors, carrying out your contract.',
-            'To keep the system and our clients’ data secure (two-step sign-in, locking after repeated failed attempts, the activity log): our legitimate interests and our legal duty to keep personal data secure.',
+            'To keep the system and our clients’ data secure (two-step sign-in, locking after repeated failed attempts, the activity log and the access log): our legitimate interests and our legal duty to keep personal data secure.',
             'To keep a record of who changed what, so mistakes can be put right and misuse investigated: our legitimate interests.',
             'To send notifications to your device: your consent. You can turn them off in the admin or in your browser at any time.',
           ],
@@ -114,7 +116,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         id: 'sharing',
         heading: 'Who sees it',
         body: [
-          'Inside Enzo, Admins can see the list of staff accounts and the activity log. Other staff see only their own account. Each person sees client information only as far as their role allows.',
+          'Inside Enzo, Admins can see the list of staff accounts and the activity log. The Infra manager, who looks after the system and not the business, can see the access log and the activity log without client details. Other staff see only their own account. Each person sees client information only as far as their role allows.',
           `${processor} can see it for support and technical administration.`,
           'Providers that act for us:',
           [
@@ -133,6 +135,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         body: [
           [
             'Your account: while you have access. When it is removed, the account, its remembered devices and its notifications are deleted.',
+            'The access log, with the IP addresses in it: 90 days, then deleted.',
             'The activity log: kept with the records it describes, for up to six years after a client’s project is completed, so changes can still be explained. Your name stays on those entries.',
             'Short-lived items: emailed sign-in codes last 10 minutes, password reset links 30 minutes, invitation links 7 days, a remembered device 30 days.',
             'Backups roll over on a schedule, so deleted information drops out as they are replaced.',
@@ -221,7 +224,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         id: 'monitoring',
         heading: 'What is recorded',
         body: [
-          'Changes you make are recorded in the activity log. We may review the log to keep the system secure, to find and fix faults, and to investigate suspected misuse. The privacy notice explains what is kept and for how long.',
+          'Changes you make are recorded in the activity log, and sign-ins, changes and refused requests in the access log. We may review the logs to keep the system secure, to find and fix faults, and to investigate suspected misuse. The privacy notice explains what is kept and for how long.',
         ],
       },
       {
