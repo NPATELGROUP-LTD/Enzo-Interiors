@@ -55,6 +55,8 @@ interface AuthState {
   /** Role check for hiding UI. The API enforces the same rules server-side. */
   can: (...roles: StaffRole[]) => boolean;
   isAdmin: boolean;
+  /** Infra manager: runs users, website status and alerts; never sees client data. */
+  isInfra: boolean;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -162,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       can: (...roles: StaffRole[]) =>
         user !== null && roles.includes(user.role as StaffRole),
       isAdmin: user?.role === 'Admin',
+      isInfra: user?.role === 'Infra',
     }),
     [user, loading, logout, adopt, update],
   );

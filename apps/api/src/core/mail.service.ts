@@ -8,6 +8,8 @@ export interface Mail {
   html: string;
   text: string;
   replyTo?: string;
+  /** Sender, when not the default MAIL_FROM (alerts come from ALERT_FROM). */
+  from?: string;
   /** Extra headers, e.g. List-Unsubscribe on a newsletter. */
   headers?: Record<string, string>;
 }
@@ -24,6 +26,8 @@ export class MailService {
   private readonly logger = new Logger(MailService.name);
   private readonly transport: Transporter | null;
   private readonly from = process.env.MAIL_FROM ?? 'Enzo Interiors <no-reply@localhost>';
+  /** Told when a send fails; the alert service sets it. Never called for an alert's own mail. */
+  onFailure?: (mail: Mail, message: string) => void;
 
   constructor() {
     const host = process.env.SMTP_HOST;
@@ -52,9 +56,9 @@ export class MailService {
       await this.transport.sendMail({ from: this.from, ...mail });
       return true;
     } catch (error) {
-      this.logger.error(
-        `Could not send "${mail.subject}": ${error instanceof Error ? error.message : String(error)}`,
-      );
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Could not send "${mail.subject}": ${message}`);
+      if (!mail.from) this.onFailure?.(mail, message);
       return false;
     }
   }
@@ -156,6 +160,17 @@ function bookingRows(b: BookingMail, full: boolean): Array<[string, string]> {
 }
 
 export const templates = {
+  /** To the people who run the platform: something broke, or someone should look. Plain on purpose. */
+  alert(subject: string, rows: Array<[string, string]>): Rendered {
+    return {
+      subject,
+      html: layout(subject, `${heading('Alert', subject.replace(/^(\[[^\]]*\])+\s*/, ''))}${table(rows)}`, 'Sent by the Enzo Interiors platform. Change who receives these under Settings › Alerts.'),
+      text: `${subject}
+
+${plain(rows)}`,
+    };
+  },
+
   passwordReset(name: string, link: string): Rendered {
     const subject = 'Reset your Enzo Interiors password';
     return {
@@ -403,6 +418,26 @@ ${title}${body ? `
 ${body}` : ''}
 
 Open your portal: ${link}`,
+    };
+  },
+
+  /** To an Infra manager: something about who can sign in, which they decide. */
+  staffRequest(name: string, title: string, body: string, link: string): Rendered {
+    return {
+      subject: title,
+      html: layout(
+        title,
+        `${heading('Security', title)}
+<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap;margin:0 0 16px">${escapeHtml(body)}</div>
+${button(link, 'Review in Users')}`,
+      ),
+      text: `Hi ${name},
+
+${title}
+
+${body}
+
+Review it in Settings › Users: ${link}`,
     };
   },
 

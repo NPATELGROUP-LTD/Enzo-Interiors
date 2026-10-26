@@ -78,6 +78,7 @@ async function clear(): Promise<void> {
     db.appointment.deleteMany({ where: { OR: [{ id: mine }, { email: { endsWith: `@${DOMAIN}` } }] } }),
     db.contactSubmission.deleteMany({ where: { OR: [{ id: mine }, { email: { endsWith: `@${DOMAIN}` } }] } }),
     db.newsletterSubscriber.deleteMany({ where: { OR: [{ id: mine }, { email: { endsWith: `@${DOMAIN}` } }] } }),
+    db.staffRemovalRequest.deleteMany({ where: { OR: [{ id: mine }, { target_id: mine }, { requested_by: mine }] } }),
     db.staffUser.deleteMany({ where: { id: mine } }),
   ]);
   console.log(`Removed ${counts.reduce((n, c) => n + c.count, 0)} mock rows and ${docs.length} files.`);
@@ -89,6 +90,9 @@ async function clear(): Promise<void> {
 
 const STAFF = [
   { id: `${P}admin`, name: 'Maya Admin (mock)', email: mail('admin'), role: 'Admin' },
+  // A second Admin to ask an Infra manager to remove, and the Infra manager who answers.
+  { id: `${P}admin2`, name: 'Alex Admin (mock)', email: mail('admin2'), role: 'Admin' },
+  { id: `${P}infra`, name: 'Ira Infra (mock)', email: mail('infra'), role: 'Infra' },
   { id: `${P}designer`, name: 'Dev Designer (mock)', email: mail('designer'), role: 'Designer' },
   { id: `${P}designer2`, name: 'Priya Shah-Kowalczyk (mock)', email: mail('designer2'), role: 'Designer' },
   { id: `${P}installer`, name: 'Ian Installer (mock)', email: mail('installer'), role: 'Installer' },
@@ -398,6 +402,7 @@ async function seed(): Promise<void> {
       ['booking', 'New consultation booked', 'Grace Hall, Kitchens', '/bookings'],
       ['review', 'Eve Editor (mock) sent Home for review', 'Changed the hero heading, please check the wording on mobile.', '/cms'],
     ],
+    Infra: [['request', 'Maya Admin (mock) asks to remove the Admin Alex Admin (mock)', 'Left the business in October.', '/settings/users']],
     Designer: CREW,
     Installer: CREW,
     Editor: [['review_reply', 'Maya Admin (mock) sent back Home', 'Keep the heading to one line on phones.', '/pages/home']],
@@ -413,6 +418,14 @@ async function seed(): Promise<void> {
     ]),
   ];
   await db.notification.createMany({ data: bells });
+
+  // Waiting for the Infra manager: approve it (with their password) or decline it.
+  await db.staffRemovalRequest.create({
+    data: {
+      id: `${P}removal_0`, target_id: `${P}admin2`, target_name: 'Alex Admin (mock)', target_email: mail('admin2'),
+      requested_by: `${P}admin`, requested_name: 'Maya Admin (mock)', reason: 'Left the business in October.', status: 'Pending', created_at: ago(1),
+    },
+  });
 
   await db.activityLog.createMany({
     data: Array.from({ length: 24 }, (_, i) => ({

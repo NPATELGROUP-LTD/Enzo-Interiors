@@ -9,6 +9,7 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService } from '../../core/mail.service';
 import { RateLimitStore } from '../../core/rate-limit';
 import { DatabaseService } from '../../data/database.service';
+import { NotificationsService } from '../notifications/notifications.module';
 import { AuthService, hashPassword } from './auth.service';
 import { UsersService } from './users';
 
@@ -33,7 +34,7 @@ function setup(fields: Record<string, unknown> = {}) {
   return {
     row,
     auth: new AuthService(db, jwt, mail, limits),
-    users: new UsersService(db, mail, activity, limits),
+    users: new UsersService(db, mail, activity, limits, {} as unknown as NotificationsService),
     sign: (tv: number) => jwt.signAsync({ sub: 's1', kind: 'Staff', role: 'Admin', name: 'Neel', email: 'neel@example.com', tv }),
     authenticate: (token: string) => authenticate(jwt, db, token),
     done: () => limits.onApplicationShutdown(),
@@ -47,7 +48,8 @@ test('resetting 2FA signs out a token issued before it (and the sockets that rea
   const token = await t.sign(3);
   assert.equal((await t.authenticate(token)).id, 's1');
 
-  await t.users.resetTwoFactor({ ...principal, id: 'admin-2' }, 's1');
+  // s1 is an Admin, so only an Infra manager may reset it.
+  await t.users.resetTwoFactor({ ...principal, id: 'infra-1', role: 'Infra' }, 's1');
 
   assert.equal(t.row.token_version, 4);
   assert.equal(t.row.two_factor_method, null);

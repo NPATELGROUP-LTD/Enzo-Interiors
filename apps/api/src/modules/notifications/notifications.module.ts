@@ -111,8 +111,13 @@ export class NotificationsService {
 
   /** Every Admin, except whoever caused it. */
   async notifyAdmins(note: NewNotification, exceptId?: string, push = true): Promise<void> {
-    const admins = await this.db.staffUsers.findAll((row) => row.role === 'Admin' && row.id !== exceptId);
-    for (const admin of admins) await this.notify(admin.id, note, push);
+    await this.notifyRole('Admin', note, exceptId, push);
+  }
+
+  /** Everyone with this role, except whoever caused it. */
+  async notifyRole(role: 'Admin' | 'Infra', note: NewNotification, exceptId?: string, push = true): Promise<void> {
+    const people = await this.db.staffUsers.findWhere({ role });
+    for (const person of people) if (person.id !== exceptId) await this.notify(person.id, note, push);
   }
 
   /**

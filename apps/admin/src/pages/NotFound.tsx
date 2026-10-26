@@ -1,7 +1,7 @@
 import { Gear, House, MagnifyingGlass, SquaresFour } from '@phosphor-icons/react';
 import { Link, Navigate, useLocation, useOutletContext } from 'react-router-dom';
 
-import { CLIENT_ROLES, type CmsShell } from '@/components/layout/AdminLayout';
+import { CLIENT_ROLES, CMS_ROLES, type CmsShell } from '@/components/layout/AdminLayout';
 import { AuthScreen } from '@/components/layout/AuthScreen';
 import { MODIFIER } from '@/components/layout/SearchPalette';
 import { useAuth } from '@/lib/auth';
@@ -28,7 +28,7 @@ export function SignedOutNotFound({ known }: { known: (path: string) => boolean 
  */
 export function NotFoundPage() {
   const { pathname } = useLocation();
-  const { isAdmin, can } = useAuth();
+  const { isAdmin, isInfra, can } = useAuth();
   const { openSearch } = useOutletContext<CmsShell>();
   const option =
     'flex min-h-11 items-center gap-3 rounded-control px-3 text-left text-ink transition-colors hover:bg-ink/[0.05] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
@@ -56,11 +56,13 @@ export function NotFoundPage() {
               <span className="flex-1">Go to the dashboard</span>
             </Link>
           ) : null}
-          <Link to="/cms" className={option}>
-            <SquaresFour size={18} aria-hidden="true" className="text-ink-muted" />
-            <span className="flex-1">Go to the CMS overview</span>
-          </Link>
-          {isAdmin ? (
+          {can(...CMS_ROLES) ? (
+            <Link to="/cms" className={option}>
+              <SquaresFour size={18} aria-hidden="true" className="text-ink-muted" />
+              <span className="flex-1">Go to the CMS overview</span>
+            </Link>
+          ) : null}
+          {isAdmin || isInfra ? (
             <Link to="/settings" className={option}>
               <Gear size={18} aria-hidden="true" className="text-ink-muted" />
               <span className="flex-1">Open Settings</span>

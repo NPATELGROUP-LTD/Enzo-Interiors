@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
 
+import { LegalLinks } from './LegalLinks';
+
 /**
  * The Enzo script mark, drawn in the current text colour.
  *
@@ -48,17 +50,20 @@ export function AuthScreen({
           <div className="mt-7">{children}</div>
         </div>
 
-        <p className="text-xs text-ink-muted">
-          Enzo Interiors client portal. Made by{' '}
-          <a
-            href="https://www.npatelgroup.ltd"
-            target="_blank"
-            rel="noopener"
-            className="font-semibold hover:text-ink hover:underline"
-          >
-            NPATEL GROUP LTD
-          </a>
-        </p>
+        <div className="text-xs text-ink-muted">
+          <LegalLinks />
+          <p>
+            Enzo Interiors client portal. Made by{' '}
+            <a
+              href="https://www.npatelgroup.ltd"
+              target="_blank"
+              rel="noopener"
+              className="font-semibold hover:text-ink hover:underline"
+            >
+              NPATEL GROUP LTD
+            </a>
+          </p>
+        </div>
       </main>
 
       {/* Decorative, so empty alt. */}

@@ -3,6 +3,8 @@ import { Prisma } from '@prisma/client';
 
 import {
   ActivityLog,
+  AlertEvent,
+  AlertSettings,
   Appointment,
   AvailabilitySetting,
   Booking,
@@ -29,10 +31,12 @@ import {
   ProjectStageConfig,
   SavedReplyTemplate,
   SiteSettings,
+  StaffRemovalRequest,
   StaffUser,
   Testimonial,
   TrustedDevice,
 } from '../common/types/domain';
+import { AlertStore } from './alert-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
@@ -85,6 +89,10 @@ export class DatabaseService {
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
   readonly calendarConnections: PrismaRepository<CalendarConnection>;
   readonly changeRequests: PrismaRepository<ChangeRequest>;
+  readonly staffRemovalRequests: PrismaRepository<StaffRemovalRequest>;
+  readonly alertSettings: PrismaRepository<AlertSettings>;
+  readonly alertEvents: PrismaRepository<AlertEvent>;
+  readonly alertStore: AlertStore;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -163,6 +171,12 @@ export class DatabaseService {
     this.changeRequests = new PrismaRepository(prisma.changeRequest, 'change_requests', {
       dates: ['created_at', 'decided_at'],
     });
+    this.staffRemovalRequests = new PrismaRepository(prisma.staffRemovalRequest, 'staff_removal_requests', {
+      dates: ['created_at', 'decided_at'],
+    });
+    this.alertSettings = new PrismaRepository(prisma.alertSettings, 'alert_settings', { dates: ['updated_at'] });
+    this.alertEvents = new PrismaRepository(prisma.alertEvent, 'alert_events', { dates: ['first_at', 'last_at'] });
+    this.alertStore = new AlertStore(prisma);
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });

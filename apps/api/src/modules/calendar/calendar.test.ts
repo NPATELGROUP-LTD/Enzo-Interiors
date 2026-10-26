@@ -30,6 +30,7 @@ function setup(events: unknown[], tokenReply: unknown = { access_token: 't', exp
     {} as never,
     {} as never,
     { notifyAdmins: async (n: { title: string }) => void notes.push(n.title) } as never,
+    { report: () => undefined } as never,
   );
   const calls: string[] = [];
   globalThis.fetch = (async (url: string) => {
@@ -126,6 +127,7 @@ test('reconnecting the same Google account keeps the chosen calendar', async () 
       { verifyAsync: async () => ({ purpose: 'calendar', staff: 's', tv: 1, nonce: email }) } as never,
       { record: async () => undefined } as never,
       {} as never,
+      { report: () => undefined } as never,
     );
     globalThis.fetch = (async () =>
       new Response(JSON.stringify({ refresh_token: 'r', id_token: idToken(email), scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly' }))) as typeof fetch;

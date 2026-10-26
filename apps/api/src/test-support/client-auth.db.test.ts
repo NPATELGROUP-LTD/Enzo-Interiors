@@ -143,19 +143,26 @@ test('POST /auth/refresh renews a staff or client session and never revives a re
   assert.equal((await refresh(client)).status, 401, 'a bumped token_version cannot be refreshed');
 });
 
-test('changing a staff member\'s role signs them out', async () => {
-  const admin = await token('/auth/admin/login', ADMIN.email, ADMIN.password);
-  const staff = await token('/auth/admin/login', STAFF.email, PASSWORD);
-  assert.equal((await get('/users', staff)).status, 200);
+test("changing a staff member's role signs them out", async () => {
+  // A Designer: an Admin may not demote another Admin (only an Infra manager can).
+  const other = { id: `stf_role_${run}`, email: `role-${run}@test.enzo.local` };
+  await prisma.staffUser.create({ data: { ...other, name: 'Test Designer', role: 'Designer', password_hash: await bcrypt.hash(PASSWORD, 4) } });
+  try {
+    const admin = await token('/auth/admin/login', ADMIN.email, ADMIN.password);
+    const staff = await token('/auth/admin/login', other.email, PASSWORD);
+    assert.equal((await get('/auth/me', staff)).status, 200);
 
-  const demote = await fetch(`${app.url}/users/${STAFF.id}`, {
-    method: 'PUT',
-    headers: { authorization: `Bearer ${admin}`, 'content-type': 'application/json' },
-    body: JSON.stringify({ role: 'Editor' }),
-  });
-  assert.equal(demote.status, 200);
-  assert.equal((await get('/auth/me', staff)).status, 401);
-  assert.equal((await get('/auth/me', admin)).status, 200, 'the admin who did it is untouched');
+    const change = await fetch(`${app.url}/users/${other.id}`, {
+      method: 'PUT',
+      headers: { authorization: `Bearer ${admin}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ role: 'Editor' }),
+    });
+    assert.equal(change.status, 200);
+    assert.equal((await get('/auth/me', staff)).status, 401);
+    assert.equal((await get('/auth/me', admin)).status, 200, 'the admin who did it is untouched');
+  } finally {
+    await prisma.staffUser.deleteMany({ where: { id: other.id } });
+  }
 });
 
 test('a client changes their password: the old token and old password die, a new session is issued', async () => {

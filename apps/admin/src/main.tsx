@@ -7,6 +7,7 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider } from './lib/auth';
+import { installErrorReporting } from './lib/report';
 import { ThemeProvider } from './lib/theme';
 import './styles/theme.css';
 
@@ -14,6 +15,8 @@ import './styles/theme.css';
 // is what stops a menu click from throwing away an unsaved page of edits. The
 // app's own <Routes> still do the matching underneath this catch-all.
 const router = createBrowserRouter([{ path: '*', element: <ErrorBoundary screen><App /></ErrorBoundary> }]);
+
+installErrorReporting();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root is missing from index.html');

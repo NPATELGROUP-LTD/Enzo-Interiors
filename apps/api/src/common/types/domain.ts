@@ -34,10 +34,16 @@
  * never reaches the CRM. Designer works the CRM projects assigned to them (as
  * designer or installer): moves their stages, and asks an Admin to change a
  * client's details. Installer sees the same projects but only asks an Admin to
- * move a stage. Neither reaches the CMS.
+ * move a stage. Neither reaches the CMS. Infra (shown as "Infra manager")
+ * runs the platform: users, website status, alerts. It never reaches clients,
+ * projects, invoices, documents, messages, enquiries or bookings, and is not an
+ * Admin to AccessService, so no data scope opens to it.
  */
-export const STAFF_ROLES = ['Admin', 'Editor', 'Designer', 'Installer'] as const;
+export const STAFF_ROLES = ['Admin', 'Infra', 'Editor', 'Designer', 'Installer'] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
+
+/** Roles only an Infra manager may invite, change or remove (and whose two-step sign-in only they reset). */
+export const PRIVILEGED_ROLES: readonly StaffRole[] = ['Admin', 'Infra'];
 
 /** The roles the admin invites and assigns. */
 export const ADMIN_ROLES = STAFF_ROLES;
@@ -556,6 +562,25 @@ export interface Notification extends BaseRecord {
   created_at: string;
 }
 
+/**
+ * An Admin's request to remove another Admin, waiting for an Infra manager
+ * (modules/auth/users). Its own table: change_requests.client_id is required.
+ */
+export interface StaffRemovalRequest extends BaseRecord {
+  target_id: string;
+  target_name: string;
+  target_email: string;
+  requested_by: string;
+  requested_name: string;
+  reason: string;
+  status: 'Pending' | 'Approved' | 'Declined';
+  decided_by: string | null;
+  decided_name: string | null;
+  decision_note: string | null;
+  decided_at: string | null;
+  created_at: string;
+}
+
 /** A Designer's client edit or an Installer's stage move, waiting for an Admin (modules/change-requests). */
 export interface ChangeRequest extends BaseRecord {
   kind: 'client_details' | 'project_stage';
@@ -614,4 +639,29 @@ export interface NewsletterCampaign extends BaseRecord {
   created_at: string;
   updated_at: string;
   sent_at: string | null;
+}
+
+export type AlertKind = 'urgent' | 'error' | 'security';
+export type AlertSource = 'api' | 'web' | 'admin' | 'portal' | 'system';
+
+/** Who the alert emails go to. A single row, id "alerts". */
+export interface AlertSettings extends BaseRecord {
+  recipients: string[];
+  errors_on: boolean;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+/** A kind of problem and how often it has happened (modules/alerts). Id = its fingerprint. */
+export interface AlertEvent extends BaseRecord {
+  kind: AlertKind;
+  source: AlertSource;
+  title: string;
+  route: string | null;
+  location: string | null;
+  status: number | null;
+  release: string | null;
+  count: number;
+  first_at: string;
+  last_at: string;
 }

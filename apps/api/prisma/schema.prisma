@@ -643,6 +643,29 @@ model CalendarConnection {
 
 // A Designer's client edit or an Installer's stage move, waiting for an Admin
 // (modules/change-requests). Approving replays it as the Admin.
+// An Admin asks an Infra manager to remove another Admin (modules/auth/users).
+// target_* are copied so the request still reads after the person is gone.
+model StaffRemovalRequest {
+  id             String    @id
+  target_id      String
+  target_name    String
+  target_email   String
+  requested_by   String
+  requested_name String
+  reason         String
+  // "Pending" | "Approved" | "Declined"
+  status         String    @default("Pending")
+  decided_by     String?
+  decided_name   String?
+  decision_note  String?
+  decided_at     DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([status, created_at])
+  @@index([target_id])
+  @@map("staff_removal_requests")
+}
+
 model ChangeRequest {
   id             String    @id
   // "client_details" | "project_stage"
@@ -663,4 +686,38 @@ model ChangeRequest {
   @@index([status, created_at])
   @@index([client_id])
   @@map("change_requests")
+}
+
+// Who receives the alert emails, and whether error alerts are on. One row,
+// id "alerts" (modules/alerts). Empty recipients fall back to ALERT_TO.
+model AlertSettings {
+  id         String   @id
+  recipients String[] @default([])
+  errors_on  Boolean  @default(true)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@map("alert_settings")
+}
+
+// One row per kind of problem, keyed by a fingerprint of what happened and
+// where. `count` is how often it has happened; rows older than 30 days go.
+// Holds the route and the first line of the error, never a body or a person.
+model AlertEvent {
+  id       String   @id
+  // "urgent" | "error" | "security"
+  kind     String
+  // "api" | "web" | "admin" | "portal" | "system"
+  source   String
+  title    String
+  route    String?
+  location String?
+  status   Int?
+  release  String?
+  count    Int      @default(1)
+  first_at DateTime @default(now()) @db.Timestamptz(6)
+  last_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([last_at])
+  @@map("alert_events")
 }

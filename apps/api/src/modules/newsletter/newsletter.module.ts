@@ -28,6 +28,7 @@ import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { NewsletterCampaign, NewsletterSubscriber } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { AlertService } from '../../core/alert.service';
 import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
 import { campaignText, cleanCampaignHtml, csvCell } from './render';
@@ -99,6 +100,7 @@ export class NewsletterService implements OnApplicationBootstrap {
     private readonly db: DatabaseService,
     private readonly mail: MailService,
     private readonly activity: ActivityLogService,
+    private readonly alerts: AlertService,
   ) {}
 
   /* ---- Public ---- */
@@ -335,7 +337,9 @@ export class NewsletterService implements OnApplicationBootstrap {
         await sleep(PAUSE_MS);
       }
     } catch (error) {
-      this.logger.error(`Newsletter ${id} stopped: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Newsletter ${id} stopped: ${message}`);
+      this.alerts.report({ kind: 'error', source: 'system', title: `A newsletter stopped sending: ${message}` });
     } finally {
       this.sending.delete(id);
     }
