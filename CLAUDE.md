@@ -89,7 +89,7 @@ instance. An alert carries the route as written, the status, the first line of t
 error (addresses, tokens, ids and query strings stripped by `alert-scrub.ts`) and
 `file:line`: never a body, a person or a client. Errors can be switched off in
 Settings; urgent and security cannot. `ALERT_FROM` unset sends from `MAIL_FROM`;
-SMTP unset sends nothing. Not yet built: CI scanning and `docs/monitoring.md` (PR E).
+SMTP unset sends nothing.
 
 **Access log** (`core/access-log.service.ts`, `data/access-store.ts`, migration 19
 `access_events`; Settings › Security for Infra only, `GET /access-log`, Admin gets
@@ -129,6 +129,11 @@ only: blocking is by hand in Cloudflare, since many people share an address); an
 (`InfraStore.claimDigest` is one conditional UPDATE, so a restart cannot resend it; a
 failed send is not retried that day, its absence is the signal). The Infra manager turns
 it off and sends one now in Settings › Alerts. It carries no names or money.
+
+**Monitoring** (`docs/monitoring.md`): alerts, the daily summary and Settings › Health are
+email only, tagged `[Enzo][URGENT|ERROR|SECURITY|DAILY]`. UptimeRobot and Coolify watch from
+outside; `.github/workflows/security.yml` runs `npm audit`, gitleaks and semgrep (none is a
+required check) and `.github/dependabot.yml` opens weekly PRs into develop.
 
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
 `Installer` (and, by an Infra manager, `Infra`). `Admin` does everything in the
@@ -374,6 +379,10 @@ privacy, terms, cookies; home always on); defaults are computed on read
 (`modules/site-settings/pages.ts`) and sent as `site.pages`. Booking off =
 public `POST /booking` refused (403). Editors preview a gated site
 through a 10-minute token → Next draft mode.
+A page that reads `searchParams`, `cookies()` or `headers()` must do it **before** any
+early return (`apps/web/src/app/booking/page.tsx`): the Docker build has no API, so
+`isPageOn` falls back to the defaults (booking off) and a page that returns early is
+prerendered static, then throws `DYNAMIC_SERVER_USAGE` (a 500) once production has it on.
 
 **Email:** `MailService` (core) over SMTP; unset `SMTP_HOST` = logged, not sent.
 Locally, `COMPOSE_PROFILES=dev,db` runs Mailpit (UI on :8025) and the bundled
