@@ -13,6 +13,7 @@ import {
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { LegalLinks } from './LegalLinks';
 import { MODIFIER } from './SearchPalette';
 
 import { useAuth } from '@/lib/auth';
@@ -300,7 +301,8 @@ export function Desktop({
           <SignOut size={15} aria-hidden="true" />
           Sign out
         </button>
-        <p className="px-2 pb-1 pt-2 text-[11.5px] text-ink-muted">
+        <LegalLinks className="px-2 pt-2 text-[11.5px] text-ink-muted" />
+        <p className="px-2 pb-1 text-[11.5px] text-ink-muted">
           Made by{' '}
           <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-semibold hover:text-ink hover:underline">
             NPATEL GROUP LTD

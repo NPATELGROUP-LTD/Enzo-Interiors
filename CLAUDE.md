@@ -172,6 +172,19 @@ forgot = 30 min); `POST /auth/portal/reset` sets the bcrypt hash and bumps
 `token_version` in one conditional UPDATE, so a link works once and old portal
 sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt
 hash is stored. Changing a client's email bumps `token_version` too.
+
+**Legal pages (admin and portal):** `/privacy`, `/terms`, `/cookies` in each app,
+open signed in or out (`legalKind()` in `App.tsx`, before the auth check), linked
+from the sign-in screen and the profile menu. They are separate from the public
+site's pages (those are CMS content). The text is code, in each app's
+`lib/legal.ts` (admin: written for staff; portal: for clients; `pages/Legal.tsx`
+and `LegalLinks` are identical copies). Controller Enzo Interiors Ltd
+(16540291); NPATEL GROUP LTD (16236097) is the processor, under a contract that
+must be signed before launch. No ICO or VAT number is shown (Enzo has neither
+yet); do not invent one. They describe only what exists: when the access log
+(IP/device) is built, add it to `what-we-collect` and `retention` in both files.
+The apps set no cookies, only localStorage, so no banner. Google Fonts is loaded
+from Google (disclosed). Terms are a draft for a solicitor.
 - `apps/portal` — client portal (React/Vite PWA, same macOS look as admin).
   Clients reach it only by invitation: `/reset-password` (invite or reset; the
   token is read from the link and wiped from the address bar) and

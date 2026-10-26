@@ -1,9 +1,11 @@
-import { Navigate, Outlet, Route, Routes, useOutletContext, useParams } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useLocation, useOutletContext, useParams } from 'react-router-dom';
 
 import { AdminLayout, CLIENT_ROLES, CMS_ROLES, SECTIONS } from './components/layout/AdminLayout';
 import { Button, LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
+import { legalKind } from './lib/legal';
 import { CmsHome, CollectionPage, EntryPage } from './pages/Cms';
+import { LegalPage } from './pages/Legal';
 import { LoginPage } from './pages/Login';
 import { NotFoundPage, SignedOutNotFound } from './pages/NotFound';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
@@ -44,6 +46,10 @@ const isAppPath = (path: string) =>
  */
 export function App() {
   const { user, loading, logout, can } = useAuth();
+
+  // Privacy, Terms and Cookies open signed in or out, so the sign-in screen can link to them.
+  const legal = legalKind(useLocation().pathname);
+  if (legal) return <LegalPage kind={legal} />;
 
   // Wait for /auth/me before deciding — otherwise a refresh on a deep link
   // flashes the login screen before bouncing back.

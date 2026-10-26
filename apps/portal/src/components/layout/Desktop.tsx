@@ -18,6 +18,7 @@ import { initials } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 
 import { PushPrompt } from '@/components/PushToggle';
+import { LegalLinks } from './LegalLinks';
 import { Notifications } from './Notifications';
 import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
@@ -250,6 +251,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           Sign out
         </button>
         <div className="my-1 h-px bg-border" />
+        <LegalLinks className="px-2 text-xs text-ink-muted" />
         <a
           href="https://www.npatelgroup.ltd"
           target="_blank"
