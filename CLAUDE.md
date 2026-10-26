@@ -113,6 +113,11 @@ did it and never the target. `GET /activity-logs` is Admin + Infra; Infra gets
 `details: null` except on `PLATFORM_TABLES` rows. If the access log changes, change
 the privacy text in `apps/admin` and `apps/portal` `lib/legal.ts`.
 
+**Monitoring** (`docs/monitoring.md`): alerts, the daily summary and Settings › Health are
+email only, tagged `[Enzo][URGENT|ERROR|SECURITY|DAILY]`. UptimeRobot and Coolify watch from
+outside; `.github/workflows/security.yml` runs `npm audit`, gitleaks and semgrep (none is a
+required check) and `.github/dependabot.yml` opens weekly PRs into develop.
+
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
 `Installer` (and, by an Infra manager, `Infra`). `Admin` does everything in the
 business. The CMS is Admin + `Editor` only (API
@@ -357,6 +362,10 @@ privacy, terms, cookies; home always on); defaults are computed on read
 (`modules/site-settings/pages.ts`) and sent as `site.pages`. Booking off =
 public `POST /booking` refused (403). Editors preview a gated site
 through a 10-minute token → Next draft mode.
+A page that reads `searchParams`, `cookies()` or `headers()` must do it **before** any
+early return (`apps/web/src/app/booking/page.tsx`): the Docker build has no API, so
+`isPageOn` falls back to the defaults (booking off) and a page that returns early is
+prerendered static, then throws `DYNAMIC_SERVER_USAGE` (a 500) once production has it on.
 
 **Email:** `MailService` (core) over SMTP; unset `SMTP_HOST` = logged, not sent.
 Locally, `COMPOSE_PROFILES=dev,db` runs Mailpit (UI on :8025) and the bundled
