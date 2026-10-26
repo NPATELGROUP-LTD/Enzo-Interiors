@@ -50,7 +50,8 @@ export class ActivityLogService {
 
   constructor(
     private readonly db: DatabaseService,
-    private readonly alerts: AlertService,
+    // ponytail: optional so the one-off scripts (make-infra, reset-2fa) can log without mail; Nest still injects it.
+    private readonly alerts?: AlertService,
   ) {}
 
   async record(input: RecordActivityInput): Promise<void> {
@@ -66,7 +67,7 @@ export class ActivityLogService {
         created_at: new Date().toISOString(),
       });
       const what = SECURITY_ACTIONS[input.action];
-      if (what) this.alerts.report({ kind: 'security', source: 'api', title: `${what} by ${input.principal.name}. See Settings › Security.` });
+      if (what) this.alerts?.report({ kind: 'security', source: 'api', title: `${what} by ${input.principal.name}. See Settings › Security.` });
     } catch (error) {
       this.logger.error(
         `Failed to write activity log for ${input.action} on ${input.targetTable}/${input.targetId}`,
