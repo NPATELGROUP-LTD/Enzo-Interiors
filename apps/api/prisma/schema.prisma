@@ -694,6 +694,9 @@ model AlertSettings {
   id         String   @id
   recipients String[] @default([])
   errors_on  Boolean  @default(true)
+  // The 08:00 summary, and the London day (YYYY-MM-DD) it last went out on
+  digest_on  Boolean  @default(true)
+  digest_day String?
   updated_at DateTime @default(now()) @db.Timestamptz(6)
   updated_by String?
 

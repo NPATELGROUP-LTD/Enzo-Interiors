@@ -89,8 +89,7 @@ instance. An alert carries the route as written, the status, the first line of t
 error (addresses, tokens, ids and query strings stripped by `alert-scrub.ts`) and
 `file:line`: never a body, a person or a client. Errors can be switched off in
 Settings; urgent and security cannot. `ALERT_FROM` unset sends from `MAIL_FROM`;
-SMTP unset sends nothing. Not yet built: the Infra stats page and daily digest
-(PR D), CI scanning and `docs/monitoring.md` (PR E).
+SMTP unset sends nothing.
 
 **Access log** (`core/access-log.service.ts`, `data/access-store.ts`, migration 19
 `access_events`; Settings › Security for Infra only, `GET /access-log`, Admin gets
@@ -112,6 +111,24 @@ two-step reset, Admin removal requested, client/project/invoice deleted), naming
 did it and never the target. `GET /activity-logs` is Admin + Infra; Infra gets
 `details: null` except on `PLATFORM_TABLES` rows. If the access log changes, change
 the privacy text in `apps/admin` and `apps/portal` `lib/legal.ts`.
+
+**Health, attack alerts and the daily summary** (`modules/infra`, `data/infra-store.ts`,
+migration 20 adds `alert_settings.digest_on` / `digest_day`; Settings › Health for Infra
+only, `GET /infra/stats`, Admin/Editor 403). Counts and sizes, never a client's content:
+database size, connections and the biggest tables from PostgreSQL's catalogue; object
+count and bytes per bucket via ListObjectsV2 (cached 10 min, stops at 50k files); the
+cache (`CacheService.stats()`: Redis or memory, keys, hits/misses since start); the last
+24 hours of 5xx and 4xx by hour, failed sign-ins and top failing routes from
+`access_events` (every failure is logged, successful reads are not, so there is no
+request total); problems emailed (7 days); and a checklist of switches (`SMTP_HOST`,
+recipients, `ALERT_SHARED_SECRET`, `TRUST_CLOUDFLARE`, VAPID, Redis, `DISABLE_2FA`).
+`InfraWatch` runs every 5 minutes on a timer: 10+ failed sign-ins from one address in
+10 minutes, or 100+ refusals (401/403/404/429) in 5, raise a `[SECURITY]` alert (alert
+only: blocking is by hand in Cloudflare, since many people share an address); and from
+08:00 Europe/London it sends the `[DAILY]` summary once a day to the alert recipients
+(`InfraStore.claimDigest` is one conditional UPDATE, so a restart cannot resend it; a
+failed send is not retried that day, its absence is the signal). The Infra manager turns
+it off and sends one now in Settings › Alerts. It carries no names or money.
 
 **Monitoring** (`docs/monitoring.md`): alerts, the daily summary and Settings › Health are
 email only, tagged `[Enzo][URGENT|ERROR|SECURITY|DAILY]`. UptimeRobot and Coolify watch from
