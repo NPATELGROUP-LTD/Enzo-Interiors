@@ -177,7 +177,7 @@ hash is stored. Changing a client's email bumps `token_version` too.
   token is read from the link and wiped from the address bar) and
   `/forgot-password`. Pages: Dashboard, Projects (+ detail: approve / request
   changes, downloads), Invoices (+ detail; Download = an A4
-  image PDF made in the browser, jspdf lazy-loaded, kept out of the precache; Print), Documents (View +
+  PDF with real, selectable text drawn in the browser by `lib/invoicePdf.ts` (keep it in step with `InvoiceSheet`), jspdf lazy-loaded, kept out of the precache; Print), Documents (View +
   download = `GET /documents/:id/download` per click, never stored), Settings (password
   change adopts the returned token; email / in-portal preferences). Messages is
   a separate piece of work. Ports: dev 5175, docker 5275 (`PORTAL_PORT`);
