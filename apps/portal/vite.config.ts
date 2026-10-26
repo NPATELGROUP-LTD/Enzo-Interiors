@@ -18,8 +18,8 @@ export default defineConfig({
       // TRD 11.2: new portal logic must reach clients without a manual reinstall.
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Enzo Interiors',
-        short_name: 'Enzo',
+        name: 'Enzo Interiors Portal',
+        short_name: 'Enzo Portal',
         description: 'Track your Enzo Interiors project, approve designs, and view documents and invoices.',
         // Standalone removes browser chrome so the portal feels like an app.
         display: 'standalone',
