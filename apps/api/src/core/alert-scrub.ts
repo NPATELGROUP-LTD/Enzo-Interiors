@@ -32,7 +32,7 @@ export function whereFrom(error: unknown): string | null {
   const stack = error instanceof Error ? error.stack : undefined;
   for (const line of stack?.split('\n').slice(1) ?? []) {
     if (line.includes('node_modules') || line.includes('node:')) continue;
-    const match = /([^\/()\s]+:\d+):\d+\)?\s*$/.exec(line);
+    const match = /([^/()\s]+:\d+):\d+\)?\s*$/.exec(line);
     if (match) return match[1]!;
   }
   return null;
