@@ -48,8 +48,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
 
 **Infra manager** (`staff_users.role = 'Infra'`, plain text, no migration): runs
-the platform, never the business. It reaches Settings › Website, Pages, Emails
-and Users (`GET/PUT /settings`, `/users`), the bell and its own account, and
+the platform, never the business. It reaches Settings › Website, Pages, Alerts
+and Users (`GET/PUT /settings`, `/alerts`, `/users`), the bell and its own account, and
 nothing else: no client, project, invoice, document, message, enquiry or booking
 (it is not an Admin to `AccessService`, and `infra.db.test.ts` asserts 403 on each
 of those routes). It lands on `/settings`. Only Infra invites, promotes, demotes,
@@ -69,6 +69,28 @@ run auth:make-infra -- <email>`); use a separate login from the Admin. A route
 with no `@Roles` is open to every staff role, Infra included, so
 `infra.db.test.ts` lists the only four (own devices, own Google link) and fails
 on any new one. Mock data adds `infra@` and `admin2@` with a pending request.
+
+**Alerts** (`core/alert.service.ts`, `modules/alerts`, Settings › Alerts for Infra
+only; migration 18 `alert_settings` + `alert_events`): problems are emailed to the
+people who run the platform, from `ALERT_FROM` (an alias of the no-reply mailbox;
+same SMTP login via `MailService.send({from})`), subject `[Enzo][ERROR] ...`
+(`URGENT`, `ERROR`, `SECURITY`). Recipients = the saved list, else `ALERT_TO`.
+What reports: a global filter on API 5xx (not 503), a failed customer email
+(`MailService.onFailure`), Google Calendar `needs_reconnect`, a stopped newsletter
+send, the website's `onRequestError` (`instrumentation.ts` → `POST /alerts/web`,
+header `x-alert-secret` = `ALERT_SHARED_SECRET`, off when unset) and the admin and
+portal (`lib/report.ts`, window errors, unhandled rejections and the ErrorBoundary →
+`POST /alerts/browser`, public, known `Origin` only, 10/15 min, production builds
+only). Everything is counted in `alert_events` (one row per fingerprint, 30 days) but
+only the first of a problem per 15 minutes is emailed, with a count of the rest, and
+each bucket (api, system, web, admin, portal, priority) stops at an hourly cap with
+one "limit reached" email; this state is in memory, which is fine for one API
+instance. An alert carries the route as written, the status, the first line of the
+error (addresses, tokens, ids and query strings stripped by `alert-scrub.ts`) and
+`file:line`: never a body, a person or a client. Errors can be switched off in
+Settings; urgent and security cannot. `ALERT_FROM` unset sends from `MAIL_FROM`;
+SMTP unset sends nothing. Not yet built: security events (PR C), the Infra stats
+page and daily digest (PR D).
 
 **Roles (v1):** Settings › Users assigns `Admin`, `Editor`, `Designer` or
 `Installer` (and, by an Infra manager, `Infra`). `Admin` does everything in the

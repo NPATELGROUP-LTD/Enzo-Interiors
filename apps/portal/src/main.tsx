@@ -7,8 +7,11 @@ import { App } from './App';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider } from './lib/auth';
+import { installErrorReporting } from './lib/report';
 import { ThemeProvider } from './lib/theme';
 import './styles/theme.css';
+
+installErrorReporting();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Root element #root is missing from index.html');

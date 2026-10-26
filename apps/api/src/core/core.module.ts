@@ -4,6 +4,7 @@ import { AccessService } from '../common/access/access.service';
 import { DatabaseService } from '../data/database.service';
 import { PrismaService } from '../data/prisma.service';
 import { ActivityLogService } from './activity-log.service';
+import { AlertService } from './alert.service';
 import { CacheService } from './cache';
 import { HealthController } from './health.controller';
 import { MailService } from './mail.service';
@@ -24,7 +25,7 @@ import { PrivateStorage } from './storage';
 @Global()
 @Module({
   controllers: [HealthController],
-  providers: [PrismaService, DatabaseService, AccessService, ActivityLogService, MailService, RevalidateService, RateLimitStore, CacheService, PrivateStorage],
-  exports: [PrismaService, DatabaseService, AccessService, ActivityLogService, MailService, RevalidateService, RateLimitStore, CacheService, PrivateStorage],
+  providers: [PrismaService, DatabaseService, AccessService, ActivityLogService, AlertService, MailService, RevalidateService, RateLimitStore, CacheService, PrivateStorage],
+  exports: [PrismaService, DatabaseService, AccessService, ActivityLogService, AlertService, MailService, RevalidateService, RateLimitStore, CacheService, PrivateStorage],
 })
 export class CoreModule {}

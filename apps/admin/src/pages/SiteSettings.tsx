@@ -5,6 +5,7 @@ import {
   Clock,
   EnvelopeSimple,
   Files,
+  BellRinging,
   Globe,
   Kanban,
   Newspaper,
@@ -24,6 +25,7 @@ import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import type { MediaAsset } from '@/types/cms';
 
+import { Alerts } from './settings/Alerts';
 import { BookingSchedule } from './settings/BookingSchedule';
 import { Newsletter } from './settings/Newsletter';
 import { OpeningHours } from './settings/OpeningHours';
@@ -70,13 +72,14 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
+  { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
 ];
 
 /** What an Infra manager can open: the platform's switches and who can sign in. The business's own panes stay the Admin's. */
-const INFRA_SECTIONS = new Set(['website', 'pages', 'emails', 'users']);
+const INFRA_SECTIONS = new Set(['website', 'pages', 'users', 'alerts']);
 
 export const settingsSections = (isInfra: boolean) =>
-  isInfra ? SETTINGS_SECTIONS.filter(({ id }) => INFRA_SECTIONS.has(id)) : SETTINGS_SECTIONS;
+  SETTINGS_SECTIONS.filter(({ id }) => (isInfra ? INFRA_SECTIONS.has(id) : id !== 'alerts'));
 
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
@@ -108,6 +111,7 @@ export function SiteSettingsPage() {
   else if (section === 'stages') pane = <ProjectStages />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
+  else if (section === 'alerts') pane = <Alerts />;
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (

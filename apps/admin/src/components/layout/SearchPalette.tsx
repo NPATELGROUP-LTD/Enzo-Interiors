@@ -25,7 +25,7 @@ import { PAGES } from '@/components/cms/guide';
 import { WEB_URL } from '@/components/cms/MediaPicker';
 import { api } from '@/lib/api';
 
-import { SETTINGS_SECTIONS } from '@/pages/SiteSettings';
+import { settingsSections } from '@/pages/SiteSettings';
 
 import { SECTIONS } from './AdminLayout';
 
@@ -191,7 +191,7 @@ export function SearchPalette({ open, onClose, actions }: {
         ? [
             { id: 'enquiries', group: 'Go to', label: 'Enquiries', detail: 'Messages from the website’s forms', Icon: EnvelopeSimple, run: go('/enquiries') },
             { id: 'bookings', group: 'Go to', label: 'Bookings', detail: 'Consultations, new booking', Icon: CalendarCheck, run: go('/bookings') },
-            ...SETTINGS_SECTIONS.map((row) => ({
+            ...settingsSections(false).map((row) => ({
               id: `settings-${row.id}`,
               group: 'Settings',
               label: `Settings › ${row.label}`,

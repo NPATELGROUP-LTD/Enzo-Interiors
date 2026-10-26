@@ -640,3 +640,28 @@ export interface NewsletterCampaign extends BaseRecord {
   updated_at: string;
   sent_at: string | null;
 }
+
+export type AlertKind = 'urgent' | 'error' | 'security';
+export type AlertSource = 'api' | 'web' | 'admin' | 'portal' | 'system';
+
+/** Who the alert emails go to. A single row, id "alerts". */
+export interface AlertSettings extends BaseRecord {
+  recipients: string[];
+  errors_on: boolean;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+/** A kind of problem and how often it has happened (modules/alerts). Id = its fingerprint. */
+export interface AlertEvent extends BaseRecord {
+  kind: AlertKind;
+  source: AlertSource;
+  title: string;
+  route: string | null;
+  location: string | null;
+  status: number | null;
+  release: string | null;
+  count: number;
+  first_at: string;
+  last_at: string;
+}
