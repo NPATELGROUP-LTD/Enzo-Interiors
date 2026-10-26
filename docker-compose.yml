@@ -224,6 +224,12 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       MAIL_FROM: ${MAIL_FROM:-Enzo Interiors <no-reply@localhost>}
+      # Alert emails to the people who run the platform (Settings > Alerts).
+      ALERT_FROM: ${ALERT_FROM:-}
+      ALERT_TO: ${ALERT_TO:-}
+      ALERT_SHARED_SECRET: ${ALERT_SHARED_SECRET:-}
+      # Named in alert emails. Coolify supplies SOURCE_COMMIT; empty elsewhere.
+      RELEASE: ${SOURCE_COMMIT:-}
       # Publishing in the CMS pokes this so an edit is live in seconds.
       WEB_REVALIDATE_URL: http://web:3000/api/revalidate
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?generate with openssl rand -base64 32}
@@ -336,6 +342,8 @@ services:
       # Search Console's HTML-tag token, if you verify that way.
       GOOGLE_SITE_VERIFICATION: ${GOOGLE_SITE_VERIFICATION:-}
       REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      # Lets a failed page tell the API (instrumentation.ts). Same value as the API's.
+      ALERT_SHARED_SECRET: ${ALERT_SHARED_SECRET:-}
       CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
     ports:
       - '${WEB_PORT:-3000}:3000'

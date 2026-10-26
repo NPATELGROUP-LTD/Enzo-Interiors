@@ -10,6 +10,7 @@ import { CurrentUser, Public, Roles } from '../../common/decorators';
 import { Appointment, CalendarConnection } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
+import { AlertService } from '../../core/alert.service';
 import { CacheService } from '../../core/cache';
 import { open, seal } from '../../core/crypto';
 import { RateLimitStore } from '../../core/rate-limit';
@@ -103,6 +104,7 @@ export class CalendarService {
     private readonly jwt: JwtService,
     private readonly activity: ActivityLogService,
     private readonly notifications: NotificationsService,
+    private readonly alerts: AlertService,
   ) {}
 
   /** The feature is hidden until Google's keys (and the key that seals the token) are set. */
@@ -318,6 +320,7 @@ export class CalendarService {
         body: 'Bookings are no longer copied to it, and its busy times are not blocked.',
         link: '/settings/booking',
       });
+      this.alerts.report({ kind: 'error', source: 'system', title: 'Google Calendar needs reconnecting' });
       throw new GoogleError(401, 'Google no longer accepts the connection');
     }
     if (!res.ok || !body.access_token) throw new GoogleError(res.status, `Google token refresh answered ${res.status}`);

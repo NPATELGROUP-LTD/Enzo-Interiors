@@ -326,7 +326,7 @@ export class SiteSettingsController {
   }
 
   @Post('settings/test-email')
-  @Roles('Admin', 'Infra')
+  @Roles('Admin')
   @HttpCode(200)
   @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
   testEmail(@CurrentUser() principal: AuthPrincipal) {

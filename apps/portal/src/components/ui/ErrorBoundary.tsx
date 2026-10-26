@@ -1,6 +1,8 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { reportError } from '@/lib/report';
+
 import { Button } from './index';
 
 interface Props {
@@ -22,6 +24,7 @@ export class ErrorBoundary extends Component<Props, { failed: boolean }> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Screen crashed:', error, info.componentStack);
+    reportError(error.message, /at (\w+)/.exec(info.componentStack ?? '')?.[1]);
   }
 
   render() {
