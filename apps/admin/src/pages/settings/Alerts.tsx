@@ -35,6 +35,7 @@ interface AlertEvent {
 interface AlertsView {
   recipients: string[];
   errors_on: boolean;
+  digest_on: boolean;
   updated_at: string | null;
   updated_by: string | null;
   /** How many addresses the server's ALERT_TO supplies when none are saved here. */
@@ -53,19 +54,21 @@ export function Alerts() {
   const alerts = useQuery<AlertsView>('/alerts');
   const [recipients, setRecipients] = useState<string[]>(['']);
   const [errorsOn, setErrorsOn] = useState(true);
+  const [digestOn, setDigestOn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<Kind | null>(null);
+  const [testing, setTesting] = useState<Kind | 'digest' | null>(null);
 
   const saved = alerts.data;
   useEffect(() => {
     if (!saved) return;
     setRecipients(saved.recipients.length ? saved.recipients : ['']);
     setErrorsOn(saved.errors_on);
+    setDigestOn(saved.digest_on);
   }, [saved]);
 
   const clean = useMemo(() => recipients.map((address) => address.trim().toLowerCase()).filter(Boolean), [recipients]);
-  const dirty = !!saved && (errorsOn !== saved.errors_on || clean.join(',') !== saved.recipients.join(','));
+  const dirty = !!saved && (errorsOn !== saved.errors_on || digestOn !== saved.digest_on || clean.join(',') !== saved.recipients.join(','));
 
   if (alerts.error) return <ErrorState message={alerts.error} onRetry={alerts.refetch} />;
   if (!saved) return <LoadingState label="Loading alerts…" />;
@@ -76,7 +79,7 @@ export function Alerts() {
     setError(null);
     setSaving(true);
     try {
-      alerts.setData(await api.put<AlertsView>('/alerts', { recipients: clean, errors_on: errorsOn }));
+      alerts.setData(await api.put<AlertsView>('/alerts', { recipients: clean, errors_on: errorsOn, digest_on: digestOn }));
       toast.success('Alert settings saved.');
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not save the alert settings.');
@@ -92,6 +95,19 @@ export function Alerts() {
       toast.success(`Test sent to ${to.join(', ')}.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not send the test.');
+    } finally {
+      setTesting(null);
+    }
+  };
+
+  const sendDigest = async () => {
+    setTesting('digest');
+    try {
+      const { sent } = await api.post<{ sent: boolean }>('/infra/digest');
+      if (sent) toast.success('The daily summary is on its way.');
+      else toast.error('Not sent. Check that email is set up and that someone is listed to receive alerts.');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not send the daily summary.');
     } finally {
       setTesting(null);
     }
@@ -177,6 +193,14 @@ export function Alerts() {
             onChange={setErrorsOn}
           />
         </div>
+        <div className="px-4 py-3">
+          <Toggle
+            label="Daily summary"
+            description="One email at 08:00 UK time: errors, refused requests, failed sign-ins, sizes, and anything that needs attention. If it stops arriving, something is wrong."
+            checked={digestOn}
+            onChange={setDigestOn}
+          />
+        </div>
         <SettingsRow label="Urgent and security alerts" help="Downtime and sign-in or account events always go out. They cannot be switched off." />
       </SettingsGroup>
 
@@ -190,6 +214,11 @@ export function Alerts() {
               {kind[0]!.toUpperCase() + kind.slice(1)}
             </Button>
           ))}
+        </SettingsRow>
+        <SettingsRow label="Send the daily summary now" help={dirty ? 'Save first, so it goes to these addresses.' : 'The numbers as they are now, to check it arrives. It does not use up the 08:00 one.'}>
+          <Button loading={testing === 'digest'} disabled={dirty || testing !== null} onClick={() => void sendDigest()}>
+            Send
+          </Button>
         </SettingsRow>
       </SettingsGroup>
 

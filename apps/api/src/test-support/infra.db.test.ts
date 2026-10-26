@@ -199,7 +199,7 @@ test('an Infra manager reaches Users, settings and their own account, and no cli
   }
   for (const path of [
     '/clients', '/projects', '/invoices', '/documents', '/enquiries', '/appointments', '/conversations',
-    '/dashboard/admin', '/dashboard/designer', '/change-requests', '/saved-replies', '/activity-logs',
+    '/dashboard/admin', '/dashboard/designer', '/change-requests', '/saved-replies',
     '/settings/opening-hours', '/cms/overview',
   ]) {
     assert.equal((await call('GET', path, tokens.infra)).status, 403, `${path} is not Infra's`);

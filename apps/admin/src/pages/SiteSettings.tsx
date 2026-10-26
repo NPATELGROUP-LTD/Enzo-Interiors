@@ -11,6 +11,8 @@ import {
   Newspaper,
   PaintBrush,
   Plus,
+  Pulse,
+  ShieldCheck,
   UsersThree,
   X,
   type Icon as PhosphorIcon,
@@ -27,7 +29,9 @@ import type { MediaAsset } from '@/types/cms';
 
 import { Alerts } from './settings/Alerts';
 import { BookingSchedule } from './settings/BookingSchedule';
+import { Health } from './settings/Health';
 import { Newsletter } from './settings/Newsletter';
+import { Security } from './settings/Security';
 import { OpeningHours } from './settings/OpeningHours';
 import { ProjectStages } from './settings/ProjectStages';
 import { useAuth } from '@/lib/auth';
@@ -63,6 +67,7 @@ const PAGES: Array<[PageKey, string]> = [
 
 /** The settings panes, in the sidebar's order. */
 export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = [
+  { id: 'health', label: 'Health', detail: 'Storage, database, cache and errors', Icon: Pulse },
   { id: 'website', label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
   { id: 'pages', label: 'Pages', detail: 'Switch pages of the website on or off', Icon: Files },
   { id: 'brand', label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
@@ -73,13 +78,14 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
   { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
+  { id: 'security', label: 'Security', detail: 'Who signed in and what changed, from where', Icon: ShieldCheck },
 ];
 
 /** What an Infra manager can open: the platform's switches and who can sign in. The business's own panes stay the Admin's. */
-const INFRA_SECTIONS = new Set(['website', 'pages', 'users', 'alerts']);
+const INFRA_SECTIONS = new Set(['health', 'website', 'pages', 'users', 'alerts', 'security']);
 
 export const settingsSections = (isInfra: boolean) =>
-  SETTINGS_SECTIONS.filter(({ id }) => (isInfra ? INFRA_SECTIONS.has(id) : id !== 'alerts'));
+  SETTINGS_SECTIONS.filter(({ id }) => (isInfra ? INFRA_SECTIONS.has(id) : id !== 'health' && id !== 'alerts' && id !== 'security'));
 
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
@@ -103,15 +109,17 @@ export function SiteSettingsPage() {
   const { section = '' } = useParams();
   const { isInfra } = useAuth();
   const sections = settingsSections(isInfra);
-  if (!sections.some((row) => row.id === section)) return <Navigate to="/settings/website" replace />;
+  if (!sections.some((row) => row.id === section)) return <Navigate to={isInfra ? '/settings/health' : '/settings/website'} replace />;
 
   let pane: ReactNode;
-  if (section === 'booking') pane = <BookingSchedule />;
+  if (section === 'health') pane = <Health />;
+  else if (section === 'booking') pane = <BookingSchedule />;
   else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'stages') pane = <ProjectStages />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else if (section === 'alerts') pane = <Alerts />;
+  else if (section === 'security') pane = <Security />;
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (

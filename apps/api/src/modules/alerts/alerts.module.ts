@@ -15,12 +15,13 @@ import {
   NotFoundException,
   Post,
   Put,
+  Query,
   Req,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { APP_FILTER, BaseExceptionFilter, HttpAdapterHost } from '@nestjs/core';
 import { Throttle } from '@nestjs/throttler';
-import { ArrayMaxSize, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsBoolean, IsDateString, IsEmail, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
 import type { Request } from 'express';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
@@ -31,6 +32,7 @@ import { whereFrom } from '../../core/alert-scrub';
 import { AlertService } from '../../core/alert.service';
 import { MailService } from '../../core/mail.service';
 import { corsOrigins } from '../../core/origins';
+import type { AccessFilter } from '../../data/access-store';
 import { DatabaseService } from '../../data/database.service';
 
 const ID = 'alerts';
@@ -45,6 +47,10 @@ export class UpdateAlertsDto {
 
   @IsBoolean()
   errors_on!: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  digest_on?: boolean;
 }
 
 export class TestAlertDto {
@@ -107,6 +113,7 @@ export class AlertsController {
     return {
       recipients: row?.recipients ?? [],
       errors_on: row?.errors_on ?? true,
+      digest_on: row?.digest_on ?? true,
       updated_at: row?.updated_at ?? null,
       updated_by: row?.updated_by ?? null,
       /** Only that it exists: the addresses themselves stay in the server's settings. */
@@ -123,18 +130,19 @@ export class AlertsController {
     const patch = {
       recipients: [...new Set(dto.recipients.map((address) => address.trim().toLowerCase()))],
       errors_on: dto.errors_on,
+      ...(dto.digest_on === undefined ? {} : { digest_on: dto.digest_on }),
       updated_at: new Date().toISOString(),
       updated_by: principal.name,
     };
     if (await this.db.alertSettings.findById(ID)) await this.db.alertSettings.update(ID, patch);
-    else await this.db.alertSettings.create({ id: ID, ...patch });
+    else await this.db.alertSettings.create({ id: ID, digest_on: true, digest_day: null, ...patch });
     this.alerts.forgetSettings();
     await this.activity.record({
       principal,
       action: 'alert_settings_update',
       targetTable: 'alert_settings',
       targetId: ID,
-      details: { recipients: patch.recipients.length, errors_on: patch.errors_on },
+      details: { recipients: patch.recipients.length, errors_on: patch.errors_on, digest_on: dto.digest_on ?? null },
     });
     return this.overview();
   }
@@ -217,8 +225,46 @@ export class AlertingFilter extends BaseExceptionFilter {
   }
 }
 
+export class AccessLogQuery {
+  @IsOptional()
+  @IsIn(['all', 'signins', 'failures', 'changes'])
+  filter?: AccessFilter;
+
+  /** Part of a name, or an exact IP. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  q?: string;
+
+  /** The `at` of the last row you have; the next page is older than it. */
+  @IsOptional()
+  @IsDateString()
+  before?: string;
+}
+
+const PAGE = 100;
+
+/**
+ * Who signed in and what they changed, from where (core/access-log.service).
+ * The Infra manager only: it carries IP addresses and client names, so not even
+ * the Admin reads it. Looking at it is itself logged.
+ */
+@Controller('access-log')
+export class AccessLogController {
+  constructor(private readonly db: DatabaseService) {}
+
+  @Get()
+  @Roles('Infra')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  async list(@Query() query: AccessLogQuery) {
+    const rows = await this.db.accessStore.list({ filter: query.filter ?? 'all', q: query.q?.trim() || undefined, before: query.before, take: PAGE + 1 });
+    const events = rows.slice(0, PAGE);
+    return { events, next: rows.length > PAGE ? events[events.length - 1]!.at : null };
+  }
+}
+
 @Module({
-  controllers: [AlertsController],
+  controllers: [AlertsController, AccessLogController],
   providers: [{ provide: APP_FILTER, useClass: AlertingFilter }],
 })
 export class AlertsModule {}

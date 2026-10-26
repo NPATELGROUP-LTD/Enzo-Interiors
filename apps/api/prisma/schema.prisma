@@ -694,6 +694,9 @@ model AlertSettings {
   id         String   @id
   recipients String[] @default([])
   errors_on  Boolean  @default(true)
+  // The 08:00 summary, and the London day (YYYY-MM-DD) it last went out on
+  digest_on  Boolean  @default(true)
+  digest_day String?
   updated_at DateTime @default(now()) @db.Timestamptz(6)
   updated_by String?
 
@@ -720,4 +723,33 @@ model AlertEvent {
 
   @@index([last_at])
   @@map("alert_events")
+}
+
+// Who touched the platform, from where: a sign-in (good) or a request worth
+// remembering (a change, a refusal, a download). `route` is a pattern
+// (/projects/:id), never a URL with its query, and nothing from a body is
+// kept. The IP, country and device go with the row, and the row goes after
+// 90 days (core/access-log.service.ts). Read by the Infra manager only.
+model AccessEvent {
+  id         String   @id
+  at         DateTime @default(now()) @db.Timestamptz(6)
+  // "signin" | "request"
+  kind       String
+  actor_id   String?
+  // "Staff" | "Client"; null = not signed in
+  actor_kind String?
+  // A name, or for a failed sign-in the masked address that was typed
+  actor_name String?
+  actor_role String?
+  method     String
+  route      String
+  target_id  String?
+  status     Int
+  ip         String?
+  country    String?
+  device     String?
+
+  @@index([at])
+  @@index([actor_id, kind])
+  @@map("access_events")
 }
