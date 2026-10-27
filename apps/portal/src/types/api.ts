@@ -51,7 +51,7 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
 export const STAGE_DESCRIPTIONS: Partial<Record<ProjectStage, string>> = {
   Consultation: 'We visit, measure up and understand what you need.',
   Design: 'Your designer draws up the layout and prepares the 3D visuals.',
-  Approval: 'Your turn — review the design and approve it or ask for changes.',
+  Approval: 'Your turn — review and approve it, or ask for changes.',
   Installation: 'Our fitters build and install everything on site.',
   Completed: 'Handed over, snagged and signed off.',
 };

@@ -56,6 +56,10 @@ export function ProjectDetailPage() {
   }
 
   const { project, documents, invoices, timeline, awaiting_client_decision } = data;
+  // Where an approval takes the project, and where a request for changes sends it back.
+  const here = timeline.findIndex((step) => step.current);
+  const next = timeline[here + 1]?.stage ?? 'the next stage';
+  const previous = timeline[here - 1]?.stage ?? 'the previous stage';
 
   // Mood boards and plans are the "Designs" the approval decision is about.
   const designs = documents.filter(
@@ -66,7 +70,7 @@ export function ProjectDetailPage() {
     setPending(true);
     try {
       await api.post(`/projects/${project.id}/approve`, { note: note.trim() || undefined });
-      toast.success('Design approved — we will schedule your installation.');
+      toast.success('Approved — thank you.');
       setApproving(false);
       setNote('');
       await refetch();
@@ -119,12 +123,12 @@ export function ProjectDetailPage() {
         <Card accent="warning" className="mb-5 pl-5">
           <p className="label-eyebrow">Your decision needed</p>
           <p className="mt-2 text-base font-semibold text-ink">
-            Your design is ready to review
+            Ready for your decision
           </p>
           <p className="mt-1 text-ink-muted">
-            Have a look through the designs below. If you are happy, approve it and we will book
-            your installation. If something is not right, tell us what to change and your designer
-            will revise it — there is no limit on revisions.
+            Have a look through the details below. If you are happy, approve it and we will move on
+            to {next}. If something is not right, tell us what to change and we will revise it —
+            there is no limit on revisions.
           </p>
           <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <Button
@@ -134,7 +138,7 @@ export function ProjectDetailPage() {
                 setApproving(true);
               }}
             >
-              Approve design
+              Approve
             </Button>
             <Button
               variant="secondary"
@@ -344,8 +348,8 @@ export function ProjectDetailPage() {
       <Modal
         open={approving}
         onClose={() => setApproving(false)}
-        title="Approve this design?"
-        description="We will move your project to installation and be in touch to book dates."
+        title="Approve this stage?"
+        description={`We will move your project to ${next} and be in touch about what happens then.`}
         width="sm"
         footer={
           <>
@@ -371,7 +375,7 @@ export function ProjectDetailPage() {
         open={requesting}
         onClose={() => setRequesting(false)}
         title="Request changes"
-        description="Your project goes back to the design stage and your designer revises it."
+        description={`Your project goes back to ${previous} and we revise it.`}
         width="sm"
         footer={
           <>

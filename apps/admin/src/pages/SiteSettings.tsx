@@ -5,6 +5,7 @@ import {
   Clock,
   EnvelopeSimple,
   Files,
+  FolderSimple,
   BellRinging,
   Globe,
   Kanban,
@@ -29,6 +30,7 @@ import type { MediaAsset } from '@/types/cms';
 
 import { Alerts } from './settings/Alerts';
 import { BookingSchedule } from './settings/BookingSchedule';
+import { DocumentCategories } from './settings/DocumentCategories';
 import { Health } from './settings/Health';
 import { Newsletter } from './settings/Newsletter';
 import { Security } from './settings/Security';
@@ -75,6 +77,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
   { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
+  { id: 'documents', label: 'Document categories', detail: 'What a file can be filed under', Icon: FolderSimple },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
   { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
@@ -116,6 +119,7 @@ export function SiteSettingsPage() {
   else if (section === 'booking') pane = <BookingSchedule />;
   else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'stages') pane = <ProjectStages />;
+  else if (section === 'documents') pane = <DocumentCategories />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else if (section === 'alerts') pane = <Alerts />;

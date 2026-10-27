@@ -184,8 +184,8 @@ export function ProjectDetailPage() {
         <Card accent="warning" className="mb-4 pl-5">
           <p className="font-semibold text-ink">Awaiting the client’s decision</p>
           <p className="mt-1 text-ink-muted">
-            {client?.name ?? 'The client'} can approve this design or request changes from their
-            portal. Requesting changes sends the project back to Design automatically.
+            {client?.name ?? 'The client'} can approve this stage or request changes from their
+            portal. Requesting changes sends the project back one stage automatically.
           </p>
         </Card>
       ) : null}
@@ -303,6 +303,17 @@ export function ProjectDetailPage() {
               <>
                 {assign('assigned_designer_id', 'Designer')}
                 {assign('assigned_installer_id', 'Installer')}
+                <Input
+                  key={project.site_address ?? ''}
+                  label="Site address"
+                  hint="Where the work happens. This project’s invoices start from it."
+                  defaultValue={project.site_address ?? ''}
+                  maxLength={300}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (project.site_address ?? '')) void patch({ site_address: value }, 'Site address saved.');
+                  }}
+                />
                 <Toggle
                   label="Send to client"
                   description="When off, this project is hidden from the client portal entirely."
@@ -366,6 +377,7 @@ export function ProjectDetailPage() {
                 ['Progress', `${project.progress_pct}%`],
                 ['Designer', project.assigned_designer_name ?? 'Unassigned'],
                 ['Installer', project.assigned_installer_name ?? 'Unassigned'],
+                ['Site address', project.site_address ?? '—'],
                 ['Visible to client', project.client_visible ? 'Yes' : 'No'],
                 ['Created', date(project.created_at)],
                 ['Last updated', dateTime(project.updated_at)],
