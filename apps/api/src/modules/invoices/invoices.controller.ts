@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, Get, HttpCode, Module, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { PasswordConfirmDto } from '../auth/reauth';
 import { NotificationsModule } from '../notifications/notifications.module';
-import { CreateInvoiceDto, InvoicesService, UpdateInvoiceDto } from './invoices.service';
+import { CreateInvoiceDto, InvoiceDownloadDto, InvoicesService, UpdateInvoiceDto } from './invoices.service';
 
 @Controller('invoices')
 export class InvoicesController {
@@ -51,6 +51,13 @@ export class InvoicesController {
     @Body() dto: UpdateInvoiceDto,
   ) {
     return this.invoices.update(principal, id, dto);
+  }
+
+  /** Whether the portal lets the client save or print this invoice (view-only by default). */
+  @Patch(':id/client-download')
+  @Roles('Admin')
+  setClientDownload(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: InvoiceDownloadDto) {
+    return this.invoices.setClientDownload(principal, id, dto);
   }
 
   /**

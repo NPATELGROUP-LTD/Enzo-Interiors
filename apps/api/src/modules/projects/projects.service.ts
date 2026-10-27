@@ -14,7 +14,8 @@ import {
   UpdateProjectDto,
   UpdateProjectStageDto,
 } from './dto';
-import { approvalStage, loadStages, planStages } from './stages';
+import { categoryOf } from '../documents/categories';
+import { approvalStages, loadStages, planStages } from './stages';
 
 export interface ProjectView extends Project {
   client_name: string;
@@ -134,7 +135,7 @@ export class ProjectsService {
     return {
       project: this.forViewer(principal, [view!])[0]!,
       client: client ? { id: client.id, name: client.name, email: client.email } : null,
-      documents: documents.map(({ storage_url: key, ...document }) => ({ ...document, preview: previewOf(key) })),
+      documents: documents.map(({ storage_url: key, ...document }) => ({ ...document, category: categoryOf(document), preview: previewOf(key) })),
       invoices,
       activity,
       /** The configured stages, with the current position marked. */
@@ -145,7 +146,7 @@ export class ProjectsService {
         current: index === position,
       })),
       /** True when this project is sitting on the client's desk for a decision. */
-      awaiting_client_decision: project.status === approvalStage(stages),
+      awaiting_client_decision: approvalStages(stages).includes(project.status),
     };
   }
 
@@ -174,6 +175,8 @@ export class ProjectsService {
       assigned_installer_id: dto.assigned_installer_id ?? null,
       // Closed by default: the Admin sends a project to the portal on purpose.
       client_visible: dto.client_visible ?? false,
+      // The client's own address unless the Admin says the work is elsewhere.
+      site_address: dto.site_address?.trim() || client.address || null,
       created_at: now,
       updated_at: now,
     });
@@ -209,6 +212,7 @@ export class ProjectsService {
     if (dto.assigned_designer_id !== undefined) patch.assigned_designer_id = dto.assigned_designer_id;
     if (dto.assigned_installer_id !== undefined) patch.assigned_installer_id = dto.assigned_installer_id;
     if (dto.client_visible !== undefined) patch.client_visible = dto.client_visible;
+    if (dto.site_address !== undefined) patch.site_address = dto.site_address?.trim() || null;
 
     const updated = await this.db.projects.update(id, patch);
     if (!updated) throw new NotFoundException('Project not found');
@@ -302,7 +306,7 @@ export class ProjectsService {
     await this.db.projects.update(id, {
       status: next.name,
       progress_pct: next.progress,
-      current_stage: 'Design approved by client',
+      current_stage: `Approved by the client (${at.name})`,
       updated_at: new Date().toISOString(),
     });
 
@@ -320,7 +324,7 @@ export class ProjectsService {
   /**
    * Client requests changes (portal Project Detail).
    *
-   * Sends the project BACK one stage (Design, by default), which is what "Request Changes restarts
+   * Sends the project BACK one stage, which is what "Request Changes restarts
    * the project stage" means in the App Flow doc. The admin's Kanban and the
    * activity log both reflect this on their next read, with the client's note
    * attached so the designer knows what to change.
@@ -334,7 +338,7 @@ export class ProjectsService {
     const { at, previous } = await this.decisionStages(project);
     if (!at || !previous) {
       throw new BadRequestException(
-        `Changes can only be requested while a design is awaiting your approval. This project is at the ${project.status} stage.`,
+        `Changes can only be requested while a stage is awaiting your approval. This project is at the ${project.status} stage.`,
       );
     }
     if (!dto.note || dto.note.trim().length === 0) {
@@ -344,7 +348,7 @@ export class ProjectsService {
     await this.db.projects.update(id, {
       status: previous.name,
       progress_pct: previous.progress,
-      current_stage: 'Client requested changes — design being revised',
+      current_stage: `Client requested changes at ${at.name}`,
       updated_at: new Date().toISOString(),
     });
 

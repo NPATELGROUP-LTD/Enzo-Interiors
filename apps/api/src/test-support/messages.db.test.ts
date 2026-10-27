@@ -232,8 +232,9 @@ test('attachments are documents shared with the conversation\'s client', async (
   await json(await call('POST', `/conversations/${conv.mine}/messages`, tokens.designer, { body: 'x', document_ids: ['doc_nope'] }), 400);
   await json(await call('POST', `/conversations/${conv.mine}/messages`, tokens.admin, { body: 'x', attachments: [{ storage_url: 'k' }] }), 400);
 
-  // Opening an attachment goes through Documents' own check.
-  await json(await call('GET', `/documents/${shared}/download`, tokens.mine));
+  // Opening an attachment goes through Documents' own check: a client views it, saving needs an Admin's say.
+  await json(await call('GET', `/documents/${shared}/download`, tokens.mine), 403);
+  await json(await call('GET', `/documents/${shared}/download?inline=1`, tokens.mine));
   // A signed download URL legitimately contains its key; anywhere else is a leak.
   for (const body of bodies) {
     const unsigned = body.replace(/"url":"[^"]*"/g, '');

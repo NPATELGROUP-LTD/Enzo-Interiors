@@ -49,7 +49,7 @@ test('a client signs in and /auth/me answers as that client', async () => {
   const res = await post('/auth/portal/login', { email: ACTIVE.email.toUpperCase(), password: PASSWORD });
   assert.equal(res.status, 200);
   const body = (await res.json()) as { access_token: string; user: Record<string, unknown> };
-  assert.deepEqual(body.user, { id: ACTIVE.id, kind: 'Client', role: 'Client', name: 'Test Client', email: ACTIVE.email });
+  assert.deepEqual(body.user, { id: ACTIVE.id, kind: 'Client', role: 'Client', name: 'Test Client', email: ACTIVE.email, passwordIsDefault: false });
 
   const me = await get('/auth/me', body.access_token);
   assert.equal(me.status, 200);

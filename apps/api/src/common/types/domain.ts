@@ -184,6 +184,8 @@ export interface Client extends BaseRecord {
   updated_at: string;
   /** As StaffUser.token_version. Optional so a create may leave it out (defaulted column). */
   token_version?: number;
+  /** True while the password is the one emailed at invite; cleared when they change or keep it. */
+  password_is_default?: boolean;
 }
 
 /** Schema 3.3 */
@@ -202,6 +204,8 @@ export interface Project extends BaseRecord {
    */
   assigned_installer_id?: string | null;
   client_visible: boolean;
+  /** Where the work happens; null = the client's own address. */
+  site_address?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -226,6 +230,8 @@ export interface Invoice extends BaseRecord {
   job_notes: string | null;
   /** Shown under the totals (deposit received, due on delivery...). Never summed into `amount`. */
   payment_schedule: PaymentScheduleRow[];
+  /** An Admin lets the client save or print it from the portal; false = view only. */
+  client_can_download?: boolean;
 }
 
 export interface PaymentScheduleRow {
@@ -336,6 +342,10 @@ export interface DocumentRecord extends BaseRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
+  /** Settings › Document categories label; null = `type`. */
+  category?: string | null;
+  /** An Admin lets the client save it from the portal; false = view only. */
+  client_can_download?: boolean;
   /** Private-bucket object key, never a URL. Never leaves the API. */
   storage_url: string;
 }
@@ -495,6 +505,8 @@ export interface SiteSettings extends BaseRecord {
   pages: Partial<Record<PageKey, boolean>> | null;
   /** Settings › Project stages; null = DEFAULT_STAGES (projects/stages.ts). */
   project_stages: ProjectStageConfig[] | null;
+  /** Settings › Document categories; null = the document types (modules/documents). */
+  document_categories: string[] | null;
   updated_at: string;
   updated_by: string | null;
 }

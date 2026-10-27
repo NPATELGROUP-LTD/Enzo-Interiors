@@ -8,7 +8,7 @@ import { DatabaseService } from '../../data/database.service';
 import { Where } from '../../data/prisma-repository';
 import { addDays, studioInstant, studioParts } from '../booking/slots';
 import { lateMs, sumMoney } from '../invoices/totals';
-import { approvalStage, doneStage, loadStages } from '../projects/stages';
+import { approvalStages, doneStage, loadStages } from '../projects/stages';
 import { lastMonths } from './months';
 
 /** Money still to come in: not a Draft, not Paid. */
@@ -44,13 +44,13 @@ export class DashboardService {
     const names = stages.map((stage) => stage.name);
     const counts = await Promise.all(names.map((status) => this.db.projects.countWhere({ ...scope, status })));
     const by_stage: Record<string, number> = Object.fromEntries(names.map((name, i) => [name, counts[i]!]));
-    const approval = approvalStage(stages);
+    const approval = approvalStages(stages);
     const completed = by_stage[doneStage(stages)]!;
     return {
       stages: names,
       active: counts.reduce((a, b) => a + b, 0) - completed,
       completed,
-      awaiting_decision: approval ? by_stage[approval]! : 0,
+      awaiting_decision: approval.reduce((sum, name) => sum + by_stage[name]!, 0),
       by_stage,
     };
   }
@@ -172,7 +172,7 @@ export class DashboardService {
     const client = await this.db.clients.findById(principal.id);
     const stages = await loadStages(this.db);
     const done = doneStage(stages);
-    const approval = approvalStage(stages);
+    const approval = approvalStages(stages);
 
     const [projects, documents, paid, outstanding, nextDue, appointment] = await Promise.all([
       this.db.projects.findWhere({ ...mine, client_visible: true }, { orderBy: { updated_at: 'desc' } }),
@@ -210,7 +210,7 @@ export class DashboardService {
         active: projects.filter((project) => project.status !== done).length,
         /** The decision awaiting the client: the portal's most important tile. */
         awaiting_your_approval: projects
-          .filter((project) => project.status === approval)
+          .filter((project) => approval.includes(project.status))
           .map((project) => ({ id: project.id, name: project.name, type: project.type })),
       },
       /** Progress bars for the dashboard timeline widget. */

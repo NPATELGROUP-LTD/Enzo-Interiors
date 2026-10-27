@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { after, before, test } from 'node:test';
 
+import { JwtService } from '@nestjs/jwt';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
@@ -185,27 +186,72 @@ test('a client token is refused on /clients', async () => {
   }
 });
 
-test('an invitation sets the first password once, and the client can sign in', async () => {
+test('an invitation emails a generated password; resending replaces it; keeping it ends the prompt', async () => {
+  const sentTo = () => mails.at(-1)!;
+  const passwordIn = (mail: Mail) => /password:\s+(\S+)/.exec(mail.text ?? '')?.[1];
+
   const res = await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.admin);
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { emailed: true });
-  assert.equal(mails.at(-1)?.to, NEWBIE.email);
-  const token = linkToken();
-  const valid = async () =>
-    ((await (await call('POST', '/auth/portal/reset/check', undefined, { token })).json()) as { valid: boolean }).valid;
+  assert.equal(sentTo().to, NEWBIE.email);
+  const first = passwordIn(sentTo());
+  assert.match(first ?? '', /^[A-Za-z2-9]{14}$/, 'a 14-character generated password');
+  assert.match(sentTo().text ?? '', /\/login/, 'with the sign-in address');
+  assert.ok(!(sentTo().text ?? '').includes('#token='), 'no set-password link any more');
 
-  // A set-password link is not a session.
-  assert.equal((await call('GET', '/auth/me', token)).status, 401);
-  assert.equal(await valid(), true);
+  // Only a hash is stored, the flag is on, and the old session-killing counter moved.
+  const row = await prisma.client.findUniqueOrThrow({ where: { id: NEWBIE.id } });
+  assert.ok(row.password_hash.startsWith('$2') && !row.password_hash.includes(first!));
+  assert.equal(row.password_is_default, true);
+  assert.equal(row.token_version, 1);
 
-  assert.equal((await call('POST', '/auth/portal/reset', undefined, { token, new_password: NEW_PASSWORD })).status, 204);
-  assert.equal(await valid(), false, 'the page can refuse a used link before a password is typed');
-  assert.equal((await call('POST', '/auth/portal/reset', undefined, { token, new_password: NEW_PASSWORD })).status, 400, 'works once');
-  await signIn('/auth/portal/login', NEWBIE.email, NEW_PASSWORD);
+  // They sign in with it and are told it is still the emailed one.
+  const login = await call('POST', '/auth/portal/login', undefined, { email: NEWBIE.email, password: first });
+  assert.equal(login.status, 200);
+  const session = (await login.json()) as { access_token: string; user: { passwordIsDefault: boolean } };
+  assert.equal(session.user.passwordIsDefault, true);
+  assert.equal(((await (await call('GET', '/auth/me', session.access_token)).json()) as { passwordIsDefault: boolean }).passwordIsDefault, true);
+  const view = (await (await call('GET', `/clients/${NEWBIE.id}`, tokens.admin)).json()) as { has_portal_access: boolean; password_is_default: boolean };
+  assert.deepEqual([view.has_portal_access, view.password_is_default], [true, true]);
 
-  const view = (await (await call('GET', `/clients/${NEWBIE.id}`, tokens.admin)).json()) as { has_portal_access: boolean };
-  assert.equal(view.has_portal_access, true);
-  assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.admin)).status, 400, 'already has access');
+  // Resend issues a new password: the first and the old session stop working.
+  assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.admin)).status, 200);
+  const second = passwordIn(sentTo());
+  assert.notEqual(second, first);
+  assert.equal((await call('GET', '/auth/me', session.access_token)).status, 401);
+  assert.equal((await call('POST', '/auth/portal/login', undefined, { email: NEWBIE.email, password: first })).status, 401);
+  const next = await signIn('/auth/portal/login', NEWBIE.email, second!);
+
+  // Keep: staff and signed-out callers cannot; the client can, once, and then they are on their own password.
+  assert.equal((await call('POST', '/account/password/keep', tokens.admin)).status, 403);
+  assert.equal((await call('POST', '/account/password/keep', tokens.designer)).status, 403);
+  assert.equal((await call('POST', '/account/password/keep')).status, 401);
+  assert.equal((await call('POST', '/account/password/keep', next)).status, 204);
+  assert.equal(((await (await call('GET', '/auth/me', next)).json()) as { passwordIsDefault: boolean }).passwordIsDefault, false);
+  assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.admin)).status, 400, 'already has their own password');
+  assert.equal(mails.filter((mail) => mail.to === NEWBIE.email).length, 2);
+});
+
+test('changing the password in the portal ends the prompt too; the forgot/reset link still works', async () => {
+  const them = { id: `cli_dflt_${run}`, email: `dflt-${run}@test.enzo.local` };
+  await prisma.client.create({
+    data: { ...them, name: 'Default', status: 'Active', joined_date: new Date(), password_hash: await bcrypt.hash(PASSWORD, 4), password_is_default: true },
+  });
+  const token = await app.nest.get(JwtService).signAsync({ sub: them.id, kind: 'Client', role: 'Client', name: 'Default', email: them.email, tv: 0 });
+  const put = await fetch(`${app.url}/account/password`, {
+    method: 'PUT',
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ current_password: PASSWORD, new_password: NEW_PASSWORD }),
+  });
+  assert.equal(put.status, 200);
+  assert.equal(((await put.json()) as { user: { passwordIsDefault: boolean } }).user.passwordIsDefault, false);
+  assert.equal((await prisma.client.findUniqueOrThrow({ where: { id: them.id } })).password_is_default, false);
+
+  // A forgotten-password reset also clears it.
+  await prisma.client.update({ where: { id: them.id }, data: { password_is_default: true } });
+  assert.equal((await call('POST', '/auth/portal/forgot', undefined, { email: them.email })).status, 204);
+  assert.equal((await call('POST', '/auth/portal/reset', undefined, { token: linkToken(), new_password: PASSWORD })).status, 204);
+  assert.equal((await prisma.client.findUniqueOrThrow({ where: { id: them.id } })).password_is_default, false);
 });
 
 test('a forgotten-password reset signs every old portal session out', async () => {
