@@ -235,6 +235,22 @@ export interface PaymentScheduleRow {
   date: string | null;
 }
 
+/** A payment stage: the invoice is Paid only when every one has `paid_at`. `amount` is worked out, see invoices/stages.ts. */
+export interface InvoiceStage extends BaseRecord {
+  invoice_id: string;
+  position: number;
+  /** The trigger, e.g. "On start". */
+  label: string;
+  mode: 'percent' | 'fixed';
+  /** Percent of the gross payable, or £, per `mode`. */
+  value: number;
+  amount: number;
+  due_note: string | null;
+  paid_at: string | null;
+  /** The Admin who recorded the payment; staff only. */
+  paid_by: string | null;
+}
+
 /** One line of an invoice. Net (ex-VAT) price; the invoice's amount is derived from its lines. */
 export interface InvoiceItem extends BaseRecord {
   invoice_id: string;
@@ -495,8 +511,20 @@ export interface SiteSettings extends BaseRecord {
   pages: Partial<Record<PageKey, boolean>> | null;
   /** Settings › Project stages; null = DEFAULT_STAGES (projects/stages.ts). */
   project_stages: ProjectStageConfig[] | null;
+  /** Settings › Bank details, printed on invoices. Admin and authenticated invoice payloads only. */
+  bank_details: BankDetails | null;
   updated_at: string;
   updated_by: string | null;
+}
+
+export interface BankDetails {
+  account_name: string;
+  bank_name: string;
+  /** "12-34-56" */
+  sort_code: string;
+  /** 8 digits */
+  account_number: string;
+  reference_note: string | null;
 }
 
 /** Keyed by lower-case weekday name, "monday" … "sunday". */

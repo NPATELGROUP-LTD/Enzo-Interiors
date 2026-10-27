@@ -15,7 +15,7 @@ import { Prisma } from '@prisma/client';
 const D = Prisma.Decimal;
 type Dec = Prisma.Decimal;
 
-const pennies = (value: Prisma.Decimal.Value): Dec => new D(value).toDecimalPlaces(2, D.ROUND_HALF_UP);
+export const pennies = (value: Prisma.Decimal.Value): Dec => new D(value).toDecimalPlaces(2, D.ROUND_HALF_UP);
 
 export interface Line {
   quantity: number;
