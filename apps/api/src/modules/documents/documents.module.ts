@@ -156,7 +156,11 @@ export class DocumentsService {
    * A client may only VIEW (an inline link, for a type the browser shows) unless an Admin
    * allowed saving this file: best effort, since whatever is shown can still be copied.
    */
-  async downloadUrl(principal: AuthPrincipal, id: string, inline = false): Promise<{ url: string; expires_in: number }> {
+  async downloadUrl(
+    principal: AuthPrincipal,
+    id: string,
+    inline = false,
+  ): Promise<{ url: string; expires_in: number; client_can_download: boolean }> {
     const document = await this.require(principal, id);
     if (this.access.isClient(principal) && !document.client_can_download && !(inline && inlineType(document.storage_url))) {
       throw new ForbiddenException('This file can be viewed in the portal but not downloaded. Ask the studio if you need a copy.');
@@ -173,7 +177,8 @@ export class DocumentsService {
       targetId: id,
       details: { name: document.name },
     });
-    return { url, expires_in: DOWNLOAD_TTL_SECONDS };
+    // Told to the portal's viewer, which watermarks and blanks a file the client may only view.
+    return { url, expires_in: DOWNLOAD_TTL_SECONDS, client_can_download: Boolean(document.client_can_download) };
   }
 
   async upload(

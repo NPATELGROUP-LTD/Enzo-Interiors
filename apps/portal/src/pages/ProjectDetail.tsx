@@ -24,7 +24,7 @@ import { ApiError, api } from '@/lib/api';
 import { date, dateTime, fileSize, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
 import type { ProjectDetail } from '@/types/api';
-import { DOCUMENT_LABELS, SERVICE_LABELS, STAGE_DESCRIPTIONS } from '@/types/api';
+import { SERVICE_LABELS, STAGE_DESCRIPTIONS, categoryLabel } from '@/types/api';
 
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -263,11 +263,11 @@ export function ProjectDetailPage() {
                   <div className="min-w-0">
                     <p className="font-semibold text-ink">{document.name}</p>
                     <p className="mt-0.5 text-xs text-ink-muted">
-                      {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} ·{' '}
+                      {categoryLabel(document.category)} · {date(document.upload_date)} ·{' '}
                       {fileSize(document.size_bytes)}
                     </p>
                   </div>
-                  <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
+                  <StatusTag tone="info">{categoryLabel(document.category)}</StatusTag>
                 </div>
                 <div className="mt-3">
                   <DocumentActions document={document} />
@@ -299,7 +299,7 @@ export function ProjectDetailPage() {
                       <DocumentName document={document} className="block max-w-full truncate" />
                     </p>
                     <p className="text-xs text-ink-muted">
-                      {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} ·{' '}
+                      {categoryLabel(document.category)} · {date(document.upload_date)} ·{' '}
                       {fileSize(document.size_bytes)}
                     </p>
                   </div>

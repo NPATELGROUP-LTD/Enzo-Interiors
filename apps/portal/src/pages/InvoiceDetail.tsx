@@ -1,8 +1,10 @@
 import { ArrowLeft, Printer } from '@phosphor-icons/react';
+import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InvoiceDownloadButton } from '@/components/InvoiceDownload';
 import { InvoicePreview, InvoicePrint, printWhenReady } from '@/components/invoice/InvoiceSheet';
+import { ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
 import { Button, Card, ErrorState, LoadingState, StatusTag } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
 import { date, money } from '@/lib/format';
@@ -34,6 +36,8 @@ export function InvoiceDetailPage() {
     );
   }
 
+  const canSave = Boolean(invoice.client_can_download);
+
   return (
     <>
       <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -46,15 +50,20 @@ export function InvoiceDetailPage() {
             {invoiceLabel(invoice.status, invoice.is_overdue)}
           </StatusTag>
         </div>
-        <div className="flex gap-2">
-          <InvoiceDownloadButton invoice={invoice} />
-          <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
-            Print
-          </Button>
-        </div>
+        {canSave ? (
+          <div className="flex gap-2">
+            <InvoiceDownloadButton invoice={invoice} />
+            <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
+              Print
+            </Button>
+          </div>
+        ) : (
+          <p className="max-w-md text-xs text-ink-muted">{VIEW_ONLY_NOTE}</p>
+        )}
       </div>
 
       {/* The A4 sheet shrinks to unreadable text on a phone; Download and Print still give the sheet. */}
+      <Protect on={!canSave}>
       <Card className="no-print sm:hidden">
         <p className="font-semibold text-ink">Invoice {invoice.number}</p>
         <p className="text-xs text-ink-muted">
@@ -92,13 +101,19 @@ export function InvoiceDetailPage() {
       <div className="mx-auto hidden max-w-[210mm] sm:block">
         <InvoicePreview invoice={invoice} />
       </div>
+      </Protect>
 
       <p className="no-print mx-auto mt-2 max-w-[210mm] text-xs text-ink-muted">
         Pay Enzo Interiors directly, by bank transfer or by card in the studio. There is no online
         payment in this portal; once your payment reaches us this invoice shows as paid.
       </p>
 
-      <InvoicePrint invoices={[invoice]} />
+      {canSave ? <InvoicePrint invoices={[invoice]} /> : null}
     </>
   );
+}
+
+/** The invoice behind a watermark when the client may only view it. */
+function Protect({ on, children }: { on: boolean; children: ReactNode }) {
+  return on ? <ProtectedView>{children}</ProtectedView> : <>{children}</>;
 }

@@ -427,6 +427,7 @@
   header.glass,
   [popover],
   .no-print,
+  .protected-view,
   .window-titlebar {
     display: none !important;
   }
@@ -445,4 +446,14 @@
     max-width: none !important;
     padding: 0 !important;
   }
+}
+
+/* Something the client may only view (ProtectedView): no selecting, saving by drag or the long-press menu. */
+.protected-view {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.protected-view img {
+  -webkit-user-drag: none;
 }

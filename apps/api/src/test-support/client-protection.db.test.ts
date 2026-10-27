@@ -158,8 +158,9 @@ test('a client may view a shared file but not download it, unless an Admin allow
 
   const download = (token: string, inline = false) => call('GET', `/documents/${doc.id}/download${inline ? '?inline=1' : ''}`, token);
   assert.equal((await download(tokens.mine)).status, 403, 'no saving');
-  const view = await json<{ url: string }>(await download(tokens.mine, true));
+  const view = await json<{ url: string; client_can_download: boolean }>(await download(tokens.mine, true));
   assert.match(view.url, /X-Amz-Expires=300/);
+  assert.equal(view.client_can_download, false, 'the portal viewer is told to protect it');
   assert.match((await fetch(view.url)).headers.get('content-disposition') ?? '', /^inline;/);
   assert.equal((await download(tokens.other, true)).status, 404, 'not theirs');
   assert.equal((await call('GET', `/documents/${doc.id}/download`)).status, 401);
@@ -183,7 +184,8 @@ test('a client may view a shared file but not download it, unless an Admin allow
   assert.equal((await call('PATCH', `/documents/${doc.id}/client-download`, tokens.admin, { client_can_download: 'yes' })).status, 400);
   assert.equal((await json<Doc>(await allow(tokens.admin))).client_can_download, true);
 
-  const saved = await json<{ url: string }>(await download(tokens.mine));
+  const saved = await json<{ url: string; client_can_download: boolean }>(await download(tokens.mine));
+  assert.equal(saved.client_can_download, true);
   assert.match((await fetch(saved.url)).headers.get('content-disposition') ?? '', /^attachment;/);
   assert.equal((await download(tokens.other)).status, 404);
   const logged = await prisma.activityLog.findMany({ where: { target_id: doc.id, action: 'document_download_permission' } });
