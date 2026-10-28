@@ -167,6 +167,19 @@ export interface CalendarConnection extends BaseRecord {
   updated_at: string;
 }
 
+/** One staff member's own Gmail, linked in the Mail page (modules/mailbox). No mail is stored. */
+export interface GmailAccount extends BaseRecord {
+  staff_id: string;
+  google_email: string;
+  /** Sealed by core/crypto.ts. */
+  refresh_token_enc: string;
+  scopes: string;
+  connected_at: string;
+  needs_reconnect: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Schema 3.2 */
 export interface Client extends BaseRecord {
   name: string;

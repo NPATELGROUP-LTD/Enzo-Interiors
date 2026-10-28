@@ -1,7 +1,8 @@
-import { Bell, GoogleLogo, Key, PaintBrush, ShieldCheck, UserCircle } from '@phosphor-icons/react';
+import { Bell, EnvelopeSimple, GoogleLogo, Key, PaintBrush, ShieldCheck, UserCircle } from '@phosphor-icons/react';
 import { useEffect, useState, type FormEvent } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
+import { ConnectButton } from '@/components/mail/ConnectButton';
 import { PushToggle } from '@/components/PushToggle';
 import {
   AppearancePicker,
@@ -22,6 +23,7 @@ import { useAuth } from '@/lib/auth';
 import { dateTime, initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 import type { LoginResponse, Me, Principal, TrustedDevice } from '@/types/api';
+import type { MailStatus } from '@/types/mail';
 
 const GOOGLE_ERRORS: Record<string, string> = {
   taken: 'That Google account is already linked to another person.',
@@ -35,7 +37,7 @@ const GOOGLE_ERRORS: Record<string, string> = {
  */
 export function AccountPage() {
   const toast = useToast();
-  const { user, adopt, update } = useAuth();
+  const { user, adopt, update, can } = useAuth();
   const { theme, set } = useTheme();
   const [params, setParams] = useSearchParams();
   const [name, setName] = useState(user?.name ?? '');
@@ -49,6 +51,7 @@ export function AccountPage() {
   const me = useQuery<Me>('/auth/me');
   const devices = useQuery<TrustedDevice[]>('/auth/devices');
   const [googleOn, setGoogleOn] = useState(false);
+  const mail = useQuery<MailStatus>(can('Admin', 'Designer', 'Editor') ? '/mailbox/status' : null);
   const [linking, setLinking] = useState(false);
   const [linkPassword, setLinkPassword] = useState('');
   const [linkError, setLinkError] = useState<string | null>(null);
@@ -129,6 +132,16 @@ export function AccountPage() {
     }
   };
 
+  const mailDisconnect = async () => {
+    try {
+      await api.delete('/mailbox');
+      void mail.refetch();
+      toast.success('Gmail disconnected.');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not disconnect Gmail.');
+    }
+  };
+
   const googleUnlink = async () => {
     try {
       await api.delete('/auth/google');
@@ -145,6 +158,7 @@ export function AccountPage() {
     { id: 'password', label: 'Password', Icon: Key },
     { id: 'sign-in', label: 'Two-step sign-in', Icon: ShieldCheck },
     ...(googleOn || me.data?.googleLinked ? [{ id: 'google', label: 'Google', Icon: GoogleLogo }] : []),
+    ...(mail.data?.configured ? [{ id: 'mail', label: 'Mail', Icon: EnvelopeSimple }] : []),
     { id: 'notifications', label: 'Notifications', Icon: Bell },
     { id: 'appearance', label: 'Appearance', Icon: PaintBrush },
   ];
@@ -252,6 +266,35 @@ export function AccountPage() {
           <p className="mt-2 max-w-2xl px-1 text-[13px] text-ink-muted">
             These skip the code until they expire. A password change forgets them all.
           </p>
+        </>
+      ) : null}
+
+      {active === 'mail' ? (
+        <>
+          <PaneHeader title="Mail" help="Your own Gmail inside the admin. Only you can open your mailbox, and Enzo keeps no copy of your messages." />
+          <SettingsGroup>
+            <SettingsRow
+              label="Gmail"
+              help={
+                !mail.data?.connected
+                  ? 'Not connected.'
+                  : mail.data.needs_reconnect
+                    ? `Google stopped accepting the link to ${mail.data.email}. Connect again to use Mail.`
+                    : `Connected as ${mail.data.email}.`
+              }
+            >
+              {mail.data?.connected && !mail.data.needs_reconnect ? (
+                <div className="flex gap-2">
+                  <Link to="/mail">
+                    <Button>Open Mail</Button>
+                  </Link>
+                  <Button onClick={() => void mailDisconnect()}>Disconnect</Button>
+                </div>
+              ) : (
+                <ConnectButton label={mail.data?.connected ? 'Reconnect Gmail' : 'Connect your Gmail'} variant="secondary" />
+              )}
+            </SettingsRow>
+          </SettingsGroup>
         </>
       ) : null}
 

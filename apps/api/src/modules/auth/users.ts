@@ -237,6 +237,7 @@ export class UsersService {
   private async purge(principal: AuthPrincipal, staff: StaffUser, details: Record<string, unknown> = {}): Promise<void> {
     await this.db.staffUsers.delete(staff.id);
     await this.db.trustedDevices.deleteMany((row) => row.staff_user_id === staff.id);
+    await this.db.gmailAccounts.deleteWhere({ staff_id: staff.id }); // their linked mailbox's token goes with them
     await this.db.notifications.deleteMany((row) => row.recipient_id === staff.id);
     // Whatever was still waiting on them can no longer be answered.
     await this.db.staffRemovalRequests.updateWhere(
