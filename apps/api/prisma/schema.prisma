@@ -77,6 +77,8 @@ model Client {
   updated_at        DateTime @default(now()) @db.Timestamptz(6)
   /// Portal sessions carry it; bumping it signs every one of them out.
   token_version     Int      @default(0)
+  /// True while the password is the one emailed at invite; cleared when they change or keep it.
+  password_is_default Boolean @default(false)
 
   @@index([assigned_staff_id])
   @@map("clients")
@@ -95,6 +97,8 @@ model Project {
   assigned_designer_id  String?
   assigned_installer_id String?
   client_visible        Boolean  @default(true)
+  /// Where the work happens; null = the client's own address (invoices fall back the same way).
+  site_address          String?
   created_at            DateTime @default(now()) @db.Timestamptz(6)
   updated_at            DateTime @default(now()) @db.Timestamptz(6)
   members               ProjectMember[]
@@ -219,6 +223,8 @@ model Invoice {
   job_notes        String?
   /// [{label, amount, date}]: deposit received, due on delivery... Display only, never summed into amount.
   payment_schedule Json    @default("[]")
+  /// The portal only lets a client view an invoice unless an Admin allows download and print.
+  client_can_download Boolean @default(false)
   items      InvoiceItem[]
   stages     InvoiceStage[]
 
@@ -349,6 +355,10 @@ model DocumentRecord {
   size_bytes     Int
   upload_date    DateTime @db.Timestamptz(6)
   client_visible Boolean  @default(false)
+  /// Settings › Document categories label; null = `type`. Free text so removing a category loses nothing.
+  category       String?
+  /// The portal only lets a client view a file unless an Admin allows saving it.
+  client_can_download Boolean @default(false)
   // S3 object KEY only. Never a full or signed URL — those are built at
   // request time by the storage service. See CLAUDE.md Critical Do's.
   storage_url    String
@@ -522,6 +532,9 @@ model SiteSettings {
   // Settings › Project stages: [{ name, progress, approval }], in order. Null =
   // the default five in modules/projects/stages.ts, computed on read.
   project_stages      Json?
+  // Settings › Document categories: ["Contract", ...]. Null = the five
+  // document types, computed on read (modules/documents).
+  document_categories Json?
   // Settings › Bank details: { account_name, bank_name, sort_code, account_number,
   // reference_note }, printed on invoices. Null = none yet. Never in the public bundle.
   bank_details        Json?

@@ -47,11 +47,14 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   Other: 'Other',
 };
 
+/** A document's category as shown: the studio's own label, or the stored type's. */
+export const categoryLabel = (category: string): string => DOCUMENT_LABELS[category as DocumentType] ?? category;
+
 /** Plain-English descriptions of the default stages; a stage the studio added has none. */
 export const STAGE_DESCRIPTIONS: Partial<Record<ProjectStage, string>> = {
   Consultation: 'We visit, measure up and understand what you need.',
   Design: 'Your designer draws up the layout and prepares the 3D visuals.',
-  Approval: 'Your turn — review the design and approve it or ask for changes.',
+  Approval: 'Your turn — review and approve it, or ask for changes.',
   Installation: 'Our fitters build and install everything on site.',
   Completed: 'Handed over, snagged and signed off.',
 };
@@ -62,6 +65,8 @@ export interface Principal {
   role: string;
   name: string;
   email: string;
+  /** Still on the password the studio emailed: they are asked once to change it or keep it. */
+  passwordIsDefault?: boolean;
 }
 
 export interface LoginResponse {
@@ -149,6 +154,8 @@ export interface InvoiceIssuer {
 export interface Invoice {
   id: string;
   number: string;
+  /** An Admin allowed saving and printing it; otherwise the portal only shows it. */
+  client_can_download?: boolean;
   client_id: string;
   project_id: string | null;
   amount: number;
@@ -244,6 +251,10 @@ export interface DocumentRecord {
   client_visible: boolean;
   client_name: string;
   project_name: string | null;
+  /** Its Settings › Document categories label (older files: their type). */
+  category: string;
+  /** An Admin allowed saving it; otherwise the portal only lets the client view it. */
+  client_can_download: boolean;
   /** Whether it can be shown in the page (View) as well as downloaded. */
   preview: 'pdf' | 'image' | null;
 }

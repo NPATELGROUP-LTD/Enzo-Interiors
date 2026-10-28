@@ -18,7 +18,7 @@ import { SERVICE_LABELS, STAGE_DESCRIPTIONS } from '@/types/api';
 
 export function ProjectsPage() {
   const { data, loading, error, refetch } = useQuery<Project[]>('/projects');
-  const { stages, approval } = useStages();
+  const { stages, approvals } = useStages();
 
   return (
     <>
@@ -44,8 +44,8 @@ export function ProjectsPage() {
           {(data ?? []).map((project) => (
             <Card
               key={project.id}
-              accent={project.status === approval ? 'warning' : 'none'}
-              className={project.status === approval ? 'pl-5' : undefined}
+              accent={approvals.includes(project.status) ? 'warning' : 'none'}
+              className={approvals.includes(project.status) ? 'pl-5' : undefined}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
@@ -79,9 +79,9 @@ export function ProjectsPage() {
                   {' · updated '}
                   {relative(project.updated_at)}
                 </p>
-                {project.status === approval ? (
+                {approvals.includes(project.status) ? (
                   <Link to={`/projects/${project.id}`} className="text-link">
-                    Review design
+                    Review and decide
                   </Link>
                 ) : null}
               </div>

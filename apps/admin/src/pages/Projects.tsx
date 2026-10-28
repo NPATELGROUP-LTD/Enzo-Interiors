@@ -237,13 +237,14 @@ export function NewProjectDialog({
   open: boolean;
   onClose: () => void;
   /** Fixed client (from their page); otherwise the dialog asks. */
-  client?: { id: string; name: string };
+  client?: { id: string; name: string; address?: string | null };
   clients?: Client[];
   designers?: StaffOption[];
 }) {
   const toast = useToast();
   const navigate = useNavigate();
-  const empty = { client_id: '', name: '', type: 'Kitchen' as ServiceType, assigned_designer_id: '', assigned_installer_id: '' };
+  // site_address null = not typed yet: the field shows the client's own address, which is what the API stores.
+  const empty = { client_id: '', name: '', type: 'Kitchen' as ServiceType, assigned_designer_id: '', assigned_installer_id: '', site_address: null as string | null };
   const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -270,6 +271,7 @@ export function NewProjectDialog({
         type: form.type,
         assigned_designer_id: form.assigned_designer_id || null,
         assigned_installer_id: form.assigned_installer_id || null,
+        ...(form.site_address !== null && { site_address: form.site_address }),
       });
       toast.success(`${created.name} created at ${created.status}.`);
       onClose();
@@ -280,6 +282,8 @@ export function NewProjectDialog({
       setSaving(false);
     }
   };
+
+  const clientAddress = (client ?? clients.find((row) => row.id === form.client_id))?.address;
 
   const assign = (field: 'assigned_designer_id' | 'assigned_installer_id', label: string) => (
     <Select label={label} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })}>
@@ -345,6 +349,14 @@ export function NewProjectDialog({
             </option>
           ))}
         </Select>
+
+        <Input
+          label="Site address"
+          hint="Starts as the client’s address; change it if the work is somewhere else."
+          value={form.site_address ?? clientAddress ?? ''}
+          onChange={(event) => setForm({ ...form, site_address: event.target.value })}
+          maxLength={300}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           {assign('assigned_designer_id', 'Designer')}

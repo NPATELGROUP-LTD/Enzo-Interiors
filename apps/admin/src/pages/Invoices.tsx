@@ -34,6 +34,7 @@ import {
   Td,
   Textarea,
   Th,
+  Toggle,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -686,6 +687,8 @@ function InvoiceEditor({
   const [discount, setDiscount] = useState(invoice?.discount ? String(invoice.discount) : '');
   const [jobName, setJobName] = useState(invoice?.job_name ?? '');
   const [jobAddress, setJobAddress] = useState(invoice?.job_address ?? '');
+  // The last address this form filled in itself, so choosing another project or client replaces it but never something typed.
+  const [autoAddress, setAutoAddress] = useState('');
   const [jobNotes, setJobNotes] = useState(invoice?.job_notes ?? '');
   const [rows, setRows] = useState<Row[]>(() => (invoice?.items?.length ? toRows(invoice.items) : [blankLine()]));
   const [schedule, setSchedule] = useState<ScheduleRow[]>(() =>
@@ -699,8 +702,25 @@ function InvoiceEditor({
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const allowDownload = async (next: boolean) => {
+    try {
+      await api.patch(`/invoices/${invoice!.id}/client-download`, { client_can_download: next });
+      toast.success(next ? 'The client can now download and print this invoice.' : 'The client can only view this invoice.');
+      await onSaved(invoice!.id);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not change that.');
+    }
+  };
+
   const client = clients.find((entry) => entry.id === clientId);
   const project = projects.find((entry) => entry.id === projectId);
+  /** The job is at the project's site, else at the client's own address. */
+  const fillAddress = (nextClientId: string, nextProjectId: string) => {
+    const next = projects.find((entry) => entry.id === nextProjectId)?.site_address ?? clients.find((entry) => entry.id === nextClientId)?.address ?? '';
+    if (jobAddress && jobAddress !== autoAddress) return;
+    setJobAddress(next);
+    setAutoAddress(next);
+  };
   const clientProjects = projects.filter((entry) => entry.client_id === clientId);
   const rate = Number(vatRate) || 0;
   const items = toItems(rows);
@@ -982,10 +1002,9 @@ function InvoiceEditor({
                 value={clientId}
                 disabled={invoice !== undefined}
                 onChange={(event) => {
-                  const next = clients.find((entry) => entry.id === event.target.value);
                   setClientId(event.target.value);
                   setProjectId('');
-                  if (!jobAddress && next?.address) setJobAddress(next.address);
+                  fillAddress(event.target.value, '');
                 }}
                 required
               >
@@ -1000,7 +1019,10 @@ function InvoiceEditor({
                 label="Project"
                 value={projectId}
                 disabled={paid}
-                onChange={(event) => setProjectId(event.target.value)}
+                onChange={(event) => {
+                  setProjectId(event.target.value);
+                  fillAddress(clientId, event.target.value);
+                }}
                 hint={clientId ? undefined : 'Choose a client first.'}
               >
                 <option value="">No project</option>
@@ -1021,11 +1043,28 @@ function InvoiceEditor({
             </div>
           </Card>
 
+          {invoice && invoice.status !== 'Draft' ? (
+            <Card>
+              <Toggle
+                label="Client can download and print"
+                description="Off: the client can view this invoice in the portal but not save or print it. Staff are not affected."
+                checked={Boolean(invoice.client_can_download)}
+                onChange={(next) => void allowDownload(next)}
+              />
+            </Card>
+          ) : null}
+
           <Card className="flex flex-col gap-4">
             <h2 className="text-lg font-semibold text-ink">Job</h2>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Job name" value={jobName} maxLength={200} placeholder="Media wall" onChange={(event) => setJobName(event.target.value)} />
-              <Input label="Job address" value={jobAddress} maxLength={300} onChange={(event) => setJobAddress(event.target.value)} />
+              <Input
+                label="Job address"
+                value={jobAddress}
+                maxLength={300}
+                hint="Starts as the project’s site address, else the client’s."
+                onChange={(event) => setJobAddress(event.target.value)}
+              />
             </div>
             <Textarea
               label="Job notes"

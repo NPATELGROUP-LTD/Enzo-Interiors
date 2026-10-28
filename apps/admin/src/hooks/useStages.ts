@@ -3,7 +3,7 @@ import type { ProjectStageConfig } from '@/types/api';
 
 /**
  * The Admin's ordered project stages (Settings › Project stages). The last is
- * the finished one; at most one is where the client approves.
+ * the finished one; any number of the others are where the client approves.
  */
 export function useStages() {
   const query = useQuery<ProjectStageConfig[]>('/projects/stages');
@@ -12,6 +12,6 @@ export function useStages() {
     ...query,
     stages,
     names: stages.map((stage) => stage.name),
-    approval: stages.find((stage) => stage.approval)?.name ?? null,
+    approvals: stages.filter((stage) => stage.approval).map((stage) => stage.name),
   };
 }

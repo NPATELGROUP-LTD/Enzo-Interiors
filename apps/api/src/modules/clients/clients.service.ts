@@ -9,6 +9,7 @@ import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
 import { confirmPassword } from '../auth/reauth';
 import { sumMoney } from '../invoices/totals';
+import { categoryOf } from '../documents/categories';
 import { doneStage, loadStages } from '../projects/stages';
 import { CreateClientDto, UpdateClientDto } from './dto';
 
@@ -118,6 +119,8 @@ export class ClientsService {
     // The sign-in moved: portal sessions and any set-password link sent to the
     // old address stop working (a mistyped address may belong to someone else).
     if (emailChanged) patch.token_version = (existing.token_version ?? 0) + 1;
+    // An emailed password went to the old address: it must not carry over to the new one. Invite again.
+    if (emailChanged && existing.password_is_default) Object.assign(patch, { password_hash: '', password_is_default: false });
 
     const updated = await this.db.clients.update(id, patch);
     if (!updated) throw new NotFoundException('Client not found');
@@ -133,16 +136,16 @@ export class ClientsService {
   }
 
   /**
-   * Emails an active client without a portal password a one-time link to
-   * choose one (auth.service portal passwords). Sending again is how a lost or
-   * expired invitation is replaced.
+   * Gives an active client a generated portal password and emails it with the sign-in address
+   * (auth.service sendPortalInvite). Sending again issues a new password, which is how a lost
+   * invitation is replaced; a client who has set or kept their own password is refused.
    */
   async invite(principal: AuthPrincipal, id: string): Promise<{ emailed: boolean }> {
     const client = await this.require(principal, id);
     if (client.status !== 'Active') {
       throw new BadRequestException(`${client.name} is Inactive. Set them to Active before inviting them.`);
     }
-    if (looksHashed(client.password_hash)) {
+    if (looksHashed(client.password_hash) && !client.password_is_default) {
       throw new BadRequestException(`${client.name} already has portal access. They can reset their password from the portal.`);
     }
     const emailed = await this.auth.sendPortalInvite(client, principal.name);
@@ -214,7 +217,7 @@ export class ClientsService {
       projects,
       invoices,
       // Where a file is stored is the API's business, not the screen's.
-      documents: documents.map(({ storage_url: _storage, ...document }) => document),
+      documents: documents.map(({ storage_url: _storage, ...document }) => ({ ...document, category: categoryOf(document) })),
       activity,
       stats: {
         // Lifetime value counts only invoices actually marked Paid — the manual

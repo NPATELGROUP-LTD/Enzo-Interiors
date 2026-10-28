@@ -150,6 +150,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       opening_hours: null,
       pages: null,
       project_stages: null,
+      document_categories: null,
       bank_details: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
