@@ -212,11 +212,17 @@ export function UploadDialog({
     onClose();
   };
 
+  // Shown in the dialog and as a toast: the dialog's line sits under the form, easy to miss.
+  const fail = (text: string) => {
+    setError(text);
+    toast.error(text);
+  };
+
   const choose = (picked: File | undefined) => {
     setError(null);
     if (!picked) return;
     if (picked.size > MAX_BYTES) {
-      setError(`That file is ${fileSize(picked.size)}. The limit is 25 MB.`);
+      fail(`${picked.name} is ${fileSize(picked.size)}. The limit is 25 MB.`);
       return;
     }
     setFile(picked);
@@ -226,7 +232,7 @@ export function UploadDialog({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!file) {
-      setError('Choose a file to upload.');
+      fail('Choose a file to upload.');
       return;
     }
     const form = new FormData();
@@ -243,7 +249,7 @@ export function UploadDialog({
       setName('');
       await onUploaded();
     } catch (caught) {
-      setError(message(caught, 'Could not upload this file.'));
+      fail(message(caught, `Could not upload ${file.name}.`));
     } finally {
       setBusy(false);
     }

@@ -55,6 +55,19 @@ const FILE_TYPES: Record<string, { ext: string; matches: (bytes: Buffer) => bool
 };
 const TYPES_MESSAGE = 'Upload a PDF, JPG, PNG, WebP, Word, Excel or PowerPoint file.';
 
+/**
+ * What the file is, by its own first bytes. The type the browser declares is only a tiebreak
+ * (Word, Excel and PowerPoint share a header): Windows machines often declare a .png as
+ * image/x-png, application/octet-stream or nothing, and that used to be refused as "not a PNG".
+ * Returns the matching table entry, with its canonical type, or undefined.
+ */
+function identify(file: { buffer: Buffer; mimetype: string; originalname: string }) {
+  const found = Object.entries(FILE_TYPES).filter(([, kind]) => kind.matches(file.buffer));
+  const ext = path.extname(file.originalname).toLowerCase().replace('.jpeg', '.jpg');
+  const hit = found.find(([type]) => type === file.mimetype) ?? found.find(([, kind]) => kind.ext === ext) ?? (found.length === 1 ? found[0] : undefined);
+  return hit && { type: hit[0], ...hit[1] };
+}
+
 /** The part of a multer file this module reads (memory storage). */
 interface UploadedDocument {
   originalname: string;
@@ -153,8 +166,8 @@ export class DocumentsService {
     file: UploadedDocument | undefined,
   ): Promise<DocumentView> {
     if (!file) throw new BadRequestException('Choose a file to upload.');
-    const kind = FILE_TYPES[file.mimetype];
-    if (!kind || !kind.matches(file.buffer)) throw new BadRequestException(TYPES_MESSAGE);
+    const kind = identify(file);
+    if (!kind) throw new BadRequestException(`${TYPES_MESSAGE} "${file.originalname.slice(0, 80)}" is not one of them.`);
 
     // A client reaches only their own shared projects (requireProject), and
     // what they upload is theirs to see; a chat file is shared on purpose.
@@ -178,7 +191,7 @@ export class DocumentsService {
     // Generated here, never taken from the request, so it cannot traverse or overwrite.
     const key = `clients/${project.client_id}/projects/${project.id}/${randomUUID()}-${stem || 'document'}${kind.ext}`;
 
-    await this.storage.put(key, file.buffer, file.mimetype);
+    await this.storage.put(key, file.buffer, kind.type);
     let created: DocumentRecord;
     try {
       created = await this.db.documents.create({
