@@ -219,6 +219,7 @@ test('the invoice is Paid only when every stage is, once, through the mark-paid 
 
   assert.equal((await call('PUT', payUrl(sent, 1), tokens.admin, { paid_at: '2999-01-01' })).status, 400, 'no future dates');
   assert.equal((await call('PUT', payUrl(sent, 1), tokens.admin, { paid_at: 'yesterday' })).status, 400);
+  assert.equal((await call('PUT', payUrl(sent, 1), tokens.admin, { paid_at: '2026-02-31' })).status, 400, 'a day that does not exist');
 
   // Undo one, pay it again, then finish.
   const undone = await json<Inv>(await call('DELETE', payUrl(sent, 0), tokens.admin));

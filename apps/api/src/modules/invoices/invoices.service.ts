@@ -436,7 +436,10 @@ export class InvoicesService {
     const today = new Date().toISOString().slice(0, 10);
     const day = dto.paid_at ?? today;
     // One day of slack: London can be a day ahead of UTC for an hour.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day))) throw new BadRequestException('Enter a valid payment date');
+    // The round trip refuses a day that does not exist (2026-02-31 would otherwise roll over to 3 March).
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day)) || new Date(day).toISOString().slice(0, 10) !== day) {
+      throw new BadRequestException('Enter a valid payment date');
+    }
     if (day > new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)) throw new BadRequestException('A payment date cannot be in the future');
 
     const updated = await this.db.invoiceStore.payStage(id, stageId, `${day}T00:00:00.000Z`, principal.name);
