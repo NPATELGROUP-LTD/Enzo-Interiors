@@ -641,6 +641,25 @@ model CalendarConnection {
   @@map("calendar_connections")
 }
 
+// One staff member's own Gmail (Google Workspace), linked from the Mail page
+// (modules/mailbox). Only the sealed refresh token is kept, never any mail.
+model GmailAccount {
+  id                String   @id
+  staff_id          String   @unique
+  google_email      String
+  // Sealed with APP_ENCRYPTION_KEY (core/crypto.ts).
+  refresh_token_enc String
+  // Space-separated scopes Google granted.
+  scopes            String
+  connected_at      DateTime @default(now()) @db.Timestamptz(6)
+  // Google refused the token (revoked, password changed): reconnect to use Mail again.
+  needs_reconnect   Boolean  @default(false)
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("gmail_accounts")
+}
+
 // A Designer's client edit or an Installer's stage move, waiting for an Admin
 // (modules/change-requests). Approving replays it as the Admin.
 // An Admin asks an Infra manager to remove another Admin (modules/auth/users).

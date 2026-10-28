@@ -21,6 +21,7 @@ import { DocumentsModule } from './modules/documents/documents.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { InvoicesModule } from './modules/invoices/invoices.controller';
+import { MailboxModule } from './modules/mailbox/mailbox.module';
 import { MediaModule } from './modules/media/media.module';
 import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -74,6 +75,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     NotificationsModule,
     BookingModule,
     CalendarModule,
+    MailboxModule,
     NewsletterModule,
     ClientsModule,
     ProjectsModule,

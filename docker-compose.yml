@@ -213,6 +213,7 @@ services:
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_AUTH_REDIRECT_URI: ${GOOGLE_AUTH_REDIRECT_URI:-http://localhost:4000/auth/google/callback}
       GOOGLE_CALENDAR_REDIRECT_URI: ${GOOGLE_CALENDAR_REDIRECT_URI:-http://localhost:4000/calendar/callback}
+      GOOGLE_GMAIL_REDIRECT_URI: ${GOOGLE_GMAIL_REDIRECT_URI:-http://localhost:4000/mailbox/callback}
       # Web Push (admin + portal PWAs). Unset = off; see .env.example.
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}

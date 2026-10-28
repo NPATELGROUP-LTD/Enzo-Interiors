@@ -11,6 +11,7 @@ import {
   BookingSettingsRow,
   BusinessSettings,
   CalendarConnection,
+  GmailAccount,
   ChangeRequest,
   Client,
   CmsEntry,
@@ -90,6 +91,7 @@ export class DatabaseService {
   readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
   readonly calendarConnections: PrismaRepository<CalendarConnection>;
+  readonly gmailAccounts: PrismaRepository<GmailAccount>;
   readonly changeRequests: PrismaRepository<ChangeRequest>;
   readonly staffRemovalRequests: PrismaRepository<StaffRemovalRequest>;
   readonly alertSettings: PrismaRepository<AlertSettings>;
@@ -194,6 +196,9 @@ export class DatabaseService {
     });
     this.calendarConnections = new PrismaRepository(prisma.calendarConnection, 'calendar_connections', {
       dates: stamps,
+    });
+    this.gmailAccounts = new PrismaRepository(prisma.gmailAccount, 'gmail_accounts', {
+      dates: [...stamps, 'connected_at'],
     });
   }
 
