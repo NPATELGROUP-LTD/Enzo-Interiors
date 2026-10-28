@@ -19,13 +19,14 @@ import {
 } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
-import { Invoice, InvoiceItem, InvoiceStatus, PaymentScheduleRow } from '../../common/types/domain';
+import { BankDetails, Invoice, InvoiceItem, InvoiceStage, InvoiceStatus, PaymentScheduleRow } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { ItemInput } from '../../data/invoice-store';
 import { DatabaseService } from '../../data/database.service';
 import { confirmPassword } from '../auth/reauth';
 import { NotificationsService } from '../notifications/notifications.module';
+import { MAX_STAGES, StageDto, StagePaidDto, stageRows } from './stages';
 import { MAX_AMOUNT, lateMs, splitGross, sumMoney, totalsOf } from './totals';
 
 /* -------------------------------------------------------------------------- */
@@ -99,6 +100,11 @@ export class CreateInvoiceDto extends InvoiceDocumentDto {
   @IsOptional()
   @IsIn(['Draft', 'Sent'], { message: 'A new invoice can only be Draft or Sent' })
   status?: 'Draft' | 'Sent';
+
+  /** Payment stages. Omitted or empty = paid in one go, as before; the admin form starts from DEFAULT_STAGES. */
+  @IsOptional()
+  @IsArray() @ArrayMaxSize(MAX_STAGES, { message: `An invoice can have at most ${MAX_STAGES} payment stages` }) @ValidateNested({ each: true }) @Type(() => StageDto)
+  stages?: StageDto[];
 }
 
 export class UpdateInvoiceDto extends InvoiceDocumentDto {
@@ -115,6 +121,11 @@ export class UpdateInvoiceDto extends InvoiceDocumentDto {
   @IsOptional()
   @IsIn(['Draft', 'Sent', 'Overdue'], { message: 'Use the mark-paid action to record payment' })
   status?: 'Draft' | 'Sent' | 'Overdue';
+
+  /** Replaces the stages; refused once one is paid. `[]` removes them. */
+  @IsOptional()
+  @IsArray() @ArrayMaxSize(MAX_STAGES, { message: `An invoice can have at most ${MAX_STAGES} payment stages` }) @ValidateNested({ each: true }) @Type(() => StageDto)
+  stages?: StageDto[];
 }
 
 /**
@@ -126,7 +137,8 @@ export class UpdateInvoiceDto extends InvoiceDocumentDto {
  * or in the same request that moves it back to Draft. Once it has been sent,
  * the client may have it, so the numbers do not change under them. The job
  * details and the payment schedule (DOCUMENT_FIELDS) change on any status,
- * Paid included: they never touch `amount`.
+ * Paid included: they never touch `amount`. The payment stages can be replaced
+ * until one is paid; an invoice with a paid stage cannot go back to Draft.
  */
 const NEXT: Record<InvoiceStatus, InvoiceStatus[]> = {
   Draft: ['Sent'],
@@ -155,6 +167,14 @@ export interface InvoiceView extends Invoice {
   is_overdue: boolean;
   days_overdue: number;
   issuer: Issuer;
+  /** Payment stages in order; empty = paid in one go. `paid_by` is left out for a client. */
+  stages: Array<Omit<InvoiceStage, 'paid_by'> & { paid_by?: string | null }>;
+  /** Money recorded as received: paid stages, or the whole amount once Paid. */
+  paid_amount: number;
+  /** `amount` less `paid_amount`: what is still owed. */
+  balance_amount: number;
+  /** Settings › Bank details, printed on the sheet. Only ever sent in an authenticated invoice payload. */
+  bank_details: BankDetails | null;
 }
 
 const DOCUMENT_FIELDS = new Set(['job_name', 'job_address', 'job_notes', 'payment_schedule']);
@@ -183,8 +203,9 @@ export class InvoicesService {
 
   /** Staff reach here only as Admin (controller). A client sees their own, never Drafts. */
   async list(principal: AuthPrincipal): Promise<InvoiceView[]> {
-    const where = this.access.isClient(principal) ? { client_id: principal.id, status: { not: 'Draft' } } : {};
-    return this.views(await this.db.invoices.findWhere(where, { orderBy: { created_at: 'desc' } }));
+    const client = this.access.isClient(principal);
+    const where = client ? { client_id: principal.id, status: { not: 'Draft' } } : {};
+    return this.views(await this.db.invoices.findWhere(where, { orderBy: { created_at: 'desc' } }), client);
   }
 
   async findOne(principal: AuthPrincipal, id: string): Promise<InvoiceView> {
@@ -193,7 +214,7 @@ export class InvoicesService {
     if (!invoice || (this.access.isClient(principal) && (invoice.client_id !== principal.id || invoice.status === 'Draft'))) {
       throw new NotFoundException('Invoice not found');
     }
-    return (await this.views([invoice]))[0]!;
+    return (await this.views([invoice], this.access.isClient(principal)))[0]!;
   }
 
   /** Admin only (controller): several invoices in full, in the order asked, for one print run. */
@@ -212,15 +233,16 @@ export class InvoicesService {
   async summary(principal: AuthPrincipal) {
     const invoices = await this.list(principal);
     const outstanding = invoices.filter((i) => i.status === 'Outstanding' || i.status === 'Sent' || i.status === 'Overdue');
-    const amounts = (rows: InvoiceView[]) => sumMoney(rows.map((i) => i.amount));
+    // What is still owed, so an invoice part-paid in stages counts only for its balance.
+    const balances = (rows: InvoiceView[]) => sumMoney(rows.map((i) => i.balance_amount));
     const nextDue = invoices
       .filter((i) => i.status !== 'Paid' && i.status !== 'Draft')
       .sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
 
     return {
-      paid_total: amounts(invoices.filter((i) => i.status === 'Paid')),
-      outstanding_total: amounts(outstanding),
-      overdue_total: amounts(invoices.filter((i) => i.is_overdue)),
+      paid_total: sumMoney(invoices.map((i) => i.paid_amount)),
+      outstanding_total: balances(outstanding),
+      overdue_total: balances(invoices.filter((i) => i.is_overdue)),
       counts: {
         total: invoices.length,
         paid: invoices.filter((i) => i.status === 'Paid').length,
@@ -241,6 +263,7 @@ export class InvoicesService {
     const discount = dto.discount ?? 0;
     const items = this.lines(dto.items);
     const { gross } = this.totals(items, vat_rate, discount);
+    const stages = stageRows(gross, dto.stages ?? []);
 
     // Two invoices created at once can pick the same next number; the unique
     // index refuses the second, which then looks again. Each failed attempt
@@ -265,6 +288,7 @@ export class InvoicesService {
             payment_schedule: this.schedule(dto.payment_schedule ?? []),
           },
           items,
+          stages,
         );
         await this.activity.record({
           principal,
@@ -304,6 +328,15 @@ export class InvoicesService {
     }
     if (dto.project_id !== undefined) await this.assertProjectOfClient(dto.project_id, invoice.client_id);
 
+    const stored = paid ? [] : await this.db.invoiceStages.findWhere({ invoice_id: id }, { orderBy: { position: 'asc' } });
+    const anyStagePaid = stored.some((stage) => stage.paid_at);
+    if (anyStagePaid && dto.stages !== undefined) {
+      throw new BadRequestException('A stage has been paid, so the stages can no longer change. Undo the payment first.');
+    }
+    if (anyStagePaid && status === 'Draft') {
+      throw new BadRequestException('A stage has been paid, so this invoice cannot go back to Draft.');
+    }
+
     const patch: Partial<Invoice> = paid ? {} : { status };
     if (dto.project_id !== undefined) patch.project_id = dto.project_id;
     if (dto.due_date !== undefined) patch.due_date = dto.due_date.slice(0, 10);
@@ -324,8 +357,14 @@ export class InvoicesService {
       }
     }
 
+    // New stages as asked, else the stored ones re-worked against a changed total (same mode and value).
+    const stages =
+      dto.stages !== undefined ? stageRows(patch.amount ?? invoice.amount, dto.stages)
+      : patch.amount !== undefined && stored.length > 0 ? stageRows(patch.amount, stored)
+      : undefined;
+
     if (Object.keys(patch).length === 0) return this.findOne(principal, id);
-    const updated = await this.db.invoiceStore.update(id, patch, given, paid);
+    const updated = await this.db.invoiceStore.update(id, patch, given, paid, stages);
     if (!updated) throw new BadRequestException('This invoice is marked Paid and can no longer be edited.');
 
     await this.activity.record({
@@ -382,13 +421,71 @@ export class InvoicesService {
   }
 
   /**
+   * PUT /invoices/:id/stages/:stageId/paid — Admin only, manual. Records that one
+   * stage's money arrived on `paid_at` (default today). The last stage to be paid
+   * settles the whole invoice in the same transaction (the mark-paid rules: the
+   * client's total_spent once, never repeated). No gateway.
+   */
+  async payStage(principal: AuthPrincipal, id: string, stageId: string, dto: StagePaidDto): Promise<InvoiceView> {
+    const invoice = await this.db.invoices.findById(id);
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    const stage = await this.db.invoiceStages.findById(stageId);
+    if (!stage || stage.invoice_id !== id) throw new NotFoundException('Payment stage not found');
+    if (invoice.status === 'Draft') throw new BadRequestException('A draft invoice cannot take payment. Send it to the client first.');
+
+    const today = new Date().toISOString().slice(0, 10);
+    const day = dto.paid_at ?? today;
+    // One day of slack: London can be a day ahead of UTC for an hour.
+    // The round trip refuses a day that does not exist (2026-02-31 would otherwise roll over to 3 March).
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || Number.isNaN(Date.parse(day)) || new Date(day).toISOString().slice(0, 10) !== day) {
+      throw new BadRequestException('Enter a valid payment date');
+    }
+    if (day > new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)) throw new BadRequestException('A payment date cannot be in the future');
+
+    const updated = await this.db.invoiceStore.payStage(id, stageId, `${day}T00:00:00.000Z`, principal.name);
+    if (!updated) throw new BadRequestException('That stage is already marked as paid.');
+
+    await this.activity.record({
+      principal,
+      action: 'invoice_stage_paid',
+      targetTable: 'invoices',
+      targetId: id,
+      details: { number: invoice.number, stage: stage.label, amount: stage.amount, paid_at: day, invoice_paid: updated.status === 'Paid' },
+    });
+    return this.findOne(principal, id);
+  }
+
+  /** DELETE /invoices/:id/stages/:stageId/paid — undo a recorded stage payment while the invoice is not fully paid. */
+  async unpayStage(principal: AuthPrincipal, id: string, stageId: string): Promise<InvoiceView> {
+    const invoice = await this.db.invoices.findById(id);
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    const stage = await this.db.invoiceStages.findById(stageId);
+    if (!stage || stage.invoice_id !== id) throw new NotFoundException('Payment stage not found');
+    if (invoice.status === 'Paid') throw new BadRequestException('This invoice is fully paid, so a payment can no longer be undone.');
+
+    if (!(await this.db.invoiceStore.unpayStage(id, stageId))) throw new BadRequestException('That stage is not marked as paid.');
+
+    await this.activity.record({
+      principal,
+      action: 'invoice_stage_unpaid',
+      targetTable: 'invoices',
+      targetId: id,
+      details: { number: invoice.number, stage: stage.label, amount: stage.amount },
+    });
+    return this.findOne(principal, id);
+  }
+
+  /**
    * A Paid invoice is a financial record: deleting one needs the Admin's
    * password again, and takes its amount out of the client's lifetime value.
+   * So is one with a stage paid: money has been recorded against it.
    */
   async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
     const invoice = await this.db.invoices.findById(id);
     if (!invoice) throw new NotFoundException('Invoice not found');
-    if (invoice.status === 'Paid') await confirmPassword(this.db, principal, password);
+    if (invoice.status === 'Paid' || (await this.db.invoiceStages.countWhere({ invoice_id: id, paid_at: { not: null } })) > 0) {
+      await confirmPassword(this.db, principal, password);
+    }
 
     if (!(await this.db.invoiceStore.remove(id))) throw new NotFoundException('Invoice not found');
 
@@ -457,15 +554,20 @@ export class InvoicesService {
     if (project.client_id !== clientId) throw new BadRequestException('That project belongs to a different client');
   }
 
-  /** Invoices with their lines and names, in three queries however many there are. */
-  private async views(invoices: Invoice[]): Promise<InvoiceView[]> {
+  /**
+   * Invoices with their lines, stages and names, in a handful of queries however many there are.
+   * `forClient` hides what only staff see (who recorded a payment).
+   */
+  private async views(invoices: Invoice[], forClient = false): Promise<InvoiceView[]> {
     if (invoices.length === 0) return [];
     const ids = (pick: (i: Invoice) => string | null) => [...new Set(invoices.map(pick).filter((v): v is string => !!v))];
-    const [items, clients, projects, issuer] = await Promise.all([
+    const [items, stages, clients, projects, issuer, settings] = await Promise.all([
       this.db.invoiceItems.findWhere({ invoice_id: { in: ids((i) => i.id) } }, { orderBy: { position: 'asc' } }),
+      this.db.invoiceStages.findWhere({ invoice_id: { in: ids((i) => i.id) } }, { orderBy: { position: 'asc' } }),
       this.db.clients.findWhere({ id: { in: ids((i) => i.client_id) } }),
       this.db.projects.findWhere({ id: { in: ids((i) => i.project_id) } }),
       this.issuer(),
+      this.db.siteSettings.findById('site'),
     ]);
     const clientOf = new Map(clients.map((c) => [c.id, c]));
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
@@ -475,9 +577,17 @@ export class InvoicesService {
       const client = clientOf.get(invoice.client_id);
       const unpaid = invoice.status !== 'Paid' && invoice.status !== 'Draft';
       const late = unpaid ? lateMs(invoice.due_date) : 0;
+      const ownStages = stages
+        .filter((stage) => stage.invoice_id === invoice.id)
+        .map(({ paid_by, ...stage }) => (forClient ? stage : { ...stage, paid_by }));
+      const paidAmount = invoice.status === 'Paid' ? invoice.amount : sumMoney(ownStages.filter((s) => s.paid_at).map((s) => s.amount));
       return {
         ...invoice,
         items: own,
+        stages: ownStages,
+        paid_amount: paidAmount,
+        balance_amount: sumMoney([invoice.amount, -paidAmount]),
+        bank_details: settings?.bank_details ?? null,
         payment_schedule: Array.isArray(invoice.payment_schedule) ? invoice.payment_schedule : [],
         client_name: client?.name ?? 'Unknown client',
         client_email: client?.email ?? null,
