@@ -160,6 +160,31 @@ export interface Project {
   assigned_installer_name?: string | null;
 }
 
+/** An installer's dates and pay on one project (calendar days as YYYY-MM-DD). Only the Admin and that installer ever receive it. */
+export interface InstallerAssignment {
+  start_date: string | null;
+  end_date: string | null;
+  /** Null until the Admin sends it; the installer sees nothing before. */
+  sent_at: string | null;
+  pay: number | null;
+  pay_note: string | null;
+  pay_status: 'pending' | 'approved' | 'declined';
+  dates_status: 'pending' | 'approved';
+  suggested_start: string | null;
+  suggested_end: string | null;
+  suggestion_comment: string | null;
+  suggested_at: string | null;
+}
+
+/** A designer or installer on a project. `assignment` is an installer's, for the Admin and that installer only. */
+export interface TeamMember {
+  id: string;
+  staff_id: string;
+  name: string;
+  role: 'Designer' | 'Installer';
+  assignment?: InstallerAssignment;
+}
+
 /** One line of an invoice: a net (ex-VAT) price. */
 export interface InvoiceItem {
   id: string;
@@ -441,6 +466,8 @@ export interface ProjectDetail {
   documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
+  /** Empty for a client. */
+  team: TeamMember[];
   timeline: Array<{
     stage: ProjectStage;
     position: number;

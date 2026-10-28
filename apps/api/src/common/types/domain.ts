@@ -195,14 +195,47 @@ export interface Project extends BaseRecord {
   /** 0 to 100. Clamped on write by the projects service. */
   progress_pct: number;
   current_stage: string | null;
-  assigned_designer_id: string | null;
   /**
-   * Who fits it (a Designer-role user). Either assignment gives access.
-   * Optional so a create may leave it out; a row read back always has it.
+   * Legacy single designer / installer: they mirror the team's first of each
+   * (modules/projects/team.service.ts) and still grant access. The team is
+   * `project_members`. Optional so a create may leave them out.
    */
+  assigned_designer_id: string | null;
   assigned_installer_id?: string | null;
   client_visible: boolean;
   created_at: string;
+  updated_at: string;
+}
+
+export const TEAM_ROLES = ['Designer', 'Installer'] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+/** A designer or installer on a project. No money, no dates: safe to show any member. */
+export interface ProjectMember extends BaseRecord {
+  project_id: string;
+  staff_id: string;
+  role: TeamRole;
+  added_by: string | null;
+  created_at: string;
+}
+
+/**
+ * An installer's dates and pay on one project, 1:1 with their member row. Only
+ * the Admin and that installer ever see it. Dates are `YYYY-MM-DD`.
+ */
+export interface InstallerAssignment extends BaseRecord {
+  member_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  sent_at: string | null;
+  pay: number | null;
+  pay_note: string | null;
+  pay_status: 'pending' | 'approved' | 'declined';
+  dates_status: 'pending' | 'approved';
+  suggested_start: string | null;
+  suggested_end: string | null;
+  suggestion_comment: string | null;
+  suggested_at: string | null;
   updated_at: string;
 }
 

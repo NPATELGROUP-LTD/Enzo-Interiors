@@ -146,15 +146,18 @@ test('an Admin creates, reads, updates, moves and deletes a project; assignees h
   assert.equal(await prisma.notification.count({ where: { recipient_id: DESIGNER.id, link: `/projects/${id}` } }), 1);
 
   assert.ok(ids(await json(await call('GET', '/projects', tokens.admin))).includes(id));
-  const put = await json<{ client_visible: boolean; assigned_installer_name: string }>(
-    await call('PUT', `/projects/${id}`, tokens.admin, { client_visible: true, assigned_installer_id: INSTALLER.id }),
-  );
+  const put = await json<{ client_visible: boolean }>(await call('PUT', `/projects/${id}`, tokens.admin, { client_visible: true }));
   assert.equal(put.client_visible, true);
-  assert.equal(put.assigned_installer_name, `Test Installer ${run}`);
+  // The team is its own route; the old single-assignment fields are gone from PUT.
+  assert.equal((await call('PUT', `/projects/${id}`, tokens.admin, { assigned_installer_id: INSTALLER.id })).status, 400);
+  await json(await call('POST', `/projects/${id}/team`, tokens.admin, { staff_id: INSTALLER.id, role: 'Installer' }), 201);
+  const withInstaller = await json<{ assigned_installer_name: string }>(await call('GET', `/projects/${id}`, tokens.admin));
+  assert.equal(withInstaller.assigned_installer_name, `Test Installer ${run}`);
   assert.equal(await prisma.notification.count({ where: { recipient_id: INSTALLER.id, link: `/projects/${id}` } }), 1);
 
-  // Only Designers are assigned; the client is fixed; stages are the five.
-  assert.equal((await call('PUT', `/projects/${id}`, tokens.admin, { assigned_designer_id: EDITOR.id })).status, 400);
+  // Only a Designer is a designer and only an Installer an installer; the client is fixed; stages are the five.
+  assert.equal((await call('POST', `/projects/${id}/team`, tokens.admin, { staff_id: EDITOR.id, role: 'Designer' })).status, 400);
+  assert.equal((await call('POST', `/projects/${id}/team`, tokens.admin, { staff_id: INSTALLER.id, role: 'Designer' })).status, 400);
   assert.equal((await call('PUT', `/projects/${id}`, tokens.admin, { client_id: OTHER.id })).status, 400);
   assert.equal((await call('PATCH', `/projects/${id}/stage`, tokens.admin, { status: 'Bogus' })).status, 400);
   assert.equal((await call('POST', '/projects', tokens.admin, { client_id: MINE.id, name: 'Bad', type: 'Kitchen', status: 'Done' })).status, 400);
@@ -187,6 +190,8 @@ test('an Editor is refused on every /projects route', async () => {
     ['PUT', `/projects/${P.designs}`, { current_stage: 'x' }],
     ['PATCH', `/projects/${P.designs}/stage`, { status: 'Design' }],
     ['DELETE', `/projects/${P.other}`],
+    ['POST', `/projects/${P.designs}/team`, { staff_id: DESIGNER.id, role: 'Designer' }],
+    ['DELETE', `/projects/${P.designs}/team/x`],
   ];
   for (const [method, path, body] of routes) {
     assert.equal((await call(method, path, tokens.editor, body)).status, 403, `${method} ${path}`);
@@ -208,7 +213,7 @@ test('a Designer sees only projects they design or install, and changes only the
   assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.designer, { progress_pct: 55 })).status, 400);
   assert.equal((await json<{ status: string }>(await call('PATCH', `/projects/${P.installs}/stage`, tokens.designer, { status: 'Installation' }))).status, 'Installation');
 
-  for (const body of [{ client_visible: true }, { assigned_designer_id: null }, { assigned_installer_id: DESIGNER.id }, { name: 'Renamed' }]) {
+  for (const body of [{ client_visible: true }, { name: 'Renamed' }]) {
     assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.designer, body)).status, 403, JSON.stringify(body));
   }
   assert.equal((await call('POST', '/projects', tokens.designer, { client_id: MINE.id, name: 'Nope', type: 'Kitchen' })).status, 403);

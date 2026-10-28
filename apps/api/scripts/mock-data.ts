@@ -220,6 +220,22 @@ async function seed(): Promise<void> {
       created_at: ago(200 - i * 9), updated_at: ago(i % 6),
     })),
   });
+  // The team table, as `npm run team:backfill` would fill it. The installer on a job at Installation
+  // also has a sent assignment (dates and pay, nothing approved yet) to try the approve / suggest flow on.
+  const seats = PROJECTS.flatMap(([id, , , , status, designer, installer]) =>
+    [['Designer', designer], ['Installer', installer]].flatMap(([role, who]) => (who ? [{ id, status, role: role!, staff: sid(who)! }] : [])),
+  );
+  await db.projectMember.createMany({
+    data: seats.map((seat) => ({ id: `${P}mem_${seat.id}_${seat.role}`, project_id: `${P}prj_${seat.id}`, staff_id: seat.staff, role: seat.role })),
+  });
+  await db.installerAssignment.createMany({
+    data: seats
+      .filter((seat) => seat.role === 'Installer' && seat.status === 'Installation')
+      .map((seat) => ({
+        id: `${P}asg_${seat.id}`, member_id: `${P}mem_${seat.id}_Installer`,
+        start_date: ago(-3), end_date: ago(-7), sent_at: ago(1), pay: 1250, pay_note: 'Includes materials handling',
+      })),
+  });
 
   /* invoices: every status, sections, quantity-only rows, discount, schedule */
   const kitchenLines = [

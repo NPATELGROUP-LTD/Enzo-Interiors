@@ -23,14 +23,13 @@ export class CreateProjectDto {
 /**
  * PUT /projects/:id. A Designer may send only current_stage (ProjectsService);
  * progress always follows the stage; the rest is the Admin's. The client is fixed at creation:
- * moving a project would strand its documents and invoices.
+ * moving a project would strand its documents and invoices. Who works on it is
+ * POST /projects/:id/team (team.controller.ts), not a field here.
  */
 export class UpdateProjectDto {
   @IsOptional() @IsString() @MinLength(2) @MaxLength(160) name?: string;
   @IsOptional() @IsIn(SERVICE_TYPES) type?: ServiceType;
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
-  @IsOptional() @IsString() @MaxLength(64) assigned_designer_id?: string | null;
-  @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
   /** The admin's "send to client" toggle. */
   @IsOptional() @IsBoolean() client_visible?: boolean;
 }
