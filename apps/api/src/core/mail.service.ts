@@ -124,6 +124,13 @@ function heading(eyebrow: string, title: string): string {
 }
 
 const para = (text: string) => `<p style="margin:0 0 16px">${escapeHtml(text)}</p>`;
+/** Blank lines make paragraphs, single ones <br>: Outlook for Windows ignores white-space:pre-wrap. */
+const replyParagraphs = (text: string) =>
+  text
+    .trim()
+    .split(/\r?\n[ \t]*\r?\n/)
+    .map((block) => para(block).replace(/\r?\n/g, '<br>'))
+    .join('\n');
 const plain = (rows: Array<[string, string]>) => rows.map(([k, v]) => `${k}: ${v}`).join('\n');
 
 /** A consultation as the emails describe it. `when` is already in studio time. */
@@ -291,7 +298,7 @@ ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       html: layout(
         subject,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name.split(' ')[0] ?? name)},</p>
-<div style="margin:0 0 16px;white-space:pre-wrap">${escapeHtml(body)}</div>
+${replyParagraphs(body)}
 <p style="margin:0;color:#6B6B6B;font-size:14px">Just reply to this email to carry on the conversation.</p>`,
       ),
       text: `Hi ${name.split(' ')[0]},\n\n${body}\n\nJust reply to this email to carry on the conversation.`,

@@ -16,7 +16,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEmail,
   IsIn,
@@ -76,6 +76,7 @@ export class CreateEnquiryDto {
   @IsIn(ENQUIRY_KINDS)
   kind!: EnquiryKind;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1)
   @MaxLength(120)

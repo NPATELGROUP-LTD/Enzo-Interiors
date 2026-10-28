@@ -19,6 +19,7 @@ import {
   Res,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsEmail,
@@ -75,6 +76,7 @@ export class CreateBookingDto {
   @Matches(TIME, { message: 'Choose a time.' })
   time!: string;
 
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MinLength(1, { message: 'Enter your name.' })
   @MaxLength(120)

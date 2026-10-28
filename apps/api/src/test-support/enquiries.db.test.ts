@@ -20,6 +20,7 @@ const CLIENT = { id: `cli_enq_${run}`, email: `enq-client-${run}@test.enzo.local
 const ROW = { id: `enq_${run}`, name: `Enquirer ${run}`, email: `enq-${run}@test.enzo.local` };
 const REPLY_ROW = { id: `enq2_${run}`, name: `Replied ${run}`, email: `enq2-${run}@test.enzo.local` };
 const VISITOR = { name: `Visitor ${run}`, email: `visitor-${run}@test.enzo.local` };
+const PADDED_EMAIL = `padded-${run}@test.enzo.local`;
 /** Every email the API tried to send, and whether the pretend mail server takes the next one. */
 const sent: Mail[] = [];
 let accepted = true;
@@ -68,7 +69,7 @@ before(async () => {
 });
 
 after(async () => {
-  await prisma.contactSubmission.deleteMany({ where: { OR: [{ id: { in: [ROW.id, REPLY_ROW.id] } }, { email: VISITOR.email }] } });
+  await prisma.contactSubmission.deleteMany({ where: { OR: [{ id: { in: [ROW.id, REPLY_ROW.id] } }, { email: { in: [VISITOR.email, PADDED_EMAIL] } }] } });
   await prisma.notification.deleteMany({ where: { title: { contains: run } } });
   await prisma.client.deleteMany({ where: { id: CLIENT.id } });
   await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id] } } });
@@ -135,6 +136,16 @@ test('the contact form stores the enquiry, thanks the visitor, emails the studio
 
   const bell = await prisma.notification.findMany({ where: { kind: 'enquiry', title: `New enquiry from ${VISITOR.name}` } });
   assert.ok(bell.length >= 1, 'an Admin is told in the bell');
+});
+
+test('a name of only spaces is refused, and a padded name is kept trimmed', async () => {
+  const blank = await call('POST', '/enquiries', undefined, { kind: 'contact', name: '   ', email: PADDED_EMAIL });
+  assert.equal(blank.status, 400);
+  assert.equal(await prisma.contactSubmission.count({ where: { email: PADDED_EMAIL } }), 0);
+
+  const padded = await call('POST', '/enquiries', undefined, { kind: 'contact', name: `  Padded ${run}  `, email: PADDED_EMAIL });
+  assert.equal(padded.status, 201);
+  assert.equal((await prisma.contactSubmission.findFirstOrThrow({ where: { email: PADDED_EMAIL } })).name, `Padded ${run}`);
 });
 
 test('a bot that fills the honeypot is told nothing and nothing happens', async () => {

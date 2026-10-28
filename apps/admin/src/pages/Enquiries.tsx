@@ -1,12 +1,13 @@
 import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useCmsShell } from '@/components/layout/AdminLayout';
 import { Button, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
+import { appendIfOpen } from '@/lib/enquiryThread';
 import { dateTime, relative } from '@/lib/format';
 import { submissionTone } from '@/lib/status';
 import { SUBMISSION_STATUSES, type ContactSubmission, type EnquiryMessage, type SubmissionStatus } from '@/types/api';
@@ -42,6 +43,9 @@ export function EnquiriesPage() {
   const [params, setParams] = useSearchParams();
   const filter = FILTERS.find(({ id }) => id === params.get('view'))?.id ?? 'all';
   const openId = params.get('id');
+  // What is open now, for a reply that finishes after the user has moved on.
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
 
   const [items, setItems] = useState<ContactSubmission[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -121,8 +125,8 @@ export function EnquiriesPage() {
     setSending(true);
     try {
       const sent = await api.post<{ message: EnquiryMessage; enquiry: ContactSubmission }>(`/enquiries/${row.id}/reply`, { body: draft });
-      setThread((current) => [...current, sent.message]);
-      setDraft('');
+      setThread((current) => appendIfOpen(current, sent.message, openIdRef.current));
+      if (openIdRef.current === row.id) setDraft('');
       // The first reply moves a New enquiry to Contacted, which may take it out of the open tab.
       setItems((current) =>
         current.flatMap((item) =>
