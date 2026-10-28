@@ -346,10 +346,29 @@ model ContactSubmission {
   kind             String   @default("contact")
   // The form's extra fields (tier, room, preferred date...), flat strings.
   details          Json?
+  // Where it came from, shown as a tag: "Contact" | "Booking" | "Quote". Null on rows from before it existed.
+  source           String?
   created_at       DateTime @default(now()) @db.Timestamptz(6)
+  messages         EnquiryMessage[]
 
   @@index([status])
   @@map("contact_submissions")
+}
+
+// What an Admin sent an enquirer from the inbox (modules/enquiries), oldest first.
+// direction is "out" for now; "in" is for replies read from the mailbox later.
+model EnquiryMessage {
+  id         String            @id
+  enquiry_id String
+  direction  String
+  body       String
+  to_address String
+  sent_by    String?
+  sent_at    DateTime          @default(now()) @db.Timestamptz(6)
+  enquiry    ContactSubmission @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+
+  @@index([enquiry_id, sent_at])
+  @@map("enquiry_messages")
 }
 
 model BusinessSettings {

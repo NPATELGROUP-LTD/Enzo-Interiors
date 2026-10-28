@@ -265,6 +265,39 @@ ${button(forgotUrl, 'Reset my password')}`,
     };
   },
 
+  /**
+   * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
+   * so the form cannot be used to mail someone else a message of the sender's choosing.
+   */
+  enquiryReceived(name: string, contact: string): Rendered {
+    const subject = 'We have your enquiry';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Enquiry received', `Thank you, ${name.split(' ')[0]}`)}
+${para('We read every enquiry ourselves. You will hear from us the same working day.')}
+${para(`If it is urgent, reply to this email or ${contact}.`)}`,
+      ),
+      text: `Thank you, ${name.split(' ')[0]}.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+    };
+  },
+
+  /** To an enquirer, from the inbox: the Admin's own words, as plain text. */
+  enquiryReply(name: string, body: string): Rendered {
+    const subject = 'Re: your enquiry to Enzo Interiors';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name.split(' ')[0] ?? name)},</p>
+<div style="margin:0 0 16px;white-space:pre-wrap">${escapeHtml(body)}</div>
+<p style="margin:0;color:#6B6B6B;font-size:14px">Just reply to this email to carry on the conversation.</p>`,
+      ),
+      text: `Hi ${name.split(' ')[0]},\n\n${body}\n\nJust reply to this email to carry on the conversation.`,
+    };
+  },
+
   /** To the customer. */
   bookingConfirmed(b: BookingMail, contact: string): Rendered {
     const subject = `Your consultation is booked: ${b.when}`;

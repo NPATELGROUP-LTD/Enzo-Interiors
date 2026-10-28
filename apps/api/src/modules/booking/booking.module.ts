@@ -9,6 +9,7 @@ import {
   Get,
   HttpCode,
   Injectable,
+  Logger,
   Module,
   NotFoundException,
   Param,
@@ -39,6 +40,7 @@ import { BookingMail, MailService, templates } from '../../core/mail.service';
 import { CacheService } from '../../core/cache';
 import { DatabaseService } from '../../data/database.service';
 import { CalendarModule, CalendarService } from '../calendar/calendar.module';
+import { EnquiriesModule, EnquiriesService } from '../enquiries/enquiries.module';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
 import {
@@ -53,6 +55,7 @@ import {
   studioInstant,
   studioParts,
   toMinutes,
+  withDefaults,
 } from './slots';
 
 /* -------------------------------------------------------------------------- */
@@ -212,6 +215,7 @@ export interface PublicBookingRules {
 
 @Injectable()
 export class BookingService {
+  private readonly logger = new Logger(BookingService.name);
   private readonly adminUrl = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
 
   constructor(
@@ -222,6 +226,7 @@ export class BookingService {
     private readonly notifications: NotificationsService,
     private readonly cache: CacheService,
     private readonly calendar: CalendarService,
+    private readonly enquiries: EnquiriesService,
   ) {}
 
   /* ---- Settings ---- */
@@ -231,8 +236,7 @@ export class BookingService {
     return this.cache.wrap('booking:config', 30_000, async () => {
       const row = await this.db.bookingSettings.findById(ID);
       if (!row) return DEFAULT_CONFIG;
-      // Stored configs from an older release get any rule added since.
-      return { ...DEFAULT_CONFIG, ...(row.config as Partial<BookingConfig>) };
+      return withDefaults(row.config as Partial<BookingConfig>);
     });
   }
 
@@ -396,6 +400,27 @@ export class BookingService {
         details: { reference: created.reference, starts_at: created.starts_at },
       });
     }
+    // A visitor's booking is also an enquiry in the inbox (tagged Booking), so the Admin can follow
+    // up and "Add as client". No account is made and no sign-in email goes out: only announce() mails.
+    if (!principal) {
+      await this.enquiries
+        .store({
+          kind: 'booking',
+          name: created.name,
+          email: created.email,
+          phone: created.phone,
+          service_interest: created.service_label,
+          message: created.notes ?? '',
+          details: {
+            Reference: created.reference,
+            When: describeWhen(created.starts_at),
+            ...(created.address ? { Address: created.address } : {}),
+            ...(created.postcode ? { Postcode: created.postcode } : {}),
+            ...(created.details ?? {}),
+          },
+        })
+        .catch((error: unknown) => this.logger.error(`Booking ${created.reference}: no enquiry made: ${error instanceof Error ? error.message : String(error)}`));
+    }
     await this.announce(created, principal);
     return created;
   }
@@ -457,7 +482,7 @@ export class BookingService {
     });
 
     if (dto.notify !== false) {
-      const contact = await this.contactLine();
+      const contact = await this.siteSettings.contactLine();
       if (status === 'Cancelled' && current.status !== 'Cancelled') {
         await this.mail.send({ to: updated.email, replyTo: await this.replyTo(), ...templates.bookingCancelled(this.toMail(updated), contact) });
       } else if (reopened) {
@@ -490,20 +515,13 @@ export class BookingService {
     return (await this.siteSettings.notificationRecipients())[0];
   }
 
-  /** "call us on 07777 333052", from the published company details. */
-  private async contactLine(): Promise<string> {
-    const company = await this.db.cmsEntries.findFirstWhere({ collection: 'company' });
-    const phone = (company?.published?.phone as { display?: string } | undefined)?.display;
-    return phone ? `call us on ${phone}` : 'call the studio';
-  }
-
   /** The customer's confirmation, the studio's email, and the admins' bell. */
   private async announce(row: Appointment, by: AuthPrincipal | null): Promise<void> {
     const link = `${this.adminUrl}/bookings?open=${row.id}`;
     const studio = await this.siteSettings.notificationRecipients();
     const mail = this.toMail(row);
     await Promise.all([
-      this.mail.send({ to: row.email, replyTo: studio[0], ...templates.bookingConfirmed(mail, await this.contactLine()) }),
+      this.mail.send({ to: row.email, replyTo: studio[0], ...templates.bookingConfirmed(mail, await this.siteSettings.contactLine()) }),
       studio.length ? this.mail.send({ to: studio, replyTo: row.email, ...templates.bookingReceived(mail, link) }) : null,
       this.notifications.notifyAdmins(
         {
@@ -592,7 +610,7 @@ export class AppointmentsController {
 }
 
 @Module({
-  imports: [SiteSettingsModule, NotificationsModule, CalendarModule],
+  imports: [SiteSettingsModule, NotificationsModule, CalendarModule, EnquiriesModule],
   controllers: [PublicBookingController, AppointmentsController],
   providers: [BookingService],
 })

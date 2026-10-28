@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -12,6 +13,7 @@ import {
   Post,
   Query,
   Res,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
@@ -37,6 +39,8 @@ import {
   ContactSubmission,
   ENQUIRY_KINDS,
   EnquiryKind,
+  EnquiryMessage,
+  EnquirySource,
   SUBMISSION_STATUSES,
   SubmissionStatus,
 } from '../../common/types/domain';
@@ -126,6 +130,28 @@ export class UpdateEnquiryDto {
   status!: SubmissionStatus;
 }
 
+export class ReplyEnquiryDto {
+  @IsString()
+  @MaxLength(5000)
+  body!: string;
+}
+
+/** An enquiry with the replies sent from it, oldest first. */
+export type EnquiryDetail = ContactSubmission & { messages: EnquiryMessage[] };
+
+const SOURCE_OF: Record<EnquiryKind, EnquirySource> = { contact: 'Contact', quote: 'Quote', booking: 'Booking' };
+
+/** A reply goes out as plain text: line breaks kept, control characters dropped, no run of blank lines. */
+export function plainText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('')
+    .filter((char) => char === '\n' || char === '\t' || (char >= ' ' && char !== '\u007f'))
+    .join('')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 @Injectable()
 export class EnquiriesService {
   private readonly logger = new Logger(EnquiriesService.name);
@@ -172,9 +198,69 @@ export class EnquiriesService {
     return updated;
   }
 
+  /** The enquiry and the replies sent from it. */
+  async detail(id: string): Promise<EnquiryDetail> {
+    const [row, messages] = await Promise.all([
+      this.findOne(id),
+      this.db.enquiryMessages.findWhere({ enquiry_id: id }, { orderBy: { sent_at: 'asc' } }),
+    ]);
+    return { ...row, messages };
+  }
+
+  /**
+   * Sends `body` to the enquirer and keeps it on the enquiry. The first reply moves a New
+   * enquiry to Contacted (one conditional UPDATE, so a status an Admin just set is not undone).
+   * Nothing is stored unless the mail was accepted: an Admin must know when it did not go.
+   */
+  async reply(principal: AuthPrincipal, id: string, dto: ReplyEnquiryDto): Promise<{ message: EnquiryMessage; enquiry: ContactSubmission }> {
+    const enquiry = await this.findOne(id);
+    const body = plainText(dto.body);
+    if (!body) throw new BadRequestException('Write a message first.');
+    if (!(await this.deliverReply(principal, enquiry, body))) {
+      throw new ServiceUnavailableException('The mail server did not accept the message, so nothing was sent. Check the API logs.');
+    }
+    const message = await this.db.enquiryMessages.create({
+      enquiry_id: id,
+      direction: 'out',
+      body,
+      to_address: enquiry.email,
+      sent_by: principal.name,
+      sent_at: new Date().toISOString(),
+    });
+    await this.db.contactSubmissions.updateWhere({ id, status: 'New' }, { status: 'Contacted' });
+    await this.activity.record({
+      principal,
+      action: 'enquiry_reply',
+      targetTable: 'contact_submissions',
+      targetId: id,
+      details: { name: enquiry.name },
+    });
+    return { message, enquiry: await this.findOne(id) };
+  }
+
+  /**
+   * The ONE place a reply leaves the building: the studio mailbox, Reply-To the notification
+   * address so the answer lands where the team reads. Phase 8 swaps this body for the sending
+   * staff member's own linked Gmail; `by` is there for that. True = the mail was accepted.
+   */
+  private async deliverReply(_by: AuthPrincipal, enquiry: ContactSubmission, body: string): Promise<boolean> {
+    const [replyTo] = await this.settings.notificationRecipients();
+    return this.mail.send({ to: enquiry.email, replyTo, ...templates.enquiryReply(enquiry.name, body) });
+  }
+
+  /** One row in the inbox, tagged with where it came from. A booking calls this too and tells people itself. */
+  store(input: Pick<ContactSubmission, 'kind' | 'name' | 'email' | 'phone' | 'service_interest' | 'message' | 'details'>): Promise<ContactSubmission> {
+    return this.db.contactSubmissions.create({
+      ...input,
+      source: SOURCE_OF[input.kind],
+      status: 'New',
+      created_at: new Date().toISOString(),
+    });
+  }
+
   async create(dto: CreateEnquiryDto): Promise<void> {
     const details = dto.details && Object.keys(dto.details).length ? dto.details : null;
-    const row = await this.db.contactSubmissions.create({
+    const row = await this.store({
       kind: dto.kind,
       name: dto.name.trim(),
       email: dto.email.trim(),
@@ -182,33 +268,49 @@ export class EnquiriesService {
       service_interest: details?.service ?? null,
       message: dto.message?.trim() ?? '',
       details,
-      status: 'New',
-      created_at: new Date().toISOString(),
     });
+    // Stored first, told second: nothing below may lose the lead.
+    await this.announce(row);
+  }
 
-    // The bell and every Admin's devices, whether or not any email address is set up.
-    void this.notifications
-      .notifyAdmins({ kind: 'enquiry', title: `New enquiry from ${row.name}`, body: row.service_interest ?? (row.message.slice(0, 120) || null), link: '/enquiries' })
-      .catch((error: unknown) => this.logger.error(`Enquiry bell failed: ${error instanceof Error ? error.message : String(error)}`));
-
-    const to = await this.settings.notificationRecipients();
-    if (!to.length) {
-      this.logger.warn(`Enquiry ${row.id} saved, but there is nobody to notify.`);
-      return;
-    }
-    // Stored first, emailed second: a mail outage must not lose the lead.
-    await this.mail.send({
-      to,
-      replyTo: row.email,
-      ...templates.enquiry({
-        kind: row.kind,
-        name: row.name,
-        email: row.email,
-        phone: row.phone,
-        message: row.message,
-        details: row.details,
+  /**
+   * The bell and every Admin's devices, the studio's email, and the visitor's confirmation.
+   * Each on its own, so one failing never costs the others; the visitor is thanked even when
+   * the studio list is empty, and the studio is told even when the visitor's mail bounces.
+   */
+  private async announce(row: ContactSubmission): Promise<void> {
+    const studio = await this.settings.notificationRecipients();
+    if (!studio.length) this.logger.warn(`Enquiry ${row.id} saved, but there is nobody to email.`);
+    const results = await Promise.allSettled([
+      this.notifications.notifyAdmins({
+        kind: 'enquiry',
+        title: `New enquiry from ${row.name}`,
+        body: row.service_interest ?? (row.message.slice(0, 120) || null),
+        link: '/enquiries',
       }),
-    });
+      studio.length
+        ? this.mail.send({
+            to: studio,
+            replyTo: row.email,
+            ...templates.enquiry({
+              kind: row.kind,
+              name: row.name,
+              email: row.email,
+              phone: row.phone,
+              message: row.message,
+              details: row.details,
+            }),
+          })
+        : null,
+      this.settings
+        .contactLine()
+        .then((contact) => this.mail.send({ to: row.email, replyTo: studio[0], ...templates.enquiryReceived(row.name, contact) })),
+    ]);
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.logger.error(`Enquiry ${row.id}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+      }
+    }
   }
 }
 
@@ -238,7 +340,7 @@ export class EnquiriesController {
   @Get(':id')
   @Roles('Admin')
   findOne(@Param('id') id: string) {
-    return this.enquiries.findOne(id);
+    return this.enquiries.detail(id);
   }
 
   @Patch(':id')
@@ -246,11 +348,21 @@ export class EnquiriesController {
   update(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: UpdateEnquiryDto) {
     return this.enquiries.setStatus(principal, id, dto);
   }
+
+  /** Emails the enquirer from the studio mailbox and keeps the message on the enquiry. */
+  @Post(':id/reply')
+  @HttpCode(201)
+  @Roles('Admin')
+  @Throttle({ default: { limit: 20, ttl: 15 * 60_000 } })
+  reply(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: ReplyEnquiryDto) {
+    return this.enquiries.reply(principal, id, dto);
+  }
 }
 
 @Module({
   imports: [SiteSettingsModule, NotificationsModule],
   controllers: [EnquiriesController],
   providers: [EnquiriesService],
+  exports: [EnquiriesService],
 })
 export class EnquiriesModule {}

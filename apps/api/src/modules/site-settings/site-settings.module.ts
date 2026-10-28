@@ -227,12 +227,20 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     return { bank_details };
   }
 
-  /** Where enquiries go: the configured list, else the bootstrap admin. */
+  /** Where enquiries go: the configured list, else the bootstrap admin, else every Admin (never nobody). */
   async notificationRecipients(): Promise<string[]> {
     const row = await this.get();
     if (row.notification_emails.length) return row.notification_emails;
     const fallback = process.env.ADMIN_EMAIL?.trim();
-    return fallback ? [fallback] : [];
+    if (fallback) return [fallback];
+    return (await this.db.staffUsers.findWhere({ role: 'Admin' })).map((admin) => admin.email);
+  }
+
+  /** "call us on 07777 333052", from the published company details. */
+  async contactLine(): Promise<string> {
+    const company = await this.db.cmsEntries.findFirstWhere({ collection: 'company' });
+    const phone = (company?.published?.phone as { display?: string } | undefined)?.display;
+    return phone ? `call us on ${phone}` : 'call the studio';
   }
 
   async update(principal: AuthPrincipal, dto: UpdateSiteSettingsDto): Promise<SiteSettingsView> {

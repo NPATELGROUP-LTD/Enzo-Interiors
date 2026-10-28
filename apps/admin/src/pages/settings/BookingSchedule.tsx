@@ -447,7 +447,7 @@ export function BookingSchedule() {
         <h3 id="booking-form" className="text-[15px] font-semibold text-ink">
           What the form asks
         </h3>
-        <p className={HELP}>Name and email are always required. The wording of every step is in CMS › Book a consultation.</p>
+        <p className={HELP}>Name, email, service and the date and time are always required. Hidden fields are not shown to visitors and are ignored if sent. The wording of every step is in CMS › Book a consultation.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {(Object.keys(FIELD_NAMES) as Array<keyof typeof FIELD_NAMES>).map((key) => (
             <Select
@@ -460,7 +460,7 @@ export function BookingSchedule() {
             >
               <option value="required">Required</option>
               <option value="optional">Optional</option>
-              <option value="off">Not asked</option>
+              <option value="off">Hidden</option>
             </Select>
           ))}
         </div>
