@@ -1,15 +1,16 @@
-import { CaretLeft, CaretRight, EnvelopeSimple, UserPlus } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useCmsShell } from '@/components/layout/AdminLayout';
-import { Button, EmptyState, ErrorState, LoadingState, StatusTag, Tabs } from '@/components/ui';
+import { Button, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
+import { appendIfOpen } from '@/lib/enquiryThread';
 import { dateTime, relative } from '@/lib/format';
 import { submissionTone } from '@/lib/status';
-import { SUBMISSION_STATUSES, type ContactSubmission, type SubmissionStatus } from '@/types/api';
+import { SUBMISSION_STATUSES, type ContactSubmission, type EnquiryMessage, type SubmissionStatus } from '@/types/api';
 
 interface Page {
   items: ContactSubmission[];
@@ -22,6 +23,12 @@ const KIND: Record<ContactSubmission['kind'], string> = {
   quote: 'Quote request',
   booking: 'Booking request',
 };
+/** Where an enquiry came from; rows from before the tag existed are read from their kind. */
+const SOURCE = { contact: 'Contact', quote: 'Quote', booking: 'Booking' } as const;
+function SourceTag({ row }: { row: ContactSubmission }) {
+  const source = row.source ?? SOURCE[row.kind];
+  return <StatusTag tone={source === 'Booking' ? 'info' : 'neutral'}>{source}</StatusTag>;
+}
 const FILTERS = [{ id: 'all', label: 'All' }, ...SUBMISSION_STATUSES.map((id) => ({ id, label: id }))];
 const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
 
@@ -36,12 +43,18 @@ export function EnquiriesPage() {
   const [params, setParams] = useSearchParams();
   const filter = FILTERS.find(({ id }) => id === params.get('view'))?.id ?? 'all';
   const openId = params.get('id');
+  // What is open now, for a reply that finishes after the user has moved on.
+  const openIdRef = useRef(openId);
+  openIdRef.current = openId;
 
   const [items, setItems] = useState<ContactSubmission[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [thread, setThread] = useState<EnquiryMessage[]>([]);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(
     async (before?: string) => {
@@ -65,6 +78,22 @@ export function EnquiriesPage() {
   useEffect(() => void load(), [load]);
 
   const open = items.find((row) => row.id === openId) ?? null;
+
+  // The replies already sent from the open enquiry.
+  useEffect(() => {
+    setThread([]);
+    setDraft('');
+    if (!openId) return;
+    let current = true;
+    api
+      .get<{ messages: EnquiryMessage[] }>(`/enquiries/${openId}`)
+      .then((detail) => current && setThread(detail.messages))
+      .catch(() => current && toast.error('Could not load the replies sent so far.'));
+    return () => {
+      current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openId]);
   const select = (id: string | null) =>
     setParams((current) => {
       const next = new URLSearchParams(current);
@@ -89,6 +118,28 @@ export function EnquiriesPage() {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not change the status.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendReply = async (row: ContactSubmission) => {
+    setSending(true);
+    try {
+      const sent = await api.post<{ message: EnquiryMessage; enquiry: ContactSubmission }>(`/enquiries/${row.id}/reply`, { body: draft });
+      setThread((current) => appendIfOpen(current, sent.message, openIdRef.current));
+      if (openIdRef.current === row.id) setDraft('');
+      // The first reply moves a New enquiry to Contacted, which may take it out of the open tab.
+      setItems((current) =>
+        current.flatMap((item) =>
+          item.id !== row.id ? [item] : filter === 'all' || filter === sent.enquiry.status ? [sent.enquiry] : [],
+        ),
+      );
+      refreshEnquiries();
+      toast.success(`Reply sent to ${row.name}.`);
+    } catch (caught) {
+      // The draft stays, so a mail outage costs nothing but a retry.
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not send the reply.');
+    } finally {
+      setSending(false);
     }
   };
 
@@ -145,7 +196,9 @@ export function EnquiriesPage() {
                         <span className={clsx('min-w-0 truncate text-ink', row.status === 'New' ? 'font-bold' : 'font-semibold')}>
                           {row.name}
                         </span>
-                        <span className="shrink-0 text-xs text-ink-muted">{KIND[row.kind]}</span>
+                        <span className="shrink-0">
+                          <SourceTag row={row} />
+                        </span>
                       </span>
                       {/* Two lines, wrapped; the full text opens with the row. */}
                       <span className="mt-0.5 line-clamp-2 text-[13px] text-ink-muted [overflow-wrap:anywhere]">
@@ -190,7 +243,10 @@ export function EnquiriesPage() {
                   All enquiries
                 </button>
                 <div>
-                  <h2 className="text-lg font-semibold text-ink">{open.name}</h2>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="text-lg font-semibold text-ink">{open.name}</h2>
+                    <SourceTag row={open} />
+                  </div>
                   <p className="mt-0.5 text-[13px] text-ink-muted">
                     {KIND[open.kind]} · {dateTime(open.created_at)}
                   </p>
@@ -240,13 +296,43 @@ export function EnquiriesPage() {
                       Add as client
                     </Button>
                   </Link>
-                  <a href={`mailto:${open.email}`}>
-                    <Button variant="secondary">Reply by email</Button>
-                  </a>
                 </div>
+                <section aria-label="Replies" className="flex flex-col gap-3 border-t border-border pt-5">
+                  {thread.length ? (
+                    <ul className="flex flex-col gap-3">
+                      {thread.map((message) => (
+                        <li key={message.id} className="rounded-[10px] bg-ink/[0.04] p-3">
+                          <p className="text-xs text-ink-muted">
+                            {message.sent_by ?? 'The studio'} · {dateTime(message.sent_at)}
+                          </p>
+                          <p className="mt-1 whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">{message.body}</p>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  <Textarea
+                    label={`Reply to ${open.name}`}
+                    hint={`Emailed to ${open.email} from the studio. Their answer comes to the studio inbox.`}
+                    rows={5}
+                    maxLength={5000}
+                    value={draft}
+                    onChange={(event) => setDraft(event.target.value)}
+                  />
+                  <div>
+                    <Button
+                      variant="primary"
+                      icon={<PaperPlaneTilt size={16} aria-hidden="true" />}
+                      loading={sending}
+                      disabled={!draft.trim()}
+                      onClick={() => void sendReply(open)}
+                    >
+                      Send reply
+                    </Button>
+                  </div>
+                </section>
               </div>
             ) : (
-              <p className="text-[13px] text-ink-muted">Choose an enquiry to read it and change its status.</p>
+              <p className="text-[13px] text-ink-muted">Choose an enquiry to read it, reply to it and change its status.</p>
             )}
           </aside>
         </div>

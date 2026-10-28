@@ -2,7 +2,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DEFAULT_CONFIG, availability, daySlots, studioInstant, studioParts } from './slots';
+import { DEFAULT_CONFIG, availability, daySlots, studioInstant, studioParts, withDefaults } from './slots';
+
+test('a config saved before a field rule existed gets that rule by default, and keeps the ones it chose', () => {
+  const { fields } = withDefaults({ fields: { phone: 'off' } } as never);
+  assert.deepEqual(fields, { phone: 'off', address: 'optional', postcode: 'required', notes: 'optional' });
+  assert.deepEqual(withDefaults({}).fields, DEFAULT_CONFIG.fields);
+});
 
 test('a day runs from first to last, one every slot + gap, and jumps breaks', () => {
   const day = { open: true, first: '10:00', last: '15:30', breaks: [{ start: '12:30', end: '14:30' }] };

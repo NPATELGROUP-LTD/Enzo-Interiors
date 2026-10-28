@@ -124,6 +124,13 @@ function heading(eyebrow: string, title: string): string {
 }
 
 const para = (text: string) => `<p style="margin:0 0 16px">${escapeHtml(text)}</p>`;
+/** Blank lines make paragraphs, single ones <br>: Outlook for Windows ignores white-space:pre-wrap. */
+const replyParagraphs = (text: string) =>
+  text
+    .trim()
+    .split(/\r?\n[ \t]*\r?\n/)
+    .map((block) => para(block).replace(/\r?\n/g, '<br>'))
+    .join('\n');
 const plain = (rows: Array<[string, string]>) => rows.map(([k, v]) => `${k}: ${v}`).join('\n');
 
 /** A consultation as the emails describe it. `when` is already in studio time. */
@@ -262,6 +269,39 @@ ${button(forgotUrl, 'Reset my password')}`,
 <p style="margin:20px 0 0;color:#6B6B6B;font-size:14px">Reply to this email to answer ${escapeHtml(input.name)} directly.</p>`,
       ),
       text: `${label}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${input.message}\n\nReply to this email to answer directly.`,
+    };
+  },
+
+  /**
+   * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
+   * so the form cannot be used to mail someone else a message of the sender's choosing.
+   */
+  enquiryReceived(name: string, contact: string): Rendered {
+    const subject = 'We have your enquiry';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Enquiry received', `Thank you, ${name.split(' ')[0]}`)}
+${para('We read every enquiry ourselves. You will hear from us the same working day.')}
+${para(`If it is urgent, reply to this email or ${contact}.`)}`,
+      ),
+      text: `Thank you, ${name.split(' ')[0]}.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+    };
+  },
+
+  /** To an enquirer, from the inbox: the Admin's own words, as plain text. */
+  enquiryReply(name: string, body: string): Rendered {
+    const subject = 'Re: your enquiry to Enzo Interiors';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name.split(' ')[0] ?? name)},</p>
+${replyParagraphs(body)}
+<p style="margin:0;color:#6B6B6B;font-size:14px">Just reply to this email to carry on the conversation.</p>`,
+      ),
+      text: `Hi ${name.split(' ')[0]},\n\n${body}\n\nJust reply to this email to carry on the conversation.`,
     };
   },
 

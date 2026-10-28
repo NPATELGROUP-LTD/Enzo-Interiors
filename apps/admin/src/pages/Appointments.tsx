@@ -521,7 +521,7 @@ function NewBookingDialog({
   const bookable = (services.data ?? []).filter(
     (row) => !row.isNew && (!rules?.services.length || rules.services.includes(row.slug)),
   );
-  const fields = rules?.fields ?? { phone: 'required', address: 'off', postcode: 'optional', notes: 'optional' };
+  const fields = rules?.fields ?? { phone: 'required', address: 'optional', postcode: 'required', notes: 'optional' };
   const keys = (Object.keys(FIELD_LABELS) as Array<keyof typeof FIELD_LABELS>).filter((key) => fields[key] !== 'off');
   const ready =
     !!service &&

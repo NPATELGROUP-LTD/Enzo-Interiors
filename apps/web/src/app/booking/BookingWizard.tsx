@@ -163,8 +163,8 @@ export function BookingWizard({
 
   const fields: Record<ContactKey, FieldRule> = free?.fields ?? {
     phone: "required",
-    address: "off",
-    postcode: "optional",
+    address: "optional",
+    postcode: "required",
     notes: "optional",
   };
 
@@ -240,12 +240,13 @@ export function BookingWizard({
       .finally(() => setSending(false));
   };
 
+  // Required fields end in " *" (explained under the form), optional ones in " (optional)".
   const placeholder = (key: ContactKey) => {
     const text = content.steps.details.placeholders[key];
+    if (fields[key] === "required") return `${text} *`;
     const suffix = content.steps.details.optionalSuffix;
-    return fields[key] === "optional" && !text.toLowerCase().includes(suffix.trim().toLowerCase())
-      ? `${text}${suffix}`
-      : text;
+    // Copy edited in the CMS may already say "(optional)".
+    return fields[key] === "optional" && !text.toLowerCase().includes(suffix.trim().toLowerCase()) ? `${text}${suffix}` : text;
   };
 
   const prettyDate = selectedDate
@@ -521,7 +522,7 @@ export function BookingWizard({
                     autoComplete="name"
                     value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value })}
-                    placeholder={content.steps.details.placeholders.name}
+                    placeholder={`${content.steps.details.placeholders.name} *`}
                     aria-label={content.steps.details.placeholders.name}
                     className={INPUT}
                     required
@@ -531,7 +532,7 @@ export function BookingWizard({
                     autoComplete="email"
                     value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    placeholder={content.steps.details.placeholders.email}
+                    placeholder={`${content.steps.details.placeholders.email} *`}
                     aria-label={content.steps.details.placeholders.email}
                     className={INPUT}
                     required
@@ -543,7 +544,7 @@ export function BookingWizard({
                       value={form.phone}
                       onChange={(e) => setForm({ ...form, phone: e.target.value })}
                       placeholder={placeholder("phone")}
-                      aria-label={placeholder("phone")}
+                      aria-label={content.steps.details.placeholders.phone}
                       className={INPUT}
                       required={fields.phone === "required"}
                     />
@@ -555,7 +556,7 @@ export function BookingWizard({
                       value={form.address}
                       onChange={(e) => setForm({ ...form, address: e.target.value })}
                       placeholder={placeholder("address")}
-                      aria-label={placeholder("address")}
+                      aria-label={content.steps.details.placeholders.address}
                       className={INPUT}
                       required={fields.address === "required"}
                     />
@@ -567,7 +568,7 @@ export function BookingWizard({
                       value={form.postcode}
                       onChange={(e) => setForm({ ...form, postcode: e.target.value })}
                       placeholder={placeholder("postcode")}
-                      aria-label={placeholder("postcode")}
+                      aria-label={content.steps.details.placeholders.postcode}
                       className={`${INPUT} max-w-[12rem] uppercase placeholder:normal-case`}
                       maxLength={10}
                       required={fields.postcode === "required"}
@@ -578,12 +579,13 @@ export function BookingWizard({
                       value={form.notes}
                       onChange={(e) => setForm({ ...form, notes: e.target.value })}
                       placeholder={placeholder("notes")}
-                      aria-label={placeholder("notes")}
+                      aria-label={content.steps.details.placeholders.notes}
                       rows={3}
                       className={`${INPUT} resize-none`}
                       required={fields.notes === "required"}
                     />
                   )}
+                  <p className="text-[12px] text-muted-foreground">{content.steps.details.requiredNote}</p>
                   <Honeypot value={trap} onChange={setTrap} />
                 </div>
               </StepWrapper>

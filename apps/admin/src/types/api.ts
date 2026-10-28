@@ -408,7 +408,20 @@ export interface ContactSubmission {
   status: SubmissionStatus;
   kind: 'contact' | 'quote' | 'booking';
   details: Record<string, string> | null;
+  /** The tag in the inbox; null on rows from before it existed. */
+  source: 'Contact' | 'Booking' | 'Quote' | null;
   created_at: string;
+}
+
+/** What an Admin emailed an enquirer from the inbox. */
+export interface EnquiryMessage {
+  id: string;
+  enquiry_id: string;
+  direction: 'out' | 'in';
+  body: string;
+  to_address: string;
+  sent_by: string | null;
+  sent_at: string;
 }
 
 export interface BusinessSettings {

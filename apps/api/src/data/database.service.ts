@@ -17,6 +17,7 @@ import {
   ContactSubmission,
   Conversation,
   DocumentRecord,
+  EnquiryMessage,
   Invoice,
   InvoiceItem,
   InvoiceStage,
@@ -84,6 +85,7 @@ export class DatabaseService {
   readonly testimonials: PrismaRepository<Testimonial>;
   readonly portfolioItems: PrismaRepository<PortfolioItem>;
   readonly contactSubmissions: PrismaRepository<ContactSubmission>;
+  readonly enquiryMessages: PrismaRepository<EnquiryMessage>;
   readonly businessSettings: PrismaRepository<BusinessSettings>;
   readonly activityLogs: PrismaRepository<ActivityLog>;
   readonly cmsEntries: PrismaRepository<CmsEntry>;
@@ -159,6 +161,7 @@ export class DatabaseService {
       'contact_submissions',
       { dates: ['created_at'] },
     );
+    this.enquiryMessages = new PrismaRepository(prisma.enquiryMessage, 'enquiry_messages', { dates: ['sent_at'] });
     this.businessSettings = new PrismaRepository(prisma.businessSettings, 'business_settings', {
       decimals: ['vat_rate'],
     });
