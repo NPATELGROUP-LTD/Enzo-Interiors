@@ -41,7 +41,7 @@ import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { date, money, moneyCompact } from '@/lib/format';
 import { invoiceTone } from '@/lib/status';
-import type { Client, Invoice, InvoiceIssuer, InvoiceItem, PaymentScheduleRow, Project } from '@/types/api';
+import type { BankDetails, Client, Invoice, InvoiceIssuer, InvoiceItem, InvoiceStage, PaymentScheduleRow, Project } from '@/types/api';
 
 type View = (typeof INVOICE_VIEWS)[number]['id'];
 
@@ -129,6 +129,54 @@ function previewTotals(items: Array<{ quantity: number; unit_price: number }>, v
   return { subtotal: subtotal / 100, net: net / 100, vat: vat / 100, gross: (net + vat) / 100 };
 }
 
+/** One payment stage in the editor: a percentage of the total payable, or a fixed £ amount. */
+interface StageRow {
+  key: number;
+  label: string;
+  mode: 'percent' | 'fixed';
+  value: string;
+  due_note: string;
+}
+
+const MAX_STAGES = 6;
+/** What a new invoice starts with; every stage can be changed or removed. */
+const DEFAULT_STAGES: Array<Pick<StageRow, 'label' | 'value'>> = [
+  { label: 'On start', value: '50' },
+  { label: 'On installation', value: '40' },
+  { label: 'On completion', value: '10' },
+];
+const defaultStageRows = (): StageRow[] =>
+  DEFAULT_STAGES.map((stage) => ({ key: ++rowKey, mode: 'percent', due_note: '', ...stage }));
+const stageRowsOf = (stages: InvoiceStage[]): StageRow[] =>
+  stages.map((stage) => ({ key: ++rowKey, label: stage.label, mode: stage.mode, value: String(stage.value), due_note: stage.due_note ?? '' }));
+const stagePayload = (rows: StageRow[]) =>
+  rows.map((row) => ({ label: row.label.trim(), mode: row.mode, value: Number(row.value), due_note: row.due_note.trim() || null }));
+
+/**
+ * PREVIEW of the API's stage amounts: each to the penny, the last taking the
+ * remainder. `balanced` mirrors the API's rule, so a mix that would leave money
+ * unaccounted for is flagged before saving; the API is the one that counts.
+ */
+function previewStages(payable: number, rows: Array<{ mode: 'percent' | 'fixed'; value: number }>) {
+  const total = pennies(payable);
+  const exact = rows.map((row) => (row.mode === 'percent' ? (total * row.value) / 100 : pennies(row.value)));
+  const amounts = exact.map((value) => Math.round(value));
+  if (amounts.length > 0) amounts[amounts.length - 1] = total - amounts.slice(0, -1).reduce((sum, value) => sum + value, 0);
+  const nominal = exact.reduce((sum, value) => sum + value, 0);
+  const percentStages = rows.filter((row) => row.mode === 'percent').length;
+  return {
+    amounts: amounts.map((value) => value / 100),
+    nominal: nominal / 100,
+    balanced: Math.abs(nominal - total) <= 0.5 * percentStages + 1e-6,
+  };
+}
+
+/** "1 of 3 stages paid", or null for an invoice that is paid in one go. */
+const stageProgress = (invoice: Invoice): string | null => {
+  const stages = invoice.stages ?? [];
+  return stages.length > 0 ? `${stages.filter((stage) => stage.paid_at).length} of ${stages.length} stages paid` : null;
+};
+
 const inDays = (days: number) => {
   const day = new Date();
   day.setDate(day.getDate() + days);
@@ -143,7 +191,7 @@ function downloadCsv(invoices: Invoice[]) {
     return `"${text.replace(/"/g, '""')}"`;
   };
   const day = (iso: string | null) => (iso ? iso.slice(0, 10) : '');
-  const header = ['Number', 'Client', 'Project', 'Job', 'Status', 'Issued', 'Due', 'Paid', 'Subtotal', 'Discount', 'Net', 'VAT rate %', 'VAT', 'Total'];
+  const header = ['Number', 'Client', 'Project', 'Job', 'Status', 'Issued', 'Due', 'Paid', 'Subtotal', 'Discount', 'Net', 'VAT rate %', 'VAT', 'Total', 'Paid so far', 'Balance', 'Stages'];
   const lines = invoices.map((invoice) =>
     [
       invoice.number,
@@ -160,6 +208,11 @@ function downloadCsv(invoices: Invoice[]) {
       invoice.vat_rate,
       invoice.vat_amount,
       invoice.amount,
+      invoice.paid_amount ?? (invoice.status === 'Paid' ? invoice.amount : 0),
+      invoice.balance_amount ?? (invoice.status === 'Paid' ? 0 : invoice.amount),
+      (invoice.stages ?? [])
+        .map((stage) => `${stage.label} ${stage.mode === 'percent' ? `${stage.value}% ` : ''}${stage.amount.toFixed(2)} (${stage.paid_at ? `paid ${day(stage.paid_at)}` : 'due'})`)
+        .join('; '),
     ]
       .map(cell)
       .join(','),
@@ -218,15 +271,21 @@ export function InvoicesPage() {
   const visible = rows.filter(VIEW_FILTER[view]);
   const counts = Object.fromEntries(INVOICE_VIEWS.map(({ id }) => [id, rows.filter(VIEW_FILTER[id]).length]));
   const issuer: InvoiceIssuer = rows[0]?.issuer ?? DEFAULT_ISSUER;
+  // Same for the bank details: one block for every invoice, so any saved invoice carries it.
+  const bank = rows.find((invoice) => invoice.bank_details)?.bank_details ?? null;
   const chosen = rows.filter((invoice) => selected.has(invoice.id));
   const allVisibleChosen = visible.length > 0 && visible.every((invoice) => selected.has(invoice.id));
 
   const totals = useMemo(() => {
-    const sum = (list: Invoice[]) => list.reduce((total, invoice) => total + Math.round(invoice.amount * 100), 0) / 100;
+    // Received and still owed, so an invoice part-paid in stages counts for each part.
+    const sum = (list: Invoice[], pick: (invoice: Invoice) => number) =>
+      list.reduce((total, invoice) => total + Math.round(pick(invoice) * 100), 0) / 100;
+    const received = (invoice: Invoice) => invoice.paid_amount ?? (invoice.status === 'Paid' ? invoice.amount : 0);
+    const owed = (invoice: Invoice) => invoice.balance_amount ?? invoice.amount;
     return {
-      paid: sum(rows.filter(VIEW_FILTER.paid)),
-      outstanding: sum(rows.filter((invoice) => isSent(invoice) || invoice.status === 'Overdue')),
-      overdue: sum(rows.filter(isLate).filter((invoice) => invoice.status !== 'Paid')),
+      paid: sum(rows, received),
+      outstanding: sum(rows.filter((invoice) => isSent(invoice) || invoice.status === 'Overdue'), owed),
+      overdue: sum(rows.filter(isLate).filter((invoice) => invoice.status !== 'Paid'), owed),
       drafts: rows.filter(VIEW_FILTER.draft).length,
     };
   }, [rows]);
@@ -334,6 +393,7 @@ export function InvoicesPage() {
         clients={clients.data ?? []}
         projects={projects.data ?? []}
         issuer={issuer}
+        bank={bank}
         busy={pending}
         onClose={() => update({ new: null, open: null })}
         onSaved={async (id) => {
@@ -483,9 +543,17 @@ export function InvoicesPage() {
                     {invoice.is_overdue && invoice.status !== 'Overdue' ? (
                       <span className="ml-1.5 text-xs text-danger">{invoice.days_overdue}d late</span>
                     ) : null}
+                    {invoice.status !== 'Draft' && stageProgress(invoice) ? (
+                      <span className="mt-0.5 block text-xs text-ink-muted">{stageProgress(invoice)}</span>
+                    ) : null}
                   </Td>
                   <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
-                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">{money(invoice.amount)}</Td>
+                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                    {money(invoice.amount)}
+                    {invoice.status !== 'Paid' && (invoice.paid_amount ?? 0) > 0 ? (
+                      <span className="block text-xs font-normal text-ink-muted">{money(invoice.balance_amount ?? 0)} to pay</span>
+                    ) : null}
+                  </Td>
                   {/* Phones act from the opened invoice, which has the same buttons. */}
                   <Td className="max-sm:hidden">
                     <div className="flex justify-end gap-1">
@@ -503,9 +571,10 @@ export function InvoicesPage() {
                       {invoice.status !== 'Paid' && invoice.status !== 'Draft' ? (
                         <button
                           type="button"
-                          onClick={() => setMarkingPaid(invoice)}
-                          aria-label={`Mark ${invoice.number} as paid`}
-                          title="Mark as paid"
+                          // Paid in stages: the payments are recorded stage by stage, inside the invoice.
+                          onClick={() => (invoice.stages?.length ? update({ open: invoice.id }) : setMarkingPaid(invoice))}
+                          aria-label={invoice.stages?.length ? `Record payments on ${invoice.number}` : `Mark ${invoice.number} as paid`}
+                          title={invoice.stages?.length ? 'Record payments' : 'Mark as paid'}
                           className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-success"
                         >
                           <SealCheck size={16} aria-hidden="true" />
@@ -584,6 +653,7 @@ function InvoiceEditor({
   clients,
   projects,
   issuer,
+  bank,
   busy,
   onClose,
   onSaved,
@@ -596,6 +666,7 @@ function InvoiceEditor({
   clients: Client[];
   projects: Project[];
   issuer: InvoiceIssuer;
+  bank: BankDetails | null;
   busy: boolean;
   onClose: () => void;
   onSaved: (id: string) => Promise<void>;
@@ -623,6 +694,11 @@ function InvoiceEditor({
   const [schedule, setSchedule] = useState<ScheduleRow[]>(() =>
     (invoice?.payment_schedule ?? []).map((row) => ({ key: ++rowKey, label: row.label, amount: String(row.amount), date: row.date ?? '' })),
   );
+  const saved = invoice?.stages ?? [];
+  // A new invoice starts from 50 / 40 / 10; an older one with no stages stays as it was until you add some.
+  const [stageRows, setStageRows] = useState<StageRow[]>(() => (invoice ? stageRowsOf(saved) : defaultStageRows()));
+  const [payDate, setPayDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [recording, setRecording] = useState<InvoiceStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -657,6 +733,27 @@ function InvoiceEditor({
   const payable = items.length > 0 ? preview.gross : (invoice?.amount ?? 0);
   const scheduled = scheduleRows.reduce((total, row) => total + pennies(row.amount), 0) / 100;
 
+  // Stages: editable until one is paid; payments are recorded on a sent invoice and undone until it is fully paid.
+  const anyStagePaid = saved.some((stage) => stage.paid_at);
+  const stagesEditable = !paid && !anyStagePaid;
+  const canRecord = invoice !== undefined && invoice.status !== 'Draft' && !paid;
+  // The total the stages split: this form's own figure while the lines can change, else the saved one.
+  const stageTotal = moneyEditable ? preview.gross : (invoice?.amount ?? 0);
+  const stagePreview = previewStages(stageTotal, stageRows.map((row) => ({ mode: row.mode, value: Number(row.value) || 0 })));
+  const stagesDirty = JSON.stringify(stagePayload(stageRows)) !== JSON.stringify(stagePayload(stageRowsOf(saved)));
+  const sheetStages: InvoiceStage[] = stagesEditable
+    ? stageRows.map((row, position) => ({
+        id: String(row.key),
+        position,
+        label: row.label.trim() || 'Payment',
+        mode: row.mode,
+        value: Number(row.value) || 0,
+        amount: stagePreview.amounts[position] ?? 0,
+        due_note: row.due_note.trim() || null,
+        paid_at: null,
+      }))
+    : saved;
+
   // What the sheet shows: the saved invoice with this form's edits laid over it.
   const sheet: Invoice = {
     id: invoice?.id ?? 'new',
@@ -678,6 +775,10 @@ function InvoiceEditor({
     job_notes: jobNotes.trim() || null,
     payment_schedule: scheduleRows,
     issuer: invoice?.issuer ?? issuer,
+    stages: sheetStages,
+    paid_amount: invoice?.paid_amount ?? 0,
+    balance_amount: invoice?.balance_amount ?? 0,
+    bank_details: invoice?.bank_details ?? bank,
     ...(moneyEditable
       ? {
           items: items.map((item, position) => ({ ...item, id: String(position), position })),
@@ -710,6 +811,38 @@ function InvoiceEditor({
       const at = nextHeading === -1 ? current.length : nextHeading;
       return [...current.slice(0, at), blankLine(), ...current.slice(at)];
     });
+  const setStage = (key: number, change: Partial<StageRow>) =>
+    setStageRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
+
+  /** Record or undo one stage's payment: its own audited call, then the list reloads. */
+  const payStage = async (stage: InvoiceStage) => {
+    if (!invoice) return;
+    setSaving(true);
+    try {
+      await api.put(`/invoices/${invoice.id}/stages/${stage.id}/paid`, { paid_at: payDate });
+      toast.success(`${stage.label} marked as paid.`);
+      setRecording(null);
+      await onSaved(invoice.id);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not record this payment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  const undoStage = async (stage: InvoiceStage) => {
+    if (!invoice) return;
+    setSaving(true);
+    try {
+      await api.delete(`/invoices/${invoice.id}/stages/${stage.id}/paid`);
+      toast.success(`${stage.label} is unpaid again.`);
+      await onSaved(invoice.id);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not undo this payment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const setScheduleRow = (key: number, change: Partial<ScheduleRow>) =>
     setSchedule((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
 
@@ -731,6 +864,15 @@ function InvoiceEditor({
       if (preview.gross <= 0) return setError('The total must be more than zero. Give at least one line a price.');
     }
     if (schedule.some((row) => row.label.trim() && !(Number(row.amount) >= 0))) return setError('Enter an amount for each payment.');
+    if (stagesEditable && stageRows.length > 0) {
+      if (stageRows.some((row) => !row.label.trim())) return setError('Name each payment stage, e.g. On start.');
+      if (stageRows.some((row) => !(Number(row.value) > 0))) return setError('Each payment stage needs an amount above zero.');
+      if (stageRows.some((row) => row.mode === 'percent' && Number(row.value) > 100)) return setError('A stage cannot be more than 100%.');
+      if (stageTotal <= 0) return setError('Give the invoice a total before splitting it into stages.');
+      if (!stagePreview.balanced) {
+        return setError(`The stages add up to ${money(stagePreview.nominal)} but the invoice total is ${money(stageTotal)}. Adjust a stage so they match.`);
+      }
+    }
 
     const paperwork = {
       job_name: jobName,
@@ -745,6 +887,7 @@ function InvoiceEditor({
           project_id: projectId || null,
           due_date: dueDate,
           ...(moneyEditable ? { vat_rate: rate, discount: off, items } : {}),
+          ...(stagesEditable ? { stages: stagePayload(stageRows) } : {}),
         };
 
     setSaving(true);
@@ -790,6 +933,12 @@ function InvoiceEditor({
                 {invoice.is_overdue && invoice.status !== 'Overdue' ? (
                   <span className="text-sm text-danger">{invoice.days_overdue} days late</span>
                 ) : null}
+                {invoice.status !== 'Draft' && stageProgress(invoice) ? (
+                  <span className="text-sm text-ink-muted">
+                    {stageProgress(invoice)}
+                    {!paid ? <> · {money(invoice.balance_amount ?? invoice.amount)} to pay</> : null}
+                  </span>
+                ) : null}
               </>
             ) : null}
           </div>
@@ -817,17 +966,22 @@ function InvoiceEditor({
           ) : null}
           {invoice && invoice.status !== 'Draft' && !paid ? (
             <>
-              <Button
-                variant="secondary"
-                icon={<ArrowUUpLeft size={16} aria-hidden="true" />}
-                disabled={busy}
-                onClick={() => void onStatus(invoice, 'Draft')}
-              >
-                Back to draft
-              </Button>
-              <Button variant="secondary" icon={<SealCheck size={16} aria-hidden="true" />} onClick={() => onMarkPaid(invoice)}>
-                Mark as paid
-              </Button>
+              {anyStagePaid ? null : (
+                <Button
+                  variant="secondary"
+                  icon={<ArrowUUpLeft size={16} aria-hidden="true" />}
+                  disabled={busy}
+                  onClick={() => void onStatus(invoice, 'Draft')}
+                >
+                  Back to draft
+                </Button>
+              )}
+              {/* With stages, the payments are recorded stage by stage (below); the last one settles the invoice. */}
+              {saved.length > 0 ? null : (
+                <Button variant="secondary" icon={<SealCheck size={16} aria-hidden="true" />} onClick={() => onMarkPaid(invoice)}>
+                  Mark as paid
+                </Button>
+              )}
             </>
           ) : null}
           <Button type="submit" form="invoice-form" variant="primary" loading={saving}>
@@ -1086,6 +1240,152 @@ function InvoiceEditor({
 
           <Card className="flex flex-col gap-3">
             <div>
+              <h2 className="text-lg font-semibold text-ink">Payment stages</h2>
+              <p className="mt-0.5 text-sm text-ink-muted">
+                Split the total into payments, each a percentage or a fixed amount. The invoice becomes Paid only when every stage has
+                been paid. Leave none to be paid in one go.
+              </p>
+            </div>
+            {stagesEditable ? (
+              <>
+                {stageRows.map((row, index) => (
+                  <div
+                    key={row.key}
+                    className="grid grid-cols-[minmax(0,1fr)_5.25rem_5.5rem_2.75rem] items-center gap-2 border-l-2 border-border pl-2"
+                  >
+                    <input
+                      value={row.label}
+                      onChange={(event) => setStage(row.key, { label: event.target.value })}
+                      aria-label={`Stage ${index + 1} trigger`}
+                      placeholder="On start"
+                      maxLength={60}
+                      className={FIELD_BASE}
+                    />
+                    <div role="group" aria-label={`Stage ${index + 1} is a`} className="flex min-h-11 overflow-hidden rounded-[7px] border border-border pointer-fine:min-h-9">
+                      {(['percent', 'fixed'] as const).map((mode) => (
+                        <button
+                          key={mode}
+                          type="button"
+                          aria-pressed={row.mode === mode}
+                          aria-label={mode === 'percent' ? 'Percentage' : 'Fixed amount in pounds'}
+                          onClick={() => setStage(row.key, { mode })}
+                          className={clsx(
+                            'flex-1 text-sm font-semibold transition-colors',
+                            row.mode === mode ? 'bg-green-900 text-on-primary' : 'bg-surface text-ink-muted hover:text-ink',
+                          )}
+                        >
+                          {mode === 'percent' ? '%' : '£'}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step="0.01"
+                      value={row.value}
+                      onChange={(event) => setStage(row.key, { value: event.target.value })}
+                      aria-label={`Stage ${index + 1} ${row.mode === 'percent' ? 'percentage' : 'amount in pounds'}`}
+                      className={clsx(FIELD_BASE, 'tabular')}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setStageRows((current) => current.filter((entry) => entry.key !== row.key))}
+                      aria-label={`Remove stage ${index + 1}`}
+                      className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
+                    >
+                      <Trash size={16} aria-hidden="true" />
+                    </button>
+                    <input
+                      value={row.due_note}
+                      onChange={(event) => setStage(row.key, { due_note: event.target.value })}
+                      aria-label={`Stage ${index + 1} note (optional)`}
+                      placeholder="Note (optional)"
+                      maxLength={120}
+                      className={clsx(FIELD_BASE, 'text-sm')}
+                    />
+                    <p className="tabular col-span-2 text-right text-sm font-semibold text-ink">{money(stagePreview.amounts[index] ?? 0)}</p>
+                    {canRecord && !stagesDirty && saved[index] ? (
+                      <button
+                        type="button"
+                        onClick={() => setRecording(saved[index]!)}
+                        aria-label={`Record ${row.label || `stage ${index + 1}`} as paid`}
+                        title="Record as paid"
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-success"
+                      >
+                        <SealCheck size={18} aria-hidden="true" />
+                      </button>
+                    ) : (
+                      <span />
+                    )}
+                  </div>
+                ))}
+                {stageRows.length > 0 && !stagePreview.balanced ? (
+                  <p role="status" className="text-sm text-warning">
+                    The stages add up to {money(stagePreview.nominal)} of {money(stageTotal)} payable.
+                  </p>
+                ) : null}
+                {canRecord && stageRows.length > 0 && stagesDirty ? (
+                  <p className="text-sm text-ink-muted">Save your changes before recording a payment.</p>
+                ) : null}
+                <div>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    icon={<Plus size={16} aria-hidden="true" />}
+                    onClick={() =>
+                      setStageRows((current) =>
+                        current.length === 0 ? defaultStageRows() : [...current, { key: ++rowKey, label: '', mode: 'fixed', value: '', due_note: '' }],
+                      )
+                    }
+                    disabled={stageRows.length >= MAX_STAGES}
+                  >
+                    {stageRows.length === 0 ? 'Add 50 / 40 / 10 stages' : 'Add stage'}
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <ul className="divide-y divide-border">
+                  {saved.map((stage) => (
+                    <li key={stage.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2">
+                      <div className="min-w-0">
+                        <p className="font-medium text-ink">
+                          {stage.label}
+                          {stage.mode === 'percent' ? <span className="text-ink-muted"> · {stage.value}%</span> : null}
+                        </p>
+                        <p className="text-xs text-ink-muted">
+                          {stage.paid_at
+                            ? `Paid ${date(stage.paid_at)}${stage.paid_by ? ` · recorded by ${stage.paid_by}` : ''}`
+                            : (stage.due_note ?? 'Not paid yet')}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="tabular font-semibold text-ink">{money(stage.amount)}</span>
+                        {stage.paid_at ? (
+                          paid ? null : (
+                            <Button type="button" variant="secondary" icon={<ArrowUUpLeft size={16} aria-hidden="true" />} disabled={saving} onClick={() => void undoStage(stage)}>
+                              Undo
+                            </Button>
+                          )
+                        ) : canRecord ? (
+                          <Button type="button" variant="secondary" icon={<SealCheck size={16} aria-hidden="true" />} disabled={saving} onClick={() => setRecording(stage)}>
+                            Mark paid
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                {paid ? null : (
+                  <p className="text-sm text-ink-muted">A stage has been paid, so the stages are locked. Undo a payment to change them.</p>
+                )}
+              </>
+            )}
+          </Card>
+
+          <Card className="flex flex-col gap-3">
+            <div>
               <h2 className="text-lg font-semibold text-ink">Payment schedule</h2>
               <p className="mt-0.5 text-sm text-ink-muted">
                 Printed under the totals, e.g. deposit received, due on delivery, due on completion. It does not change the total.
@@ -1160,6 +1460,39 @@ function InvoiceEditor({
       </div>
 
       <InvoicePrint invoices={[sheet]} />
+
+      <ConfirmDialog
+        open={recording !== null}
+        title={`Record ${recording?.label ?? 'this stage'} as paid?`}
+        message={
+          <>
+            <div className="max-w-xs">
+              <Input
+                label="Payment received on"
+                type="date"
+                value={payDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={(event) => setPayDate(event.target.value)}
+              />
+            </div>
+            <p className="mt-3">
+              Record that {recording ? money(recording.amount) : 'this amount'} has been received from {invoice?.client_name}. Only do
+              this once the money has actually arrived; there is no payment gateway.
+            </p>
+            {recording && saved.filter((stage) => !stage.paid_at).length === 1 ? (
+              <p className="mt-2 font-medium text-ink">
+                This is the last unpaid stage, so the invoice becomes Paid and the client’s lifetime value is updated. That cannot be undone.
+              </p>
+            ) : (
+              <p className="mt-2 text-ink-muted">You can undo this until the invoice is fully paid.</p>
+            )}
+          </>
+        }
+        confirmLabel="Record payment"
+        pending={saving}
+        onConfirm={() => recording && void payStage(recording)}
+        onCancel={() => setRecording(null)}
+      />
     </>
   );
 }

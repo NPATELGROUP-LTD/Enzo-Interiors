@@ -164,6 +164,31 @@ export interface Project {
   assigned_installer_name?: string | null;
 }
 
+/** An installer's dates and pay on one project (calendar days as YYYY-MM-DD). Only the Admin and that installer ever receive it. */
+export interface InstallerAssignment {
+  start_date: string | null;
+  end_date: string | null;
+  /** Null until the Admin sends it; the installer sees nothing before. */
+  sent_at: string | null;
+  pay: number | null;
+  pay_note: string | null;
+  pay_status: 'pending' | 'approved' | 'declined';
+  dates_status: 'pending' | 'approved';
+  suggested_start: string | null;
+  suggested_end: string | null;
+  suggestion_comment: string | null;
+  suggested_at: string | null;
+}
+
+/** A designer or installer on a project. `assignment` is an installer's, for the Admin and that installer only. */
+export interface TeamMember {
+  id: string;
+  staff_id: string;
+  name: string;
+  role: 'Designer' | 'Installer';
+  assignment?: InstallerAssignment;
+}
+
 /** One line of an invoice: a net (ex-VAT) price. */
 export interface InvoiceItem {
   id: string;
@@ -176,6 +201,31 @@ export interface InvoiceItem {
   /** Net. 0 = a quantity-only row (materials), printed without a price. */
   unit_price: number;
   position: number;
+}
+
+export interface InvoiceStage {
+  id: string;
+  position: number;
+  /** The trigger: "On start", "On installation"... */
+  label: string;
+  mode: 'percent' | 'fixed';
+  /** Percent of the total payable, or £, per `mode`. */
+  value: number;
+  /** Worked out by the API; the stages sum exactly to the invoice amount. */
+  amount: number;
+  due_note: string | null;
+  paid_at: string | null;
+  /** Staff only. */
+  paid_by?: string | null;
+}
+
+/** Settings > Bank details; printed on invoices, never on the public site. */
+export interface BankDetails {
+  account_name: string;
+  bank_name: string;
+  sort_code: string;
+  account_number: string;
+  reference_note: string | null;
 }
 
 export interface PaymentScheduleRow {
@@ -226,6 +276,12 @@ export interface Invoice {
   client_email: string | null;
   client_phone: string | null;
   issuer: InvoiceIssuer;
+  /** Payment stages; empty or absent = paid in one go. Not on the rows inside a client's or project's detail. */
+  stages?: InvoiceStage[];
+  /** Money recorded as received, and what is still owed. */
+  paid_amount?: number;
+  balance_amount?: number;
+  bank_details?: BankDetails | null;
 }
 
 export interface Booking {
@@ -420,6 +476,8 @@ export interface ProjectDetail {
   documents: Array<Omit<DocumentRecord, 'client_name' | 'project_name'>>;
   invoices: Invoice[];
   activity: ActivityLog[];
+  /** Empty for a client. */
+  team: TeamMember[];
   timeline: Array<{
     stage: ProjectStage;
     position: number;

@@ -1,6 +1,7 @@
 import clsx from 'clsx';
 import {
   ArrowSquareOut,
+  Bank,
   CalendarBlank,
   Clock,
   EnvelopeSimple,
@@ -29,6 +30,7 @@ import { ApiError, api } from '@/lib/api';
 import type { MediaAsset } from '@/types/cms';
 
 import { Alerts } from './settings/Alerts';
+import { BankDetailsSettings } from './settings/BankDetailsSettings';
 import { BookingSchedule } from './settings/BookingSchedule';
 import { DocumentCategories } from './settings/DocumentCategories';
 import { Health } from './settings/Health';
@@ -78,6 +80,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
   { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
   { id: 'documents', label: 'Document categories', detail: 'What a file can be filed under', Icon: FolderSimple },
+  { id: 'bank', label: 'Bank details', detail: 'Where clients pay, printed on invoices', Icon: Bank },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
   { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
@@ -120,6 +123,7 @@ export function SiteSettingsPage() {
   else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'stages') pane = <ProjectStages />;
   else if (section === 'documents') pane = <DocumentCategories />;
+  else if (section === 'bank') pane = <BankDetailsSettings />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else if (section === 'alerts') pane = <Alerts />;

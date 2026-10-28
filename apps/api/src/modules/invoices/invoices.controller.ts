@@ -6,6 +6,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { PasswordConfirmDto } from '../auth/reauth';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { CreateInvoiceDto, InvoiceDownloadDto, InvoicesService, UpdateInvoiceDto } from './invoices.service';
+import { StagePaidDto } from './stages';
 
 @Controller('invoices')
 export class InvoicesController {
@@ -71,7 +72,27 @@ export class InvoicesController {
     return this.invoices.markPaid(principal, id);
   }
 
-  /** A Paid one needs `password` (the Admin's own) in the body. */
+  /** Record one payment stage as received on `paid_at` (default today); the last one settles the invoice. */
+  @Put(':id/stages/:stageId/paid')
+  @Roles('Admin')
+  @HttpCode(200)
+  payStage(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('id') id: string,
+    @Param('stageId') stageId: string,
+    @Body() dto: StagePaidDto,
+  ) {
+    return this.invoices.payStage(principal, id, stageId, dto);
+  }
+
+  /** Undo a stage payment while the invoice is not fully paid. */
+  @Delete(':id/stages/:stageId/paid')
+  @Roles('Admin')
+  unpayStage(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Param('stageId') stageId: string) {
+    return this.invoices.unpayStage(principal, id, stageId);
+  }
+
+  /** A Paid one, or one with a stage paid, needs `password` (the Admin's own) in the body. */
   @Delete(':id')
   @Roles('Admin')
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })

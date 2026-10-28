@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
+import { Transform } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
@@ -25,12 +26,14 @@ import {
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
+  MinLength,
   ValidateIf,
 } from 'class-validator';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
-import { OpeningHours, PageKey, SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
+import { BankDetails, OpeningHours, PageKey, SITE_STATUSES, SiteSettings, SiteStatus } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
@@ -74,6 +77,21 @@ export class OpeningHoursDto {
   hours!: Record<string, unknown>;
 }
 
+const trimmed = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
+const withoutSpaces = (dashes: boolean) => ({ value }: { value: unknown }) =>
+  typeof value === 'string' ? value.replace(dashes ? /[\s-]/g : /\s/g, '') : value;
+
+/** Settings › Bank details: one block, printed on every invoice. Admin only. */
+export class BankDetailsDto {
+  @Transform(trimmed) @IsString() @MinLength(1, { message: 'Enter the account name' }) @MaxLength(120) account_name!: string;
+  @Transform(trimmed) @IsString() @MinLength(1, { message: 'Enter the bank name' }) @MaxLength(120) bank_name!: string;
+  /** 6 digits; dashes and spaces are allowed and dropped (stored as 12-34-56). */
+  @Transform(withoutSpaces(true)) @Matches(/^\d{6}$/, { message: 'The sort code must be 6 digits' }) sort_code!: string;
+  @Transform(withoutSpaces(false)) @Matches(/^\d{8}$/, { message: 'The account number must be 8 digits' }) account_number!: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value))
+  @IsOptional() @IsString() @MaxLength(200) reference_note?: string | null;
+}
+
 export class PreviewDto {
   @IsString()
   @MaxLength(2000)
@@ -92,10 +110,10 @@ export interface PublicSiteStatus {
   pages: Record<PageKey, boolean>;
 }
 
-/** The row as the admin sees it: every page switch filled in. */
-export type SiteSettingsView = Omit<SiteSettings, 'pages'> & { pages: Record<PageKey, boolean> };
+/** The row as the admin sees it: every page switch filled in. Bank details have their own Admin-only route, so an Infra manager reading this never gets them. */
+export type SiteSettingsView = Omit<SiteSettings, 'pages' | 'bank_details'> & { pages: Record<PageKey, boolean> };
 
-const withPages = (row: SiteSettings): SiteSettingsView => ({ ...row, pages: resolvePages(row.pages) });
+const withPages = ({ bank_details: _private, ...row }: SiteSettings): SiteSettingsView => ({ ...row, pages: resolvePages(row.pages) });
 
 export const BRAND_KEYS = ['logo_light_id', 'logo_dark_id', 'favicon_id', 'favicon_dark_id'] as const;
 
@@ -133,6 +151,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
       pages: null,
       project_stages: null,
       document_categories: null,
+      bank_details: null,
       updated_at: new Date().toISOString(),
       updated_by: null,
     });
@@ -188,6 +207,25 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     });
     await this.revalidate.ping('opening hours');
     return { hours, saved: true };
+  }
+
+  async bankDetails(): Promise<{ bank_details: BankDetails | null }> {
+    return { bank_details: (await this.get()).bank_details };
+  }
+
+  async saveBankDetails(principal: AuthPrincipal, dto: BankDetailsDto): Promise<{ bank_details: BankDetails }> {
+    await this.get();
+    const bank_details: BankDetails = {
+      account_name: dto.account_name,
+      bank_name: dto.bank_name,
+      sort_code: dto.sort_code.replace(/^(\d{2})(\d{2})(\d{2})$/, '$1-$2-$3'),
+      account_number: dto.account_number,
+      reference_note: dto.reference_note ?? null,
+    };
+    await this.db.siteSettings.update(ID, { bank_details, updated_at: new Date().toISOString(), updated_by: principal.name });
+    // The numbers themselves stay out of the log; it records only that they changed.
+    await this.activity.record({ principal, action: 'bank_details_update', targetTable: 'site_settings', targetId: ID, details: {} });
+    return { bank_details };
   }
 
   /** Where enquiries go: the configured list, else the bootstrap admin. */
@@ -324,6 +362,19 @@ export class SiteSettingsController {
   @Roles('Admin')
   saveOpeningHours(@CurrentUser() principal: AuthPrincipal, @Body() dto: OpeningHoursDto) {
     return this.settings.saveOpeningHours(principal, dto);
+  }
+
+  // Printed on invoices and sent only inside authenticated invoice payloads; never in /content/site.
+  @Get('settings/bank-details')
+  @Roles('Admin')
+  bankDetails() {
+    return this.settings.bankDetails();
+  }
+
+  @Put('settings/bank-details')
+  @Roles('Admin')
+  saveBankDetails(@CurrentUser() principal: AuthPrincipal, @Body() dto: BankDetailsDto) {
+    return this.settings.saveBankDetails(principal, dto);
   }
 
   @Post('settings/test-email')

@@ -32,6 +32,8 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
   const issuer = invoice.issuer ?? DEFAULT_ISSUER;
   const items = invoice.items ?? [];
   const schedule = invoice.payment_schedule ?? [];
+  const stages = invoice.stages ?? [];
+  const bank = invoice.bank_details;
   const discount = invoice.discount ?? 0;
   const subtotal = invoice.subtotal_amount ?? invoice.net_amount;
 
@@ -186,6 +188,62 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
               ))}
             </tbody>
           </table>
+        </section>
+      ) : null}
+
+      {stages.length > 0 ? (
+        <section className="inv-stages">
+          <h3 className="inv-serif">Payment stages</h3>
+          <table className="inv-table">
+            <tbody>
+              {stages.map((stage) => (
+                <tr key={stage.id}>
+                  <td>
+                    {stage.label}
+                    {stage.mode === 'percent' ? <span className="inv-detail"> · {Number(stage.value)}%</span> : null}
+                    {stage.due_note ? <span className="inv-detail"> · {stage.due_note}</span> : null}
+                  </td>
+                  <td className="inv-stage-state inv-num">
+                    {stage.paid_at ? (
+                      <>
+                        <svg className="inv-tick" viewBox="0 0 12 12" aria-hidden="true">
+                          <path d="M2 6.5 5 9.5 10 3" />
+                        </svg>
+                        Paid {date(stage.paid_at)}
+                      </>
+                    ) : (
+                      'Due'
+                    )}
+                  </td>
+                  <td className="inv-right inv-num inv-col-total">{money(stage.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {invoice.status !== 'Paid' && (invoice.paid_amount ?? 0) > 0 ? (
+            <p className="inv-balance">
+              Paid so far {money(invoice.paid_amount ?? 0)} · Balance due <strong>{money(invoice.balance_amount ?? 0)}</strong>
+            </p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {bank ? (
+        <section className="inv-bank">
+          <h3 className="inv-serif">Pay by bank transfer</h3>
+          <dl className="inv-pairs">
+            <dt>Account name</dt>
+            <dd className="inv-strong">{bank.account_name}</dd>
+            <dt>Bank</dt>
+            <dd>{bank.bank_name}</dd>
+            <dt>Sort code</dt>
+            <dd className="inv-num">{bank.sort_code}</dd>
+            <dt>Account number</dt>
+            <dd className="inv-num">{bank.account_number}</dd>
+            <dt>Reference</dt>
+            <dd>{invoice.number}</dd>
+          </dl>
+          {bank.reference_note ? <p className="inv-bank-note">{bank.reference_note}</p> : null}
         </section>
       ) : null}
 
