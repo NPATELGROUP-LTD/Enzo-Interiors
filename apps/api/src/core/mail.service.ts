@@ -421,6 +421,25 @@ Open your portal: ${link}`,
     };
   },
 
+  /** To a staff member: something in the admin that needs them (the bell's twin by email). */
+  staffNotice(name: string, title: string, body: string | null, link: string): Rendered {
+    return {
+      subject: title,
+      html: layout(
+        title,
+        `${heading('Update', title)}
+${para(body ?? 'Sign in to the Enzo Interiors admin to see the details.')}
+${button(link, 'Open the admin')}`,
+      ),
+      text: `Hi ${name},
+
+${title}${body ? `
+${body}` : ''}
+
+Open the admin: ${link}`,
+    };
+  },
+
   /** To an Infra manager: something about who can sign in, which they decide. */
   staffRequest(name: string, title: string, body: string, link: string): Rendered {
     return {

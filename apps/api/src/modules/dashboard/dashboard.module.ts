@@ -142,7 +142,10 @@ export class DashboardService {
       this.projectCounts(scope),
       this.db.projects.findWhere({ ...scope, status: { not: done } }, { orderBy: { updated_at: 'desc' }, take: 10 }),
     ]);
-    const clients = await this.db.clients.findWhere({ id: { in: [...new Set(open.map((p) => p.client_id))] } });
+    const [clients, seats] = await Promise.all([
+      this.db.clients.findWhere({ id: { in: [...new Set(open.map((p) => p.client_id))] } }),
+      this.db.projectMembers.findWhere({ staff_id: principal.id, project_id: { in: open.map((p) => p.id) } }),
+    ]);
     const names = new Map(clients.map((client) => [client.id, client.name]));
     return {
       projects,
@@ -156,8 +159,11 @@ export class DashboardService {
         current_stage: project.current_stage,
         // What they are on it for, since one person can be both.
         roles: [
-          project.assigned_designer_id === principal.id ? 'Designer' : null,
-          project.assigned_installer_id === principal.id ? 'Installer' : null,
+          ...new Set([
+            project.assigned_designer_id === principal.id ? 'Designer' : null,
+            project.assigned_installer_id === principal.id ? 'Installer' : null,
+            ...seats.filter((seat) => seat.project_id === project.id).map((seat) => seat.role),
+          ]),
         ].filter((role) => role !== null),
         updated_at: project.updated_at,
       })),

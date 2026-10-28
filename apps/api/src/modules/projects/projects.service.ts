@@ -15,6 +15,7 @@ import {
   UpdateProjectStageDto,
 } from './dto';
 import { approvalStage, loadStages, planStages } from './stages';
+import { TeamService } from './team.service';
 
 export interface ProjectView extends Project {
   client_name: string;
@@ -38,6 +39,7 @@ export class ProjectsService {
     private readonly access: AccessService,
     private readonly activity: ActivityLogService,
     private readonly notifications: NotificationsService,
+    private readonly team: TeamService,
   ) {}
 
   /* ------------------------------------------------------------------ */
@@ -112,7 +114,7 @@ export class ProjectsService {
     const isClient = this.access.isClient(principal);
     const own = { project_id: id, client_id: project.client_id };
 
-    const [documents, invoices, activity, client, [view], stages] = await Promise.all([
+    const [documents, invoices, activity, client, [view], stages, team] = await Promise.all([
       this.db.documents.findWhere(
         { ...own, ...(isClient && { client_visible: true }) },
         { orderBy: { upload_date: 'desc' } },
@@ -128,7 +130,12 @@ export class ProjectsService {
       this.db.clients.findById(project.client_id),
       this.decorate([project]),
       this.stages(),
+      this.team.view(principal, project),
     ]);
+    // The Admin's page also shows what happened to the installers' dates and approvals (no amounts are ever logged).
+    const termsActivity = this.access.isAdmin(principal)
+      ? await this.team.termsActivity(team.filter((member) => member.role === 'Installer').map((member) => member.id))
+      : [];
     const position = stages.findIndex((stage) => stage.name === project.status);
 
     return {
@@ -136,7 +143,9 @@ export class ProjectsService {
       client: client ? { id: client.id, name: client.name, email: client.email } : null,
       documents: documents.map(({ storage_url: key, ...document }) => ({ ...document, preview: previewOf(key) })),
       invoices,
-      activity,
+      activity: [...activity, ...termsActivity].sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      /** Designers and installers; an installer's dates and pay only for the Admin and that installer. */
+      team,
       /** The configured stages, with the current position marked. */
       timeline: stages.map((stage, index) => ({
         stage: stage.name,
@@ -185,6 +194,7 @@ export class ProjectsService {
       targetId: created.id,
       details: { name: created.name, type: created.type, client: client.name },
     });
+    await this.db.teamStore.backfill(created.id);
     await this.notifyNewAssignees(principal, created);
     await this.notifyClient(created);
     return this.findOne(principal, created.id);
@@ -199,37 +209,25 @@ export class ProjectsService {
         throw new ForbiddenException(`Only an Admin can change ${adminOnly.join(', ')}.`);
       }
     }
-    await this.assertAssignable(dto.assigned_designer_id);
-    await this.assertAssignable(dto.assigned_installer_id);
 
     const patch: Partial<Project> = { updated_at: new Date().toISOString() };
     if (dto.name !== undefined) patch.name = dto.name.trim();
     if (dto.type !== undefined) patch.type = dto.type;
     if (dto.current_stage !== undefined) patch.current_stage = dto.current_stage;
-    if (dto.assigned_designer_id !== undefined) patch.assigned_designer_id = dto.assigned_designer_id;
-    if (dto.assigned_installer_id !== undefined) patch.assigned_installer_id = dto.assigned_installer_id;
     if (dto.client_visible !== undefined) patch.client_visible = dto.client_visible;
 
     const updated = await this.db.projects.update(id, patch);
     if (!updated) throw new NotFoundException('Project not found');
 
-    // Assignment and visibility get their own entries: both are operationally
-    // meaningful and have their own controls.
-    const ownEntries = {
-      assigned_designer_id: 'project_assign_designer',
-      assigned_installer_id: 'project_assign_installer',
-      client_visible: 'project_visibility_change',
-    } as const;
-    for (const [key, action] of Object.entries(ownEntries) as Array<[keyof typeof ownEntries, string]>) {
-      if (dto[key] !== undefined && dto[key] !== project[key]) {
-        await this.activity.record({
-          principal,
-          action,
-          targetTable: 'projects',
-          targetId: id,
-          details: { from: project[key], to: dto[key] },
-        });
-      }
+    // Visibility gets its own entry: it is operationally meaningful and has its own control.
+    if (dto.client_visible !== undefined && dto.client_visible !== project.client_visible) {
+      await this.activity.record({
+        principal,
+        action: 'project_visibility_change',
+        targetTable: 'projects',
+        targetId: id,
+        details: { from: project.client_visible, to: dto.client_visible },
+      });
     }
     await this.activity.record({
       principal,
@@ -238,7 +236,6 @@ export class ProjectsService {
       targetId: id,
       details: { fields },
     });
-    await this.notifyNewAssignees(principal, updated, project);
     await this.notifyClient(updated, project);
 
     return this.findOne(principal, id);
@@ -393,26 +390,15 @@ export class ProjectsService {
 
   private async decorate(projects: Project[]): Promise<ProjectView[]> {
     const clientIds = [...new Set(projects.map((project) => project.client_id))];
-    const staffIds = [
-      ...new Set(
-        projects
-          .flatMap((project) => [project.assigned_designer_id, project.assigned_installer_id])
-          .filter((id): id is string => Boolean(id)),
-      ),
-    ];
-    const [clients, staff] = await Promise.all([
-      this.db.clients.findWhere({ id: { in: clientIds } }),
-      this.db.staffUsers.findWhere({ id: { in: staffIds } }),
-    ]);
+    const [clients, team] = await Promise.all([this.db.clients.findWhere({ id: { in: clientIds } }), this.team.names(projects)]);
     const clientName = new Map(clients.map((c) => [c.id, c.name]));
-    const staffName = new Map(staff.map((s) => [s.id, s.name]));
-    const nameOf = (id: string | null | undefined) => (id ? (staffName.get(id) ?? null) : null);
 
     return projects.map((project) => ({
       ...project,
       client_name: clientName.get(project.client_id) ?? 'Unknown client',
-      assigned_designer_name: nameOf(project.assigned_designer_id),
-      assigned_installer_name: nameOf(project.assigned_installer_id),
+      // Everyone on the team, joined; the first of each is still assigned_*_id.
+      assigned_designer_name: team.get(project.id)?.designer ?? null,
+      assigned_installer_name: team.get(project.id)?.installer ?? null,
     }));
   }
 
@@ -450,20 +436,15 @@ export class ProjectsService {
 
   /** The client decided: every Admin and whoever designs or installs it hears, never the client themselves. */
   private async notifyStaffOfDecision(project: Project, title: string, body?: string): Promise<void> {
-    const ids = new Set<string>(
-      [project.assigned_designer_id, project.assigned_installer_id].filter((id): id is string => Boolean(id)),
-    );
+    const ids = await this.access.staffOn([project]);
     for (const admin of await this.db.staffUsers.findAll((row) => row.role === 'Admin')) ids.add(admin.id);
     for (const id of ids) await this.notifications.notify(id, { kind: 'project', title, body, link: `/projects/${project.id}` });
   }
 
-  /** The bell, for whoever was just put on the project (not whoever did it). */
-  private async notifyNewAssignees(principal: AuthPrincipal, project: Project, before?: Project): Promise<void> {
-    const had = new Set([before?.assigned_designer_id, before?.assigned_installer_id]);
+  /** The bell, for whoever a new project starts with (later additions go through TeamService.add). */
+  private async notifyNewAssignees(principal: AuthPrincipal, project: Project): Promise<void> {
     const fresh = new Set(
-      [project.assigned_designer_id, project.assigned_installer_id].filter(
-        (id): id is string => Boolean(id) && id !== principal.id && !had.has(id),
-      ),
+      [project.assigned_designer_id, project.assigned_installer_id].filter((id): id is string => Boolean(id) && id !== principal.id),
     );
     for (const id of fresh) {
       await this.notifications.notify(id, {

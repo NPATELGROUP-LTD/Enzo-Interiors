@@ -27,7 +27,9 @@ import {
   NotificationPreference,
   PortfolioItem,
   PushSubscriptionRecord,
+  InstallerAssignment,
   Project,
+  ProjectMember,
   ProjectStageConfig,
   SavedReplyTemplate,
   SiteSettings,
@@ -42,6 +44,7 @@ import { InfraStore } from './infra-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
+import { TeamStore } from './team-store';
 
 /**
  * The one place the rest of the API gets at persistence.
@@ -64,6 +67,8 @@ export class DatabaseService {
   readonly staffUsers: PrismaRepository<StaffUser>;
   readonly clients: PrismaRepository<Client>;
   readonly projects: PrismaRepository<Project>;
+  readonly projectMembers: PrismaRepository<ProjectMember>;
+  readonly installerAssignments: PrismaRepository<InstallerAssignment>;
   readonly invoices: PrismaRepository<Invoice>;
   readonly invoiceItems: PrismaRepository<InvoiceItem>;
   readonly invoiceStore: InvoiceStore;
@@ -97,6 +102,7 @@ export class DatabaseService {
   readonly alertStore: AlertStore;
   readonly accessStore: AccessStore;
   readonly infraStore: InfraStore;
+  readonly teamStore: TeamStore;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -109,6 +115,11 @@ export class DatabaseService {
       decimals: ['total_spent'],
     });
     this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
+    this.projectMembers = new PrismaRepository(prisma.projectMember, 'project_members', { dates: ['created_at'] });
+    this.installerAssignments = new PrismaRepository(prisma.installerAssignment, 'installer_assignments', {
+      dates: ['start_date', 'end_date', 'suggested_start', 'suggested_end', 'sent_at', 'suggested_at', 'updated_at'],
+      decimals: ['pay'],
+    });
     this.invoices = new PrismaRepository(prisma.invoice, 'invoices', INVOICE_FIELDS);
     this.invoiceItems = new PrismaRepository(prisma.invoiceItem, 'invoice_items', INVOICE_ITEM_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
@@ -183,6 +194,7 @@ export class DatabaseService {
     this.alertStore = new AlertStore(prisma);
     this.accessStore = new AccessStore(prisma);
     this.infraStore = new InfraStore(prisma);
+    this.teamStore = new TeamStore(prisma);
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });
