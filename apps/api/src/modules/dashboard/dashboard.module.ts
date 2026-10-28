@@ -85,8 +85,8 @@ export class DashboardService {
       this.db.contactSubmissions.countWhere({}),
       this.db.contactSubmissions.countWhere({ status: 'New' }),
       this.db.contactSubmissions.countWhere({ created_at: { gt: new Date(now.getTime() - DAY).toISOString() } }),
-      store.sum({ status: UNPAID }),
-      store.sum({ status: UNPAID, due_date: { gte: utcToday, lt: inAWeek } }),
+      store.balance({ status: UNPAID }), // less any stages already paid
+      store.balance({ status: UNPAID, due_date: { gte: utcToday, lt: inAWeek } }),
       this.db.invoices.countWhere({ status: UNPAID, due_date: { lt: utcToday } }),
       store.sum({ status: 'Paid' }),
       store.sum({ status: 'Paid', paid_at: { gte: thisMonth } }),
@@ -184,7 +184,7 @@ export class DashboardService {
       this.db.projects.findWhere({ ...mine, client_visible: true }, { orderBy: { updated_at: 'desc' } }),
       this.access.documentScope(principal).then((scope) => this.db.documents.countWhere(scope)),
       store.sum({ ...mine, status: 'Paid' }),
-      store.sum({ ...mine, status: UNPAID }),
+      store.balance({ ...mine, status: UNPAID }),
       this.db.invoices.findFirstWhere({ ...mine, status: { notIn: ['Draft', 'Paid'] } }, { due_date: 'asc' }),
       // A consultation booked on the website is theirs when it carries their email.
       client

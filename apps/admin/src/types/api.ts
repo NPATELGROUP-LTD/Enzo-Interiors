@@ -199,6 +199,31 @@ export interface InvoiceItem {
   position: number;
 }
 
+export interface InvoiceStage {
+  id: string;
+  position: number;
+  /** The trigger: "On start", "On installation"... */
+  label: string;
+  mode: 'percent' | 'fixed';
+  /** Percent of the total payable, or £, per `mode`. */
+  value: number;
+  /** Worked out by the API; the stages sum exactly to the invoice amount. */
+  amount: number;
+  due_note: string | null;
+  paid_at: string | null;
+  /** Staff only. */
+  paid_by?: string | null;
+}
+
+/** Settings > Bank details; printed on invoices, never on the public site. */
+export interface BankDetails {
+  account_name: string;
+  bank_name: string;
+  sort_code: string;
+  account_number: string;
+  reference_note: string | null;
+}
+
 export interface PaymentScheduleRow {
   label: string;
   amount: number;
@@ -245,6 +270,12 @@ export interface Invoice {
   client_email: string | null;
   client_phone: string | null;
   issuer: InvoiceIssuer;
+  /** Payment stages; empty or absent = paid in one go. Not on the rows inside a client's or project's detail. */
+  stages?: InvoiceStage[];
+  /** Money recorded as received, and what is still owed. */
+  paid_amount?: number;
+  balance_amount?: number;
+  bank_details?: BankDetails | null;
 }
 
 export interface Booking {

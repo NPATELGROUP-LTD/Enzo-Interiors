@@ -19,6 +19,7 @@ import {
   DocumentRecord,
   Invoice,
   InvoiceItem,
+  InvoiceStage,
   MediaAsset,
   Message,
   NewsletterCampaign,
@@ -41,7 +42,7 @@ import {
 import { AccessStore } from './access-store';
 import { AlertStore } from './alert-store';
 import { InfraStore } from './infra-store';
-import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
+import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 import { TeamStore } from './team-store';
@@ -71,6 +72,7 @@ export class DatabaseService {
   readonly installerAssignments: PrismaRepository<InstallerAssignment>;
   readonly invoices: PrismaRepository<Invoice>;
   readonly invoiceItems: PrismaRepository<InvoiceItem>;
+  readonly invoiceStages: PrismaRepository<InvoiceStage>;
   readonly invoiceStore: InvoiceStore;
   readonly bookings: PrismaRepository<Booking>;
   readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
@@ -122,6 +124,7 @@ export class DatabaseService {
     });
     this.invoices = new PrismaRepository(prisma.invoice, 'invoices', INVOICE_FIELDS);
     this.invoiceItems = new PrismaRepository(prisma.invoiceItem, 'invoice_items', INVOICE_ITEM_FIELDS);
+    this.invoiceStages = new PrismaRepository(prisma.invoiceStage, 'invoice_stages', INVOICE_STAGE_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
       dates: ['created_at', 'date_time'],
