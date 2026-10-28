@@ -45,6 +45,7 @@ const CATEGORY: Partial<Record<Notification['kind'], NotifyCategory>> = {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
   private readonly portalUrl = (process.env.PORTAL_URL ?? 'http://localhost:5175').replace(/\/+$/, '');
+  private readonly adminUrl = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
 
   constructor(
     private readonly db: DatabaseService,
@@ -107,6 +108,32 @@ export class NotificationsService {
     });
     // The open bell and toast update at once; the minute poll stays as the fallback.
     this.realtime.toUser(recipientId, 'notification:new', row);
+  }
+
+  /** A staff member's bell, devices and inbox, for something they must act on. The email never slows or fails the request. */
+  async notifyByEmail(recipientId: string, note: NewNotification): Promise<void> {
+    await this.notify(recipientId, note);
+    void this.emailStaff([recipientId], note);
+  }
+
+  /** Every Admin's bell, devices and inbox. */
+  async notifyAdminsByEmail(note: NewNotification): Promise<void> {
+    const admins = await this.db.staffUsers.findWhere({ role: 'Admin' });
+    for (const admin of admins) await this.notify(admin.id, note);
+    void this.emailStaff(admins.map((admin) => admin.id), note);
+  }
+
+  private async emailStaff(ids: string[], note: NewNotification): Promise<void> {
+    try {
+      const link = `${this.adminUrl}${note.link ?? ''}`;
+      for (const staff of await this.db.staffUsers.findWhere({ id: { in: ids } })) {
+        if (!staff.password_hash) continue; // invited, not yet joined
+        const sent = await this.mail.send({ to: staff.email, ...templates.staffNotice(staff.name, note.title, note.body ?? null, link) });
+        if (!sent) this.logger.warn(`Could not email "${note.title}" to staff ${staff.id}.`);
+      }
+    } catch (error) {
+      this.logger.error(`Staff email failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   /** Every Admin, except whoever caused it. */

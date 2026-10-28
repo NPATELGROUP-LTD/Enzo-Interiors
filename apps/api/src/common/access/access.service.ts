@@ -12,9 +12,10 @@ import { AuthPrincipal } from '../types/principal';
  * staff member read THIS client", which needs the data itself:
  *
  *   Client              own client_id only, and only projects shared with them.
- *   Designer/Installer  projects they are assigned to, as designer
- *                       (assigned_designer_id) or installer
- *                       (assigned_installer_id), and those projects' clients.
+ *   Designer/Installer  projects they are a member of (`project_members`, any
+ *                       number per project) or, until the team backfill has run,
+ *                       the legacy assigned_designer_id / assigned_installer_id,
+ *                       and those projects' clients.
  *   Admin               everything.
  *   Anyone else         nothing (an Editor never reaches the CRM; this is the
  *                       floor if a route forgets its @Roles).
@@ -46,16 +47,33 @@ export class AccessService {
 
   /**
    * The projects this principal may see, as a WHERE clause, so PostgreSQL
-   * filters (both assignment columns are indexed). Closed by default: anyone
-   * not named here matches no row.
+   * filters (membership and both legacy columns are indexed). Closed by
+   * default: anyone not named here matches no row.
    */
   projectScope(principal: AuthPrincipal): Where<Project> {
     if (this.isAdmin(principal)) return {};
     if (this.isClient(principal)) return { client_id: principal.id, client_visible: true };
     if (this.isAssignable(principal)) {
-      return { OR: [{ assigned_designer_id: principal.id }, { assigned_installer_id: principal.id }] };
+      return {
+        OR: [
+          { assigned_designer_id: principal.id },
+          { assigned_installer_id: principal.id },
+          // A relation filter, which the domain row type does not name.
+          { members: { some: { staff_id: principal.id } } } as Where<Project>,
+        ],
+      };
     }
     return { id: { in: [] } };
+  }
+
+  /** Everyone on these projects, by id: team members plus any legacy single designer / installer. */
+  async staffOn(projects: Project[]): Promise<Set<string>> {
+    const ids = new Set(
+      projects.flatMap((project) => [project.assigned_designer_id, project.assigned_installer_id]).filter((id): id is string => Boolean(id)),
+    );
+    const members = await this.db.projectMembers.findWhere({ project_id: { in: projects.map((project) => project.id) } });
+    for (const member of members) ids.add(member.staff_id);
+    return ids;
   }
 
   /**
@@ -103,15 +121,14 @@ export class AccessService {
    * `projectScope`. A client additionally cannot see a project with
    * `client_visible` false — the admin's "send to client" toggle.
    */
-  canAccessProject(principal: AuthPrincipal, project: Project): boolean {
+  async canAccessProject(principal: AuthPrincipal, project: Project): Promise<boolean> {
     if (this.isAdmin(principal)) return true;
     if (this.isClient(principal)) {
       return project.client_id === principal.id && project.client_visible;
     }
-    return (
-      this.isAssignable(principal) &&
-      (project.assigned_designer_id === principal.id || project.assigned_installer_id === principal.id)
-    );
+    if (!this.isAssignable(principal)) return false;
+    if (project.assigned_designer_id === principal.id || project.assigned_installer_id === principal.id) return true;
+    return (await this.db.projectMembers.countWhere({ project_id: project.id, staff_id: principal.id })) > 0;
   }
 
   /**
@@ -147,7 +164,7 @@ export class AccessService {
    */
   async requireProject(principal: AuthPrincipal, projectId: string): Promise<Project> {
     const project = await this.db.projects.findById(projectId);
-    if (!project || !this.canAccessProject(principal, project)) {
+    if (!project || !(await this.canAccessProject(principal, project))) {
       throw new NotFoundException('Project not found');
     }
     return project;
