@@ -48,6 +48,8 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  /** They changed or kept the emailed password: stop asking. */
+  passwordChosen: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -146,9 +148,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, []);
 
+  const passwordChosen = useCallback(() => {
+    setUser((current) => {
+      const next = current && { ...current, passwordIsDefault: false };
+      userCache.write(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, logout }),
-    [user, loading, login, logout],
+    () => ({ user, loading, login, logout, passwordChosen }),
+    [user, loading, login, logout, passwordChosen],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

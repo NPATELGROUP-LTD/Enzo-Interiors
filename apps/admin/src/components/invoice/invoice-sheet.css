@@ -233,6 +233,52 @@
   font-weight: 600;
 }
 
+.inv-stages,
+.inv-bank {
+  margin-top: 4mm;
+  break-inside: avoid;
+}
+.inv-stages h3,
+.inv-bank h3 {
+  margin: 0 0 1.5mm;
+  color: var(--inv-forest);
+  font-size: 11pt;
+  font-weight: 600;
+}
+.inv-stage-state {
+  width: 40mm;
+  color: var(--inv-muted);
+}
+.inv-tick {
+  display: inline-block;
+  width: 3mm;
+  height: 3mm;
+  margin-right: 1mm;
+  vertical-align: -0.3mm;
+  fill: none;
+  stroke: var(--inv-forest);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.inv-balance {
+  margin: 1.5mm 0 0;
+  text-align: right;
+  color: var(--inv-muted);
+}
+.inv-balance strong {
+  color: var(--inv-forest);
+}
+.inv-bank .inv-pairs {
+  padding: 2mm 3mm;
+  background: var(--inv-wash);
+}
+.inv-bank-note {
+  margin: 1.5mm 0 0;
+  color: var(--inv-muted);
+  white-space: pre-line;
+}
+
 .inv-foot {
   display: flex;
   justify-content: space-between;

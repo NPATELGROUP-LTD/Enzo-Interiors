@@ -89,8 +89,8 @@ function Pipeline({ projects }: { projects: DashboardProjects }) {
 /** Designs sitting with the client for approval (what the API lets this person see). */
 function AwaitingDecision() {
   const projects = useQuery<Project[]>('/projects');
-  const { approval, stages } = useStages();
-  const waiting = (projects.data ?? []).filter((project) => project.status === approval).slice(0, 4);
+  const { approvals, stages } = useStages();
+  const waiting = (projects.data ?? []).filter((project) => approvals.includes(project.status)).slice(0, 4);
 
   return (
     <Card className="mt-4">

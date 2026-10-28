@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, randomBytes, randomInt } from 'node:crypto';
 
 import {
   BadRequestException,
@@ -21,7 +21,8 @@ import { DatabaseService } from '../../data/database.service';
 
 export interface LoginResult {
   access_token: string;
-  user: AuthPrincipal;
+  /** A client also learns whether they are still on the emailed password (the portal then offers to change it). */
+  user: AuthPrincipal & { passwordIsDefault?: boolean };
   /** Set when "remember this device" was ticked: send it back as deviceToken on the next sign-in. */
   deviceToken?: string;
   /** Set once, when an authenticator app is enrolled. */
@@ -29,6 +30,8 @@ export interface LoginResult {
 }
 
 export interface Me extends AuthPrincipal {
+  /** Clients only. */
+  passwordIsDefault?: boolean;
   twoFactorMethod: TwoFactorMethod | null;
   googleLinked: boolean;
   googleEmail: string | null;
@@ -68,6 +71,26 @@ export async function verify(plain: string, stored: string | undefined): Promise
     return false;
   }
   return bcrypt.compare(plain, stored);
+}
+
+/** Letters and digits without look-alikes (no 0/O, 1/l/I), so it can be read from an email and typed. */
+const PASSWORD_SETS = ['abcdefghjkmnpqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789'];
+
+/**
+ * A random password for a portal invitation: `length` characters from crypto, at least one of
+ * each set, shuffled. 14 characters of 57 is about 80 bits. Never logged; only emailed.
+ */
+export function generatePassword(length = 14): string {
+  const all = PASSWORD_SETS.join('');
+  const chars = [
+    ...PASSWORD_SETS.map((set) => set[randomInt(set.length)]!),
+    ...Array.from({ length: length - PASSWORD_SETS.length }, () => all[randomInt(all.length)]!),
+  ];
+  for (let i = chars.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [chars[i], chars[j]] = [chars[j]!, chars[i]!];
+  }
+  return chars.join('');
 }
 
 /** n***@outlook.com: enough to recognise your own inbox, not enough to learn someone's. Also for logs. */
@@ -246,7 +269,14 @@ export class AuthService implements OnApplicationBootstrap {
 
   /** A portal session for this client at their current token_version. */
   private async issueClient(client: Client): Promise<LoginResult> {
-    const user: AuthPrincipal = { id: client.id, kind: 'Client', role: 'Client', name: client.name, email: client.email };
+    const user = {
+      id: client.id,
+      kind: 'Client' as const,
+      role: 'Client' as const,
+      name: client.name,
+      email: client.email,
+      passwordIsDefault: Boolean(client.password_is_default),
+    };
     const payload: JwtPayload = {
       sub: client.id,
       kind: 'Client',
@@ -277,11 +307,21 @@ export class AuthService implements OnApplicationBootstrap {
     const version = client.token_version ?? 0;
     const changed = await this.db.clients.updateWhere(
       { id: client.id, token_version: version },
-      { password_hash: await hashPassword(newPassword), token_version: version + 1, updated_at: new Date().toISOString() },
+      {
+        password_hash: await hashPassword(newPassword),
+        password_is_default: false,
+        token_version: version + 1,
+        updated_at: new Date().toISOString(),
+      },
     );
     if (changed !== 1) throw new BadRequestException('Your password was just changed elsewhere. Please sign in again.');
     await this.mail.send({ to: client.email, ...templates.passwordChanged(client.name, `${this.portalUrl}/forgot-password`) });
-    return this.issueClient({ ...client, token_version: version + 1 });
+    return this.issueClient({ ...client, password_is_default: false, token_version: version + 1 });
+  }
+
+  /** POST /account/password/keep: the client chose to keep the emailed password, so stop asking. */
+  async keepClientPassword(principal: AuthPrincipal): Promise<void> {
+    await this.db.clients.updateWhere({ id: principal.id, password_is_default: true }, { password_is_default: false });
   }
 
   /**
@@ -318,7 +358,8 @@ export class AuthService implements OnApplicationBootstrap {
   /** GET /auth/me: who I am, and how I sign in. Never a secret or a hash. */
   async me(principal: AuthPrincipal): Promise<Me> {
     if (principal.kind === 'Client') {
-      return { ...principal, twoFactorMethod: null, googleLinked: false, googleEmail: null };
+      const client = await this.db.clients.findById(principal.id);
+      return { ...principal, passwordIsDefault: Boolean(client?.password_is_default), twoFactorMethod: null, googleLinked: false, googleEmail: null };
     }
     const staff = await this.db.staffUsers.findById(principal.id);
     return {
@@ -416,10 +457,29 @@ export class AuthService implements OnApplicationBootstrap {
     return `${this.portalUrl}/reset-password#token=${token}${invite ? '&invite=1' : ''}`;
   }
 
-  /** Emails the invitation (POST /clients/:id/invite). The caller decides who may be invited. */
+  /**
+   * POST /clients/:id/invite: gives the client a generated password and emails it with the sign-in
+   * address. Resending replaces it. The hash is stored in one conditional UPDATE that also bumps
+   * token_version, so two invites racing cannot both win and any older link or session dies.
+   * The caller decides who may be invited. The password is never logged.
+   */
   async sendPortalInvite(client: Client, inviter: string): Promise<boolean> {
-    const link = await this.portalLink(client, '7d', true);
-    const sent = await this.mail.send({ to: client.email, ...templates.portalInvite(client.name, inviter, link) });
+    if ((await this.limits.hit(`invite:client:${client.id}`, 60 * 60_000)) > 5) {
+      throw new HttpException('This client was invited several times in the last hour. Try again later.', HttpStatus.TOO_MANY_REQUESTS);
+    }
+    const password = generatePassword();
+    const version = client.token_version ?? 0;
+    const stored = await this.db.clients.updateWhere(
+      { id: client.id, token_version: version },
+      {
+        password_hash: await hashPassword(password),
+        password_is_default: true,
+        token_version: version + 1,
+        updated_at: new Date().toISOString(),
+      },
+    );
+    if (stored !== 1) throw new BadRequestException('This client was just changed elsewhere. Please try again.');
+    const sent = await this.mail.send({ to: client.email, ...templates.portalInvite(client.name, inviter, `${this.portalUrl}/login`, password) });
     if (!sent) this.logger.warn(`Portal invitation for ${maskEmail(client.email)} could not be emailed.`);
     return sent;
   }
@@ -471,7 +531,7 @@ export class AuthService implements OnApplicationBootstrap {
     // two requests racing with the same link cannot both win.
     const changed = await this.db.clients.updateWhere(
       { id: client.id, token_version: tv },
-      { password_hash: await hashPassword(newPassword), token_version: tv + 1, updated_at: new Date().toISOString() },
+      { password_hash: await hashPassword(newPassword), password_is_default: false, token_version: tv + 1, updated_at: new Date().toISOString() },
     );
     if (changed !== 1) throw expired();
     // Accepting an invitation sets the first password; nothing was "changed".

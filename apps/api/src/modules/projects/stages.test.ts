@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { DEFAULT_STAGES, approvalStage, doneStage, planStages, resolveStages } from './stages';
+import { DEFAULT_STAGES, approvalStages, doneStage, planStages, resolveStages } from './stages';
 
 const keep = DEFAULT_STAGES.map((stage) => ({ ...stage, was: stage.name }));
 
@@ -10,7 +10,7 @@ test('stages: the default five until a list is saved', () => {
   assert.equal(resolveStages(null), DEFAULT_STAGES);
   assert.equal(resolveStages([]), DEFAULT_STAGES);
   assert.equal(doneStage(DEFAULT_STAGES), 'Completed');
-  assert.equal(approvalStage(DEFAULT_STAGES), 'Approval');
+  assert.deepEqual(approvalStages(DEFAULT_STAGES), ['Approval']);
 });
 
 test('stages: renames move, missing stages are removals, new ones are neither', () => {
@@ -36,6 +36,11 @@ test('stages: renames move, missing stages are removals, new ones are neither', 
   assert.deepEqual(swapped.removed, []);
 });
 
+test('stages: several approval stages, each with a working stage between', () => {
+  const plan = planStages(DEFAULT_STAGES, keep.map((stage) => ({ ...stage, approval: stage.name === 'Design' || stage.name === 'Installation' })));
+  assert.deepEqual(approvalStages(plan.stages), ['Design', 'Installation']);
+});
+
 test('stages: bad lists are refused with a reason', () => {
   assert.throws(() => planStages(DEFAULT_STAGES, []), /between 1 and 20/);
   assert.throws(() => planStages(DEFAULT_STAGES, Array.from({ length: 21 }, (_, i) => ({ name: `S${i}`, progress: 0 }))), /between 1 and 20/);
@@ -45,9 +50,11 @@ test('stages: bad lists are refused with a reason', () => {
   assert.throws(() => planStages(DEFAULT_STAGES, [{ name: 'A', progress: 101 }]), /between 0 and 100/);
   assert.throws(() => planStages(DEFAULT_STAGES, [{ name: 'A', progress: 10.5 }]), /between 0 and 100/);
   assert.throws(() => planStages(DEFAULT_STAGES, [{ name: 'A', progress: 0, approval: true }, { name: 'B', progress: 1 }]), /stage before it/);
+  assert.throws(() => planStages(DEFAULT_STAGES, keep.map((stage) => ({ ...stage, approval: stage.name === 'Completed' }))), /stage before it/);
+  // Two in a row would send "request changes" to another approval stage.
   assert.throws(
-    () => planStages(DEFAULT_STAGES, keep.map((stage) => ({ ...stage, approval: stage.name !== 'Completed' && stage.name !== 'Consultation' }))),
-    /Only one stage/,
+    () => planStages(DEFAULT_STAGES, keep.map((stage) => ({ ...stage, approval: stage.name === 'Design' || stage.name === 'Approval' }))),
+    /follows another approval stage/,
   );
   assert.throws(() => planStages(DEFAULT_STAGES, [{ name: 'A', progress: 0, was: 'Design' }, { name: 'B', progress: 0, was: 'Design' }]), /both replace/);
 });
