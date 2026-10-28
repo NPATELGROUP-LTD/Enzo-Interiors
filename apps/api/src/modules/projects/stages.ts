@@ -12,7 +12,8 @@ const MAX_NAME = 40;
  * The stages a project moves through until the Admin saves their own list
  * (site_settings.project_stages). Computed on read, never written into a row.
  * The last stage is the finished one; `approval` marks where the client
- * approves (moves to the next stage) or asks for changes (back one).
+ * approves (moves to the next stage) or asks for changes (back one). Any
+ * number of stages may carry it, never the first, the last or two in a row.
  */
 export const DEFAULT_STAGES: ProjectStageConfig[] = [
   { name: 'Consultation', progress: 10, approval: false },
@@ -34,9 +35,9 @@ export async function loadStages(db: DatabaseService): Promise<ProjectStageConfi
 /** The finished stage: always the last. */
 export const doneStage = (stages: ProjectStageConfig[]): string => stages[stages.length - 1]!.name;
 
-/** Where the client decides, if anywhere. */
-export const approvalStage = (stages: ProjectStageConfig[]): string | null =>
-  stages.find((stage) => stage.approval)?.name ?? null;
+/** Where the client decides: any number of stages (none, one or several). */
+export const approvalStages = (stages: ProjectStageConfig[]): string[] =>
+  stages.filter((stage) => stage.approval).map((stage) => stage.name);
 
 export interface StagePlan {
   stages: ProjectStageConfig[];
@@ -88,11 +89,12 @@ export function planStages(current: ProjectStageConfig[], input: unknown): Stage
     stages.push({ name, progress, approval: item.approval === true });
   });
 
-  const approvals = stages.filter((stage) => stage.approval);
-  if (approvals.length > 1) throw new BadRequestException('Only one stage can be the client approval stage.');
   if (stages[0]!.approval || stages[stages.length - 1]!.approval) {
-    throw new BadRequestException('The approval stage needs a stage before it (changes go back there) and one after it.');
+    throw new BadRequestException('An approval stage needs a stage before it (changes go back there) and one after it.');
   }
+  // Changes go back one stage; landing on another approval stage would ask the client again with nothing revised.
+  const adjacent = stages.find((stage, i) => stage.approval && stages[i - 1]?.approval);
+  if (adjacent) throw new BadRequestException(`"${adjacent.name}" follows another approval stage: put a working stage between them.`);
 
   return { stages, renames, removed: [...currentNames].filter((name) => !claimed.has(name)) };
 }

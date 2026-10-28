@@ -65,12 +65,14 @@ export function ClientDetailPage() {
   const { client, assigned_staff, projects, invoices, documents, activity, stats } = data;
   // No invitation table: the activity log already records every one sent.
   const invited = activity.some((entry) => entry.action === 'client_portal_invite');
+  // They have the emailed password and have not yet changed or kept it: sending again replaces it.
+  const onEmailedPassword = Boolean(client.password_is_default);
 
   const invite = async () => {
     setInviting(true);
     try {
       const { emailed } = await api.post<{ emailed: boolean }>(`/clients/${client.id}/invite`);
-      if (emailed) toast.success(`Invitation sent to ${client.email}. The link lasts 7 days. ${THEIR_SPAM_HINT}`);
+      if (emailed) toast.success(`Invitation sent to ${client.email} with a new password. ${THEIR_SPAM_HINT}`);
       else toast.error('The invitation could not be emailed. Check Settings › Emails, then send it again.');
       await refetch();
     } catch (caught) {
@@ -122,12 +124,13 @@ export function ClientDetailPage() {
                 New project
               </Button>
             ) : null}
-            {isAdmin && client.status === 'Active' && !client.has_portal_access ? (
+            {isAdmin && client.status === 'Active' && (!client.has_portal_access || onEmailedPassword) ? (
               <Button
                 variant={invited ? 'secondary' : 'primary'}
                 icon={<EnvelopeSimple size={16} aria-hidden="true" />}
                 loading={inviting}
                 onClick={invite}
+                title={onEmailedPassword ? 'Emails a new password; the one they have stops working' : undefined}
               >
                 {invited ? 'Resend invite' : 'Invite to portal'}
               </Button>
@@ -186,7 +189,7 @@ export function ClientDetailPage() {
                 ['Address', client.address ?? '—'],
                 [
                   'Portal access',
-                  client.has_portal_access ? 'Signed up' : invited ? 'Invited, not signed up yet' : 'Not invited',
+                  client.has_portal_access && !onEmailedPassword ? 'Signed up' : invited ? 'Invited, still on the emailed password' : 'Not invited',
                 ],
                 ['Looked after by', assigned_staff ? assigned_staff.name : 'Nobody in particular'],
               ].map(([label, value]) => (

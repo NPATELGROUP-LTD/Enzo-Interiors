@@ -6,6 +6,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   Header,
   Injectable,
@@ -21,7 +22,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Throttle } from '@nestjs/throttler';
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsIn, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
 import { CurrentUser, Roles } from '../../common/decorators';
@@ -31,6 +32,9 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { DOWNLOAD_TTL_SECONDS, inlineType, previewOf, PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
+import { categoryOf, parseCategories, resolveCategories } from './categories';
+
+const SITE_ROW = 'site';
 
 /** 25 MB: a full plan set or a signed contract scan, not a video. */
 export const MAX_DOCUMENT_BYTES = 25 * 1024 * 1024;
@@ -84,8 +88,13 @@ export class UploadDocumentDto {
   @IsString() client_id!: string;
   @IsString() project_id!: string;
 
+  /** Optional when a category is sent: then the category's own type if it is one, else Other. */
+  @IsOptional()
   @IsIn(DOCUMENT_TYPES, { message: `Type must be one of: ${DOCUMENT_TYPES.join(', ')}` })
-  type!: DocumentType;
+  type?: DocumentType;
+
+  /** One of Settings › Document categories (checked by DocumentsService). */
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(40) category?: string;
 
   /** Defaults to the file's own name. */
   @IsOptional() @IsString() @MinLength(1) @MaxLength(160) name?: string;
@@ -96,6 +105,7 @@ export class UploadDocumentDto {
 export class UpdateDocumentDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(160) name?: string;
   @IsOptional() @IsIn(DOCUMENT_TYPES) type?: DocumentType;
+  @IsOptional() @IsString() @MinLength(1) @MaxLength(40) category?: string;
   /** Another project of the SAME client, within the caller's scope. */
   @IsOptional() @IsString() project_id?: string;
 }
@@ -104,8 +114,20 @@ export class DocumentVisibilityDto {
   @IsBoolean() client_visible!: boolean;
 }
 
+/** PATCH /documents/:id/client-download — Admin only. */
+export class DocumentDownloadDto {
+  @IsBoolean() client_can_download!: boolean;
+}
+
+/** PUT /documents/categories — Admin only. Each item is checked in categories.ts. */
+export class SaveCategoriesDto {
+  @IsArray() categories!: unknown[];
+}
+
 /** A document as any screen sees it. Where it is stored is never sent. */
-export type DocumentView = Omit<DocumentRecord, 'storage_url'> & {
+export type DocumentView = Omit<DocumentRecord, 'storage_url' | 'category'> & {
+  /** Its Settings › Document categories label (older files: their type). */
+  category: string;
   client_name: string;
   project_name: string | null;
   /** Whether the portal can show it in the page. */
@@ -142,9 +164,20 @@ export class DocumentsService {
     return view!;
   }
 
-  /** `inline` = a link the browser shows rather than saves; ignored for types it cannot show. */
-  async downloadUrl(principal: AuthPrincipal, id: string, inline = false): Promise<{ url: string; expires_in: number }> {
+  /**
+   * `inline` = a link the browser shows rather than saves; ignored for types it cannot show.
+   * A client may only VIEW (an inline link, for a type the browser shows) unless an Admin
+   * allowed saving this file: best effort, since whatever is shown can still be copied.
+   */
+  async downloadUrl(
+    principal: AuthPrincipal,
+    id: string,
+    inline = false,
+  ): Promise<{ url: string; expires_in: number; client_can_download: boolean }> {
     const document = await this.require(principal, id);
+    if (this.access.isClient(principal) && !document.client_can_download && !(inline && inlineType(document.storage_url))) {
+      throw new ForbiddenException('This file can be viewed in the portal but not downloaded. Ask the studio if you need a copy.');
+    }
     const url = await this.storage.downloadUrl(
       document.storage_url,
       document.name,
@@ -157,7 +190,8 @@ export class DocumentsService {
       targetId: id,
       details: { name: document.name },
     });
-    return { url, expires_in: DOWNLOAD_TTL_SECONDS };
+    // Told to the portal's viewer, which watermarks and blanks a file the client may only view.
+    return { url, expires_in: DOWNLOAD_TTL_SECONDS, client_can_download: Boolean(document.client_can_download) };
   }
 
   async upload(
@@ -181,6 +215,13 @@ export class DocumentsService {
       throw new BadRequestException('Send this project to the client before sharing files on it.');
     }
 
+    // A client's own upload is always filed as Other; staff pick from the configured categories.
+    const category = fromClient ? null : await this.checkedCategory(dto.category);
+    if (!fromClient && !dto.type && !category) throw new BadRequestException('Choose a category.');
+    const type: DocumentType = fromClient
+      ? 'Other'
+      : (dto.type ?? ((DOCUMENT_TYPES as readonly string[]).includes(category!) ? (category as DocumentType) : 'Other'));
+
     const name = (dto.name ?? file.originalname).trim().slice(0, 160) || `document${kind.ext}`;
     const stem = path
       .basename(name, path.extname(name))
@@ -199,11 +240,14 @@ export class DocumentsService {
         project_id: project.id,
         name,
         // A client cannot pass their file off as one of ours (a contract, an invoice).
-        type: fromClient ? 'Other' : dto.type,
+        type,
+        category,
         size_bytes: file.size,
         upload_date: new Date().toISOString(),
         // Closed by default: an Admin sends a file to the client on purpose.
         client_visible: share,
+        // Their own upload is theirs to keep; a file from us is view-only until an Admin says otherwise.
+        client_can_download: fromClient,
         storage_url: key,
       });
     } catch (error) {
@@ -227,6 +271,7 @@ export class DocumentsService {
     const patch: Partial<DocumentRecord> = {};
     if (dto.name !== undefined) patch.name = dto.name.trim();
     if (dto.type !== undefined) patch.type = dto.type;
+    if (dto.category !== undefined && dto.category !== categoryOf(document)) patch.category = await this.checkedCategory(dto.category);
     if (dto.project_id !== undefined) {
       const project = await this.access.requireProject(principal, dto.project_id);
       if (project.client_id !== document.client_id) {
@@ -261,6 +306,54 @@ export class DocumentsService {
       if (dto.client_visible) await this.tellClient(document);
     }
     return this.findOne(principal, id);
+  }
+
+  /** "Client can download" on and off. Admin only (controller). */
+  async setClientDownload(principal: AuthPrincipal, id: string, dto: DocumentDownloadDto): Promise<DocumentView> {
+    const document = await this.require(principal, id);
+    await this.db.documents.update(id, { client_can_download: dto.client_can_download });
+    if (Boolean(document.client_can_download) !== dto.client_can_download) {
+      await this.activity.record({
+        principal,
+        action: 'document_download_permission',
+        targetTable: 'documents',
+        targetId: id,
+        details: { from: Boolean(document.client_can_download), to: dto.client_can_download, name: document.name },
+      });
+    }
+    return this.findOne(principal, id);
+  }
+
+  /** Settings › Document categories: what was saved, else the document types. */
+  async categories(): Promise<string[]> {
+    return resolveCategories((await this.db.siteSettings.findById(SITE_ROW))?.document_categories);
+  }
+
+  /** Admin only (controller). Files keep the label they have, so removing or renaming one loses nothing. */
+  async saveCategories(principal: AuthPrincipal, input: unknown): Promise<string[]> {
+    const categories = parseCategories(input);
+    const saved = await this.db.siteSettings.update(SITE_ROW, {
+      document_categories: categories,
+      updated_at: new Date().toISOString(),
+      updated_by: principal.name,
+    });
+    if (!saved) throw new NotFoundException('Settings not found');
+    await this.activity.record({
+      principal,
+      action: 'document_categories_update',
+      targetTable: 'site_settings',
+      targetId: SITE_ROW,
+      details: { categories },
+    });
+    return categories;
+  }
+
+  /** A category must be one of the configured ones; none is fine (null). */
+  private async checkedCategory(category: string | undefined): Promise<string | null> {
+    if (category === undefined) return null;
+    const known = await this.categories();
+    if (!known.includes(category)) throw new BadRequestException(`Category must be one of: ${known.join(', ')}`);
+    return category;
   }
 
   /** The client's bell (and devices), if they can now open it: its project must be shared too. */
@@ -309,6 +402,7 @@ export class DocumentsService {
     const projectName = new Map(projects.map((p) => [p.id, p.name]));
     return rows.map(({ storage_url: key, ...document }) => ({
       ...document,
+      category: categoryOf(document),
       preview: previewOf(key),
       client_name: clientName.get(document.client_id) ?? 'Unknown client',
       project_name: document.project_id ? (projectName.get(document.project_id) ?? null) : null,
@@ -328,6 +422,19 @@ export class DocumentsController {
   @Roles('Admin', 'Designer', 'Installer', 'Client')
   list(@CurrentUser() principal: AuthPrincipal) {
     return this.documents.list(principal);
+  }
+
+  /** The categories a file can be filed under (Settings › Document categories). */
+  @Get('categories')
+  @Roles('Admin', 'Designer', 'Installer')
+  categories() {
+    return this.documents.categories();
+  }
+
+  @Put('categories')
+  @Roles('Admin')
+  saveCategories(@CurrentUser() principal: AuthPrincipal, @Body() dto: SaveCategoriesDto) {
+    return this.documents.saveCategories(principal, dto.categories);
   }
 
   @Get(':id')
@@ -371,6 +478,13 @@ export class DocumentsController {
     @Body() dto: DocumentVisibilityDto,
   ) {
     return this.documents.setVisibility(principal, id, dto);
+  }
+
+  /** Whether the portal lets the client save this file (view-only by default). */
+  @Patch(':id/client-download')
+  @Roles('Admin')
+  setClientDownload(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: DocumentDownloadDto) {
+    return this.documents.setClientDownload(principal, id, dto);
   }
 
   @Delete(':id')

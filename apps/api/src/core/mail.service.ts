@@ -406,20 +406,29 @@ ${link}`,
     };
   },
 
-  portalInvite(name: string, inviter: string, link: string): Rendered {
+  /**
+   * The portal invitation: the sign-in address and a generated password, by the owner's choice
+   * (the portal asks them to change it on first sign-in). Nothing else carries the password.
+   */
+  portalInvite(name: string, inviter: string, signInUrl: string, password: string): Rendered {
     const subject = 'Your Enzo Interiors client portal';
     return {
       subject,
       html: layout(
         subject,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
-${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Choose a password to get started. The link works once and expires in 7 days.`)}
-${button(link, 'Choose your password')}`,
+${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Sign in with this email address and the password below.`)}
+<p style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-radius:8px;font:600 18px/1.4 Consolas,Menlo,monospace;letter-spacing:.04em;color:${FOREST}">${escapeHtml(password)}</p>
+${para('We recommend changing this password the first time you sign in. If you did not expect this email, you can ignore it.')}
+${button(signInUrl, 'Sign in to your portal')}`,
       ),
       text: `Hi ${name},
 
-${inviter} has set up your Enzo Interiors client portal. Choose a password here (works once, expires in 7 days):
-${link}`,
+${inviter} has set up your Enzo Interiors client portal. Sign in at ${signInUrl} with this email address and this password:
+
+${password}
+
+We recommend changing it the first time you sign in. If you did not expect this email, you can ignore it.`,
     };
   },
 

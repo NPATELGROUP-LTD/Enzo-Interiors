@@ -18,6 +18,8 @@ export class CreateProjectDto {
   @IsOptional() @IsString() @MaxLength(64) assigned_installer_id?: string | null;
   /** Off unless the Admin sends it to the client. */
   @IsOptional() @IsBoolean() client_visible?: boolean;
+  /** Where the work happens; omitted = the client's own address. */
+  @IsOptional() @IsString() @MaxLength(300) site_address?: string | null;
 }
 
 /**
@@ -32,6 +34,7 @@ export class UpdateProjectDto {
   @IsOptional() @IsString() @MaxLength(80) current_stage?: string | null;
   /** The admin's "send to client" toggle. */
   @IsOptional() @IsBoolean() client_visible?: boolean;
+  @IsOptional() @IsString() @MaxLength(300) site_address?: string | null;
 }
 
 /** PATCH /projects/:id/stage — Kanban drag-and-drop and the "Move to…" menu. */

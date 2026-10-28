@@ -164,8 +164,8 @@ export function ProjectDetailPage() {
         <Card accent="warning" className="mb-4 pl-5">
           <p className="font-semibold text-ink">Awaiting the client’s decision</p>
           <p className="mt-1 text-ink-muted">
-            {client?.name ?? 'The client'} can approve this design or request changes from their
-            portal. Requesting changes sends the project back to Design automatically.
+            {client?.name ?? 'The client'} can approve this stage or request changes from their
+            portal. Requesting changes sends the project back one stage automatically.
           </p>
         </Card>
       ) : null}
@@ -280,17 +280,30 @@ export function ProjectDetailPage() {
             )}
 
             {isAdmin ? (
-              <Toggle
-                label="Send to client"
-                description="When off, this project is hidden from the client portal entirely."
-                checked={project.client_visible}
-                onChange={(next) =>
-                  void patch(
-                    { client_visible: next },
-                    next ? 'Now visible to the client.' : 'Hidden from the client.',
-                  )
-                }
-              />
+              <>
+                <Input
+                  key={project.site_address ?? ''}
+                  label="Site address"
+                  hint="Where the work happens. This project’s invoices start from it."
+                  defaultValue={project.site_address ?? ''}
+                  maxLength={300}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (project.site_address ?? '')) void patch({ site_address: value }, 'Site address saved.');
+                  }}
+                />
+                <Toggle
+                  label="Send to client"
+                  description="When off, this project is hidden from the client portal entirely."
+                  checked={project.client_visible}
+                  onChange={(next) =>
+                    void patch(
+                      { client_visible: next },
+                      next ? 'Now visible to the client.' : 'Hidden from the client.',
+                    )
+                  }
+                />
+              </>
             ) : null}
           </div>
         </Card>
@@ -349,6 +362,7 @@ export function ProjectDetailPage() {
                 ['Progress', `${project.progress_pct}%`],
                 ['Designers', named('Designer')],
                 ['Installers', named('Installer')],
+                ['Site address', project.site_address ?? '—'],
                 ['Visible to client', project.client_visible ? 'Yes' : 'No'],
                 ['Created', date(project.created_at)],
                 ['Last updated', dateTime(project.updated_at)],

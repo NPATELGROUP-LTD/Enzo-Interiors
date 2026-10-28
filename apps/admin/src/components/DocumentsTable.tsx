@@ -20,21 +20,16 @@ import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, fileSize } from '@/lib/format';
-import type { DocumentRecord, DocumentType } from '@/types/api';
-import { DOCUMENT_TYPES } from '@/types/api';
+import { useQuery } from '@/hooks/useApi';
+import type { DocumentRecord } from '@/types/api';
 
 type Row = Omit<DocumentRecord, 'client_name' | 'project_name'>;
 
 /** What the API takes (apps/api documents.module.ts FILE_TYPES), for the picker. */
 const ACCEPT = '.pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx,.pptx';
 const MAX_BYTES = 25 * 1024 * 1024;
-const TYPE_LABELS: Record<DocumentType, string> = {
-  Plan: 'Plan',
-  Contract: 'Contract',
-  MoodBoard: 'Mood board',
-  Invoice: 'Invoice',
-  Other: 'Other',
-};
+// A stored type shows as the studio's own label (Settings › Document categories); only this one is spelled differently.
+const label = (category: string) => (category === 'MoodBoard' ? 'Mood board' : category);
 
 const message = (caught: unknown, fallback: string) =>
   caught instanceof ApiError ? caught.message : fallback;
@@ -56,8 +51,22 @@ export function DocumentsTable({
   const toast = useToast();
   const { isAdmin } = useAuth();
   const [deleting, setDeleting] = useState<Row | null>(null);
+  const [category, setCategory] = useState('');
 
   const files = useFileViewer();
+  // Filter by the labels the files actually carry, so a category dropped from Settings still finds its files.
+  const categories = [...new Set(documents.map((row) => row.category))].sort();
+  const shown = category && categories.includes(category) ? documents.filter((row) => row.category === category) : documents;
+
+  const setDownload = async (row: Row, next: boolean) => {
+    try {
+      await api.patch(`/documents/${row.id}/client-download`, { client_can_download: next });
+      toast.success(next ? `The client can now download ${row.name}.` : `${row.name} is view-only for the client.`);
+      await onChanged();
+    } catch (caught) {
+      toast.error(message(caught, 'Could not change that.'));
+    }
+  };
 
   const setVisible = async (row: Row, next: boolean) => {
     try {
@@ -91,19 +100,33 @@ export function DocumentsTable({
           <EmptyState title="No documents" message={emptyMessage} />
         </Card>
       ) : (
+        <>
+        {categories.length > 1 ? (
+          <div className="mb-3 max-w-56">
+            <Select label="Category" value={category} onChange={(event) => setCategory(event.target.value)}>
+              <option value="">All categories</option>
+              {categories.map((entry) => (
+                <option key={entry} value={entry}>
+                  {label(entry)}
+                </option>
+              ))}
+            </Select>
+          </div>
+        ) : null}
         <TableWrap>
           <thead>
             <tr>
               <Th>Name</Th>
-              <Th>Type</Th>
+              <Th>Category</Th>
               <Th>Uploaded</Th>
               <Th>Size</Th>
               <Th>Visible to client</Th>
+              {isAdmin ? <Th>Client can download</Th> : null}
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
-            {documents.map((row) => (
+            {shown.map((row) => (
               <tr key={row.id}>
                 <Td className="font-medium text-ink">
                   {/* The name opens it: shown in the page when it can be, else saved. */}
@@ -116,7 +139,7 @@ export function DocumentsTable({
                   </button>
                 </Td>
                 <Td>
-                  <StatusTag tone="info">{TYPE_LABELS[row.type]}</StatusTag>
+                  <StatusTag tone="info">{label(row.category)}</StatusTag>
                 </Td>
                 <Td className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
                 <Td className="tabular whitespace-nowrap text-ink-muted">
@@ -136,6 +159,16 @@ export function DocumentsTable({
                     </StatusTag>
                   )}
                 </Td>
+                {isAdmin ? (
+                  <Td>
+                    <Toggle
+                      hideLabel
+                      label={`Client can download: ${row.name}`}
+                      checked={row.client_can_download}
+                      onChange={(next) => void setDownload(row, next)}
+                    />
+                  </Td>
+                ) : null}
                 <Td>
                   <div className="flex justify-end gap-1">
                     {row.preview ? (
@@ -170,6 +203,7 @@ export function DocumentsTable({
             ))}
           </tbody>
         </TableWrap>
+        </>
       )}
 
       <ConfirmDialog
@@ -201,7 +235,9 @@ export function UploadDialog({
   const fileInput = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [name, setName] = useState('');
-  const [type, setType] = useState<DocumentType>('Plan');
+  const [category, setCategory] = useState('');
+  const categories = useQuery<string[]>(open ? '/documents/categories' : null);
+  const chosen = category || (categories.data?.includes('Plan') ? 'Plan' : (categories.data?.[0] ?? ''));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -238,7 +274,7 @@ export function UploadDialog({
     const form = new FormData();
     form.append('client_id', target.clientId);
     form.append('project_id', target.projectId);
-    form.append('type', type);
+    form.append('category', chosen);
     form.append('name', name.trim() || file.name);
     form.append('file', file);
     setBusy(true);
@@ -305,13 +341,13 @@ export function UploadDialog({
           onChange={(event) => setName(event.target.value)}
         />
         <Select
-          label="Type"
-          value={type}
-          onChange={(event) => setType(event.target.value as DocumentType)}
+          label="Category"
+          value={chosen}
+          onChange={(event) => setCategory(event.target.value)}
         >
-          {DOCUMENT_TYPES.map((option) => (
+          {(categories.data ?? []).map((option) => (
             <option key={option} value={option}>
-              {TYPE_LABELS[option]}
+              {label(option)}
             </option>
           ))}
         </Select>

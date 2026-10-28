@@ -121,8 +121,10 @@ export interface Client {
   /** Admin only: a Designer's copy of a client has no money in it. */
   total_spent?: number;
   notes: string | null;
-  /** A portal password has been set (an invitation was accepted). */
+  /** A portal password is stored (an invitation was sent, or they set their own). */
   has_portal_access: boolean;
+  /** Still the password that was emailed: they have neither changed it nor chosen to keep it. */
+  password_is_default?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -152,6 +154,8 @@ export interface Project {
   assigned_designer_id: string | null;
   assigned_installer_id: string | null;
   client_visible: boolean;
+  /** Where the work happens; starts as the client's address. */
+  site_address?: string | null;
   created_at: string;
   updated_at: string;
   /** On /projects responses; not on the rows inside a client's detail. */
@@ -267,6 +271,8 @@ export interface Invoice {
   job_address: string | null;
   job_notes: string | null;
   payment_schedule: PaymentScheduleRow[];
+  /** An Admin lets the client save or print it from the portal; false = view only. */
+  client_can_download?: boolean;
   client_email: string | null;
   client_phone: string | null;
   issuer: InvoiceIssuer;
@@ -352,6 +358,10 @@ export interface DocumentRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
+  /** Its Settings › Document categories label (older files: their type). */
+  category: string;
+  /** An Admin lets the client save it from the portal; false = they can only view it. */
+  client_can_download: boolean;
   client_name: string;
   project_name: string | null;
   /** How it can be shown in the page, from the type checked at upload; null = download only. */

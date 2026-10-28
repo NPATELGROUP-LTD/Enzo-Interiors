@@ -240,7 +240,9 @@ test('a client sees and downloads only their own shared documents', async () => 
   const list = await json<Doc[]>(await call('GET', '/documents', tokens.mine));
   assert.ok(list.some((doc) => doc.id === shared.id));
   assert.ok(list.every((doc) => doc.client_id === MINE.id && doc.client_visible));
-  const { url } = await json<{ url: string }>(await call('GET', `/documents/${shared.id}/download`, tokens.mine));
+  // A client views a file; saving it is the Admin's call per file (client-protection.db.test.ts).
+  await json(await call('GET', `/documents/${shared.id}/download`, tokens.mine), 403);
+  const { url } = await json<{ url: string }>(await call('GET', `/documents/${shared.id}/download?inline=1`, tokens.mine));
   assert.equal((await fetch(url)).status, 200);
 
   await json(await call('GET', `/documents/${internal.id}/download`, tokens.mine), 404);

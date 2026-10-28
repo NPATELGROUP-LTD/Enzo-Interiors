@@ -5,6 +5,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
@@ -19,7 +20,7 @@ import {
 } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
-import { BankDetails, Invoice, InvoiceItem, InvoiceStage, InvoiceStatus, PaymentScheduleRow } from '../../common/types/domain';
+import { BankDetails, Invoice, InvoiceItem, InvoiceStage, InvoiceStatus, PaymentScheduleRow, Project } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { ItemInput } from '../../data/invoice-store';
@@ -80,6 +81,11 @@ class InvoiceDocumentDto {
   @IsOptional()
   @IsArray() @ArrayMaxSize(12, { message: 'A payment schedule can have at most 12 rows' }) @ValidateNested({ each: true }) @Type(() => PaymentScheduleRowDto)
   payment_schedule?: PaymentScheduleRowDto[];
+}
+
+/** PATCH /invoices/:id/client-download — Admin only. */
+export class InvoiceDownloadDto {
+  @IsBoolean() client_can_download!: boolean;
 }
 
 export class CreateInvoiceDto extends InvoiceDocumentDto {
@@ -257,7 +263,7 @@ export class InvoicesService {
   async create(principal: AuthPrincipal, dto: CreateInvoiceDto): Promise<InvoiceView> {
     const client = await this.db.clients.findById(dto.client_id);
     if (!client) throw new BadRequestException('Client does not exist');
-    await this.assertProjectOfClient(dto.project_id, dto.client_id);
+    const project = await this.assertProjectOfClient(dto.project_id, dto.client_id);
 
     const vat_rate = dto.vat_rate ?? (await this.db.settings()).vat_rate;
     const discount = dto.discount ?? 0;
@@ -283,7 +289,8 @@ export class InvoicesService {
             created_at: new Date().toISOString(),
             discount,
             job_name: dto.job_name ?? null,
-            job_address: dto.job_address ?? null,
+            // Where the work is: the project's site, else the client's own address (editable per invoice).
+            job_address: dto.job_address ?? project?.site_address ?? client.address ?? null,
             job_notes: dto.job_notes ?? null,
             payment_schedule: this.schedule(dto.payment_schedule ?? []),
           },
@@ -400,6 +407,23 @@ export class InvoicesService {
    * the status change only matches a payable row, so a repeat is refused rather
    * than recorded twice.
    */
+  /** Lets the client save or print the invoice from the portal, or takes that back. Admin only (controller). */
+  async setClientDownload(principal: AuthPrincipal, id: string, dto: InvoiceDownloadDto): Promise<InvoiceView> {
+    const invoice = await this.db.invoices.findById(id);
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    await this.db.invoices.update(id, { client_can_download: dto.client_can_download });
+    if (Boolean(invoice.client_can_download) !== dto.client_can_download) {
+      await this.activity.record({
+        principal,
+        action: 'invoice_download_permission',
+        targetTable: 'invoices',
+        targetId: id,
+        details: { number: invoice.number, to: dto.client_can_download },
+      });
+    }
+    return this.findOne(principal, id);
+  }
+
   async markPaid(principal: AuthPrincipal, id: string): Promise<InvoiceView> {
     const invoice = await this.db.invoices.findById(id);
     if (!invoice) throw new NotFoundException('Invoice not found');
@@ -547,11 +571,12 @@ export class InvoicesService {
   }
 
   /** A project may only be invoiced to its own client. */
-  private async assertProjectOfClient(projectId: string | null | undefined, clientId: string): Promise<void> {
-    if (!projectId) return;
+  private async assertProjectOfClient(projectId: string | null | undefined, clientId: string): Promise<Project | null> {
+    if (!projectId) return null;
     const project = await this.db.projects.findById(projectId);
     if (!project) throw new BadRequestException('Project does not exist');
     if (project.client_id !== clientId) throw new BadRequestException('That project belongs to a different client');
+    return project;
   }
 
   /**

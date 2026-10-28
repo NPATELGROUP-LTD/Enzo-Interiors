@@ -131,7 +131,7 @@ export function InvoicesPage() {
                       <Link to={`/invoices/${invoice.id}`} className={buttonClass('secondary')} aria-label={`View invoice ${invoice.number}`}>
                         View
                       </Link>
-                      <InvoiceDownloadButton invoice={invoice} />
+                      {invoice.client_can_download ? <InvoiceDownloadButton invoice={invoice} /> : null}
                     </div>
                   </Card>
                 </li>
