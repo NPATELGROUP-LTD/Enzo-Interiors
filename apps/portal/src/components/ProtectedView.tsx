@@ -62,7 +62,7 @@ export function ProtectedView({ children, className }: { children: ReactNode; cl
         <button
           type="button"
           onClick={() => window.focus()}
-          className="absolute inset-0 flex items-center justify-center bg-surface p-6 text-center text-sm text-ink-muted"
+          className="absolute inset-0 flex items-start justify-center bg-surface p-6 pt-24 text-center text-sm text-ink-muted"
         >
           Hidden while this window is not in focus. Click here to carry on.
         </button>

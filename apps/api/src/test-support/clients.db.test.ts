@@ -252,6 +252,12 @@ test('changing the password in the portal ends the prompt too; the forgot/reset 
   assert.equal((await call('POST', '/auth/portal/forgot', undefined, { email: them.email })).status, 204);
   assert.equal((await call('POST', '/auth/portal/reset', undefined, { token: linkToken(), new_password: PASSWORD })).status, 204);
   assert.equal((await prisma.client.findUniqueOrThrow({ where: { id: them.id } })).password_is_default, false);
+
+  // Correcting the address of someone still on the emailed password drops it: it went to the old mailbox.
+  await prisma.client.update({ where: { id: them.id }, data: { password_is_default: true } });
+  const moved = await call('PUT', `/clients/${them.id}`, tokens.admin, { email: `moved-${run}@test.enzo.local` });
+  assert.equal(((await moved.json()) as { has_portal_access: boolean }).has_portal_access, false);
+  assert.equal((await prisma.client.findUniqueOrThrow({ where: { id: them.id } })).password_is_default, false);
 });
 
 test('a forgotten-password reset signs every old portal session out', async () => {

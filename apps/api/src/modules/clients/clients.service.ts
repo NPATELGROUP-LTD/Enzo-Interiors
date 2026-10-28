@@ -119,6 +119,8 @@ export class ClientsService {
     // The sign-in moved: portal sessions and any set-password link sent to the
     // old address stop working (a mistyped address may belong to someone else).
     if (emailChanged) patch.token_version = (existing.token_version ?? 0) + 1;
+    // An emailed password went to the old address: it must not carry over to the new one. Invite again.
+    if (emailChanged && existing.password_is_default) Object.assign(patch, { password_hash: '', password_is_default: false });
 
     const updated = await this.db.clients.update(id, patch);
     if (!updated) throw new NotFoundException('Client not found');
