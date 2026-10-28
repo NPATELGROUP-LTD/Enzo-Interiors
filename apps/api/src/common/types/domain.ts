@@ -449,7 +449,22 @@ export interface ContactSubmission extends BaseRecord {
   kind: EnquiryKind;
   /** The form's extra fields (tier, room, preferred date...). */
   details: Record<string, string> | null;
+  /** The tag in the inbox; null on rows from before it existed (the kind says enough). */
+  source: EnquirySource | null;
   created_at: string;
+}
+
+export const ENQUIRY_SOURCES = ['Contact', 'Booking', 'Quote'] as const;
+export type EnquirySource = (typeof ENQUIRY_SOURCES)[number];
+
+/** What an Admin sent an enquirer from the inbox. */
+export interface EnquiryMessage extends BaseRecord {
+  enquiry_id: string;
+  direction: 'out' | 'in';
+  body: string;
+  to_address: string;
+  sent_by: string | null;
+  sent_at: string;
 }
 
 /** Schema 3.17 — a singleton row. */

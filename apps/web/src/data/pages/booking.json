@@ -43,14 +43,15 @@
       "heading": "Your details",
       "lede": "So we can get in touch to confirm.",
       "placeholders": {
-        "name": "Full name",
+        "name": "Name",
         "email": "Email address",
         "phone": "Phone number",
-        "notes": "Any additional notes (optional)",
+        "notes": "Anything we should know",
         "address": "Address (first line)",
         "postcode": "Postcode"
       },
-      "optionalSuffix": " (optional)"
+      "optionalSuffix": " (optional)",
+      "requiredNote": "* Required"
     },
     "confirmation": {
       "heading": "Booking Confirmed!",
