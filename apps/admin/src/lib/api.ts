@@ -95,10 +95,12 @@ interface RequestOptions {
   body?: unknown;
   /** Skip the automatic logout on 401 — used by the login call itself. */
   allowUnauthorized?: boolean;
+  /** Hand back the response as a file (an email attachment) rather than JSON. */
+  blob?: boolean;
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, allowUnauthorized = false } = options;
+  const { method = 'GET', body, allowUnauthorized = false, blob = false } = options;
   const token = tokenStore.get();
 
   // A FormData body (a file upload) goes as-is: the browser sets the multipart boundary.
@@ -126,6 +128,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   if (response.status === 204) return undefined as T;
+  if (blob && response.ok) return (await response.blob()) as T;
 
   const text = await response.text();
   let payload: unknown = null;
@@ -184,6 +187,7 @@ export const api = {
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
+  blob: (path: string) => request<Blob>(path, { blob: true }),
   baseUrl: BASE_URL,
 };
 
