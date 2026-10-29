@@ -261,6 +261,18 @@ Two component directories rather than one shared runtime package: one exclusivel
 
 ---
 
+### 9.x v3.0.0 additions (migrations 21–29)
+
+| Area | Tables | Routes / notes |
+|---|---|---|
+| Enquiries | `contact_submissions.source`, `.ref_no`, `enquiry_messages` | `GET /enquiries/:id`, `POST /enquiries/:id/reply` (stored on the enquiry); booking and the contact form both create an enquiry |
+| Invoices | `invoice_stages`, `site_settings.bank_details` | `PUT|DELETE /invoices/:id/stages/:stageId/paid`, `GET|PUT /settings/bank-details` |
+| Mail | `gmail_accounts` (sealed refresh token only) | `/mailbox/*` (own mailbox, Admin/Designer/Editor), `/mailbox/callback` on the auth host |
+| Team | `project_members`, `installer_assignments` | `/projects/:id/team/*`; installer pay visible to the Admin and that installer only |
+| Clients / documents | `clients.password_is_default`, `documents.category`, `documents.client_can_download`, `invoices.client_can_download`, `projects.site_address`, `site_settings.document_categories` | `POST /account/password/keep`, `GET|PUT /documents/categories`, `PATCH /documents/:id/client-download`, `PATCH /invoices/:id/client-download` |
+| Team chat | `staff_threads`, `staff_messages`, `staff_thread_reads` | `/team/*`; socket event `team:message` |
+| Search / live refresh | `projects.ref_no` | `GET /search`; socket event `data:changed` (payload-less) |
+
 ## 10. Technology Stack Summary
 
 | Layer | Technology |
