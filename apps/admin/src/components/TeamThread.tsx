@@ -3,11 +3,12 @@ import { FileText, Paperclip, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { Composer, MessageText, TOOL } from '@/components/chat';
-import { Card, ErrorState, LoadingState } from '@/components/ui';
+import { useFileViewer } from '@/components/FileViewer';
+import { Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/auth';
 import { ApiError, api } from '@/lib/api';
-import { fileSize, relative } from '@/lib/format';
+import { date, fileSize, time } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
 import type { TeamMessage } from '@/types/api';
 
@@ -22,6 +23,7 @@ const MAX_FILE = 25 * 1024 * 1024;
  */
 export function TeamThread({ threadId, className }: { threadId: string; className?: string }) {
   const toast = useToast();
+  const files = useFileViewer();
   const { user } = useAuth();
   const [messages, setMessages] = useState<TeamMessage[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -92,13 +94,17 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
     }
   };
 
-  const open = async (message: TeamMessage, index: number) => {
-    try {
-      const { url } = await api.get<{ url: string }>(`/team/threads/${threadId}/messages/${message.id}/files/${index}`);
-      window.open(url, '_blank', 'noopener,noreferrer');
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'Could not open that file.');
-    }
+  // Opens in the page like the client chat's files: a photo, video or PDF in a dialog, anything else saved.
+  const open = (message: TeamMessage, index: number) => {
+    const attachment = message.attachments?.[index];
+    if (!attachment) return;
+    const preview = attachment.type.startsWith('video/') ? 'video' : attachment.type.startsWith('image/') ? 'image' : attachment.type === 'application/pdf' ? 'pdf' : null;
+    void files.show({
+      id: `${message.id}:${index}`,
+      name: attachment.name,
+      preview,
+      link: async () => (await api.get<{ url: string }>(`/team/threads/${threadId}/messages/${message.id}/files/${index}`)).url,
+    });
   };
 
   if (error && !messages) return <ErrorState message={error} onRetry={() => void load()} />;
@@ -106,35 +112,46 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
 
   return (
     <div className={clsx('flex min-h-0 flex-col', className)}>
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain py-2" aria-live="polite">
-        {messages.length === 0 ? <p className="py-6 text-center text-sm text-ink-muted">No messages yet. Say hello, or send a photo or video.</p> : null}
-        {messages.map((message) => {
-          const mine = message.sender_id === user?.id;
-          return (
-            <div key={message.id} className={clsx('flex flex-col', mine ? 'items-end' : 'items-start')}>
-              <p className="mb-0.5 px-1 text-xs text-ink-muted">
-                {mine ? 'You' : message.sender_name} · {relative(message.created_at)}
-              </p>
-              <div className={clsx('max-w-[85%] rounded-[14px] px-3.5 py-2 text-sm', mine ? 'bg-green-900/10' : 'bg-ink/[0.05]')}>
-                {message.body ? <MessageText text={message.body} /> : null}
-                {message.attachments?.map((attachment, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    onClick={() => void open(message, index)}
-                    className={clsx('flex items-center gap-2 rounded-[8px] bg-surface px-2.5 py-1.5 text-left hover:bg-surface/70', message.body && 'mt-2')}
-                  >
-                    <FileText size={18} aria-hidden="true" className="shrink-0 text-green-900" />
-                    <span className="min-w-0">
-                      <span className="block truncate font-semibold text-ink">{attachment.name}</span>
-                      <span className="block text-xs text-ink-muted">{attachment.type.startsWith('video/') ? 'Video' : attachment.type.startsWith('image/') ? 'Photo' : 'PDF'} · {fileSize(attachment.size_bytes)} · Open</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      {files.viewer}
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain" aria-live="polite">
+        {messages.length === 0 ? <EmptyState title="No messages yet" message="Say hello, or send a photo or video." /> : null}
+        <ul className="flex flex-col gap-2">
+          {messages.map((message, index) => {
+            const mine = message.sender_id === user?.id;
+            const previous = messages[index - 1];
+            const newDay = !previous || previous.created_at.slice(0, 10) !== message.created_at.slice(0, 10);
+            return (
+              <li key={message.id}>
+                {newDay ? <p className="my-2 text-center text-xs text-ink-muted">{date(message.created_at)}</p> : null}
+                <div className={clsx('flex', mine ? 'justify-end' : 'justify-start')}>
+                  <div className={clsx('relative max-w-[85%] rounded-card py-2 pl-3 pr-3 sm:max-w-[70%]', mine ? 'bg-green-100' : 'bg-surface-muted')}>
+                    {message.body ? <MessageText text={message.body} /> : null}
+                    {message.attachments?.length ? (
+                      <ul className="mt-2 flex flex-col gap-1">
+                        {message.attachments.map((attachment, fileIndex) => (
+                          <li key={fileIndex}>
+                            <button
+                              type="button"
+                              onClick={() => open(message, fileIndex)}
+                              className="flex w-full items-center gap-1.5 rounded-control border border-border bg-surface px-2 py-1 text-left text-xs text-ink hover:border-green-900"
+                            >
+                              <Paperclip size={12} aria-hidden="true" />
+                              <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+                              <span className="tabular shrink-0 text-ink-muted">{fileSize(attachment.size_bytes)}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
+                    <p className="mt-1 text-[11px] text-ink-muted">
+                      {mine ? 'You' : message.sender_name} · {time(message.created_at)}
+                    </p>
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
         <div ref={end} />
       </div>
       <Composer
@@ -186,10 +203,10 @@ export function ProjectThread({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   return (
-    <Card className="flex max-h-[32rem] flex-col">
+    <Card className="flex h-[36rem] flex-col xl:sticky xl:top-6">
       <h2 className="pb-1 text-sm font-semibold text-ink">Team thread</h2>
       <p className="pb-2 text-xs text-ink-muted">Messages, photos and videos for everyone on this project and the Admins. Clients never see this.</p>
-      {error ? <ErrorState message={error} /> : thread ? <TeamThread threadId={thread.id} className="h-96" /> : <LoadingState label="Opening the thread…" />}
+      {error ? <ErrorState message={error} /> : thread ? <TeamThread threadId={thread.id} className="min-h-0 flex-1" /> : <LoadingState label="Opening the thread…" />}
     </Card>
   );
 }

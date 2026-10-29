@@ -102,7 +102,7 @@ export function PushPrompt({ detail }: { detail: string }) {
 
   const asking = state === 'off' && 'Notification' in window && Notification.permission === 'default';
   // Not over a chat's composer: the card shows on the next page instead.
-  if (!(asking || state === 'install') || dismissedRecently() || pathname.startsWith('/messages')) return null;
+  if (!asking || dismissedRecently() || pathname.startsWith('/messages')) return null;
 
   const dismiss = () => {
     try {
@@ -139,9 +139,9 @@ export function PushPrompt({ detail }: { detail: string }) {
         </span>
         <div className="min-w-0">
           <p id="push-prompt-title" className="font-semibold text-ink">
-            {state === 'install' ? 'Get notifications on this iPhone' : 'Turn on notifications?'}
+            Turn on notifications?
           </p>
-          <p className="mt-1 text-sm text-ink-muted">{state === 'install' ? PUSH_MESSAGES.install : detail}</p>
+          <p className="mt-1 text-sm text-ink-muted">{detail}</p>
           {failed ? (
             <p className="mt-1 text-sm text-danger" role="alert">
               This browser could not turn them on. Try again, or use the installed app.
@@ -150,20 +150,12 @@ export function PushPrompt({ detail }: { detail: string }) {
         </div>
       </div>
       <div className="mt-3 flex justify-end gap-2">
-        {state === 'install' ? (
-          <Button variant="secondary" onClick={dismiss}>
-            Got it
-          </Button>
-        ) : (
-          <>
-            <Button variant="ghost" onClick={dismiss} disabled={busy}>
-              Not now
-            </Button>
-            <Button variant="primary" onClick={() => void turnOn()} loading={busy}>
-              Turn on
-            </Button>
-          </>
-        )}
+        <Button variant="ghost" onClick={dismiss} disabled={busy}>
+          Not now
+        </Button>
+        <Button variant="primary" onClick={() => void turnOn()} loading={busy}>
+          Turn on
+        </Button>
       </div>
     </div>
   );

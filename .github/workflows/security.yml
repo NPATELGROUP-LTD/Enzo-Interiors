@@ -19,7 +19,7 @@ jobs:
   # (.github/dependabot.yml) opens the fix.
   audit:
     name: audit (${{ matrix.app }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +36,7 @@ jobs:
   # test keys are allowed by path in .gitleaks.toml. The binary is pinned and checked.
   secrets:
     name: secrets (gitleaks)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -51,7 +51,7 @@ jobs:
   # Insecure code patterns (injection, unsafe redirects, weak crypto), high-confidence rules only.
   code:
     name: code (semgrep)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
       - uses: actions/checkout@v4
       - run: >-

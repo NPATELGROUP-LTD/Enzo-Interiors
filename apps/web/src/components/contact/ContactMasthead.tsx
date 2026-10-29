@@ -25,7 +25,6 @@ import gsap from "gsap";
 import { useGSAP } from "@/hooks/useGSAP";
 import { DUR, EASE } from "@/lib/motion";
 import { getStudioStatus, type StudioStatus } from "@/lib/studio-hours";
-import { OpeningHoursList } from "@/components/shared/OpeningHoursList";
 import { cn } from "@/lib/utils";
 import type { Company, ContactPageContent, ContactRouteContent } from "@/lib/content";
 
@@ -271,11 +270,6 @@ export function ContactMasthead({
             );
           })}
         </ul>
-
-        {/* The whole week, with each day's own note, under the routes. */}
-        <div data-body className="mt-12 max-w-xl opacity-0" style={{ transform: "translateY(14px)" }}>
-          <OpeningHoursList label={content.hoursLabel ?? "Opening hours"} rows={hours.rows} note={hours.note} />
-        </div>
       </div>
     </section>
   );

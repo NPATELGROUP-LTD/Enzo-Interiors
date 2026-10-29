@@ -166,6 +166,25 @@ export function addMissing(target: Json, source: Json): Json | null {
 }
 
 /**
+ * v3.0.1: Production joined the home page's process, between Making and Fitting. A list is the client's to
+ * edit as a whole, so addMissing leaves it alone and an edited home page would never show the new stage.
+ * Adds it once, only to a list that does not have it yet.
+ * ponytail: a stage the client later deletes on purpose comes back on the next import; drop this after the rollout.
+ */
+export function addProductionStage(target: Json, source: Json): Json | null {
+  const process = target.process;
+  const stages = isObject(process) ? process.stages : undefined;
+  const shipped = isObject(source.process) ? source.process.stages : undefined;
+  if (!isObject(process) || !Array.isArray(stages) || !Array.isArray(shipped)) return null;
+  const production = shipped.find((stage) => isObject(stage) && stage.title === 'Production');
+  if (!production || stages.some((stage) => isObject(stage) && stage.title === 'Production')) return null;
+  const at = stages.findIndex((stage) => isObject(stage) && stage.title === 'Fitting');
+  const next = [...stages];
+  next.splice(at < 0 ? next.length : at, 0, production);
+  return { ...target, process: { ...process, stages: next } };
+}
+
+/**
  * Imported and never touched since. Every admin write to an entry (save,
  * publish, publish all, revert, create) sets updated_by to the person, and
  * this script never does, so `updated_by` still being the importer means no
@@ -322,8 +341,12 @@ async function main(): Promise<void> {
         // Pages and company are fixed documents, so new sections in the shipped
         // copy are added to them. Collections of rows are left as they are.
         if (collection === 'pages' || collection === 'company') {
-          const draft = addMissing(existing.draft, row.body);
-          const published = existing.published && addMissing(existing.published, row.body);
+          let draft = addMissing(existing.draft, row.body);
+          let published = existing.published && addMissing(existing.published, row.body);
+          if (collection === 'pages' && row.slug === 'home') {
+            draft = addProductionStage(draft ?? existing.draft, row.body) ?? draft;
+            if (existing.published) published = addProductionStage(published ?? existing.published, row.body) ?? published;
+          }
           if (draft || published) {
             await db.cmsEntries.update(existing.id, {
               ...(draft ? { draft } : {}),

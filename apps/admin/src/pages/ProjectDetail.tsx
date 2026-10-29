@@ -147,6 +147,11 @@ export function ProjectDetailPage() {
             <span className="text-sm text-ink-muted">{refNo('PRJ', project.ref_no)}</span>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
+              <Button variant="secondary" onClick={() => navigate(`/quotes?new=1&project=${project.id}`)}>
+                New quote
+              </Button>
+            ) : null}
+            {isAdmin ? (
               <Button
                 variant="ghost"
                 className="text-danger"
@@ -311,14 +316,15 @@ export function ProjectDetailPage() {
         </Card>
       </div>
 
-      <ProjectTeam
-        projectId={project.id}
-        team={team}
-        staff={designers}
-        onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
-      />
-
-      <ProjectThread projectId={project.id} />
+      <div className="mb-5 grid items-start gap-4 xl:grid-cols-2">
+        <ProjectTeam
+          projectId={project.id}
+          team={team}
+          staff={designers}
+          onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
+        />
+        <ProjectThread projectId={project.id} />
+      </div>
 
       {/* The Documents tab's Upload sits at the end of the tabs row. */}
       <div className="flex items-start gap-3">

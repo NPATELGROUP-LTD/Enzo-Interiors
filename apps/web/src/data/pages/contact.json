@@ -98,7 +98,13 @@
     "axisWeek": "W{week}",
     "keyLeader": "Survey, drawings and your sign-off",
     "keyBuild": "Made in the workshop and fitted",
-    "keyNote": "Indicative, on our current book. Your quotation carries the real dates."
+    "keyNote": "Indicative, on our current book. Your quotation carries the real dates.",
+    "rows": [
+      { "label": "Kitchens", "timeline": "4-6 weeks" },
+      { "label": "Bedrooms", "timeline": "3-5 weeks" },
+      { "label": "Media Walls", "timeline": "2-4 weeks" },
+      { "label": "Wardrobes", "timeline": "2-4 weeks" }
+    ]
   },
   "ready": {
     "id": "contact-terms",

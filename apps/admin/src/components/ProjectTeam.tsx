@@ -61,13 +61,13 @@ export function ProjectTeam({
   const own = team.find((member) => member.staff_id === user?.id && member.assignment);
 
   return (
-    <div className="mb-5 flex flex-col gap-4">
+    <div className="flex min-w-0 flex-col gap-4">
       {own?.assignment ? <MyAssignment member={own} assignment={own.assignment} projectId={projectId} onChange={onChange} /> : null}
 
       <Card>
         <p className="label-eyebrow">Team</p>
         {isAdmin ? (
-          <div className="mt-3 grid gap-x-6 gap-y-5 lg:grid-cols-2">
+          <div className="mt-3 grid gap-x-6 gap-y-6">
             <Side role="Designer" label="Designers" team={team} staff={staff} projectId={projectId} onChange={onChange} />
             <Side role="Installer" label="Installers" team={team} staff={staff} projectId={projectId} onChange={onChange} />
           </div>
@@ -113,6 +113,28 @@ function Side({
   return (
     <section aria-label={label} className="flex min-w-0 flex-col gap-3">
       <p className="text-sm font-semibold text-ink">{label}</p>
+      {/* The picker sits on top; whoever is added lands in the list below it. */}
+      <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
+        <Select label={`Add ${role === 'Designer' ? 'a' : 'an'} ${noun}`} value={pick} onChange={(event) => setPick(event.target.value)}>
+          <option value="">{free.length ? 'Choose someone…' : `No other ${noun}s`}</option>
+          {free.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+            </option>
+          ))}
+        </Select>
+        <Button
+          variant="secondary"
+          icon={<Plus size={15} aria-hidden="true" />}
+          disabled={!pick}
+          loading={busy === 'add'}
+          onClick={async () => {
+            if (await run('add', () => api.post<TeamMember[]>(base, { staff_id: pick, role }), 'Added.')) setPick('');
+          }}
+        >
+          Add
+        </Button>
+      </div>
       {members.length === 0 ? <p className="text-ink-muted">No {noun}s yet.</p> : null}
       {role === 'Designer' ? (
         <ul className="rows">
@@ -139,27 +161,6 @@ function Side({
           />
         ))
       )}
-      <div className="grid items-end gap-3 sm:grid-cols-[1fr_auto]">
-        <Select label={`Add ${role === 'Designer' ? 'a' : 'an'} ${noun}`} value={pick} onChange={(event) => setPick(event.target.value)}>
-          <option value="">{free.length ? 'Choose someone…' : `No other ${noun}s`}</option>
-          {free.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.name}
-            </option>
-          ))}
-        </Select>
-        <Button
-          variant="secondary"
-          icon={<Plus size={15} aria-hidden="true" />}
-          disabled={!pick}
-          loading={busy === 'add'}
-          onClick={async () => {
-            if (await run('add', () => api.post<TeamMember[]>(base, { staff_id: pick, role }), 'Added.')) setPick('');
-          }}
-        >
-          Add
-        </Button>
-      </div>
     </section>
   );
 }

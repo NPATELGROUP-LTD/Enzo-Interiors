@@ -5,6 +5,7 @@ on:
   push:
     branches: [develop, main]
 
+# Runner: the repository variable CI_RUNNER picks it (our own machine, docs/ci-runner.md); unset = GitHub-hosted.
 permissions:
   contents: read
 
@@ -13,7 +14,7 @@ jobs:
   # Each app installs on its own (CLAUDE.md); a script an app does not define is skipped.
   app:
     name: app (${{ matrix.app }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:
@@ -46,7 +47,7 @@ jobs:
   # the other matrix legs do not start a database; the DB name must end in _test.
   api-db:
     name: api (database tests)
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     services:
       postgres:
         image: postgres:16
@@ -96,7 +97,7 @@ jobs:
   docker:
     name: docker (${{ matrix.app }})
     if: github.base_ref == 'main'
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     strategy:
       fail-fast: false
       matrix:

@@ -341,3 +341,43 @@ export interface PortalDashboard {
     updated_at: string;
   }>;
 }
+/** A hand-written quote for a project (migration 31). Money on the lines is before VAT. */
+export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Declined';
+
+export interface QuoteItem {
+  id: string;
+  quote_id: string;
+  description: string;
+  section: string | null;
+  detail: string | null;
+  quantity: number;
+  unit_price: number;
+  position: number;
+}
+
+export interface Quote {
+  id: string;
+  number: string;
+  client_id: string;
+  project_id: string;
+  client_name: string;
+  project_name: string | null;
+  title: string | null;
+  status: QuoteStatus;
+  /** The gross payable. */
+  amount: number;
+  vat_rate: number;
+  discount: number;
+  subtotal_amount: number;
+  net_amount: number;
+  vat_amount: number;
+  valid_until: string | null;
+  expired: boolean;
+  notes: string | null;
+  sent_at: string | null;
+  responded_at: string | null;
+  response_comment: string | null;
+  invoice_id: string | null;
+  created_at: string;
+  items: QuoteItem[];
+}

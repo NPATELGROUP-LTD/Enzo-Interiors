@@ -723,7 +723,7 @@ export function BookingWizard({
 
         {/* Navigation: sits under the step area, so Next is always in view and the page itself never scrolls. */}
         {step < DONE && (
-          <div className="shrink-0 border-t border-border/60 bg-background px-6 py-3 md:px-12">
+          <div className="shrink-0 border-t border-border/60 bg-background px-6 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 md:px-12">
             <div className="flex items-center justify-between gap-4">
               <button
                 type="button"
