@@ -28,9 +28,10 @@ test('every document has unique clause ids, text, and no unfilled placeholder', 
   }
 });
 
-test('the controller is named in full and an ICO number is never invented', () => {
+test('the controller is named in full, with its real ICO number and no invented VAT number', () => {
   const all = JSON.stringify(LEGAL);
   assert.ok(all.includes(COMPANY.name) && all.includes(COMPANY.number) && all.includes(COMPANY.address));
   assert.ok(all.includes(COMPANY.privacyEmail));
-  assert.doesNotMatch(all, /ICO (registration|number)|\bZ[A-Z]\d{7}\b|VAT (registration )?number/i);
+  assert.ok(all.includes('ZC047912'));
+  assert.doesNotMatch(all, /VAT (registration )?number/i);
 });
