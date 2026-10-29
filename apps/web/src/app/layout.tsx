@@ -121,7 +121,7 @@ export default async function RootLayout({
             attribute is reliably set before styles are ever computed — no
             transition plays for the initial state. */}
         <Script id="hero-chrome-guard" strategy="beforeInteractive">
-          {'if(location.pathname==="/"){var seen=false;try{seen=localStorage.getItem("enzo:hero-seen")==="1"&&matchMedia("(min-width:1024px) and (prefers-reduced-motion:no-preference)").matches}catch(e){}document.body.dataset.heroChrome=seen?"visible":"hidden";if(seen)document.documentElement.dataset.heroSeen="1"}'}
+          {'if(location.pathname==="/"){var seen=false;try{seen=localStorage.getItem("enzo:hero-seen")==="1"&&matchMedia("(min-width:1024px) and (prefers-reduced-motion:no-preference)").matches}catch(e){}document.body.dataset.heroChrome=seen?"visible":"hidden"}'}
         </Script>
         {/* Desktop-only decorative frame around the whole site — completely
             square, no rounded corners. Hidden on mobile entirely. The navbar
