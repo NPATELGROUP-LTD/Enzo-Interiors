@@ -21,6 +21,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import type { MediaAsset } from '@/types/cms';
 
@@ -113,6 +114,12 @@ function Subscribers() {
       (row) => (status === 'all' || row.status === status) && (!needle || row.email.includes(needle)),
     );
   }, [list.data, search, status]);
+  const { rows: sortedRows, header } = useSort(rows, {
+    email: (row) => row.email,
+    status: (row) => row.status,
+    signedUp: (row) => row.created_at,
+    where: (row) => row.source,
+  });
 
   if (list.error) return <ErrorState message={list.error} onRetry={list.refetch} />;
   if (!list.data) return <LoadingState label="Loading subscribers…" />;
@@ -203,17 +210,17 @@ function Subscribers() {
         <TableWrap>
           <thead>
             <tr>
-              <Th>Email</Th>
-              <Th>Status</Th>
-              <Th>Signed up</Th>
-              <Th>Where</Th>
+              <Th sort={header('email')}>Email</Th>
+              <Th sort={header('status')}>Status</Th>
+              <Th sort={header('signedUp')}>Signed up</Th>
+              <Th sort={header('where')}>Where</Th>
               <Th>
                 <span className="sr-only">Actions</span>
               </Th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row) => {
+            {sortedRows.map((row) => {
               const [tone, label] = SUBSCRIBER_TONE[row.status];
               return (
                 <tr key={row.id}>

@@ -34,10 +34,11 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dateTime } from '@/lib/format';
+import { dateTime, refNo } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { Client, Project, ProjectStage, ServiceType } from '@/types/api';
 import { SERVICE_LABELS, SERVICE_TYPES } from '@/types/api';
@@ -482,6 +483,13 @@ export function ProjectsPage() {
   };
 
   const rows = projects.data ?? [];
+  const { rows: sortedRows, header } = useSort(rows, {
+    name: (project) => project.name,
+    client: (project) => project.client_name,
+    stage: (project) => project.current_stage ?? project.status,
+    progress: (project) => project.progress_pct,
+    updated: (project) => project.updated_at,
+  });
 
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
@@ -556,17 +564,17 @@ export function ProjectsPage() {
         <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
-              <Th>Project</Th>
-              <Th className="max-sm:hidden">Client</Th>
-              <Th>Stage</Th>
+              <Th sort={header('name')}>Project</Th>
+              <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
+              <Th sort={header('stage')}>Stage</Th>
               <Th className="max-sm:hidden">Team</Th>
-              <Th className="max-sm:hidden">Progress</Th>
+              <Th className="max-sm:hidden" sort={header('progress')}>Progress</Th>
               <Th className="max-sm:hidden">Client sees</Th>
-              <Th className="max-sm:hidden">Updated</Th>
+              <Th className="max-sm:hidden" sort={header('updated')}>Updated</Th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((project) => (
+            {sortedRows.map((project) => (
               <tr
                 key={project.id}
                 className="cursor-pointer hover:bg-surface-muted/40"
@@ -580,7 +588,7 @@ export function ProjectsPage() {
                   </Link>
                   <p className="text-xs text-ink-muted">
                     <span className="sm:hidden">{project.client_name} · </span>
-                    {SERVICE_LABELS[project.type]}
+                    {refNo('PRJ', project.ref_no)} · {SERVICE_LABELS[project.type]}
                   </p>
                 </Td>
                 <Td className="text-ink max-sm:hidden">{project.client_name}</Td>

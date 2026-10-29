@@ -26,7 +26,7 @@ import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { date, dateTime, humanise, money } from '@/lib/format';
+import { date, dateTime, humanise, money, refNo } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
 import type { ProjectDetail, ProjectStage, TeamMember } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
@@ -143,6 +143,7 @@ export function ProjectDetailPage() {
         title={project.name}
         actions={
           <>
+            <span className="text-sm text-ink-muted">{refNo('PRJ', project.ref_no)}</span>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
               <Button

@@ -106,6 +106,9 @@ export const humanise = (slug: string): string => {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 };
 
+/** A record's readable number: refNo('PRJ', 12) is PRJ-0012. Empty when it has none yet. */
+export const refNo = (prefix: 'PRJ' | 'ENQ', n: number | undefined): string => (n ? `${prefix}-${String(n).padStart(4, '0')}` : '');
+
 /** Initials for an avatar chip. */
 export const initials = (name: string): string =>
   name

@@ -14,6 +14,11 @@ import { Server } from 'socket.io';
 export class RealtimeService {
   server: Server | null = null;
 
+  /** Everyone connected, no payload: a nudge to refetch, carrying nothing to leak. */
+  broadcast(event: string): void {
+    this.server?.emit(event);
+  }
+
   toUser(userId: string, event: string, payload: unknown): void {
     this.server?.to(`user:${userId}`).emit(event, payload);
   }

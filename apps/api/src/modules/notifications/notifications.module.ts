@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpCode, Injectable, Logger, Module, Post } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ArrayMaxSize, IsArray, IsOptional, IsString } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
@@ -8,6 +9,7 @@ import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
 import { looksHashed } from '../auth/auth.service';
 import { NotifyCategory, NotifyChannel, allowed } from './preferences';
+import { ChangeBroadcast } from './change-broadcast';
 import { PushController, PushService } from './push';
 import { RealtimeService } from './realtime';
 
@@ -188,7 +190,7 @@ export class NotificationsController {
 
 @Module({
   controllers: [NotificationsController, PushController],
-  providers: [NotificationsService, PushService, RealtimeService],
+  providers: [NotificationsService, PushService, RealtimeService, { provide: APP_INTERCEPTOR, useClass: ChangeBroadcast }],
   exports: [NotificationsService, PushService, RealtimeService],
 })
 export class NotificationsModule {}

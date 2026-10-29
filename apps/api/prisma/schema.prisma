@@ -106,6 +106,8 @@ model Project {
   @@index([client_id])
   @@index([assigned_designer_id])
   @@index([assigned_installer_id])
+  /// Shown as PRJ-0001 / ENQ-0001: a readable number for searching and for quoting on the phone.
+  ref_no               Int      @default(autoincrement()) @unique
   @@map("projects")
 }
 
@@ -413,6 +415,8 @@ model ContactSubmission {
   messages         EnquiryMessage[]
 
   @@index([status])
+  /// Shown as PRJ-0001 / ENQ-0001: a readable number for searching and for quoting on the phone.
+  ref_no               Int      @default(autoincrement()) @unique
   @@map("contact_submissions")
 }
 

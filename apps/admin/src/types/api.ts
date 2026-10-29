@@ -145,6 +145,8 @@ export interface ChangeRequest {
 
 export interface Project {
   id: string;
+  /** PRJ-0012: shown with refNo(), searchable. */
+  ref_no?: number;
   client_id: string;
   name: string;
   type: ServiceType;
@@ -400,6 +402,8 @@ export interface PortfolioItem {
 
 export interface ContactSubmission {
   id: string;
+  /** ENQ-0004: shown with refNo(), searchable. */
+  ref_no?: number;
   name: string;
   email: string;
   phone: string | null;
