@@ -29,7 +29,7 @@ import { fill, type HomeContent } from "@/lib/content";
 import { ElevationDrawing } from "./ElevationDrawing";
 
 /** Viewport-heights of scroll each stage holds the stage for. */
-const STAGE_VH = 85;
+const STAGE_VH = 80;
 
 /**
  * The pinned frame's column template, used by BOTH rows — the heading/lede
@@ -265,6 +265,7 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                   <ElevationDrawing
                     active={active}
                     content={content.drawing}
+                    stageCount={stages.length}
                     className="aspect-[16/9] h-auto w-full max-w-[min(100%,62rem,calc((100svh-26rem)*16/9))]"
                   />
                 </div>
@@ -313,7 +314,7 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                 </div>
 
                 <div>
-                  {/* Five equal segments, filled to the current stage. */}
+                  {/* One equal segment per stage, filled to the current stage. */}
                   <ol
                     className="flex gap-1.5"
                     aria-label={fill(content.stagesAria, {
@@ -391,6 +392,8 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
           <ElevationDrawing
             active={mobileInked ? stages.length - 1 : -1}
             content={content.drawing}
+            stageCount={stages.length}
+            annotate={false}
           />
         </div>
 

@@ -96,7 +96,7 @@
     "label": "Process",
     "datum": "five to eight weeks",
     "lines": ["Drawn, made and fitted", "by the same hands."],
-    "lede": "Five stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does.",
+    "lede": "Six stages, one team. Keep scrolling and the drawing builds itself, exactly the way your room does.",
     "stagesAria": "Stage {current} of {total}",
     "stages": [
       {
@@ -111,8 +111,13 @@
       },
       {
         "title": "Making",
-        "datum": "2–4 weeks",
-        "body": "Cut, edged and assembled in our Leicester workshop by the people who drew it. Every panel is made for your room."
+        "datum": "1–2 weeks",
+        "body": "Boards are cut to a nested layout in our Leicester workshop by the people who drew it. Every panel is edged, drilled and dowelled for your room."
+      },
+      {
+        "title": "Production",
+        "datum": "1–2 weeks",
+        "body": "Carcasses are assembled square, doors sprayed and cured in-house, and every piece is checked against the drawing before it is wrapped for site."
       },
       {
         "title": "Fitting",
@@ -132,10 +137,23 @@
       "heading": "Five to eight weeks, start to fitted."
     },
     "drawing": {
-      "ariaLabel": "Wardrobe elevation drawing, inking in stage by stage as the process advances",
-      "cutListLabel": "CUT LIST",
+      "ariaLabel": "Wardrobe elevation drawing, inking in stage by stage as the process advances: survey, design, making, production, fitting and handover",
+      "sheetTitle": "ENZO INTERIORS · FITTED WARDROBE · ELEVATION",
+      "sheetLabel": "SHEET {current} / {total}",
+      "visualLabel": "3D",
+      "nestLabel": "CUT LAYOUT",
+      "checkedLabel": "CHECKED",
       "handoverLabel": "HANDOVER",
-      "dimensions": { "roomWidth": "3600", "roomHeight": "2440", "carcassWidth": "2100" }
+      "guaranteeLabel": "YEAR GUARANTEE",
+      "notes": [
+        ["Every wall, floor and ceiling measured", "Window and radiator positions logged", "Walls are never square — we note it"],
+        ["3D visual of the finished room", "Sizes agreed to the millimetre", "One fixed, itemised quote"],
+        ["Boards nested to cut waste", "Edges banded, joints dowelled", "Drawer boxes built and run in"],
+        ["Doors sprayed and cured in-house", "Assembled square, checked to plan", "Wrapped and loaded for site"],
+        ["Hinges hung, handles on, gaps even", "Scribed to crooked walls", "Levelled and sealed on the day"],
+        ["Snag list cleared with you", "Care notes left behind", "Five-year workmanship guarantee"]
+      ],
+      "dimensions": { "roomWidth": "3600", "roomHeight": "2440", "carcassWidth": "2100", "carcassHeight": "2130" }
     }
   },
   "workshop": {
