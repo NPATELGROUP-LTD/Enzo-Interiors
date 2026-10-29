@@ -322,6 +322,39 @@ export interface InvoiceItem extends BaseRecord {
   created_at: string;
 }
 
+export type QuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Declined';
+
+/** A hand-written quote for a project (migration 31). Money is net on the lines; `amount` is the gross. */
+export interface ProjectQuote extends BaseRecord {
+  number: string;
+  client_id: string;
+  project_id: string;
+  title: string | null;
+  status: QuoteStatus;
+  amount: number;
+  vat_rate: number;
+  discount: number;
+  valid_until: string | null;
+  notes: string | null;
+  sent_at: string | null;
+  responded_at: string | null;
+  response_comment: string | null;
+  invoice_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectQuoteItem extends BaseRecord {
+  quote_id: string;
+  description: string;
+  section: string | null;
+  detail: string | null;
+  quantity: number;
+  unit_price: number;
+  position: number;
+}
+
 /** Schema 3.8 */
 export interface Booking extends BaseRecord {
   client_id: string;

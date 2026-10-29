@@ -231,10 +231,13 @@ export function EnquiriesPage() {
 
           <aside
             aria-label="Enquiry"
-            className={clsx('rounded-card bg-surface p-5 shadow-soft xl:sticky xl:top-6', !open && 'max-xl:hidden')}
+            className={clsx(
+              'rounded-card bg-surface p-5 shadow-soft xl:sticky xl:top-6 xl:flex xl:h-[calc(100dvh-9.5rem)] xl:flex-col',
+              !open && 'max-xl:hidden',
+            )}
           >
             {open ? (
-              <div className="flex flex-col gap-5">
+              <div className="flex min-h-0 flex-1 flex-col gap-4">
                 <button
                   type="button"
                   onClick={() => select(null)}
@@ -252,7 +255,7 @@ export function EnquiriesPage() {
                     {KIND[open.kind]} · {dateTime(open.created_at)}
                   </p>
                 </div>
-                <dl className="grid gap-3 text-[13px]">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
                   <div>
                     <dt className="text-ink-muted">Email</dt>
                     <dd>
@@ -279,7 +282,7 @@ export function EnquiriesPage() {
                   ))}
                 </dl>
                 {open.message ? (
-                  <p className="whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">{open.message}</p>
+                  <p className="max-h-28 overflow-y-auto whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">{open.message}</p>
                 ) : null}
                 <div>
                   <p className="mb-2 text-[13px] font-semibold text-ink-muted">Status</p>
@@ -298,9 +301,9 @@ export function EnquiriesPage() {
                     </Button>
                   </Link>
                 </div>
-                <section aria-label="Replies" className="flex flex-col gap-3 border-t border-border pt-5">
+                <section aria-label="Replies" className="flex min-h-0 flex-1 flex-col gap-3 border-t border-border pt-4">
                   {thread.length ? (
-                    <ul className="flex flex-col gap-3">
+                    <ul className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
                       {thread.map((message) => (
                         <li key={message.id} className="rounded-[10px] bg-ink/[0.04] p-3">
                           <p className="text-xs text-ink-muted">
@@ -314,7 +317,7 @@ export function EnquiriesPage() {
                   <Textarea
                     label={`Reply to ${open.name}`}
                     hint={`Emailed to ${open.email} from the studio. Their answer comes to the studio inbox.`}
-                    rows={5}
+                    rows={3}
                     maxLength={5000}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}

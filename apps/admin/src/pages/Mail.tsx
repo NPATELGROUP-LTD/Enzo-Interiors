@@ -8,10 +8,16 @@ import {
   Envelope,
   EnvelopeOpen,
   EnvelopeSimple,
+  FileText,
+  Flag,
   MagnifyingGlass,
   PaperPlaneTilt,
   PencilSimpleLine,
+  Star,
+  Tag,
+  Trash,
   Tray,
+  Warning,
   X,
 } from '@phosphor-icons/react';
 import clsx from 'clsx';
@@ -21,16 +27,21 @@ import { useSearchParams } from 'react-router-dom';
 import { ComposeSheet } from '@/components/mail/Compose';
 import { ConnectButton } from '@/components/mail/ConnectButton';
 import { MessageBody } from '@/components/mail/MessageBody';
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, LoadingState, Tabs } from '@/components/ui';
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { dateTime, fileSize, initials, relative } from '@/lib/format';
 import { draftFor, shortWho } from '@/lib/mail';
-import type { Draft, MailFile, MailMessage, MailRow, MailStatus, MailThread } from '@/types/mail';
+import type { Draft, MailFile, MailFolder, MailMessage, MailRow, MailStatus, MailThread } from '@/types/mail';
 
 const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
 const EMPTY_DRAFT: Draft = { to: '', cc: '', bcc: '', subject: '', body: '' };
+const FOLDER_ICON: Record<string, typeof Tray> = { INBOX: Tray, STARRED: Star, IMPORTANT: Flag, SENT: PaperPlaneTilt, DRAFT: FileText, SPAM: Warning, TRASH: Trash };
+const BASIC_FOLDERS: MailFolder[] = [
+  { id: 'INBOX', name: 'Inbox', system: true },
+  { id: 'SENT', name: 'Sent', system: true },
+];
 const ADDRESS = /^[^\s<>,;"']+@[^\s<>,;"']+\.[^\s<>,;"']+$/;
 const MAIL_RESULTS: Record<string, string> = { error: 'Could not connect your Gmail. Try again, and tick every box Google shows.' };
 
@@ -106,7 +117,11 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
   const lost = useRef(onLost);
   lost.current = onLost;
   const [params, setParams] = useSearchParams();
-  const folder = params.get('folder') === 'sent' ? 'sent' : 'inbox';
+  // A Gmail label id; the old ?folder=sent address still works.
+  const folderParam = params.get('folder') ?? '';
+  const folder = folderParam === 'sent' ? 'SENT' : /^[A-Za-z0-9_-]{1,100}$/.test(folderParam) ? folderParam : 'INBOX';
+  const labels = useQuery<MailFolder[]>('/mailbox/labels');
+  const folders = labels.data?.length ? labels.data : BASIC_FOLDERS;
   const q = params.get('q') ?? '';
   const withAddr = params.get('with') ?? '';
   const threadParam = params.get('thread');
@@ -132,7 +147,7 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
     const query = new URLSearchParams({ limit: '25' });
     if (q) query.set('q', q);
     if (withAddr) query.set('with', withAddr);
-    if (!searching) query.set('folder', folder);
+    if (!searching) query.set('label', folder);
     return query.toString();
   }, [q, withAddr, searching, folder]);
   const [rows, setRows] = useState<MailRow[]>([]);
@@ -253,33 +268,35 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
     }
   };
 
-  const heading = q ? `Search: ${q}` : withAddr ? `Mail with ${withAddr}` : folder === 'sent' ? 'Sent' : 'Inbox';
-  const folders = [
-    { id: 'inbox', label: 'Inbox', Icon: Tray },
-    { id: 'sent', label: 'Sent', Icon: PaperPlaneTilt },
-  ] as const;
+  const folderName = folders.find((f) => f.id === folder)?.name ?? 'Mail';
+  const heading = q ? `Search: ${q}` : withAddr ? `Mail with ${withAddr}` : folderName;
+  const pick = (id: string) => go({ folder: id === 'INBOX' ? null : id, q: null, with: null, thread: null });
 
   return (
-    <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-6 sm:px-8 sm:pb-8 lg:pt-8">
-      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-5 lg:grid-cols-[13rem_22rem_minmax(0,1fr)]">
-        {/* Folders */}
-        <Card className="hidden flex-col gap-4 p-3 lg:flex">
+    <div className="flex h-full min-h-0 flex-col px-3 pb-3 pt-3 sm:px-4 sm:pb-4 lg:pt-4">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-3 lg:grid-cols-[14rem_24rem_minmax(0,1fr)]">
+        {/* Folders: every Gmail folder and label, no frame around them */}
+        <div className="hidden min-h-0 flex-col gap-4 lg:flex">
           <Button variant="primary" icon={<PencilSimpleLine size={16} aria-hidden="true" />} onClick={() => setDraft(EMPTY_DRAFT)}>
             New message
           </Button>
-          <nav aria-label="Folders" className="flex flex-col gap-0.5">
-            {folders.map(({ id, label, Icon }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => go({ folder: id === 'inbox' ? null : id, q: null, with: null, thread: null })}
-                aria-current={!searching && folder === id ? 'page' : undefined}
-                className={clsx('flex min-h-9 items-center gap-2.5 rounded-[8px] px-2.5 text-left text-[14px] text-ink hover:bg-ink/[0.05]', !searching && folder === id && 'bg-ink/[0.07] font-semibold', FOCUS)}
-              >
-                <Icon size={17} aria-hidden="true" />
-                {label}
-              </button>
-            ))}
+          <nav aria-label="Folders" className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
+            {folders.map(({ id, name }) => {
+              const Icon = FOLDER_ICON[id] ?? Tag;
+              const here = !searching && folder === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => pick(id)}
+                  aria-current={here ? 'page' : undefined}
+                  className={clsx('flex min-h-10 items-center gap-2.5 rounded-card px-3 text-left text-[14px] text-ink shadow-soft', here ? 'bg-green-100 font-semibold' : 'bg-surface hover:bg-surface-muted', FOCUS)}
+                >
+                  <Icon size={17} aria-hidden="true" className="shrink-0" />
+                  <span className="truncate">{name}</span>
+                </button>
+              );
+            })}
           </nav>
           <form onSubmit={lookup} className="flex flex-col gap-1.5">
             <label htmlFor="mail-with" className="text-xs font-semibold text-ink-muted">
@@ -294,21 +311,31 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
               className="min-h-9 rounded-control border border-border bg-surface px-2.5 text-[13px] text-ink placeholder:text-ink-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
             />
           </form>
-          <div className="mt-auto flex flex-col gap-1 border-t border-border/60 pt-3">
+          <div className="flex flex-col gap-1 border-t border-border/60 pt-3">
             <p className="truncate text-xs text-ink-muted" title={me}>{me}</p>
             <button type="button" onClick={() => setLeaving(true)} className={clsx('w-fit rounded-control text-[13px] font-semibold text-ink-muted hover:text-ink', FOCUS)}>
               Disconnect Gmail
             </button>
           </div>
-        </Card>
+        </div>
 
         {/* The list */}
-        <Card className={clsx('min-h-0 flex-col overflow-hidden p-0', threadId ? 'hidden lg:flex' : 'flex')}>
-          <div className="flex flex-col gap-2 border-b border-border/60 p-3">
+        <div className={clsx('min-h-0 flex-col overflow-hidden', threadId ? 'hidden lg:flex' : 'flex')}>
+          <div className="flex flex-col gap-2 pb-2">
             <div className="flex items-center gap-2 lg:hidden">
-              <div className="min-w-0 flex-1 overflow-x-auto">
-                <Tabs tabs={folders.map(({ id, label }) => ({ id, label }))} active={searching ? '' : folder} onChange={(id) => go({ folder: id === 'inbox' ? null : id, q: null, with: null, thread: null })} />
-              </div>
+              <select
+                aria-label="Folder"
+                value={searching ? '' : folder}
+                onChange={(event) => event.target.value && pick(event.target.value)}
+                className="min-h-10 min-w-0 flex-1 rounded-control border border-border bg-surface px-3 text-[14px] text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+              >
+                {searching ? <option value="">{heading}</option> : null}
+                {folders.map(({ id, name }) => (
+                  <option key={id} value={id}>
+                    {name}
+                  </option>
+                ))}
+              </select>
               <Button variant="primary" aria-label="New message" className="mb-4 shrink-0 px-3" onClick={() => setDraft(EMPTY_DRAFT)}>
                 <PencilSimpleLine size={18} aria-hidden="true" />
               </Button>
@@ -356,22 +383,22 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
           ) : loading && rows.length === 0 ? (
             <LoadingState label="Loading mail…" />
           ) : rows.length === 0 ? (
-            <EmptyState title={searching ? 'Nothing found' : folder === 'sent' ? 'Nothing sent yet' : 'Your inbox is empty'} message={searching ? 'Try different words, or clear the search.' : 'New mail shows up here.'} />
+            <EmptyState title={searching ? 'Nothing found' : `${folderName} is empty`} message={searching ? 'Try different words, or clear the search.' : 'Nothing in this folder.'} />
           ) : (
-            <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5">
+            <ul className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pb-1">
               {rows.map((row) => (
                 <li key={row.id}>
                   <button
                     type="button"
                     onClick={() => go({ thread: row.id })}
                     aria-current={row.id === threadId}
-                    className={clsx('flex w-full items-start gap-2.5 rounded-[10px] px-2.5 py-2.5 text-left hover:bg-ink/[0.03]', row.id === threadId && 'bg-ink/[0.06]', FOCUS)}
+                    className={clsx('flex w-full items-start gap-2.5 rounded-card px-3 py-3 text-left shadow-soft', row.id === threadId ? 'bg-green-100' : 'bg-surface hover:bg-surface-muted', FOCUS)}
                   >
                     <span aria-hidden="true" className={clsx('mt-[7px] h-2 w-2 shrink-0 rounded-full', row.unread ? 'bg-green-900' : 'bg-transparent')} />
                     <span className="min-w-0 flex-1">
                       <span className="flex items-baseline justify-between gap-2">
                         <span className={clsx('min-w-0 truncate text-[14px] text-ink', row.unread ? 'font-bold' : 'font-medium')}>
-                          {!searching && folder === 'sent' ? `To: ${row.to.map(shortWho).join(', ') || 'no one'}` : shortWho(row.from)}
+                          {!searching && folder === 'SENT' ? `To: ${row.to.map(shortWho).join(', ') || 'no one'}` : shortWho(row.from)}
                           {row.count > 1 ? <span className="ml-1.5 text-xs font-normal text-ink-muted">{row.count}</span> : null}
                         </span>
                         <span className="tabular shrink-0 text-xs text-ink-muted">{relative(row.date)}</span>
@@ -392,10 +419,10 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
               ) : null}
             </ul>
           )}
-        </Card>
+        </div>
 
         {/* The reader */}
-        <Card className={clsx('min-h-0 min-w-0 flex-col overflow-hidden p-0', threadId ? 'flex' : 'hidden lg:flex')}>
+        <div className={clsx('min-h-0 min-w-0 flex-col overflow-hidden', threadId ? 'flex' : 'hidden lg:flex')}>
           {!threadId ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-ink-muted">
               <EnvelopeOpen size={28} aria-hidden="true" />
@@ -407,7 +434,7 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
             <LoadingState label="Opening message…" />
           ) : (
             <>
-              <div className="flex items-start gap-2 border-b border-border/60 p-3 sm:p-4">
+              <div className="flex items-start gap-2 pb-3">
                 <button type="button" aria-label="Back to the list" onClick={() => go({ thread: null })} className={clsx('-my-1 -ml-1 flex h-10 w-10 shrink-0 items-center justify-center rounded-control text-ink hover:bg-ink/[0.05] lg:hidden', FOCUS)}>
                   <CaretLeft size={18} aria-hidden="true" />
                 </button>
@@ -423,13 +450,13 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
                   <span className="hidden sm:inline">Mark unread</span>
                 </Button>
               </div>
-              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3 sm:p-4">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 <ol className="flex flex-col gap-3">
                   {open.messages.map((m, index) => {
                     const isOpen = expanded.has(m.id) || index === open.messages.length - 1;
                     return (
                       <li key={m.id}>
-                        <article className="rounded-card border border-border/60 bg-surface p-3.5">
+                        <article className="rounded-card bg-surface p-4 shadow-soft">
                           <button
                             type="button"
                             aria-expanded={isOpen}
@@ -490,7 +517,7 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
               </div>
             </>
           )}
-        </Card>
+        </div>
       </div>
 
       <ComposeSheet
@@ -498,7 +525,7 @@ function Mailbox({ me, onLost }: { me: string; onLost: () => void }) {
         onClose={() => setDraft(null)}
         onSent={() => {
           setDraft(null);
-          if (!searching && folder === 'sent') void load();
+          if (!searching && folder === 'SENT') void load();
         }}
       />
       <ConfirmDialog

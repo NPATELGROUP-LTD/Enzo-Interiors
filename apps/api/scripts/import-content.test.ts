@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { addMissing, deletedKeys, isNotFound, untouched } from './import-content';
+import { addMissing, addProductionStage, deletedKeys, isNotFound, untouched } from './import-content';
 
 const body = { title: 'Kitchens', hero: { image: 'pf-1', alt: 'x' } };
 const entry = (patch: Record<string, unknown> = {}) => ({
@@ -43,4 +43,14 @@ test('only a 404 from HeadObject means the image is missing', () => {
   assert.equal(isNotFound({ name: 'Forbidden', $metadata: { httpStatusCode: 403 } }), false);
   assert.equal(isNotFound({ name: 'TimeoutError' }), false);
   assert.equal(isNotFound(null), false);
+});
+
+test('an edited home page gains the Production stage once, before Fitting', () => {
+  const stage = (title: string) => ({ title, datum: '', body: '' });
+  const shipped = { process: { stages: ['Consultation', 'Making', 'Production', 'Fitting', 'Handover'].map(stage) } };
+  const edited = { process: { heading: 'Mine', stages: ['Consultation', 'Making', 'Fitting', 'Handover'].map(stage) } };
+  const added = addProductionStage(edited, shipped) as { process: { heading: string; stages: Array<{ title: string }> } };
+  assert.deepEqual(added.process.stages.map((s) => s.title), ['Consultation', 'Making', 'Production', 'Fitting', 'Handover']);
+  assert.equal(added.process.heading, 'Mine', 'the rest of their edit is kept');
+  assert.equal(addProductionStage(added, shipped), null, 'nothing to add the second time');
 });

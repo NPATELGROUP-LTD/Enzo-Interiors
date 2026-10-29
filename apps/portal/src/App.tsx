@@ -17,12 +17,13 @@ import { MessagesPage } from './pages/Messages';
 import { NotFoundPage, SignedOutNotFound } from './pages/NotFound';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
+import { QuotesPage } from './pages/Quotes';
 import { ForgotPasswordPage, ResetPasswordPage } from './pages/ResetPassword';
 import { SettingsPage } from './pages/Settings';
 
 /** Addresses that are real screens once signed in, so signed out they go to sign-in and not a 404. */
 const isAppPath = (path: string) =>
-  ['/', '/dashboard', '/projects', '/messages', '/documents', '/invoices', '/settings'].some(
+  ['/', '/dashboard', '/projects', '/messages', '/documents', '/invoices', '/quotes', '/settings'].some(
     (base) => (base === '/' ? path === '/' : path === base || path.startsWith(`${base}/`)),
   );
 
@@ -78,6 +79,8 @@ export function App() {
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/invoices" element={<InvoicesPage />} />
         <Route path="/invoices/:id" element={<InvoiceDetailPage />} />
+        <Route path="/quotes" element={<QuotesPage />} />
+        <Route path="/quotes/:id" element={<QuotesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>

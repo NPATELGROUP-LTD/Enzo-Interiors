@@ -5,11 +5,13 @@ import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, documentLink } from '@/lib/api';
 
-export type Preview = 'pdf' | 'image';
+export type Preview = 'pdf' | 'image' | 'video';
 export interface ViewableFile {
   id: string;
   name: string;
   preview: Preview;
+  /** A source that is not a document (team chat files): makes the signed link itself. */
+  link?: () => Promise<string>;
 }
 
 /**
@@ -42,7 +44,7 @@ export function useFileViewer() {
   const open = async (file: ViewableFile) => {
     setOpening(file.id);
     try {
-      setShown({ file, link: await documentLink(file.id, true) });
+      setShown({ file, link: file.link ? await file.link() : await documentLink(file.id, true) });
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not open this file. Try Download instead.');
     } finally {
@@ -66,7 +68,10 @@ export function useFileViewer() {
       width="lg"
       footer={
         shown ? (
-          <Button icon={<DownloadSimple size={15} aria-hidden="true" />} onClick={() => void download(shown.file.id)}>
+          <Button
+            icon={<DownloadSimple size={15} aria-hidden="true" />}
+            onClick={() => (shown.file.link ? void window.open(shown.link, '_blank', 'noopener,noreferrer') : void download(shown.file.id))}
+          >
             Download
           </Button>
         ) : null
@@ -74,6 +79,8 @@ export function useFileViewer() {
     >
       {shown === null ? null : shown.file.preview === 'image' ? (
         <img src={shown.link} alt={shown.file.name} className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control" />
+      ) : shown.file.preview === 'video' ? (
+        <video src={shown.link} controls className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control" />
       ) : navigator.pdfViewerEnabled ? (
         <iframe src={shown.link} title={shown.file.name} className="h-[70dvh] w-full rounded-control border border-border bg-white" />
       ) : (
@@ -89,10 +96,12 @@ export function useFileViewer() {
   );
 
   /** View what can be shown, download the rest. */
-  const show = (file: { id: string; name: string; preview?: Preview | null }) => {
+  const show = (file: { id: string; name: string; preview?: Preview | null; link?: () => Promise<string> }) => {
     // The API's own answer when it gave one (null = cannot be shown).
     const preview = file.preview !== undefined ? file.preview : previewOfName(file.name);
-    return preview ? open({ id: file.id, name: file.name, preview }) : download(file.id);
+    if (preview) return open({ id: file.id, name: file.name, preview, link: file.link });
+    // A team file that cannot be shown: its signed link downloads it.
+    return file.link ? file.link().then((url) => void window.open(url, '_blank', 'noopener,noreferrer')) : download(file.id);
   };
 
   return { show, opening, viewer, download };

@@ -24,6 +24,8 @@ import {
   StaffThreadRead,
   Invoice,
   InvoiceItem,
+  ProjectQuote,
+  ProjectQuoteItem,
   InvoiceStage,
   MediaAsset,
   Message,
@@ -48,6 +50,7 @@ import { AccessStore } from './access-store';
 import { AlertStore } from './alert-store';
 import { InfraStore } from './infra-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
+import { QUOTE_FIELDS, QUOTE_ITEM_FIELDS, QuoteStore } from './quote-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 import { TeamStore } from './team-store';
@@ -79,6 +82,9 @@ export class DatabaseService {
   readonly invoiceItems: PrismaRepository<InvoiceItem>;
   readonly invoiceStages: PrismaRepository<InvoiceStage>;
   readonly invoiceStore: InvoiceStore;
+  readonly projectQuotes: PrismaRepository<ProjectQuote>;
+  readonly projectQuoteItems: PrismaRepository<ProjectQuoteItem>;
+  readonly quoteStore: QuoteStore;
   readonly bookings: PrismaRepository<Booking>;
   readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
   readonly conversations: PrismaRepository<Conversation>;
@@ -134,6 +140,9 @@ export class DatabaseService {
     });
     this.invoices = new PrismaRepository(prisma.invoice, 'invoices', INVOICE_FIELDS);
     this.invoiceItems = new PrismaRepository(prisma.invoiceItem, 'invoice_items', INVOICE_ITEM_FIELDS);
+    this.projectQuotes = new PrismaRepository(prisma.projectQuote, 'project_quotes', QUOTE_FIELDS);
+    this.projectQuoteItems = new PrismaRepository(prisma.projectQuoteItem, 'project_quote_items', QUOTE_ITEM_FIELDS);
+    this.quoteStore = new QuoteStore(prisma);
     this.invoiceStages = new PrismaRepository(prisma.invoiceStage, 'invoice_stages', INVOICE_STAGE_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {

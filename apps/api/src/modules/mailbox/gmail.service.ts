@@ -55,6 +55,16 @@ export const GMAIL_ID = /^[A-Za-z0-9_-]{1,64}$/;
 export const PART_ID = /^\d{1,4}(\.\d{1,4}){0,8}$/;
 
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+/** The Gmail folders worth a place in the sidebar, in Gmail's own order (its categories and chat labels are left out). */
+const SYSTEM_FOLDERS: Array<[string, string]> = [
+  ['INBOX', 'Inbox'],
+  ['STARRED', 'Starred'],
+  ['IMPORTANT', 'Important'],
+  ['SENT', 'Sent'],
+  ['DRAFT', 'Drafts'],
+  ['SPAM', 'Spam'],
+  ['TRASH', 'Trash'],
+];
 const UPLOAD = 'https://gmail.googleapis.com/upload/gmail/v1/users/me/messages/send';
 const AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -296,11 +306,26 @@ export class GmailService {
 
   /* ---- Reading ---- */
 
-  async list(staffId: string, query: { folder?: 'inbox' | 'sent'; q?: string; with?: string; page?: string; limit?: number }) {
+  /** Every folder the person sees in Gmail: the system ones in Gmail's order, then their own labels. Names and ids only. */
+  async labels(staffId: string): Promise<Array<{ id: string; name: string; system: boolean }>> {
+    const acct = await this.account(staffId);
+    const found = (await (await this.call(acct, 'GET', `${API}/labels`)).json()) as { labels?: Array<{ id: string; name: string; type?: string }> };
+    const all = found.labels ?? [];
+    const system = SYSTEM_FOLDERS.flatMap(([id, name]) => (all.some((l) => l.id === id) ? [{ id, name, system: true }] : []));
+    const own = all
+      .filter((l) => l.type === 'user')
+      .map((l) => ({ id: l.id, name: l.name, system: false }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    return [...system, ...own];
+  }
+
+  async list(staffId: string, query: { folder?: 'inbox' | 'sent'; label?: string; q?: string; with?: string; page?: string; limit?: number }) {
     const acct = await this.account(staffId);
     const params = new URLSearchParams({ maxResults: String(query.limit ?? 25) });
-    // A search covers all mail; Inbox and Sent are the two folders.
-    if (query.folder) params.append('labelIds', query.folder === 'sent' ? 'SENT' : 'INBOX');
+    // A search covers all mail; otherwise one folder (a Gmail label), Inbox and Sent being the two the page opened with.
+    const folder = query.label ?? (query.folder === 'sent' ? 'SENT' : query.folder === 'inbox' ? 'INBOX' : undefined);
+    if (folder) params.append('labelIds', folder);
+    if (folder === 'SPAM' || folder === 'TRASH') params.set('includeSpamTrash', 'true');
     const search = [query.q?.trim(), query.with && `(from:${query.with} OR to:${query.with} OR cc:${query.with} OR bcc:${query.with})`].filter(Boolean).join(' ');
     if (search) params.set('q', search);
     if (query.page) params.set('pageToken', query.page);
@@ -309,8 +334,7 @@ export class GmailService {
       threads?: Array<{ id: string; snippet?: string }>;
       nextPageToken?: string;
     };
-    const label = query.folder === 'sent' ? 'SENT' : query.folder === 'inbox' ? 'INBOX' : undefined;
-    const rows = await mapLimit(found.threads ?? [], 6, (thread) => this.row(acct, thread, label));
+    const rows = await mapLimit(found.threads ?? [], 6, (thread) => this.row(acct, thread, folder));
     return { items: rows.filter((row): row is ThreadRow => row !== null), next_page: found.nextPageToken ?? null };
   }
 

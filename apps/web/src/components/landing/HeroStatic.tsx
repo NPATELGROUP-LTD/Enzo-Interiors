@@ -7,6 +7,11 @@ import type { HomeContent, MediaItem } from "@/lib/content";
 import { HeroCtaButton } from "./HeroCtaButton";
 import { HeroRotatingImage } from "./HeroRotatingImage";
 
+// From `lg` this is the desktop's static hero (what a returning visitor gets once
+// the scrubbed intro has been seen, and anyone with reduced motion): the offer on
+// the left, the room beside it, the facts under the offer, all in one screen.
+// Below `lg` it is the stacked phone layout described next.
+//
 // Mobile / prefers-reduced-motion hero. Not a squashed copy of the desktop
 // sequence — a different set of components for a different job.
 //
@@ -36,7 +41,7 @@ export function HeroStatic({
   }, []);
 
   return (
-    <section className="relative flex min-h-dvh w-full flex-col justify-start gap-8 overflow-hidden bg-enzo-dark px-5 pb-10 pt-28 sm:px-10 sm:pt-32">
+    <section className="relative flex min-h-dvh w-full flex-col justify-start gap-8 overflow-hidden bg-enzo-dark px-5 pb-10 pt-28 sm:px-10 sm:pt-32 lg:grid lg:grid-cols-[minmax(0,6fr)_minmax(0,7fr)] lg:grid-rows-[1fr_auto_auto] lg:items-center lg:gap-x-16 lg:gap-y-10 lg:px-16 lg:pb-8 lg:pt-36 xl:px-24">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -46,20 +51,19 @@ export function HeroStatic({
         }}
       />
 
-      <div className="relative z-[1] flex flex-col items-start">
+      <div className="relative z-[1] flex flex-col items-start lg:col-start-1 lg:row-start-1 lg:self-end">
         {/* No eyebrow line here — this hero already opens with the offer,
             and a wrapping headline was doing worse with even less width
             once a strapline sat above it. */}
         <h1
-          className="font-title font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream"
-          style={{ fontSize: "clamp(2.4rem, 11vw, 3.4rem)" }}
+          className="font-title text-[clamp(2.4rem,11vw,3.4rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream lg:text-[clamp(3rem,4.4vw,5.2rem)]"
         >
           {content.headingLead}
           <br />
           <span className="text-enzo-sage">{content.headingAccent}</span>
         </h1>
 
-        <p className="mt-4 max-w-[32ch] text-[15px] leading-[1.65] text-enzo-cream/70">
+        <p className="mt-4 max-w-[32ch] text-[15px] leading-[1.65] text-enzo-cream/70 lg:mt-6 lg:max-w-[40ch] lg:text-[17px]">
           {content.body}
         </p>
 
@@ -78,7 +82,7 @@ export function HeroStatic({
         </div>
       </div>
 
-      <div className="relative z-[1] w-full">
+      <div className="relative z-[1] w-full lg:col-start-2 lg:row-span-3 lg:row-start-1 lg:self-center">
         <HeroRotatingImage
           aspect="landscape"
           images={images}
@@ -90,7 +94,7 @@ export function HeroStatic({
 
       {/* Two facts, not three adjectives — the fastest way to read as a real
           company on a small screen. */}
-      <dl className="relative z-[1] flex items-stretch gap-6 border-y border-enzo-cream/12 py-5">
+      <dl className="relative z-[1] flex items-stretch gap-6 border-y border-enzo-cream/12 py-5 lg:col-start-1 lg:row-start-2 lg:self-start">
         {content.trust.map((item, index) => (
           <div key={item.label} className="flex min-w-0 flex-1 items-center gap-6">
             <div className="min-w-0">
@@ -116,7 +120,7 @@ export function HeroStatic({
             .closest("section")
             ?.nextElementSibling?.scrollIntoView({ behavior: "smooth" })
         }
-        className="touch-target relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] uppercase tracking-[0.3em] text-enzo-cream/65 transition-colors duration-300 active:text-enzo-cream"
+        className="touch-target relative z-[1] mt-auto flex items-center justify-center gap-2 pt-2 text-[10px] lg:col-span-2 lg:row-start-3 uppercase tracking-[0.3em] text-enzo-cream/65 transition-colors duration-300 active:text-enzo-cream"
       >
         {content.scrollLabel}
         <ChevronDown className="h-3.5 w-3.5 animate-bounce" />

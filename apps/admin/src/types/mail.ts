@@ -1,5 +1,12 @@
 /** What /mailbox serves. Mirrors apps/api/src/modules/mailbox; nothing here is stored. */
 
+/** One Gmail folder: a system one (Inbox, Sent…) or the person's own label. */
+export interface MailFolder {
+  id: string;
+  name: string;
+  system: boolean;
+}
+
 export interface MailStatus {
   configured: boolean;
   connected: boolean;

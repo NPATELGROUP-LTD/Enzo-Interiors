@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CaretLeft, ChatsCircle, Plus } from '@phosphor-icons/react';
+import { CaretLeft, Plus } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
@@ -8,7 +8,7 @@ import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, Select } fro
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
-import { relative } from '@/lib/format';
+import { initials, relative } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
 import type { TeamPerson, TeamThreadSummary } from '@/types/api';
 
@@ -60,63 +60,78 @@ export function TeamPage() {
   const current = threads.data.find((thread) => thread.id === active);
 
   return (
-    <div className="grid min-h-0 gap-4 md:grid-cols-[18rem_1fr]">
-      <Card className={clsx('p-0', active && 'hidden md:block')}>
-        <div className="flex items-center justify-between gap-2 p-3">
-          <h2 className="text-sm font-semibold text-ink">Team</h2>
-          <Button variant="secondary" onClick={() => setPicking(true)}>
-            <Plus size={16} aria-hidden="true" /> New message
-          </Button>
-        </div>
-        {threads.data.length === 0 ? (
-          <EmptyState title="No conversations yet" message="Start a chat with someone on the team, or open a project to message everyone on it." />
-        ) : (
-          <ul>
-            {threads.data.map((thread) => (
-              <li key={thread.id}>
+    <div className="flex h-full min-h-0 flex-col px-5 pb-5 pt-6 sm:px-8 sm:pb-8 lg:pt-8">
+      <div className="grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] gap-5 lg:grid-cols-[20rem_1fr]">
+        <Card className={clsx('flex flex-col overflow-hidden p-0', active && 'hidden lg:flex')}>
+          <div className="flex items-center justify-between gap-2 p-3 pb-1.5">
+            <h2 className="text-sm font-semibold text-ink">Team</h2>
+            <Button variant="secondary" onClick={() => setPicking(true)}>
+              <Plus size={16} aria-hidden="true" /> New message
+            </Button>
+          </div>
+          {threads.data.length === 0 ? (
+            <EmptyState title="No conversations yet" message="Start a chat with someone on the team, or open a project to message everyone on it." />
+          ) : (
+            <ul className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overflow-x-hidden overscroll-contain p-1.5">
+              {threads.data.map((thread) => (
+                <li key={thread.id} className="rounded-lg odd:bg-[var(--stripe)]">
+                  <button
+                    type="button"
+                    onClick={() => open(thread.id)}
+                    aria-current={thread.id === active}
+                    className={clsx(
+                      'flex w-full gap-2.5 rounded-lg p-3 text-left transition-colors',
+                      thread.id === active ? 'bg-green-100' : 'hover:bg-surface-muted/60',
+                    )}
+                  >
+                    <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-surface-muted text-xs font-bold text-ink">
+                      {initials(thread.title)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="truncate font-semibold text-ink">{thread.title}</span>
+                        {thread.unread_count ? (
+                          <span className="tabular shrink-0 rounded-control bg-green-900 px-1.5 py-0.5 text-xs font-bold text-on-primary">
+                            <span className="sr-only">Unread: </span>
+                            {thread.unread_count}
+                          </span>
+                        ) : thread.last_message ? (
+                          <span className="shrink-0 text-xs text-ink-muted">{relative(thread.last_message.created_at)}</span>
+                        ) : null}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-ink-muted">
+                        {thread.kind === 'project' ? 'Project · ' : ''}
+                        {thread.last_message ? thread.last_message.body || 'Sent a file' : 'No messages yet'}
+                      </span>
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
+        <section aria-label={current ? `Conversation: ${current.title}` : 'Conversation'} className={clsx('min-h-0 min-w-0 flex-col', active ? 'flex' : 'hidden lg:flex')}>
+          {current ? (
+            <>
+              <div className="flex items-center gap-1 pb-2">
                 <button
                   type="button"
-                  onClick={() => open(thread.id)}
-                  aria-current={thread.id === active ? 'true' : undefined}
-                  className={clsx('block w-full px-3 py-2.5 text-left hover:bg-ink/[0.05]', thread.id === active && 'bg-green-900/10')}
+                  onClick={() => open(null)}
+                  aria-label="Back to conversations"
+                  className="-my-2 -ml-2 flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink hover:bg-ink/[0.05] lg:hidden"
                 >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold text-ink">{thread.title}</span>
-                    {thread.unread_count ? (
-                      <span className="shrink-0 rounded-full bg-green-900 px-1.5 text-xs text-on-primary" aria-label={`${thread.unread_count} unread`}>
-                        {thread.unread_count}
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="block truncate text-xs text-ink-muted">
-                    {thread.kind === 'project' ? 'Project · ' : ''}
-                    {thread.last_message ? `${thread.last_message.body || 'Sent a file'} · ${relative(thread.last_message.created_at)}` : 'No messages yet'}
-                  </span>
+                  <CaretLeft size={18} aria-hidden="true" />
                 </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <Card className={clsx('flex h-[calc(100dvh-12rem)] min-h-96 flex-col', !active && 'hidden md:flex')}>
-        {current ? (
-          <>
-            <div className="flex items-center gap-2 pb-2">
-              <button type="button" onClick={() => open(null)} aria-label="Back to conversations" className="md:hidden">
-                <CaretLeft size={20} aria-hidden="true" />
-              </button>
-              <h2 className="truncate text-sm font-semibold text-ink">{current.title}</h2>
-            </div>
-            <TeamThread key={current.id} threadId={current.id} className="flex-1" />
-          </>
-        ) : (
-          <div className="flex flex-1 flex-col items-center justify-center gap-2 text-ink-muted">
-            <ChatsCircle size={32} aria-hidden="true" />
-            <p>Choose a conversation.</p>
-          </div>
-        )}
-      </Card>
+                <p className="min-w-0 truncate font-semibold text-ink">{current.title}</p>
+              </div>
+              <TeamThread key={current.id} threadId={current.id} className="flex-1" />
+            </>
+          ) : (
+            <EmptyState title="Select a conversation" message="Choose a person or a project to read the thread." />
+          )}
+        </section>
+      </div>
 
       <Modal
         open={picking}
