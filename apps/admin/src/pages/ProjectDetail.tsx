@@ -34,6 +34,7 @@ import { SERVICE_LABELS } from '@/types/api';
 import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
 import { ProjectTeam } from '@/components/ProjectTeam';
+import { ProjectThread } from '@/components/TeamThread';
 
 import { useDesigners } from './Projects';
 
@@ -316,6 +317,8 @@ export function ProjectDetailPage() {
         staff={designers}
         onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
       />
+
+      <ProjectThread projectId={project.id} />
 
       {/* The Documents tab's Upload sits at the end of the tabs row. */}
       <div className="flex items-start gap-3">

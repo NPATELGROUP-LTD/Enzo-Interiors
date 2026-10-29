@@ -549,3 +549,29 @@ export interface DesignerDashboard {
     updated_at: string;
   }>;
 }
+
+/** Staff chat (GET /team/*): a project's thread or a direct chat. Staff only. */
+export interface TeamThreadSummary {
+  id: string;
+  kind: 'project' | 'direct';
+  title: string;
+  project_id: string | null;
+  unread_count: number;
+  last_message: { body: string; created_at: string; sender_id: string } | null;
+  created_at: string;
+}
+export interface TeamMessage {
+  id: string;
+  thread_id: string;
+  sender_id: string;
+  sender_name: string;
+  body: string;
+  /** Names and sizes only; a file opens through a signed link. */
+  attachments: Array<{ name: string; size_bytes: number; type: string }> | null;
+  created_at: string;
+}
+export interface TeamPerson {
+  id: string;
+  name: string;
+  role: string;
+}

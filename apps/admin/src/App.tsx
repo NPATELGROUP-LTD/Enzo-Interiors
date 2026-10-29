@@ -1,6 +1,6 @@
 import { Navigate, Outlet, Route, Routes, useLocation, useOutletContext, useParams } from 'react-router-dom';
 
-import { AdminLayout, CLIENT_ROLES, CMS_ROLES, MAIL_ROLES, SECTIONS } from './components/layout/AdminLayout';
+import { AdminLayout, CLIENT_ROLES, CMS_ROLES, MAIL_ROLES, SECTIONS, TEAM_ROLES } from './components/layout/AdminLayout';
 import { Button, LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
 import { legalKind } from './lib/legal';
@@ -21,6 +21,7 @@ import { MessagesPage } from './pages/Messages';
 import { ProjectDetailPage } from './pages/ProjectDetail';
 import { ProjectsPage } from './pages/Projects';
 import { SiteSettingsPage } from './pages/SiteSettings';
+import { TeamPage } from './pages/Team';
 import type { CmsCollection } from './types/cms';
 
 /** The slug comes from the address; keyed so each entry starts fresh. */
@@ -36,7 +37,7 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 
 /** Addresses that are real screens once signed in, so signed out they go to sign-in and not a 404. */
 const isAppPath = (path: string) =>
-  ['/', '/cms', '/account', '/settings', '/clients', '/projects', '/messages', '/mail', '/invoices', '/enquiries', '/bookings', ...SECTIONS.map(({ to }) => to)].some(
+  ['/', '/cms', '/account', '/settings', '/clients', '/projects', '/messages', '/team', '/mail', '/invoices', '/enquiries', '/bookings', ...SECTIONS.map(({ to }) => to)].some(
     (base) => (base === '/' ? path === '/' : path === base || path.startsWith(`${base}/`)),
   );
 
@@ -116,6 +117,8 @@ export function App() {
           element={canSeeClients ? <ProjectDetailPage /> : <Navigate to={home} replace />}
         />
         <Route path="/messages" element={canSeeClients ? <MessagesPage /> : <Navigate to={home} replace />} />
+        {/* Staff chat: the whole studio team, never Infra. */}
+        <Route path="/team" element={can(...TEAM_ROLES) ? <TeamPage /> : <Navigate to={home} replace />} />
         {/* Your own Gmail: Admin, Designer, Editor. */}
         <Route path="/mail" element={can(...MAIL_ROLES) ? <MailPage /> : <Navigate to={home} replace />} />
         <Route

@@ -102,6 +102,7 @@ model Project {
   created_at            DateTime @default(now()) @db.Timestamptz(6)
   updated_at            DateTime @default(now()) @db.Timestamptz(6)
   members               ProjectMember[]
+  staff_thread          StaffThread?
 
   @@index([client_id])
   @@index([assigned_designer_id])
@@ -885,4 +886,42 @@ model AccessEvent {
   @@index([at])
   @@index([actor_id, kind])
   @@map("access_events")
+}
+
+/// Staff-only chat: one thread per project (project_id) or one per pair of staff (pair_key = the two ids, sorted, joined by ":").
+model StaffThread {
+  id         String         @id
+  project_id String?        @unique
+  pair_key   String?        @unique
+  created_at DateTime       @default(now()) @db.Timestamptz(6)
+  project    Project?       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  messages   StaffMessage[]
+
+  @@map("staff_threads")
+}
+
+model StaffMessage {
+  id          String      @id
+  thread_id   String
+  /// A staff_users.id, kept when that person is later removed.
+  sender_id   String
+  body        String
+  /// [{ key, name, size_bytes, type }] in the private bucket.
+  attachments Json?
+  created_at  DateTime    @default(now()) @db.Timestamptz(6)
+  thread      StaffThread @relation(fields: [thread_id], references: [id], onDelete: Cascade)
+
+  @@index([thread_id, created_at])
+  @@map("staff_messages")
+}
+
+/// When a staff member last opened a thread: everything newer from someone else is unread.
+model StaffThreadRead {
+  id        String   @id
+  thread_id String
+  staff_id  String
+  read_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([thread_id, staff_id])
+  @@map("staff_thread_reads")
 }
