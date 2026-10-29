@@ -7,7 +7,10 @@
 // carcass, its internals, the doors, the hardware, the finished room — and
 // scrolling advances `active`, inking in every group up to it and un-inking
 // the ones after, because each is a reversible GSAP timeline rather than a
-// one-way reveal.
+// one-way reveal. Linework is not piled up, either: scaffolding that has done
+// its job (the survey dimensions, bays the doors now hide) carries
+// `data-until="n"`, the last stage it stays for. On a change, whatever must go
+// inks out first, quickly, and only then does the new stage start drawing.
 //
 // Each stage also owns a `<g data-note>`: numbered balloons on the drawing, a
 // small inset in the empty slot beside the window (3D view, cut layout, finish
@@ -75,10 +78,21 @@ const PINS: number[][][] = [
 /** Where the three legend entries start along the foot of the sheet. */
 const LEGEND_X = [96, 376, 656];
 
+/** A timeline of linework that is on show from stage `from` to stage `until`, inclusive. */
+interface Unit {
+  tl: gsap.core.Timeline;
+  from: number;
+  until: number;
+}
+
+/** How much faster a mark inks out than it inked in, and the longest the next stage waits for it. */
+const UNDRAW_SPEED = 3;
+const MAX_WAIT = 0.8;
+
 export function ElevationDrawing({ active, content, stageCount, annotate = true, className }: ElevationDrawingProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const timelinesRef = useRef<gsap.core.Timeline[]>([]);
-  const noteTimelinesRef = useRef<gsap.core.Timeline[]>([]);
+  const unitsRef = useRef<Unit[]>([]);
+  const pendingRef = useRef<gsap.core.Tween[]>([]);
   const reducedRef = useRef(false);
   // Read inside the GSAP setup, which re-runs on a media-query change and
   // needs the current stage rather than the one from first mount. Seeded with
@@ -116,23 +130,31 @@ export function ElevationDrawing({ active, content, stageCount, annotate = true,
       return tl;
     };
 
-    const all = groups.map((group) => ({
-      strokes: gsap.utils.toArray<SVGGeometryElement>("[data-draw]", group),
-      fades: gsap.utils.toArray<SVGElement>("[data-fade]", group),
-    }));
-    timelinesRef.current = all.map((g) =>
-      build(g.strokes.filter((e) => !inNote(e)), g.fades.filter((e) => !inNote(e))),
-    );
-    noteTimelinesRef.current = all.map((g) =>
-      build(g.strokes.filter(inNote), g.fades.filter(inNote)),
-    );
+    // One timeline per (stage, lifetime) bucket: most linework stays to the end,
+    // scaffolding has a `data-until`, and notes live for their own stage only.
+    const units: Unit[] = [];
+    groups.forEach((group, stage) => {
+      const buckets = new Map<string, { strokes: Element[]; fades: Element[] }>();
+      const add = (el: Element, kind: "strokes" | "fades") => {
+        const key = inNote(el) ? "note" : (el.closest("[data-until]")?.getAttribute("data-until") ?? "Infinity");
+        const bucket = buckets.get(key) ?? { strokes: [], fades: [] };
+        bucket[kind].push(el);
+        buckets.set(key, bucket);
+      };
+      group.querySelectorAll("[data-draw]").forEach((el) => add(el, "strokes"));
+      group.querySelectorAll("[data-fade]").forEach((el) => add(el, "fades"));
+      buckets.forEach((bucket, key) =>
+        units.push({ tl: build(bucket.strokes, bucket.fades), from: stage, until: key === "note" ? stage : Number(key) }),
+      );
+    });
+    unitsRef.current = units;
 
-    applyStage(timelinesRef.current, noteTimelinesRef.current, activeRef.current, reduced);
+    applyStage(units, activeRef.current, reduced, pendingRef);
   });
 
   useEffect(() => {
     activeRef.current = active;
-    applyStage(timelinesRef.current, noteTimelinesRef.current, active, reducedRef.current);
+    applyStage(unitsRef.current, active, reducedRef.current, pendingRef);
   }, [active]);
 
   const notes = (stage: number, inset?: React.ReactNode) =>
@@ -217,27 +239,29 @@ export function ElevationDrawing({ active, content, stageCount, annotate = true,
             <L key={x} x1={x} y1={386} x2={x} y2={432} w="hair" />
           ))}
 
-          {/* Overall width dimension */}
-          <L x1={96} y1={482} x2={864} y2={482} w="hair" />
-          <L x1={96} y1={474} x2={96} y2={490} w="hair" />
-          <L x1={864} y1={474} x2={864} y2={490} w="hair" />
-          <rect data-fade x="440" y="469" width="80" height="26" rx="4" fill="var(--card)" />
-          <text data-fade x="480" y="487" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomWidth}</text>
+          <g data-until="0">
+            {/* Overall width dimension */}
+            <L x1={96} y1={482} x2={864} y2={482} w="hair" />
+            <L x1={96} y1={474} x2={96} y2={490} w="hair" />
+            <L x1={864} y1={474} x2={864} y2={490} w="hair" />
+            <rect data-fade x="440" y="469" width="80" height="26" rx="4" fill="var(--card)" />
+            <text data-fade x="480" y="487" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomWidth}</text>
 
-          {/* Overall height dimension */}
-          <L x1={52} y1={70} x2={52} y2={452} w="hair" />
-          <L x1={44} y1={70} x2={60} y2={70} w="hair" />
-          <L x1={44} y1={452} x2={60} y2={452} w="hair" />
-          <rect data-fade x="38" y="248" width="28" height="76" rx="4" fill="var(--card)" />
-          <text data-fade transform="translate(52 286) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomHeight}</text>
+            {/* Overall height dimension */}
+            <L x1={52} y1={70} x2={52} y2={452} w="hair" />
+            <L x1={44} y1={70} x2={60} y2={70} w="hair" />
+            <L x1={44} y1={452} x2={60} y2={452} w="hair" />
+            <rect data-fade x="38" y="248" width="28" height="76" rx="4" fill="var(--card)" />
+            <text data-fade transform="translate(52 286) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.roomHeight}</text>
 
-          {/* Figure for scale — 1.75 m against a 2.44 m ceiling */}
-          <circle data-draw cx="656" cy="190" r="14" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
-          <L x1={656} y1={204} x2={656} y2={322} />
-          <L x1={656} y1={226} x2={630} y2={288} />
-          <L x1={656} y1={226} x2={682} y2={288} />
-          <L x1={656} y1={322} x2={638} y2={452} />
-          <L x1={656} y1={322} x2={674} y2={452} />
+            {/* Figure for scale — 1.75 m against a 2.44 m ceiling */}
+            <circle data-draw cx="656" cy="190" r="14" stroke="currentColor" strokeWidth={STROKE.thin} vectorEffect="non-scaling-stroke" />
+            <L x1={656} y1={204} x2={656} y2={322} />
+            <L x1={656} y1={226} x2={630} y2={288} />
+            <L x1={656} y1={226} x2={682} y2={288} />
+            <L x1={656} y1={322} x2={638} y2={452} />
+            <L x1={656} y1={322} x2={674} y2={452} />
+          </g>
 
           {notes(0)}
         </g>
@@ -247,20 +271,22 @@ export function ElevationDrawing({ active, content, stageCount, annotate = true,
           <R x={148} y={118} width={448} height={334} w="heavy" />
           <L x1={148} y1={140} x2={596} y2={140} />
           <L x1={148} y1={430} x2={596} y2={430} />
-          {/* Centre line — dash pattern is static, so it fades rather than draws */}
-          <line data-fade x1="372" y1="96" x2="372" y2="474" stroke="currentColor" strokeWidth={STROKE.hair} strokeDasharray="16 5 3 5" opacity="0.4" vectorEffect="non-scaling-stroke" />
-          {/* Carcass width dimension, inside the room dimension */}
-          <L x1={148} y1={100} x2={596} y2={100} w="hair" o={0.7} />
-          <L x1={148} y1={94} x2={148} y2={106} w="hair" o={0.7} />
-          <L x1={596} y1={94} x2={596} y2={106} w="hair" o={0.7} />
-          <rect data-fade x="332" y="87" width="80" height="26" rx="4" fill="var(--card)" />
-          <text data-fade x="372" y="105" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.carcassWidth}</text>
-          {/* Carcass height dimension, between the wall and the carcass */}
-          <L x1={122} y1={118} x2={122} y2={452} w="hair" o={0.7} />
-          <L x1={116} y1={118} x2={128} y2={118} w="hair" o={0.7} />
-          <L x1={116} y1={452} x2={128} y2={452} w="hair" o={0.7} />
-          <rect data-fade x="108" y="250" width="28" height="84" rx="4" fill="var(--card)" />
-          <text data-fade transform="translate(122 292) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.carcassHeight}</text>
+          <g data-until="1">
+            {/* Centre line — dash pattern is static, so it fades rather than draws */}
+            <line data-fade x1="372" y1="96" x2="372" y2="474" stroke="currentColor" strokeWidth={STROKE.hair} strokeDasharray="16 5 3 5" opacity="0.4" vectorEffect="non-scaling-stroke" />
+            {/* Carcass width dimension, inside the room dimension */}
+            <L x1={148} y1={100} x2={596} y2={100} w="hair" o={0.7} />
+            <L x1={148} y1={94} x2={148} y2={106} w="hair" o={0.7} />
+            <L x1={596} y1={94} x2={596} y2={106} w="hair" o={0.7} />
+            <rect data-fade x="332" y="87" width="80" height="26" rx="4" fill="var(--card)" />
+            <text data-fade x="372" y="105" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.carcassWidth}</text>
+            {/* Carcass height dimension, between the wall and the carcass */}
+            <L x1={122} y1={118} x2={122} y2={452} w="hair" o={0.7} />
+            <L x1={116} y1={118} x2={128} y2={118} w="hair" o={0.7} />
+            <L x1={116} y1={452} x2={128} y2={452} w="hair" o={0.7} />
+            <rect data-fade x="108" y="250" width="28" height="84" rx="4" fill="var(--card)" />
+            <text data-fade transform="translate(122 292) rotate(-90)" textAnchor="middle" fill="currentColor" className="font-display" fontSize="15" letterSpacing="1.4">{content.dimensions.carcassHeight}</text>
+          </g>
 
           {notes(
             1,
@@ -290,33 +316,35 @@ export function ElevationDrawing({ active, content, stageCount, annotate = true,
 
         {/* ── 02 Making — bays, shelves, rail, drawer box ── */}
         <g data-stage="2" className="text-primary/80">
-          <L x1={297} y1={140} x2={297} y2={430} w="medium" />
-          <L x1={447} y1={140} x2={447} y2={430} w="medium" />
+          <g data-until="2">
+            <L x1={297} y1={140} x2={297} y2={430} w="medium" />
+            <L x1={447} y1={140} x2={447} y2={430} w="medium" />
 
-          {/* Left bay — shelf stack, each shelf dowelled at both ends */}
-          {[192, 244, 296, 348].map((y) => (
-            <g key={y}>
-              <L x1={148} y1={y} x2={297} y2={y} />
-              <circle data-fade cx="156" cy={y} r="2.4" fill="currentColor" />
-              <circle data-fade cx="289" cy={y} r="2.4" fill="currentColor" />
-            </g>
-          ))}
+            {/* Left bay — shelf stack, each shelf dowelled at both ends */}
+            {[192, 244, 296, 348].map((y) => (
+              <g key={y}>
+                <L x1={148} y1={y} x2={297} y2={y} />
+                <circle data-fade cx="156" cy={y} r="2.4" fill="currentColor" />
+                <circle data-fade cx="289" cy={y} r="2.4" fill="currentColor" />
+              </g>
+            ))}
 
-          {/* Middle bay — hanging rail with hangers */}
-          <L x1={305} y1={180} x2={439} y2={180} w="heavy" />
-          {[322, 342, 362, 382, 402, 422].map((x, i) => (
-            <L key={x} x1={x} y1={180} x2={x} y2={224 + (i % 2) * 12} w="hair" />
-          ))}
+            {/* Middle bay — hanging rail with hangers */}
+            <L x1={305} y1={180} x2={439} y2={180} w="heavy" />
+            {[322, 342, 362, 382, 402, 422].map((x, i) => (
+              <L key={x} x1={x} y1={180} x2={x} y2={224 + (i % 2) * 12} w="hair" />
+            ))}
 
-          {/* Right bay — shelves over a drawer box */}
-          <L x1={447} y1={206} x2={596} y2={206} />
-          <L x1={447} y1={266} x2={596} y2={266} />
-          {[330, 378, 426].map((y) => (
-            <L key={y} x1={447} y1={y} x2={596} y2={y} w="medium" />
-          ))}
-          {[354, 402].map((y) => (
-            <L key={y} x1={497} y1={y} x2={547} y2={y} w={3.4} />
-          ))}
+            {/* Right bay — shelves over a drawer box */}
+            <L x1={447} y1={206} x2={596} y2={206} />
+            <L x1={447} y1={266} x2={596} y2={266} />
+            {[330, 378, 426].map((y) => (
+              <L key={y} x1={447} y1={y} x2={596} y2={y} w="medium" />
+            ))}
+            {[354, 402].map((y) => (
+              <L key={y} x1={497} y1={y} x2={547} y2={y} w={3.4} />
+            ))}
+          </g>
 
           {notes(
             2,
@@ -373,14 +401,16 @@ export function ElevationDrawing({ active, content, stageCount, annotate = true,
             </g>
           ))}
 
-          {/* Scribes against walls that are never straight */}
-          <L x1={140} y1={118} x2={140} y2={452} w="hair" o={0.7} />
-          <L x1={604} y1={118} x2={604} y2={452} w="hair" o={0.7} />
+          <g data-until="4">
+            {/* Scribes against walls that are never straight */}
+            <L x1={140} y1={118} x2={140} y2={452} w="hair" o={0.7} />
+            <L x1={604} y1={118} x2={604} y2={452} w="hair" o={0.7} />
 
-          {/* Ground hatch */}
-          {[160, 220, 280, 340, 400, 460, 520, 580].map((x) => (
-            <L key={x} x1={x} y1={452} x2={x - 20} y2={474} w="hair" o={0.4} />
-          ))}
+            {/* Ground hatch */}
+            {[160, 220, 280, 340, 400, 460, 520, 580].map((x) => (
+              <L key={x} x1={x} y1={452} x2={x - 20} y2={474} w="hair" o={0.4} />
+            ))}
+          </g>
 
           {notes(
             4,
@@ -468,21 +498,31 @@ const Pa = ({ d, w = "thin", o }: { d: string; w?: Weight; o?: number }) => (
   <path data-draw d={d} stroke="currentColor" strokeWidth={weight(w)} opacity={o} vectorEffect="non-scaling-stroke" />
 );
 
-function applyStage(
-  timelines: gsap.core.Timeline[],
-  noteTimelines: gsap.core.Timeline[],
-  active: number,
-  reduced: boolean,
-) {
-  const set = (tl: gsap.core.Timeline, shouldShow: boolean) => {
-    if (reduced) {
-      // Same end state, no travel — the drawing still tracks the ledger, it
-      // just cuts between states instead of inking across them.
-      tl.progress(shouldShow ? 1 : 0).pause();
-    } else if (shouldShow) tl.play();
-    else tl.reverse();
-  };
-  // Linework accumulates; notes belong to the stage you are on and no other.
-  timelines.forEach((tl, index) => set(tl, index <= active));
-  noteTimelines.forEach((tl, index) => set(tl, index === active));
+function applyStage(units: Unit[], active: number, reduced: boolean, pending: { current: gsap.core.Tween[] }) {
+  pending.current.forEach((call) => call.kill());
+  pending.current = [];
+  const shown = (u: Unit) => u.from <= active && active <= u.until;
+
+  if (reduced) {
+    // Same end state, no travel — the drawing still tracks the ledger, it
+    // just cuts between states instead of inking across them.
+    for (const u of units) u.tl.progress(shown(u) ? 1 : 0).pause();
+    return;
+  }
+
+  // Out first, then in: what the next stage no longer needs inks out quickly,
+  // and only once it is gone does the new linework start drawing, so the two
+  // are never on the sheet together.
+  let wait = 0;
+  for (const u of units) {
+    if (shown(u)) continue;
+    wait = Math.max(wait, u.tl.time() / UNDRAW_SPEED);
+    u.tl.timeScale(UNDRAW_SPEED).reverse();
+  }
+  for (const u of units) {
+    if (!shown(u) || (u.tl.progress() === 1 && !u.tl.reversed())) continue;
+    const draw = () => void u.tl.timeScale(1).play();
+    if (wait > 0) pending.current.push(gsap.delayedCall(Math.min(wait, MAX_WAIT), draw));
+    else draw();
+  }
 }
