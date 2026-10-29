@@ -44,11 +44,12 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { toast } from "sonner";
 import { Honeypot } from "@/components/shared/Honeypot";
+import { OpeningHoursList } from "@/components/shared/OpeningHoursList";
 import { useGSAP } from "@/hooks/useGSAP";
 import { sendEnquiry } from "@/lib/enquiry";
 import { EASE, REVEAL_START } from "@/lib/motion";
 import { cn } from "@/lib/utils";
-import { fill, type ContactPageContent } from "@/lib/content";
+import { fill, type ContactPageContent, type HoursRow } from "@/lib/content";
 
 type DocketContent = ContactPageContent["docket"];
 
@@ -111,9 +112,12 @@ function validate(
 export function ContactDocket({
   rooms,
   content,
+  hours,
 }: {
   rooms: RoomOption[];
   content: DocketContent;
+  /** The studio's week: shown in the rail, so it is in view beside the form. */
+  hours?: { label: string; rows: readonly HoursRow[]; note: string };
 }) {
   // Named once here: the checklist, the error summary and the fields
   // themselves all label the same six answers, and they must agree.
@@ -394,6 +398,8 @@ export function ContactDocket({
               })}
             </ul>
 
+            {hours ? <OpeningHoursList className="mt-8 max-w-sm" label={hours.label} rows={hours.rows} note={hours.note} /> : null}
+
             <p className="mt-7 hidden max-w-[38ch] text-[12.5px] leading-[1.7] text-muted-foreground lg:block">
               {content.note}
             </p>
@@ -548,7 +554,7 @@ export function ContactDocket({
                           className={cn(
                             "block cursor-pointer rounded-full border px-4 py-2.5 text-[13px] transition-colors duration-200 sm:px-5 sm:py-3 sm:text-[13.5px]",
                             "border-border/80 text-foreground/80 hover:border-enzo-sage hover:text-primary",
-                            "peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground",
+                            "peer-checked:border-primary peer-checked:bg-primary peer-checked:text-primary-foreground peer-checked:hover:bg-primary peer-checked:hover:text-primary-foreground",
                             "peer-focus-visible:ring-2 peer-focus-visible:ring-ring peer-focus-visible:ring-offset-2",
                             errors.room && "border-destructive/60",
                           )}

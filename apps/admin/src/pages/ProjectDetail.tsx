@@ -311,14 +311,15 @@ export function ProjectDetailPage() {
         </Card>
       </div>
 
-      <ProjectTeam
-        projectId={project.id}
-        team={team}
-        staff={designers}
-        onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
-      />
-
-      <ProjectThread projectId={project.id} />
+      <div className="mb-5 grid items-start gap-4 xl:grid-cols-2">
+        <ProjectTeam
+          projectId={project.id}
+          team={team}
+          staff={designers}
+          onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
+        />
+        <ProjectThread projectId={project.id} />
+      </div>
 
       {/* The Documents tab's Upload sits at the end of the tabs row. */}
       <div className="flex items-start gap-3">

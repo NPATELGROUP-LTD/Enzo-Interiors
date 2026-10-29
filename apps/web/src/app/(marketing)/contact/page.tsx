@@ -60,7 +60,7 @@ import { ContactDocket, type RoomOption } from "@/components/contact/ContactDock
 import { ContactWhen, type LeadTime } from "@/components/contact/ContactWhen";
 import { ContactReady } from "@/components/contact/ContactReady";
 import { getCompany, getPage, getServiceDetails } from "@/lib/content";
-import { getServiceMetrics } from "@/lib/service-metrics";
+import { getServiceMetrics, parseLeadWeeks } from "@/lib/service-metrics";
 
 export async function generateMetadata(): Promise<Metadata> {
   if (await pageOff("contact")) return offMetadata("contact");
@@ -80,11 +80,16 @@ export default async function ContactPage() {
   // compares — never off a second set of figures authored beside it. A
   // service whose timeline cannot be parsed is listed with its own words
   // rather than given an invented bar.
-  const leadTimes: LeadTime[] = services.map((service) => ({
-    label: service.title.replace(/^(bespoke|fitted|custom)\s+/i, ""),
-    timeline: service.timeline,
-    weeks: getServiceMetrics(service).leadWeeks,
-  }));
+  // The chart's rows are edited in the CMS (Contact › Timing): a label and its
+  // lead time in words, "4-6 weeks", whose upper figure sets the bar. With none
+  // saved, it falls back to the services' own timelines.
+  const leadTimes: LeadTime[] = content.when.rows?.length
+    ? content.when.rows.map((row) => ({ label: row.label, timeline: row.timeline, weeks: parseLeadWeeks(row.timeline) }))
+    : services.map((service) => ({
+        label: service.title.replace(/^(bespoke|fitted|custom)\s+/i, ""),
+        timeline: service.timeline,
+        weeks: getServiceMetrics(service).leadWeeks,
+      }));
 
   // One chip per published service, plus a way out for anything that is not
   // one of them — a fifth service joins the row without anybody editing
@@ -107,7 +112,11 @@ export default async function ContactPage() {
     <div>
       <ContactMasthead content={content.masthead} company={company} />
 
-      <ContactDocket rooms={rooms} content={content.docket} />
+      <ContactDocket
+        rooms={rooms}
+        content={content.docket}
+        hours={{ label: content.masthead.hoursLabel ?? "Opening hours", rows: company.hours.rows, note: company.hours.note }}
+      />
 
       <ContactWhen leadTimes={leadTimes} content={content.when} />
 

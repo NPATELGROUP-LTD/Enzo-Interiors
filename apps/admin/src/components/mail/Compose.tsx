@@ -50,6 +50,7 @@ function Form({ draft, dirty, onClose, onSent }: { draft: Draft; dirty: RefObjec
   const [kept, setKept] = useState<Set<string>>(new Set(draft.forwardFiles?.map((f) => f.part_id)));
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
   const picker = useRef<HTMLInputElement>(null);
 
   const forwarded = (draft.forwardFiles ?? []).filter((f) => kept.has(f.part_id));
@@ -80,14 +81,16 @@ function Form({ draft, dirty, onClose, onSent }: { draft: Draft; dirty: RefObjec
     }
     for (const file of files) data.append('files', file, file.name);
     setSending(true);
+    setProgress(0);
     setError(null);
     try {
-      await api.post('/mailbox/send', data);
+      await api.upload('/mailbox/send', data, setProgress);
       toast.success('Sent.');
       onSent();
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'That did not send. Please try again.');
       setSending(false);
+      setProgress(null);
     }
   };
 
@@ -133,6 +136,15 @@ function Form({ draft, dirty, onClose, onSent }: { draft: Draft; dirty: RefObjec
         </ul>
       ) : null}
 
+      {sending && progress !== null ? (
+        <div aria-live="polite">
+          <div className="h-2 overflow-hidden rounded-full bg-surface-muted" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress * 100)}>
+            <div className="h-full rounded-full bg-green-900 transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+          <p className="mt-1 text-[13px] text-ink-muted">{progress < 1 ? `Uploading ${Math.round(progress * 100)}%` : 'Sending…'}</p>
+        </div>
+      ) : null}
+
       {error ? <p role="alert" className="text-[13px] text-danger">{error}</p> : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
@@ -143,8 +155,10 @@ function Form({ draft, dirty, onClose, onSent }: { draft: Draft; dirty: RefObjec
             multiple
             hidden
             onChange={(e) => {
-              setFiles((current) => [...current, ...Array.from(e.target.files ?? [])]);
+              // Read the files before clearing the input: the list is live, and the updater below runs later.
+              const picked = Array.from(e.target.files ?? []);
               e.target.value = '';
+              setFiles((current) => [...current, ...picked]);
             }}
           />
           <Button type="button" variant="secondary" icon={<Paperclip size={16} aria-hidden="true" />} onClick={() => picker.current?.click()}>

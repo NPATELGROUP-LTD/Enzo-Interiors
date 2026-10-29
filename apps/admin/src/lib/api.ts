@@ -140,15 +140,46 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
-  if (!response.ok) {
-    // Nest returns `message` as a string, or an array of strings from
-    // class-validator. Both need to reach the form.
-    const raw = (payload as { message?: string | string[] } | null)?.message;
-    const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
-    throw new ApiError(response.status, friendlyMessage(response.status, list[0]), list);
-  }
+  if (!response.ok) throw failure(response.status, payload);
 
   return payload as T;
+}
+
+/** The error for a failed response. Nest returns `message` as a string, or an array of strings from class-validator: both reach the form. */
+function failure(status: number, payload: unknown): ApiError {
+  const raw = (payload as { message?: string | string[] } | null)?.message;
+  const list = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return new ApiError(status, friendlyMessage(status, list[0]), list);
+}
+
+/** A multipart POST that reports how much has gone up (0 to 1); fetch cannot. */
+function upload<T>(path: string, body: FormData, onProgress: (fraction: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${BASE_URL}${path}`);
+    const token = tokenStore.get();
+    if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.upload.onprogress = (event) => event.lengthComputable && onProgress(event.loaded / event.total);
+    xhr.onerror = () => reject(new ApiError(0, 'Could not reach Enzo Interiors. Check your connection and try again.'));
+    xhr.onload = () => {
+      if (xhr.status === 401) {
+        tokenStore.clear();
+        window.dispatchEvent(new CustomEvent(UNAUTHORIZED_EVENT));
+        return reject(new ApiError(401, 'Your session has expired. Please sign in again.'));
+      }
+      let payload: unknown = null;
+      if (xhr.responseText) {
+        try {
+          payload = JSON.parse(xhr.responseText);
+        } catch {
+          payload = xhr.responseText;
+        }
+      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(payload as T);
+      reject(failure(xhr.status, payload));
+    };
+    xhr.send(body);
+  });
 }
 
 /** True once the stored token is past half its life and not yet expired. A JWT's claims are readable by design. */
@@ -188,6 +219,7 @@ export const api = {
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),
   blob: (path: string) => request<Blob>(path, { blob: true }),
+  upload,
   baseUrl: BASE_URL,
 };
 

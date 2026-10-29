@@ -49,6 +49,8 @@ class PartIdPipe implements PipeTransform<string, string> {
 
 export class ListQuery {
   @IsOptional() @IsIn(['inbox', 'sent']) folder?: 'inbox' | 'sent';
+  /** A Gmail label id (INBOX, SENT, Label_12…); Gmail refuses one the account does not have. */
+  @IsOptional() @Matches(/^[A-Za-z0-9_-]{1,100}$/) label?: string;
   /** Gmail's own search syntax, passed through. It only ever reads. */
   @IsOptional() @IsString() @MaxLength(500) q?: string;
   /** Everything to or from one address. */
@@ -137,6 +139,12 @@ export class MailboxController {
   @Throttle({ default: { limit: 10, ttl: 60 * 60_000 } })
   async disconnect(@CurrentUser() principal: AuthPrincipal): Promise<void> {
     await this.gmail.disconnect(principal);
+  }
+
+  @Get('labels')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  labels(@CurrentUser() principal: AuthPrincipal) {
+    return this.gmail.labels(principal.id);
   }
 
   @Get('threads')

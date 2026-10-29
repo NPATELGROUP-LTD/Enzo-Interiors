@@ -57,7 +57,7 @@ export function parsePriceLabel(label: string): number | null {
  * "2 weeks" → 2. The upper bound rather than the lower one, because a
  * comparison bar should show the worst case a visitor might plan around.
  */
-function parseLeadWeeks(timeline: string): number | null {
+export function parseLeadWeeks(timeline: string): number | null {
   const numbers = timeline.match(/\d+(?:\.\d+)?/g);
   if (!numbers?.length) return null;
   const max = Math.max(...numbers.map(Number));
