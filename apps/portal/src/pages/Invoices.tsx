@@ -16,6 +16,7 @@ import {
   Th,
 } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { date, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone } from '@/lib/status';
 import type { Invoice } from '@/types/api';
@@ -47,6 +48,13 @@ export function InvoicesPage() {
 
   // The API never sends a client a Draft.
   const visible = invoices.data ?? [];
+  const { rows: sortedVisible, header } = useSort(visible, {
+    number: (invoice) => invoice.number,
+    issued: (invoice) => invoice.created_at,
+    due: (invoice) => invoice.due_date,
+    status: (invoice) => invoice.status,
+    amount: (invoice) => invoice.amount,
+  });
 
   return (
     <>
@@ -131,7 +139,7 @@ export function InvoicesPage() {
                       <Link to={`/invoices/${invoice.id}`} className={buttonClass('secondary')} aria-label={`View invoice ${invoice.number}`}>
                         View
                       </Link>
-                      <InvoiceDownloadButton invoice={invoice} />
+                      {invoice.client_can_download ? <InvoiceDownloadButton invoice={invoice} /> : null}
                     </div>
                   </Card>
                 </li>
@@ -142,16 +150,16 @@ export function InvoicesPage() {
             <TableWrap>
               <thead>
                 <tr>
-                  <Th>Invoice</Th>
+                  <Th sort={header('number')}>Invoice</Th>
                   <Th className="max-sm:hidden">Project</Th>
-                  <Th className="max-sm:hidden">Issued</Th>
-                  <Th className="max-sm:hidden">Due</Th>
-                  <Th>Status</Th>
-                  <Th className="text-right">Amount</Th>
+                  <Th className="max-sm:hidden" sort={header('issued')}>Issued</Th>
+                  <Th className="max-sm:hidden" sort={header('due')}>Due</Th>
+                  <Th sort={header('status')}>Status</Th>
+                  <Th className="text-right" sort={header('amount')}>Amount</Th>
                 </tr>
               </thead>
               <tbody>
-                {visible.map((invoice) => (
+                {sortedVisible.map((invoice) => (
                   <tr
                     key={invoice.id}
                     className="cursor-pointer hover:bg-surface-muted/40"

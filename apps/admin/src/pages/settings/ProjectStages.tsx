@@ -36,6 +36,8 @@ export function ProjectStages() {
   if (!rows || !saved.data) return <LoadingState label="Loading project stages…" />;
 
   const dirty = JSON.stringify(rows.map(({ name, progress, approval }) => ({ name, progress, approval }))) !== JSON.stringify(saved.data);
+  // The first and last stage cannot ask, nor can one right after another that does (changes go back one stage).
+  const mayApprove = (index: number) => index > 0 && index < rows.length - 1 && !rows[index - 1]!.approval && !rows[index + 1]!.approval;
   const set = (index: number, patch: Partial<Row>) => setRows(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   const move = (index: number, by: number) => {
     const next = [...rows];
@@ -97,12 +99,10 @@ export function ProjectStages() {
             </label>
             <label className="flex items-center gap-1.5 text-sm text-ink">
               <input
-                type="radio"
-                name="approval-stage"
+                type="checkbox"
                 checked={row.approval}
-                disabled={index === 0 || index === rows.length - 1}
-                onChange={() => setRows(rows.map((entry, i) => ({ ...entry, approval: i === index })))}
-                onClick={() => row.approval && set(index, { approval: false })}
+                disabled={!row.approval && !mayApprove(index)}
+                onChange={(event) => set(index, { approval: event.target.checked })}
               />
               Client approves
             </label>
@@ -134,8 +134,9 @@ export function ProjectStages() {
         Add stage
       </Button>
       <p className={HELP}>
-        “Client approves” marks the stage where a client approves the design (it moves on to the next stage) or asks for
-        changes (it goes back one). The % is the progress a project shows on entering the stage.
+        Switch on “Client approves” for every stage where the client must decide: they approve (the project moves to the
+        next stage) or ask for changes (it goes back one stage), so two such stages cannot sit next to each other. The % is
+        the progress a project shows on entering the stage.
       </p>
     </div>
   );

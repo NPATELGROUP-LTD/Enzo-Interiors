@@ -34,10 +34,11 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dateTime } from '@/lib/format';
+import { dateTime, refNo } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { Client, Project, ProjectStage, ServiceType } from '@/types/api';
 import { SERVICE_LABELS, SERVICE_TYPES } from '@/types/api';
@@ -237,13 +238,14 @@ export function NewProjectDialog({
   open: boolean;
   onClose: () => void;
   /** Fixed client (from their page); otherwise the dialog asks. */
-  client?: { id: string; name: string };
+  client?: { id: string; name: string; address?: string | null };
   clients?: Client[];
   designers?: StaffOption[];
 }) {
   const toast = useToast();
   const navigate = useNavigate();
-  const empty = { client_id: '', name: '', type: 'Kitchen' as ServiceType, assigned_designer_id: '', assigned_installer_id: '' };
+  // site_address null = not typed yet: the field shows the client's own address, which is what the API stores.
+  const empty = { client_id: '', name: '', type: 'Kitchen' as ServiceType, assigned_designer_id: '', assigned_installer_id: '', site_address: null as string | null };
   const [form, setForm] = useState(empty);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -270,6 +272,7 @@ export function NewProjectDialog({
         type: form.type,
         assigned_designer_id: form.assigned_designer_id || null,
         assigned_installer_id: form.assigned_installer_id || null,
+        ...(form.site_address !== null && { site_address: form.site_address }),
       });
       toast.success(`${created.name} created at ${created.status}.`);
       onClose();
@@ -280,6 +283,8 @@ export function NewProjectDialog({
       setSaving(false);
     }
   };
+
+  const clientAddress = (client ?? clients.find((row) => row.id === form.client_id))?.address;
 
   const assign = (field: 'assigned_designer_id' | 'assigned_installer_id', label: string) => (
     <Select label={label} value={form[field]} onChange={(event) => setForm({ ...form, [field]: event.target.value })}>
@@ -345,6 +350,14 @@ export function NewProjectDialog({
             </option>
           ))}
         </Select>
+
+        <Input
+          label="Site address"
+          hint="Starts as the client’s address; change it if the work is somewhere else."
+          value={form.site_address ?? clientAddress ?? ''}
+          onChange={(event) => setForm({ ...form, site_address: event.target.value })}
+          maxLength={300}
+        />
 
         <div className="grid gap-4 sm:grid-cols-2">
           {assign('assigned_designer_id', 'Designer')}
@@ -470,6 +483,13 @@ export function ProjectsPage() {
   };
 
   const rows = projects.data ?? [];
+  const { rows: sortedRows, header } = useSort(rows, {
+    name: (project) => project.name,
+    client: (project) => project.client_name,
+    stage: (project) => project.current_stage ?? project.status,
+    progress: (project) => project.progress_pct,
+    updated: (project) => project.updated_at,
+  });
 
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
@@ -544,17 +564,17 @@ export function ProjectsPage() {
         <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
-              <Th>Project</Th>
-              <Th className="max-sm:hidden">Client</Th>
-              <Th>Stage</Th>
+              <Th sort={header('name')}>Project</Th>
+              <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
+              <Th sort={header('stage')}>Stage</Th>
               <Th className="max-sm:hidden">Team</Th>
-              <Th className="max-sm:hidden">Progress</Th>
+              <Th className="max-sm:hidden" sort={header('progress')}>Progress</Th>
               <Th className="max-sm:hidden">Client sees</Th>
-              <Th className="max-sm:hidden">Updated</Th>
+              <Th className="max-sm:hidden" sort={header('updated')}>Updated</Th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((project) => (
+            {sortedRows.map((project) => (
               <tr
                 key={project.id}
                 className="cursor-pointer hover:bg-surface-muted/40"
@@ -568,7 +588,7 @@ export function ProjectsPage() {
                   </Link>
                   <p className="text-xs text-ink-muted">
                     <span className="sm:hidden">{project.client_name} · </span>
-                    {SERVICE_LABELS[project.type]}
+                    {refNo('PRJ', project.ref_no)} · {SERVICE_LABELS[project.type]}
                   </p>
                 </Td>
                 <Td className="text-ink max-sm:hidden">{project.client_name}</Td>

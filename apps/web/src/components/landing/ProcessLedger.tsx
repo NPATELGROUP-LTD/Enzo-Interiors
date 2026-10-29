@@ -29,7 +29,7 @@ import { fill, type HomeContent } from "@/lib/content";
 import { ElevationDrawing } from "./ElevationDrawing";
 
 /** Viewport-heights of scroll each stage holds the stage for. */
-const STAGE_VH = 85;
+const STAGE_VH = 80;
 
 /**
  * The pinned frame's column template, used by BOTH rows — the heading/lede
@@ -265,25 +265,15 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                   <ElevationDrawing
                     active={active}
                     content={content.drawing}
+                    stageCount={stages.length}
                     className="aspect-[16/9] h-auto w-full max-w-[min(100%,62rem,calc((100svh-26rem)*16/9))]"
                   />
                 </div>
 
               {/* ── The stage column ──
-                  Rebuilt for the width it actually has. It was a top-heavy
-                  stack with four different vertical gaps (3 / 4 / 8 / 8) and,
-                  at the foot, five stage names laid into five equal flex
-                  columns. That last part was the real fault: the names are
-                  6 to 12 characters long and the columns were ~68px each, so
-                  "CONSULTATION" truncated while "DESIGN" sat in a third of
-                  its box — five labels of one size pretending to be a scale.
-
-                  The bar keeps the five equal segments, because *those* are
-                  genuinely equal: one per stage, filled up to where you are.
-                  The names come out from under it and run as a single wrapping
-                  line, which is what a list of five short words wants to be in
-                  a column this wide. Nothing truncates at any width, and the
-                  active one is the only thing carrying full contrast. */}
+                  One segment per stage, filled up to where you are. The names
+                  are not repeated under it: the heading above already says
+                  which stage this is, and the <ol>'s label says where in six. */}
               <div className="flex flex-col gap-6">
                 <div>
                   <div className="flex items-baseline gap-3">
@@ -313,7 +303,7 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                 </div>
 
                 <div>
-                  {/* Five equal segments, filled to the current stage. */}
+                  {/* One equal segment per stage, filled to the current stage. */}
                   <ol
                     className="flex gap-1.5"
                     aria-label={fill(content.stagesAria, {
@@ -335,40 +325,6 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
                       </li>
                     ))}
                   </ol>
-
-                  {/* The names, as one wrapping line rather than five boxes.
-                      aria-hidden because the <ol> above already announces the
-                      position and the heading announces the stage — this is
-                      the same information a third time, for the eye only. */}
-                  <p
-                    aria-hidden="true"
-                    className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] uppercase tracking-[0.12em]"
-                  >
-                    {stages.map((stage, index) => (
-                      <span key={stage.title} className="flex items-center gap-2">
-                        <span
-                          className="transition-colors duration-300"
-                          style={{
-                            color:
-                              index === active
-                                ? "var(--enzo-forest)"
-                                // 80%, not 45%: measured against the real
-                                // tokens, forest needs four fifths strength to
-                                // clear 4.5:1 on cream (75% lands at 4.40),
-                                // and these are the names of the stages, not
-                                // a hairline.
-                                : "color-mix(in oklab, var(--enzo-forest) 80%, transparent)",
-                            fontWeight: index === active ? 600 : 400,
-                          }}
-                        >
-                          {stage.title}
-                        </span>
-                        {index < stages.length - 1 && (
-                          <span className="text-primary/25">/</span>
-                        )}
-                      </span>
-                    ))}
-                  </p>
                 </div>
 
                 <Link
@@ -391,6 +347,8 @@ export function ProcessLedger({ content }: { content: HomeContent["process"] }) 
           <ElevationDrawing
             active={mobileInked ? stages.length - 1 : -1}
             content={content.drawing}
+            stageCount={stages.length}
+            annotate={false}
           />
         </div>
 

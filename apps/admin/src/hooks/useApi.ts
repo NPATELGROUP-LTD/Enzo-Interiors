@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { ApiError, api } from '@/lib/api';
+import { connectSocket } from '@/lib/socket';
 
 export interface QueryState<T> {
   data: T | null;
@@ -57,6 +58,45 @@ export function useQuery<T>(path: string | null): QueryState<T> {
   useEffect(() => {
     void run();
   }, [run]);
+
+  // Keep what is on screen current without a reload: when the API says something changed (it pings
+  // after any write), when the tab comes back into view, and once a minute as a fallback. Quiet:
+  // no spinner, and a failed refresh keeps what is shown.
+  useEffect(() => {
+    if (path === null) return;
+    let timer: number | undefined;
+    const quiet = async () => {
+      const id = ++requestId.current;
+      try {
+        const result = await api.get<T>(path);
+        // Same content keeps the same object, so a form seeded from `data` is not reset mid-edit.
+        if (id === requestId.current)
+          setDataState((cur) => (JSON.stringify(cur) === JSON.stringify(result) ? cur : result));
+      } catch {
+        /* keep the stale copy */
+      } finally {
+        // This call superseded an in-flight run(), which will skip its own setLoading(false).
+        if (id === requestId.current) setLoading(false);
+      }
+    };
+    const soon = () => {
+      if (document.hidden) return;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => void quiet(), 600);
+    };
+    const socket = connectSocket();
+    socket?.on('data:changed', soon);
+    window.addEventListener('focus', soon);
+    document.addEventListener('visibilitychange', soon);
+    const poll = window.setInterval(soon, 60_000);
+    return () => {
+      window.clearTimeout(timer);
+      window.clearInterval(poll);
+      socket?.off('data:changed', soon);
+      window.removeEventListener('focus', soon);
+      document.removeEventListener('visibilitychange', soon);
+    };
+  }, [path]);
 
   const setData = useCallback((updater: T | ((current: T | null) => T | null)) => {
     setDataState((current) =>

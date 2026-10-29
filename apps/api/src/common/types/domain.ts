@@ -167,6 +167,19 @@ export interface CalendarConnection extends BaseRecord {
   updated_at: string;
 }
 
+/** One staff member's own Gmail, linked in the Mail page (modules/mailbox). No mail is stored. */
+export interface GmailAccount extends BaseRecord {
+  staff_id: string;
+  google_email: string;
+  /** Sealed by core/crypto.ts. */
+  refresh_token_enc: string;
+  scopes: string;
+  connected_at: string;
+  needs_reconnect: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Schema 3.2 */
 export interface Client extends BaseRecord {
   name: string;
@@ -184,10 +197,16 @@ export interface Client extends BaseRecord {
   updated_at: string;
   /** As StaffUser.token_version. Optional so a create may leave it out (defaulted column). */
   token_version?: number;
+  /** True while the password is the one emailed at invite; cleared when they change or keep it. */
+  password_is_default?: boolean;
+  /** The emailed password stops working after this while it is still the default. Null = no expiry (clients invited before v3). */
+  default_password_expires_at?: string | null;
 }
 
 /** Schema 3.3 */
 export interface Project extends BaseRecord {
+  /** PRJ-0001: a readable number, assigned by the database (a create leaves it out; a row read back has it). */
+  ref_no?: number;
   client_id: string;
   name: string;
   type: ServiceType;
@@ -195,14 +214,49 @@ export interface Project extends BaseRecord {
   /** 0 to 100. Clamped on write by the projects service. */
   progress_pct: number;
   current_stage: string | null;
-  assigned_designer_id: string | null;
   /**
-   * Who fits it (a Designer-role user). Either assignment gives access.
-   * Optional so a create may leave it out; a row read back always has it.
+   * Legacy single designer / installer: they mirror the team's first of each
+   * (modules/projects/team.service.ts) and still grant access. The team is
+   * `project_members`. Optional so a create may leave them out.
    */
+  assigned_designer_id: string | null;
   assigned_installer_id?: string | null;
   client_visible: boolean;
+  /** Where the work happens; null = the client's own address. */
+  site_address?: string | null;
   created_at: string;
+  updated_at: string;
+}
+
+export const TEAM_ROLES = ['Designer', 'Installer'] as const;
+export type TeamRole = (typeof TEAM_ROLES)[number];
+
+/** A designer or installer on a project. No money, no dates: safe to show any member. */
+export interface ProjectMember extends BaseRecord {
+  project_id: string;
+  staff_id: string;
+  role: TeamRole;
+  added_by: string | null;
+  created_at: string;
+}
+
+/**
+ * An installer's dates and pay on one project, 1:1 with their member row. Only
+ * the Admin and that installer ever see it. Dates are `YYYY-MM-DD`.
+ */
+export interface InstallerAssignment extends BaseRecord {
+  member_id: string;
+  start_date: string | null;
+  end_date: string | null;
+  sent_at: string | null;
+  pay: number | null;
+  pay_note: string | null;
+  pay_status: 'pending' | 'approved' | 'declined';
+  dates_status: 'pending' | 'approved';
+  suggested_start: string | null;
+  suggested_end: string | null;
+  suggestion_comment: string | null;
+  suggested_at: string | null;
   updated_at: string;
 }
 
@@ -226,6 +280,8 @@ export interface Invoice extends BaseRecord {
   job_notes: string | null;
   /** Shown under the totals (deposit received, due on delivery...). Never summed into `amount`. */
   payment_schedule: PaymentScheduleRow[];
+  /** An Admin lets the client save or print it from the portal; false = view only. */
+  client_can_download?: boolean;
 }
 
 export interface PaymentScheduleRow {
@@ -233,6 +289,22 @@ export interface PaymentScheduleRow {
   amount: number;
   /** YYYY-MM-DD, or null. */
   date: string | null;
+}
+
+/** A payment stage: the invoice is Paid only when every one has `paid_at`. `amount` is worked out, see invoices/stages.ts. */
+export interface InvoiceStage extends BaseRecord {
+  invoice_id: string;
+  position: number;
+  /** The trigger, e.g. "On start". */
+  label: string;
+  mode: 'percent' | 'fixed';
+  /** Percent of the gross payable, or £, per `mode`. */
+  value: number;
+  amount: number;
+  due_note: string | null;
+  paid_at: string | null;
+  /** The Admin who recorded the payment; staff only. */
+  paid_by: string | null;
 }
 
 /** One line of an invoice. Net (ex-VAT) price; the invoice's amount is derived from its lines. */
@@ -291,6 +363,35 @@ export interface MessageAttachment {
   size_bytes: number;
 }
 
+/** Staff-only chat: a project's thread (project_id) or a pair of staff (pair_key). Never reaches a client. */
+export interface StaffThread extends BaseRecord {
+  project_id: string | null;
+  pair_key: string | null;
+  created_at: string;
+}
+
+/** A file on a staff message: its key in the private bucket, never a URL. */
+export interface StaffAttachment {
+  key: string;
+  name: string;
+  size_bytes: number;
+  type: string;
+}
+
+export interface StaffMessage extends BaseRecord {
+  thread_id: string;
+  sender_id: string;
+  body: string;
+  attachments: StaffAttachment[] | null;
+  created_at: string;
+}
+
+export interface StaffThreadRead extends BaseRecord {
+  thread_id: string;
+  staff_id: string;
+  read_at: string;
+}
+
 /** Schema 3.10 */
 export interface Message extends BaseRecord {
   conversation_id: string;
@@ -336,6 +437,10 @@ export interface DocumentRecord extends BaseRecord {
   size_bytes: number;
   upload_date: string;
   client_visible: boolean;
+  /** Settings › Document categories label; null = `type`. */
+  category?: string | null;
+  /** An Admin lets the client save it from the portal; false = view only. */
+  client_can_download?: boolean;
   /** Private-bucket object key, never a URL. Never leaves the API. */
   storage_url: string;
 }
@@ -368,6 +473,8 @@ export interface PortfolioItem extends BaseRecord {
 
 /** Schema 3.16 */
 export interface ContactSubmission extends BaseRecord {
+  /** ENQ-0001: a readable number, assigned by the database (a create leaves it out; a row read back has it). */
+  ref_no?: number;
   name: string;
   email: string;
   phone: string | null;
@@ -377,7 +484,22 @@ export interface ContactSubmission extends BaseRecord {
   kind: EnquiryKind;
   /** The form's extra fields (tier, room, preferred date...). */
   details: Record<string, string> | null;
+  /** The tag in the inbox; null on rows from before it existed (the kind says enough). */
+  source: EnquirySource | null;
   created_at: string;
+}
+
+export const ENQUIRY_SOURCES = ['Contact', 'Booking', 'Quote'] as const;
+export type EnquirySource = (typeof ENQUIRY_SOURCES)[number];
+
+/** What an Admin sent an enquirer from the inbox. */
+export interface EnquiryMessage extends BaseRecord {
+  enquiry_id: string;
+  direction: 'out' | 'in';
+  body: string;
+  to_address: string;
+  sent_by: string | null;
+  sent_at: string;
 }
 
 /** Schema 3.17 — a singleton row. */
@@ -495,8 +617,22 @@ export interface SiteSettings extends BaseRecord {
   pages: Partial<Record<PageKey, boolean>> | null;
   /** Settings › Project stages; null = DEFAULT_STAGES (projects/stages.ts). */
   project_stages: ProjectStageConfig[] | null;
+  /** Settings › Document categories; null = the document types (modules/documents). */
+  document_categories: string[] | null;
+  /** Settings › Bank details, printed on invoices. Admin and authenticated invoice payloads only. */
+  bank_details: BankDetails | null;
   updated_at: string;
   updated_by: string | null;
+}
+
+export interface BankDetails {
+  account_name: string;
+  bank_name: string;
+  /** "12-34-56" */
+  sort_code: string;
+  /** 8 digits */
+  account_number: string;
+  reference_note: string | null;
 }
 
 /** Keyed by lower-case weekday name, "monday" … "sunday". */

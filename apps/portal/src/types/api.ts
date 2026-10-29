@@ -47,11 +47,14 @@ export const DOCUMENT_LABELS: Record<DocumentType, string> = {
   Other: 'Other',
 };
 
+/** A document's category as shown: the studio's own label, or the stored type's. */
+export const categoryLabel = (category: string): string => DOCUMENT_LABELS[category as DocumentType] ?? category;
+
 /** Plain-English descriptions of the default stages; a stage the studio added has none. */
 export const STAGE_DESCRIPTIONS: Partial<Record<ProjectStage, string>> = {
   Consultation: 'We visit, measure up and understand what you need.',
   Design: 'Your designer draws up the layout and prepares the 3D visuals.',
-  Approval: 'Your turn — review the design and approve it or ask for changes.',
+  Approval: 'Your turn — review and approve it, or ask for changes.',
   Installation: 'Our fitters build and install everything on site.',
   Completed: 'Handed over, snagged and signed off.',
 };
@@ -62,6 +65,8 @@ export interface Principal {
   role: string;
   name: string;
   email: string;
+  /** Still on the password the studio emailed: they are asked once to change it or keep it. */
+  passwordIsDefault?: boolean;
 }
 
 export interface LoginResponse {
@@ -99,6 +104,31 @@ export interface InvoiceItem {
   position: number;
 }
 
+export interface InvoiceStage {
+  id: string;
+  position: number;
+  /** The trigger: "On start", "On installation"... */
+  label: string;
+  mode: 'percent' | 'fixed';
+  /** Percent of the total payable, or £, per `mode`. */
+  value: number;
+  /** Worked out by the API; the stages sum exactly to the invoice amount. */
+  amount: number;
+  due_note: string | null;
+  paid_at: string | null;
+  /** Staff only. */
+  paid_by?: string | null;
+}
+
+/** Settings > Bank details; printed on invoices, never on the public site. */
+export interface BankDetails {
+  account_name: string;
+  bank_name: string;
+  sort_code: string;
+  account_number: string;
+  reference_note: string | null;
+}
+
 export interface PaymentScheduleRow {
   label: string;
   amount: number;
@@ -124,6 +154,8 @@ export interface InvoiceIssuer {
 export interface Invoice {
   id: string;
   number: string;
+  /** An Admin allowed saving and printing it; otherwise the portal only shows it. */
+  client_can_download?: boolean;
   client_id: string;
   project_id: string | null;
   amount: number;
@@ -151,6 +183,12 @@ export interface Invoice {
   client_email: string | null;
   client_phone: string | null;
   issuer: InvoiceIssuer;
+  /** Payment stages; empty or absent = paid in one go. Not on the rows inside a client's or project's detail. */
+  stages?: InvoiceStage[];
+  /** Money recorded as received, and what is still owed. */
+  paid_amount?: number;
+  balance_amount?: number;
+  bank_details?: BankDetails | null;
 }
 
 export interface Booking {
@@ -213,6 +251,10 @@ export interface DocumentRecord {
   client_visible: boolean;
   client_name: string;
   project_name: string | null;
+  /** Its Settings › Document categories label (older files: their type). */
+  category: string;
+  /** An Admin allowed saving it; otherwise the portal only lets the client view it. */
+  client_can_download: boolean;
   /** Whether it can be shown in the page (View) as well as downloaded. */
   preview: 'pdf' | 'image' | null;
 }

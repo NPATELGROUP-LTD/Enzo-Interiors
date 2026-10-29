@@ -24,6 +24,8 @@ import {
   UpdateProjectStageDto,
 } from './dto';
 import { ProjectsService } from './projects.service';
+import { TeamController } from './team.controller';
+import { TeamService } from './team.service';
 
 /**
  * The CRM's projects.
@@ -135,8 +137,8 @@ export class ProjectsController {
 
 @Module({
   imports: [NotificationsModule],
-  controllers: [ProjectsController],
-  providers: [ProjectsService],
+  controllers: [ProjectsController, TeamController],
+  providers: [ProjectsService, TeamService],
   exports: [ProjectsService],
 })
 export class ProjectsModule {}

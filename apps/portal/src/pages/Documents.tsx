@@ -16,19 +16,22 @@ import {
 } from '@/components/ui';
 import { DocumentActions, DocumentName } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { date, fileSize } from '@/lib/format';
-import type { DocumentRecord, DocumentType } from '@/types/api';
-import { DOCUMENT_LABELS, DOCUMENT_TYPES } from '@/types/api';
+import type { DocumentRecord } from '@/types/api';
+import { categoryLabel } from '@/types/api';
 
 export function DocumentsPage() {
   const documents = useQuery<DocumentRecord[]>('/documents');
   const [search, setSearch] = useState('');
-  const [type, setType] = useState<'all' | DocumentType>('all');
+  const [type, setType] = useState('all');
+  // The categories the files carry (the studio can rename or drop one, but its files keep the label).
+  const categories = useMemo(() => [...new Set((documents.data ?? []).map((document) => document.category))].sort(), [documents.data]);
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
     return (documents.data ?? []).filter((document) => {
-      if (type !== 'all' && document.type !== type) return false;
+      if (type !== 'all' && document.category !== type) return false;
       if (!term) return true;
       return (
         document.name.toLowerCase().includes(term) ||
@@ -36,6 +39,13 @@ export function DocumentsPage() {
       );
     });
   }, [documents.data, search, type]);
+  const { rows: sortedVisible, header } = useSort(visible, {
+    name: (document) => document.name,
+    category: (document) => document.category,
+    project: (document) => document.project_name,
+    added: (document) => document.upload_date,
+    size: (document) => document.size_bytes,
+  });
 
   return (
     <>
@@ -61,14 +71,14 @@ export function DocumentsPage() {
         </div>
         <Listbox
           value={type}
-          onChange={(event) => setType(event.target.value as 'all' | DocumentType)}
-          aria-label="Filter by document type"
+          onChange={(event) => setType(event.target.value)}
+          aria-label="Filter by category"
           className="w-full sm:w-48"
         >
-          <option value="all">All types</option>
-          {DOCUMENT_TYPES.map((option) => (
+          <option value="all">All categories</option>
+          {categories.map((option) => (
             <option key={option} value={option}>
-              {DOCUMENT_LABELS[option]}
+              {categoryLabel(option)}
             </option>
           ))}
         </Listbox>
@@ -86,7 +96,7 @@ export function DocumentsPage() {
             title={documents.data?.length ? 'No matching documents' : 'No documents yet'}
             message={
               documents.data?.length
-                ? 'Try a different search term or clear the type filter.'
+                ? 'Try a different search term or clear the category filter.'
                 : 'Documents shared by the Enzo team will appear here.'
             }
             action={
@@ -107,14 +117,14 @@ export function DocumentsPage() {
       ) : (
         <>
           <ul className="space-y-3 sm:hidden">
-            {visible.map((document) => (
+            {sortedVisible.map((document) => (
               <li key={document.id}>
                 <Card>
                   <p className="font-medium text-ink [overflow-wrap:anywhere]">
                     <DocumentName document={document} />
                   </p>
                   <p className="mt-1 text-xs text-ink-muted">
-                    {DOCUMENT_LABELS[document.type]} · {date(document.upload_date)} · {fileSize(document.size_bytes)}
+                    {categoryLabel(document.category)} · {date(document.upload_date)} · {fileSize(document.size_bytes)}
                   </p>
                   {document.project_name ? (
                     <p className="text-xs text-ink-muted">{document.project_name}</p>
@@ -129,22 +139,22 @@ export function DocumentsPage() {
           <TableWrap>
             <thead>
               <tr>
-                <Th>Document</Th>
-                <Th className="max-sm:hidden">Type</Th>
-                <Th className="max-sm:hidden">Project</Th>
-                <Th className="max-sm:hidden">Added</Th>
-                <Th className="max-sm:hidden">Size</Th>
+                <Th sort={header('name')}>Document</Th>
+                <Th className="max-sm:hidden" sort={header('category')}>Category</Th>
+                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+                <Th className="max-sm:hidden" sort={header('added')}>Added</Th>
+                <Th className="max-sm:hidden" sort={header('size')}>Size</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((document) => (
+              {sortedVisible.map((document) => (
                 <tr key={document.id} className="hover:bg-surface-muted/40">
                   <Td className="font-medium text-ink [overflow-wrap:anywhere]">
                     <DocumentName document={document} />
                   </Td>
                   <Td className="max-sm:hidden">
-                    <StatusTag tone="info">{DOCUMENT_LABELS[document.type]}</StatusTag>
+                    <StatusTag tone="info">{categoryLabel(document.category)}</StatusTag>
                   </Td>
                   <Td className="text-ink-muted max-sm:hidden">{document.project_name ?? '—'}</Td>
                   <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(document.upload_date)}</Td>

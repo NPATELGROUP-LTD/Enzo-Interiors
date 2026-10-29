@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Injectable, NotFoundException, Put } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Injectable, NotFoundException, Post, Put } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
 import { IsBoolean, IsOptional, ValidateNested } from 'class-validator';
@@ -90,6 +90,14 @@ export class PortalPasswordController {
     @ClientIp() ip: string,
   ): Promise<LoginResult> {
     return this.auth.changeClientPassword(principal, dto.current_password, dto.new_password, ip);
+  }
+
+  /** "Keep this password": the portal stops asking them to change the emailed one. */
+  @Post('password/keep')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  keepPassword(@CurrentUser() principal: AuthPrincipal): Promise<void> {
+    return this.auth.keepClientPassword(principal);
   }
 }
 

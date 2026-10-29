@@ -1,6 +1,8 @@
 import clsx from 'clsx';
 import {
   CaretDown,
+  CaretUp,
+  CaretUpDown,
   Check,
   CircleNotch,
   Eye,
@@ -936,16 +938,36 @@ export function TableWrap({ children, className }: { children: ReactNode; classN
   );
 }
 
-export function Th({ children, className }: { children: ReactNode; className?: string }) {
+/** What a sortable column header needs (from useSort's header(key)). */
+export interface ThSort {
+  active: boolean;
+  dir: 'asc' | 'desc';
+  onSort: () => void;
+}
+
+export function Th({ children, className, sort }: { children: ReactNode; className?: string; sort?: ThSort }) {
+  const Caret = !sort?.active ? CaretUpDown : sort.dir === 'asc' ? CaretUp : CaretDown;
   return (
     <th
       scope="col"
+      aria-sort={sort ? (sort.active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       className={clsx(
         'label-eyebrow whitespace-nowrap px-3 py-2',
         className,
       )}
     >
-      {children}
+      {sort ? (
+        <button
+          type="button"
+          onClick={sort.onSort}
+          className={clsx('inline-flex items-center gap-1 uppercase hover:text-ink', sort.active && 'text-ink')}
+        >
+          {children}
+          <Caret size={12} aria-hidden="true" className={sort.active ? undefined : 'opacity-50'} />
+        </button>
+      ) : (
+        children
+      )}
     </th>
   );
 }

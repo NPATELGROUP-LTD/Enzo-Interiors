@@ -7,7 +7,7 @@ import type { Invoice } from '@/types/api';
 /*
  * The invoice as a real PDF (text you can select, search and copy), laid out
  * like components/invoice/InvoiceSheet: letterhead, green band, who and what,
- * itemised list, totals, payment schedule. Keep the two in step.
+ * itemised list, totals, payment schedule, payment stages, bank details. Keep the two in step.
  * ponytail: the standard PDF fonts (Helvetica, Times) stand in for Inter and Palatino.
  */
 
@@ -41,6 +41,8 @@ export function buildInvoicePdf(JsPdf: typeof jsPDF, invoice: Invoice, logo: str
   const issuer = invoice.issuer ?? DEFAULT_ISSUER;
   const items = invoice.items ?? [];
   const schedule = invoice.payment_schedule ?? [];
+  const stages = invoice.stages ?? [];
+  const bank = invoice.bank_details;
   const discount = invoice.discount ?? 0;
   const subtotal = invoice.subtotal_amount ?? invoice.net_amount;
 
@@ -268,6 +270,99 @@ export function buildInvoicePdf(JsPdf: typeof jsPDF, invoice: Invoice, logo: str
       put(money(entry.amount), R - 2, y + 0.9, 'right');
       y += h;
       rule(L, R, y, 0.25, RULE);
+    }
+  }
+
+  // Payment stages, kept together: label · %, paid tick and date (or Due), amount.
+  if (stages.length > 0) {
+    y += 4;
+    const rows = stages.map((stage) => {
+      const tail = [stage.mode === 'percent' ? `${Number(stage.value)}%` : '', stage.due_note ?? ''].filter(Boolean).map((part) => ` · ${part}`).join('');
+      font('helvetica', 'normal', 9, INK);
+      const lines = wrap(stage.label + tail, 100);
+      return { stage, tail, lines, h: lines.length * lineHeight(9) + 1.8 };
+    });
+    const note = invoice.status !== 'Paid' && (invoice.paid_amount ?? 0) > 0;
+    room(lineHeight(11) + 1.5 + rows.reduce((sum, r) => sum + r.h, 0) + (note ? lineHeight(9) + 1.5 : 0));
+    font('times', 'bold', 11, FOREST);
+    put('Payment stages', L, y);
+    y += lineHeight(11) + 1.5;
+    for (const { stage, tail, lines, h } of rows) {
+      font('helvetica', 'normal', 9, INK);
+      if (lines.length === 1) {
+        put(stage.label, L + 2, y + 0.9);
+        const after = L + 2 + width(stage.label);
+        font('helvetica', 'normal', 9, MUTED);
+        put(tail, after, y + 0.9);
+      } else {
+        put(lines, L + 2, y + 0.9);
+      }
+      const stateX = L + 108;
+      if (stage.paid_at) {
+        pdf.setDrawColor(...FOREST);
+        pdf.setLineWidth(0.35);
+        pdf.lines([[0.9, 0.9], [1.7, -1.8]], stateX, y + 2.7, [1, 1], 'S', false);
+        font('helvetica', 'normal', 9, MUTED);
+        put(`Paid ${date(stage.paid_at)}`, stateX + 3.6, y + 0.9);
+      } else {
+        font('helvetica', 'normal', 9, MUTED);
+        put('Due', stateX, y + 0.9);
+      }
+      font('helvetica', 'normal', 9, INK);
+      put(money(stage.amount), R - 2, y + 0.9, 'right');
+      y += h;
+      rule(L, R, y, 0.25, RULE);
+    }
+    if (note) {
+      y += 1.5;
+      font('helvetica', 'bold', 9, FOREST);
+      const owed = money(invoice.balance_amount ?? 0);
+      put(owed, R - 2, y, 'right');
+      font('helvetica', 'normal', 9, MUTED);
+      put(`Paid so far ${money(invoice.paid_amount ?? 0)} · Balance due`, R - 2 - width(owed) - 1, y, 'right');
+      y += lineHeight(9);
+    }
+  }
+
+  // Bank details, kept together: the same block on every invoice.
+  if (bank) {
+    y += 4;
+    const pairs: Array<[string, string]> = [
+      ['Account name', bank.account_name],
+      ['Bank', bank.bank_name],
+      ['Sort code', bank.sort_code],
+      ['Account number', bank.account_number],
+      ['Reference', invoice.number],
+    ];
+    font('helvetica', 'normal', 9, MUTED);
+    const gap = Math.max(...pairs.map(([label]) => width(label))) + 4;
+    const rows = pairs.map(([label, value], index) => {
+      font('helvetica', index === 0 ? 'bold' : 'normal', 9, INK);
+      const lines = wrap(value, W - 6 - gap);
+      return { label, lines, bold: index === 0, h: lines.length * lineHeight(9) + 0.8 };
+    });
+    font('helvetica', 'normal', 9, MUTED);
+    const noteLines = bank.reference_note ? wrap(bank.reference_note, W) : [];
+    const boxHeight = rows.reduce((sum, r) => sum + r.h, 0) + 3.2;
+    room(lineHeight(11) + 1.5 + boxHeight + (noteLines.length ? noteLines.length * lineHeight(9) + 1.5 : 0));
+    font('times', 'bold', 11, FOREST);
+    put('Pay by bank transfer', L, y);
+    y += lineHeight(11) + 1.5;
+    fill(L, y, W, boxHeight, WASH);
+    let at = y + 2;
+    for (const { label, lines, bold, h } of rows) {
+      font('helvetica', 'normal', 9, MUTED);
+      put(label, L + 3, at);
+      font('helvetica', bold ? 'bold' : 'normal', 9, INK);
+      put(lines, L + 3 + gap, at);
+      at += h;
+    }
+    y += boxHeight;
+    if (noteLines.length) {
+      y += 1.5;
+      font('helvetica', 'normal', 9, MUTED);
+      put(noteLines, L, y);
+      y += noteLines.length * lineHeight(9);
     }
   }
 

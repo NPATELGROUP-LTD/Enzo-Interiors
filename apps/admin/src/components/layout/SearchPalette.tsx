@@ -13,6 +13,7 @@ import {
   Kanban,
   MagnifyingGlass,
   Moon,
+  Receipt,
   SignOut,
   SquaresFour,
   TextAlignLeft,
@@ -58,6 +59,8 @@ export interface PaletteActions {
   signOut: () => void;
 }
 
+const RECORD_ICONS: Record<string, PhosphorIcon> = { client: AddressBook, project: Kanban, invoice: Receipt, enquiry: EnvelopeSimple, booking: CalendarCheck };
+
 const MODIFIER = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
 
 /** The editor route for a collection, from the menu's own list. */
@@ -98,6 +101,9 @@ export function SearchPalette({ open, onClose, actions }: {
   const [hits, setHits] = useState<{ entries: Hit[]; media: Array<{ id: string; alt: string }> } | null>(null);
   const [active, setActive] = useState(0);
   const [failed, setFailed] = useState(false);
+  /** Records (clients, projects, invoices, enquiries, bookings) matching the words or a reference. */
+  const [recordsFor, setRecordsFor] = useState('');
+  const [records, setRecords] = useState<Array<{ type: string; id: string; title: string; detail: string; link: string }>>([]);
 
   // A layout effect, so the input has focus before the next keystroke lands:
   // people press Ctrl K and start typing in the same breath.
@@ -113,6 +119,30 @@ export function SearchPalette({ open, onClose, actions }: {
     }
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  // Records by reference or a small detail ("PRJ-0012", a name, an email, a phone number); Admin and Designers.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2 || !actions.clients) {
+      setRecords([]);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      api
+        .get<{ results: typeof records }>(`/search?q=${encodeURIComponent(q)}`)
+        .then((found) => {
+          if (cancelled) return;
+          setRecords(found.results);
+          setRecordsFor(q);
+        })
+        .catch(() => !cancelled && setRecords([]));
+    }, 180);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query, actions.clients]);
 
   // The words search, debounced; the local commands filter instantly.
   useEffect(() => {
@@ -271,8 +301,18 @@ export function SearchPalette({ open, onClose, actions }: {
       run: () => undefined,
     }));
 
-    return [...shown.slice(0, 40), ...content, ...pictures];
-  }, [query, hits, actions, navigate, onClose]);
+    const found: Result[] = (recordsFor === query.trim() ? records : []).map((record) => ({
+      id: `record-${record.type}-${record.id}`,
+      group: 'Records',
+      label: record.title,
+      detail: record.detail,
+      Icon: RECORD_ICONS[record.type] ?? AddressBook,
+      run: go(record.link),
+    }));
+
+    // A reference or a name that matches a record is what was asked for, so it comes first.
+    return [...found, ...shown.slice(0, 40), ...content, ...pictures];
+  }, [query, hits, records, recordsFor, actions, navigate, onClose]);
 
   const clamped = Math.min(active, Math.max(0, results.length - 1));
 

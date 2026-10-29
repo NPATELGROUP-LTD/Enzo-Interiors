@@ -87,6 +87,9 @@ const SCRUB_SMOOTHING = true;
 // starts at the top, but navigating to another page and back within the
 // same tab resumes at the CTA instead of replaying the whole intro.
 const HAS_SEEN_CTA_KEY = "enzo:hero-seen-cta";
+// Remembered in this browser for good (localStorage): once the visitor has reached the CTA the
+// whole intro is left out on every later visit, frames included. See Hero.tsx and the guard in layout.tsx.
+export const HERO_SEEN_KEY = "enzo:hero-seen";
 // Where "resume at the CTA" actually lands, as a fraction of the way
 // through the CTA segment — NOT 0 (that's the segment's start, where
 // renderCta()'s reveal thresholds haven't fired yet, i.e. still hidden)
@@ -432,6 +435,7 @@ export function HeroSequence({
       if (layer === "cta") {
         try {
           window.sessionStorage.setItem(HAS_SEEN_CTA_KEY, "true");
+          window.localStorage.setItem(HERO_SEEN_KEY, "1");
         } catch {
           // Privacy modes can disable storage — resuming at the CTA on a
           // later visit just won't work in that case, which is a safe

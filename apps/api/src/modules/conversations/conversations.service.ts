@@ -325,7 +325,7 @@ export class ConversationsService {
   /** The staff who hear about a client's messages: every Admin, plus whoever designs or installs for them. */
   private async staffFor(clientId: string): Promise<string[]> {
     const projects = await this.db.projects.findWhere({ client_id: clientId });
-    const assigned = new Set(projects.flatMap((p) => [p.assigned_designer_id, p.assigned_installer_id]).filter((id): id is string => Boolean(id)));
+    const assigned = await this.access.staffOn(projects);
     const staff = await this.db.staffUsers.findAll((row) => row.role === 'Admin' || assigned.has(row.id));
     return staff.map((row) => row.id);
   }

@@ -1,7 +1,7 @@
 {
   "metadata": {
     "title": "Book a consultation — Enzo Interiors",
-    "description": "Book a free home consultation with Enzo Interiors. Four questions, no obligation, and a survey before anyone talks about price.",
+    "description": "Book a free home consultation with Enzo Interiors. Five quick steps, no obligation, and a survey before anyone talks about price.",
     "ogImageId": ""
   },
   "backToHomeLabel": "← Back",
@@ -23,7 +23,14 @@
   },
   "progress": {
     "step": "Step {step} of {total}",
-    "confirmed": "Confirmed"
+    "confirmed": "Confirmed",
+    "labels": [
+      "Service",
+      "Date & time",
+      "Details",
+      "Review",
+      "Done"
+    ]
   },
   "steps": {
     "service": {
@@ -31,39 +38,55 @@
       "lede": "Select the service you'd like to discuss.",
       "tierNote": "Pre-filled from your {tier} tier quote request."
     },
-    "date": {
-      "heading": "Pick a date",
-      "lede": "Choose a day that works for you."
-    },
-    "time": {
-      "heading": "Choose a time",
-      "lede": "Select a time slot that suits you."
-    },
     "details": {
       "heading": "Your details",
       "lede": "So we can get in touch to confirm.",
       "placeholders": {
-        "name": "Full name",
+        "name": "Name",
         "email": "Email address",
         "phone": "Phone number",
-        "notes": "Any additional notes (optional)",
+        "notes": "Anything we should know",
         "address": "Address (first line)",
         "postcode": "Postcode"
       },
-      "optionalSuffix": " (optional)"
+      "optionalSuffix": " (optional)",
+      "requiredLabel": "Required",
+      "optionalLabel": "Optional",
+      "errors": {
+        "name": "Enter your name.",
+        "email": "Enter a valid email address.",
+        "required": "This is required."
+      }
     },
     "confirmation": {
       "heading": "Booking Confirmed!",
       "body": "A confirmation is on its way to your inbox. We look forward to meeting you.",
       "serviceLabel": "Service:",
       "tierSuffix": " ({tier})",
-      "referenceLabel": "Reference:"
+      "referenceLabel": "Reference:",
+      "homeLabel": "Back to home"
+    },
+    "datetime": {
+      "heading": "Choose a date and time",
+      "lede": "Pick a day, then a time that suits you.",
+      "pickDay": "Pick a day to see the free times.",
+      "morning": "Morning",
+      "afternoon": "Afternoon"
+    },
+    "review": {
+      "heading": "Check your booking",
+      "lede": "Make sure everything looks right, then confirm.",
+      "edit": "Edit",
+      "whenLabel": "When",
+      "detailsLabel": "Your details",
+      "note": "We will email a confirmation straight away. There is nothing to pay."
     }
   },
   "nav": {
     "backLabel": "Back",
     "nextLabel": "Next",
-    "confirmLabel": "Confirm Booking"
+    "confirmLabel": "Confirm Booking",
+    "reviewLabel": "Review booking"
   },
   "toast": {
     "message": "Your consultation is booked{suffix}. Check your inbox for the confirmation.",

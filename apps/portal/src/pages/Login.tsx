@@ -67,7 +67,7 @@ export function LoginPage() {
         </Link>
       </form>
       <p className="mt-8 text-xs text-ink-muted">
-        New to the portal? Use the link in your invitation email to set a password.
+        New to the portal? Sign in with the email address and password in your invitation email.
       </p>
     </AuthScreen>
   );

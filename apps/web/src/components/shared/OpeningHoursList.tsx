@@ -19,10 +19,10 @@ export function OpeningHoursList({
   if (!rows.length) return null;
   return (
     <div className={className}>
-      <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+      {label ? <p className="font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">
         {label}
-      </p>
-      <dl className="mt-3 divide-y divide-border/60">
+      </p> : null}
+      <dl className="mt-2 divide-y divide-border/60">
         {rows.map((row) => (
           <div key={row.day} className="flex flex-wrap items-baseline justify-between gap-x-4 py-2 text-[14px]">
             <dt className="text-primary">{row.day}</dt>

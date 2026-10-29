@@ -8,8 +8,11 @@ import sanitizeHtml from 'sanitize-html';
  * HTML. What goes: scripts, event handlers, forms, iframes, and any link or
  * image that is not http(s) (so no `javascript:`). Email clients strip most
  * of that anyway; this does it for the ones that do not.
+ *
+ * `extra` is for a caller that needs more (the mailbox adds link rewriting for
+ * mail it did not write); it overrides these options key by key.
  */
-export function cleanCampaignHtml(html: string): string {
+export function cleanCampaignHtml(html: string, extra: sanitizeHtml.IOptions = {}): string {
   const layout = ['style', 'align', 'valign', 'width', 'height', 'bgcolor', 'class'];
   return sanitizeHtml(html, {
     allowedTags: [...sanitizeHtml.defaults.allowedTags, 'img', 'center'],
@@ -24,6 +27,7 @@ export function cleanCampaignHtml(html: string): string {
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
     allowedSchemesByTag: { img: ['https', 'http'] },
     allowProtocolRelative: false,
+    ...extra,
   });
 }
 

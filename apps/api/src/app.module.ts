@@ -16,11 +16,14 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { ChangeRequestsModule } from './modules/change-requests/change-requests.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ConversationsModule } from './modules/conversations/conversations.controller';
+import { SearchModule } from './modules/search/search.module';
+import { TeamChatModule } from './modules/team-chat/team-chat.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { CmsModule } from './modules/cms/cms.module';
 import { EnquiriesModule } from './modules/enquiries/enquiries.module';
 import { InvoicesModule } from './modules/invoices/invoices.controller';
+import { MailboxModule } from './modules/mailbox/mailbox.module';
 import { MediaModule } from './modules/media/media.module';
 import { NewsletterModule } from './modules/newsletter/newsletter.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -74,6 +77,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     NotificationsModule,
     BookingModule,
     CalendarModule,
+    MailboxModule,
     NewsletterModule,
     ClientsModule,
     ProjectsModule,
@@ -82,6 +86,8 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     DocumentsModule,
     DashboardModule,
     ConversationsModule,
+    SearchModule,
+    TeamChatModule,
     SettingsModule,
   ],
   providers: [

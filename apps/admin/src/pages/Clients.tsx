@@ -21,6 +21,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, money } from '@/lib/format';
@@ -107,6 +108,11 @@ export function ClientsPage() {
       );
     });
   }, [clients.data, search, view]);
+  const { rows: sortedClients, header } = useSort(visible, {
+    name: (client) => client.name,
+    joined: (client) => client.joined_date,
+    spent: (client) => client.total_spent ?? 0,
+  });
 
   // Opened from the button or the menu bar's "Add client…": a blank form either way.
   useEffect(() => {
@@ -359,15 +365,15 @@ export function ClientsPage() {
         <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
-              <Th>Client</Th>
+              <Th sort={header('name')}>Client</Th>
               <Th className="max-sm:hidden">Contact</Th>
-              <Th className="max-sm:hidden">Joined</Th>
-              {isAdmin ? <Th className="text-right max-sm:hidden">Total spent</Th> : null}
+              <Th className="max-sm:hidden" sort={header('joined')}>Joined</Th>
+              {isAdmin ? <Th className="text-right max-sm:hidden" sort={header('spent')}>Total spent</Th> : null}
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
-            {visible.map((client) => (
+            {sortedClients.map((client) => (
               <tr
                 key={client.id}
                 className="cursor-pointer hover:bg-surface-muted/40"

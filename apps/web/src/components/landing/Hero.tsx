@@ -14,9 +14,9 @@
 // inner element rather than the <section>: a pinned <section> is re-parented
 // into GSAP's `.pin-spacer`, and React then unmounts a node that has been
 // moved out from under it.
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import type { HeroRoomContent, HomeContent, MediaItem } from "@/lib/content";
-import { HeroSequence, type HeroSequenceImages } from "./HeroSequence";
+import { HERO_SEEN_KEY, HeroSequence, type HeroSequenceImages } from "./HeroSequence";
 import { HeroStatic } from "./HeroStatic";
 
 type HeroVariant = "sequence" | "static";
@@ -42,6 +42,15 @@ function readVariant(): HeroVariant {
   return desktop && !reduced ? "sequence" : "static";
 }
 
+/** Has this browser already been through the intro? Read once per page view, so reaching the CTA does not remove the hero from under the visitor mid-scroll. */
+function readSeen(): boolean {
+  try {
+    return window.localStorage.getItem(HERO_SEEN_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
 // Both variants' copy and images arrive as props rather than being looked up
 // here: this component is a client component that decides at runtime which
 // hero to mount, so it cannot fetch, and resolving the media ids on the server
@@ -63,12 +72,14 @@ export function Hero({
   // a neutral placeholder paints for one frame rather than the wrong variant's
   // real content flashing before it is replaced.
   const variant = useSyncExternalStore<HeroVariant | null>(subscribe, readVariant, () => null);
+  const [seen] = useState(() => typeof window !== "undefined" && readSeen());
 
   if (!variant) {
-    return <div className="h-screen w-full bg-enzo-dark" />;
+    return <div className="hero-placeholder h-screen w-full bg-enzo-dark" />;
   }
 
-  return variant === "sequence" ? (
+  // Seen the intro already: the scrubbed sequence (and its 432 frames) is skipped, but the page still opens on the static hero.
+  return variant === "sequence" && !seen ? (
     <HeroSequence content={hero} rooms={rooms} images={images} />
   ) : (
     <HeroStatic content={heroStatic} images={staticImages} />

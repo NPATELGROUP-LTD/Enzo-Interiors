@@ -11,14 +11,20 @@ import {
   BookingSettingsRow,
   BusinessSettings,
   CalendarConnection,
+  GmailAccount,
   ChangeRequest,
   Client,
   CmsEntry,
   ContactSubmission,
   Conversation,
   DocumentRecord,
+  EnquiryMessage,
+  StaffMessage,
+  StaffThread,
+  StaffThreadRead,
   Invoice,
   InvoiceItem,
+  InvoiceStage,
   MediaAsset,
   Message,
   NewsletterCampaign,
@@ -27,7 +33,9 @@ import {
   NotificationPreference,
   PortfolioItem,
   PushSubscriptionRecord,
+  InstallerAssignment,
   Project,
+  ProjectMember,
   ProjectStageConfig,
   SavedReplyTemplate,
   SiteSettings,
@@ -39,9 +47,10 @@ import {
 import { AccessStore } from './access-store';
 import { AlertStore } from './alert-store';
 import { InfraStore } from './infra-store';
-import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, InvoiceStore } from './invoice-store';
+import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
 import { PrismaRepository } from './prisma-repository';
 import { PrismaService } from './prisma.service';
+import { TeamStore } from './team-store';
 
 /**
  * The one place the rest of the API gets at persistence.
@@ -64,8 +73,11 @@ export class DatabaseService {
   readonly staffUsers: PrismaRepository<StaffUser>;
   readonly clients: PrismaRepository<Client>;
   readonly projects: PrismaRepository<Project>;
+  readonly projectMembers: PrismaRepository<ProjectMember>;
+  readonly installerAssignments: PrismaRepository<InstallerAssignment>;
   readonly invoices: PrismaRepository<Invoice>;
   readonly invoiceItems: PrismaRepository<InvoiceItem>;
+  readonly invoiceStages: PrismaRepository<InvoiceStage>;
   readonly invoiceStore: InvoiceStore;
   readonly bookings: PrismaRepository<Booking>;
   readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
@@ -77,6 +89,10 @@ export class DatabaseService {
   readonly testimonials: PrismaRepository<Testimonial>;
   readonly portfolioItems: PrismaRepository<PortfolioItem>;
   readonly contactSubmissions: PrismaRepository<ContactSubmission>;
+  readonly enquiryMessages: PrismaRepository<EnquiryMessage>;
+  readonly staffThreads: PrismaRepository<StaffThread>;
+  readonly staffMessages: PrismaRepository<StaffMessage>;
+  readonly staffThreadReads: PrismaRepository<StaffThreadRead>;
   readonly businessSettings: PrismaRepository<BusinessSettings>;
   readonly activityLogs: PrismaRepository<ActivityLog>;
   readonly cmsEntries: PrismaRepository<CmsEntry>;
@@ -90,6 +106,7 @@ export class DatabaseService {
   readonly newsletterCampaigns: PrismaRepository<NewsletterCampaign>;
   readonly trustedDevices: PrismaRepository<TrustedDevice>;
   readonly calendarConnections: PrismaRepository<CalendarConnection>;
+  readonly gmailAccounts: PrismaRepository<GmailAccount>;
   readonly changeRequests: PrismaRepository<ChangeRequest>;
   readonly staffRemovalRequests: PrismaRepository<StaffRemovalRequest>;
   readonly alertSettings: PrismaRepository<AlertSettings>;
@@ -97,6 +114,7 @@ export class DatabaseService {
   readonly alertStore: AlertStore;
   readonly accessStore: AccessStore;
   readonly infraStore: InfraStore;
+  readonly teamStore: TeamStore;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -105,12 +123,18 @@ export class DatabaseService {
       dates: [...stamps, 'reset_expires_at', 'totp_confirmed_at', 'login_code_expires_at'],
     });
     this.clients = new PrismaRepository(prisma.client, 'clients', {
-      dates: [...stamps, 'joined_date'],
+      dates: [...stamps, 'joined_date', 'default_password_expires_at'],
       decimals: ['total_spent'],
     });
     this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
+    this.projectMembers = new PrismaRepository(prisma.projectMember, 'project_members', { dates: ['created_at'] });
+    this.installerAssignments = new PrismaRepository(prisma.installerAssignment, 'installer_assignments', {
+      dates: ['start_date', 'end_date', 'suggested_start', 'suggested_end', 'sent_at', 'suggested_at', 'updated_at'],
+      decimals: ['pay'],
+    });
     this.invoices = new PrismaRepository(prisma.invoice, 'invoices', INVOICE_FIELDS);
     this.invoiceItems = new PrismaRepository(prisma.invoiceItem, 'invoice_items', INVOICE_ITEM_FIELDS);
+    this.invoiceStages = new PrismaRepository(prisma.invoiceStage, 'invoice_stages', INVOICE_STAGE_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
       dates: ['created_at', 'date_time'],
@@ -145,6 +169,10 @@ export class DatabaseService {
       'contact_submissions',
       { dates: ['created_at'] },
     );
+    this.enquiryMessages = new PrismaRepository(prisma.enquiryMessage, 'enquiry_messages', { dates: ['sent_at'] });
+    this.staffThreads = new PrismaRepository(prisma.staffThread, 'staff_threads', { dates: ['created_at'] });
+    this.staffMessages = new PrismaRepository(prisma.staffMessage, 'staff_messages', { dates: ['created_at'] });
+    this.staffThreadReads = new PrismaRepository(prisma.staffThreadRead, 'staff_thread_reads', { dates: ['read_at'] });
     this.businessSettings = new PrismaRepository(prisma.businessSettings, 'business_settings', {
       decimals: ['vat_rate'],
     });
@@ -183,6 +211,7 @@ export class DatabaseService {
     this.alertStore = new AlertStore(prisma);
     this.accessStore = new AccessStore(prisma);
     this.infraStore = new InfraStore(prisma);
+    this.teamStore = new TeamStore(prisma);
     this.newsletterSubscribers = new PrismaRepository(prisma.newsletterSubscriber, 'newsletter_subscribers', {
       dates: ['created_at', 'confirm_sent_at', 'confirmed_at', 'unsubscribed_at'],
     });
@@ -194,6 +223,9 @@ export class DatabaseService {
     });
     this.calendarConnections = new PrismaRepository(prisma.calendarConnection, 'calendar_connections', {
       dates: stamps,
+    });
+    this.gmailAccounts = new PrismaRepository(prisma.gmailAccount, 'gmail_accounts', {
+      dates: [...stamps, 'connected_at'],
     });
   }
 
@@ -225,6 +257,10 @@ export class DatabaseService {
       }
       for (const { to, ids } of moves) {
         if (ids.length) await tx.project.updateMany({ where: { id: { in: ids } }, data: { status: to } });
+      }
+      // Progress follows the stage, so a changed percentage reaches projects already in it.
+      for (const { name, progress } of stages) {
+        await tx.project.updateMany({ where: { status: name }, data: { progress_pct: progress } });
       }
       await tx.siteSettings.update({
         where: { id: 'site' },

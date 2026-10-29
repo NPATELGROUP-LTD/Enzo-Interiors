@@ -124,6 +124,13 @@ function heading(eyebrow: string, title: string): string {
 }
 
 const para = (text: string) => `<p style="margin:0 0 16px">${escapeHtml(text)}</p>`;
+/** Blank lines make paragraphs, single ones <br>: Outlook for Windows ignores white-space:pre-wrap. */
+const replyParagraphs = (text: string) =>
+  text
+    .trim()
+    .split(/\r?\n[ \t]*\r?\n/)
+    .map((block) => para(block).replace(/\r?\n/g, '<br>'))
+    .join('\n');
 const plain = (rows: Array<[string, string]>) => rows.map(([k, v]) => `${k}: ${v}`).join('\n');
 
 /** A consultation as the emails describe it. `when` is already in studio time. */
@@ -265,6 +272,39 @@ ${button(forgotUrl, 'Reset my password')}`,
     };
   },
 
+  /**
+   * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
+   * so the form cannot be used to mail someone else a message of the sender's choosing.
+   */
+  enquiryReceived(contact: string): Rendered {
+    const subject = 'We have your enquiry';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `${heading('Enquiry received', 'Thank you')}
+${para('We read every enquiry ourselves. You will hear from us the same working day.')}
+${para(`If it is urgent, reply to this email or ${contact}.`)}`,
+      ),
+      text: `Thank you.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+    };
+  },
+
+  /** To an enquirer, from the inbox: the Admin's own words, as plain text. */
+  enquiryReply(name: string, body: string): Rendered {
+    const subject = 'Re: your enquiry to Enzo Interiors';
+    return {
+      subject,
+      html: layout(
+        subject,
+        `<p style="margin:0 0 16px">Hi ${escapeHtml(name.split(' ')[0] ?? name)},</p>
+${replyParagraphs(body)}
+<p style="margin:0;color:#6B6B6B;font-size:14px">Just reply to this email to carry on the conversation.</p>`,
+      ),
+      text: `Hi ${name.split(' ')[0]},\n\n${body}\n\nJust reply to this email to carry on the conversation.`,
+    };
+  },
+
   /** To the customer. */
   bookingConfirmed(b: BookingMail, contact: string): Rendered {
     const subject = `Your consultation is booked: ${b.when}`;
@@ -273,7 +313,7 @@ ${button(forgotUrl, 'Reset my password')}`,
       subject,
       html: layout(
         subject,
-        `${heading('Consultation booked', `See you soon, ${b.name.split(' ')[0]}`)}
+        `${heading('Consultation booked', 'See you soon')}
 ${para('Thank you for booking a free home consultation with Enzo Interiors. Here are the details:')}
 ${table(rows)}
 ${para(`Need to change or cancel? Reply to this email or ${contact}, and quote your reference.`)}`,
@@ -366,20 +406,29 @@ ${link}`,
     };
   },
 
-  portalInvite(name: string, inviter: string, link: string): Rendered {
+  /**
+   * The portal invitation: the sign-in address and a generated password, by the owner's choice
+   * (the portal asks them to change it on first sign-in). Nothing else carries the password.
+   */
+  portalInvite(name: string, inviter: string, signInUrl: string, password: string): Rendered {
     const subject = 'Your Enzo Interiors client portal';
     return {
       subject,
       html: layout(
         subject,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
-${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Choose a password to get started. The link works once and expires in 7 days.`)}
-${button(link, 'Choose your password')}`,
+${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Sign in with this email address and the password below.`)}
+<p style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-radius:8px;font:600 18px/1.4 Consolas,Menlo,monospace;letter-spacing:.04em;color:${FOREST}">${escapeHtml(password)}</p>
+${para('We recommend changing this password the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.')}
+${button(signInUrl, 'Sign in to your portal')}`,
       ),
       text: `Hi ${name},
 
-${inviter} has set up your Enzo Interiors client portal. Choose a password here (works once, expires in 7 days):
-${link}`,
+${inviter} has set up your Enzo Interiors client portal. Sign in at ${signInUrl} with this email address and this password:
+
+${password}
+
+We recommend changing it the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.`,
     };
   },
 
@@ -418,6 +467,25 @@ ${title}${body ? `
 ${body}` : ''}
 
 Open your portal: ${link}`,
+    };
+  },
+
+  /** To a staff member: something in the admin that needs them (the bell's twin by email). */
+  staffNotice(name: string, title: string, body: string | null, link: string): Rendered {
+    return {
+      subject: title,
+      html: layout(
+        title,
+        `${heading('Update', title)}
+${para(body ?? 'Sign in to the Enzo Interiors admin to see the details.')}
+${button(link, 'Open the admin')}`,
+      ),
+      text: `Hi ${name},
+
+${title}${body ? `
+${body}` : ''}
+
+Open the admin: ${link}`,
     };
   },
 

@@ -90,7 +90,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
           [
             'Your name, email address, phone number and address, and a password stored only as a one-way hash, so nobody can read it.',
             'Your project: its stages and progress, the designs you approve, the changes you ask for, and notes our team keep about the job.',
-            'Documents and images we share with you, and any file you attach in Messages.',
+            'Documents and images we share with you, and any file you attach in Messages. Files and invoices the studio shares may be view-only: the portal shows your name and the date over them and hides them when the window is not in focus, which deters copying but cannot stop a screenshot. Viewing and downloading a file are recorded.',
             'Your invoices: the lines, amounts, dates, payment schedule and whether they are paid.',
             'A security record of when you sign in and of requests that change something or are refused: the time, your IP address, the country it comes from and the kind of browser and system (for example “Chrome · Windows”). A failed sign-in keeps only a masked version of the address that was typed.',
             'Messages between you and our team, and whether they have been read.',
@@ -121,7 +121,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
           `${processor} can see it for support and technical administration.`,
           'Providers that act for us:',
           [
-            'Zoho, which sends our email: invitations, password links and the updates you choose. Emails about messages never include the message text.',
+            'Zoho, which sends our email: invitations (with your first password), password links and the updates you choose. Emails about messages never include the message text.',
             'Cloudflare, which carries the traffic between your browser and our servers, so it handles your IP address and the data in transit.',
             'Your browser’s push service (Apple, Google, Microsoft or Mozilla), which delivers notifications, only if you turn them on.',
             'Google Fonts: the portal loads its typeface from Google, which receives your IP address and browser details when a page opens.',
@@ -138,7 +138,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Invoices and the records behind them: 6 years.',
             'Your client and project records, including files, messages and notes: 6 years after your project is completed, then deleted or made anonymous.',
             'Your portal access: until you ask us to close it or your project work has ended. Closing it does not delete the records above.',
-            'Short-lived items: password and invitation links last 30 minutes and 7 days, and a notification address stays until you turn notifications off or sign out.',
+            'Short-lived items: password reset links last 30 minutes, and a notification address stays until you turn notifications off or sign out.',
             'The security record of sign-ins and requests, with the IP addresses in it: 90 days, then deleted.',
             'Backups roll over on a schedule, so deleted information drops out as they are replaced.',
           ],
@@ -189,7 +189,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         heading: 'Your account',
         body: [
           [
-            'You get in with the link in your invitation email. Choose a password only you know and do not share it.',
+            'You get in with the email address and the password in your invitation email. We recommend changing it the first time you sign in. Do not share it.',
             'Keep your contact details up to date in Settings.',
             `If you think someone else has your details, tell ${supportEmail} straight away and change your password.`,
             'You are responsible for what is done with your account until you tell us it may be compromised.',

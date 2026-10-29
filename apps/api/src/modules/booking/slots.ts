@@ -74,9 +74,16 @@ export const DEFAULT_CONFIG: BookingConfig = {
   maxPerDay: 0,
   horizonDays: 60,
   noticeHours: 24,
-  fields: { phone: 'required', address: 'off', postcode: 'optional', notes: 'optional' },
+  fields: { phone: 'required', address: 'optional', postcode: 'required', notes: 'optional' },
   services: [],
 };
+
+/** A stored config with every setting added since it was saved filled in, field rules one by one. Never written back. */
+export const withDefaults = (stored: Partial<BookingConfig>): BookingConfig => ({
+  ...DEFAULT_CONFIG,
+  ...stored,
+  fields: { ...DEFAULT_CONFIG.fields, ...stored.fields },
+});
 
 export const toMinutes = (hhmm: string): number => {
   const [h = 0, m = 0] = hhmm.split(':').map(Number);

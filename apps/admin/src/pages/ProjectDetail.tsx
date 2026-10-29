@@ -26,21 +26,23 @@ import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { date, dateTime, humanise, money } from '@/lib/format';
+import { date, dateTime, humanise, money, refNo } from '@/lib/format';
 import { invoiceTone, projectTone } from '@/lib/status';
-import type { ProjectDetail, ProjectStage } from '@/types/api';
+import type { ProjectDetail, ProjectStage, TeamMember } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
+import { ProjectTeam } from '@/components/ProjectTeam';
+import { ProjectThread } from '@/components/TeamThread';
 
 import { useDesigners } from './Projects';
 
 /**
  * One project. An Admin or Designer moves its stage and keeps its status line
  * up to date (progress follows the stage); an Installer asks an Admin to move
- * it. Only an Admin assigns the designer and installer, sends it to the
- * client, or deletes it (the API enforces it).
+ * it. Only an Admin sets the team (designers, installers and the installers'
+ * dates and pay), sends it to the client, or deletes it (the API enforces it).
  */
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +51,7 @@ export function ProjectDetailPage() {
   const { isAdmin, can } = useAuth();
   const canMove = can('Admin', 'Designer');
   const { stages } = useStages();
-  const { data, loading, error, refetch } = useQuery<ProjectDetail>(
+  const { data, loading, error, refetch, setData } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
   const designers = useDesigners(isAdmin);
@@ -66,8 +68,10 @@ export function ProjectDetailPage() {
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (!data) return <ErrorState message="Project not found." />;
 
-  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision } =
+  const { project, client, documents, invoices, activity, timeline, awaiting_client_decision, team } =
     data;
+  const named = (role: TeamMember['role']) =>
+    team.filter((member) => member.role === role).map((member) => member.name).join(', ') || 'Unassigned';
 
   const patch = async (body: Record<string, unknown>, successMessage: string) => {
     try {
@@ -134,35 +138,13 @@ export function ProjectDetailPage() {
     }
   };
 
-  const assign = (field: 'assigned_designer_id' | 'assigned_installer_id', label: string) => (
-    <Select
-      label={label}
-      value={project[field] ?? ''}
-      onChange={(event) => void patch({ [field]: event.target.value || null }, `${label} updated.`)}
-    >
-      <option value="">Unassigned</option>
-      {/* Someone assigned before they stopped being a Designer still shows. */}
-      {project[field] && !designers.some((member) => member.id === project[field]) ? (
-        <option value={project[field] ?? ''}>
-          {(field === 'assigned_designer_id'
-            ? project.assigned_designer_name
-            : project.assigned_installer_name) ?? 'Someone else'}
-        </option>
-      ) : null}
-      {designers.map((member) => (
-        <option key={member.id} value={member.id}>
-          {member.name}
-        </option>
-      ))}
-    </Select>
-  );
-
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
         title={project.name}
         actions={
           <>
+            <span className="text-sm text-ink-muted">{refNo('PRJ', project.ref_no)}</span>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
               <Button
@@ -184,8 +166,8 @@ export function ProjectDetailPage() {
         <Card accent="warning" className="mb-4 pl-5">
           <p className="font-semibold text-ink">Awaiting the client’s decision</p>
           <p className="mt-1 text-ink-muted">
-            {client?.name ?? 'The client'} can approve this design or request changes from their
-            portal. Requesting changes sends the project back to Design automatically.
+            {client?.name ?? 'The client'} can approve this stage or request changes from their
+            portal. Requesting changes sends the project back one stage automatically.
           </p>
         </Card>
       ) : null}
@@ -301,8 +283,17 @@ export function ProjectDetailPage() {
 
             {isAdmin ? (
               <>
-                {assign('assigned_designer_id', 'Designer')}
-                {assign('assigned_installer_id', 'Installer')}
+                <Input
+                  key={project.site_address ?? ''}
+                  label="Site address"
+                  hint="Where the work happens. This project’s invoices start from it."
+                  defaultValue={project.site_address ?? ''}
+                  maxLength={300}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value !== (project.site_address ?? '')) void patch({ site_address: value }, 'Site address saved.');
+                  }}
+                />
                 <Toggle
                   label="Send to client"
                   description="When off, this project is hidden from the client portal entirely."
@@ -319,6 +310,15 @@ export function ProjectDetailPage() {
           </div>
         </Card>
       </div>
+
+      <ProjectTeam
+        projectId={project.id}
+        team={team}
+        staff={designers}
+        onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
+      />
+
+      <ProjectThread projectId={project.id} />
 
       {/* The Documents tab's Upload sits at the end of the tabs row. */}
       <div className="flex items-start gap-3">
@@ -364,8 +364,9 @@ export function ProjectDetailPage() {
                 ['Service', SERVICE_LABELS[project.type]],
                 ['Stage', project.status],
                 ['Progress', `${project.progress_pct}%`],
-                ['Designer', project.assigned_designer_name ?? 'Unassigned'],
-                ['Installer', project.assigned_installer_name ?? 'Unassigned'],
+                ['Designers', named('Designer')],
+                ['Installers', named('Installer')],
+                ['Site address', project.site_address ?? '—'],
                 ['Visible to client', project.client_visible ? 'Yes' : 'No'],
                 ['Created', date(project.created_at)],
                 ['Last updated', dateTime(project.updated_at)],

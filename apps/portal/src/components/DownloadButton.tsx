@@ -4,7 +4,8 @@ import { useState } from 'react';
 
 import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
-import { ApiError, documentLink, downloadDocument } from '@/lib/api';
+import { ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
+import { ApiError, documentAccess, downloadDocument } from '@/lib/api';
 import type { DocumentRecord } from '@/types/api';
 
 /** "Download" for one document, named for screen readers by the file it fetches. */
@@ -48,16 +49,18 @@ export function previewOfName(name: string): Preview | null {
 
 type Preview = NonNullable<DocumentRecord['preview']>;
 type Openable = { id: string; name: string; preview?: Preview | null };
+type Shown = { file: Openable; preview: Preview; link: string; canSave: boolean };
 
 /**
  * Opens a PDF or image in a dialog, from a fresh five-minute link made on
- * click; anything else is saved. A browser with no PDF reader of its own in a
+ * click; anything else is saved, if an Admin allowed it. A file the client may only
+ * view is shown behind a watermark (ProtectedView) with no Download. A browser with no PDF reader of its own in a
  * page (Chrome on Android) gets a link that opens the PDF in the phone's
  * viewer instead. Render `viewer` once; call `show` from any row.
  */
 export function useFileViewer() {
   const toast = useToast();
-  const [shown, setShown] = useState<{ file: Openable; preview: Preview; link: string } | null>(null);
+  const [shown, setShown] = useState<Shown | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
 
   const show = async (file: Openable) => {
@@ -65,8 +68,10 @@ export function useFileViewer() {
     const preview = file.preview !== undefined ? file.preview : previewOfName(file.name);
     setOpening(file.id);
     try {
-      if (preview) setShown({ file, preview, link: await documentLink(file.id, true) });
-      else await downloadDocument(file.id);
+      if (preview) {
+        const { url, canSave } = await documentAccess(file.id, true);
+        setShown({ file, preview, link: url, canSave });
+      } else await downloadDocument(file.id); // the API refuses it with the reason when saving is not allowed
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not open this file. Try again.');
     } finally {
@@ -74,22 +79,22 @@ export function useFileViewer() {
     }
   };
 
-  const viewer = (
-    <Modal
-      open={shown !== null}
-      onClose={() => setShown(null)}
-      title={shown?.file.name ?? ''}
-      width="lg"
-      footer={shown ? <DownloadButton id={shown.file.id} name={shown.file.name} /> : null}
-    >
-      {shown === null ? null : shown.preview === 'image' ? (
-        <img src={shown.link} alt={shown.file.name} className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control" />
+  const content = shown && (shown.preview === 'image' ? (
+        <img
+          src={shown.link}
+          alt={shown.file.name}
+          draggable={false}
+          className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control"
+        />
       ) : navigator.pdfViewerEnabled ? (
         <iframe
-          src={shown.link}
+          // View only: ask the browser's PDF viewer to leave out its save and print toolbar.
+          src={shown.canSave ? shown.link : `${shown.link}#toolbar=0&navpanes=0`}
           title={shown.file.name}
           className="h-[70dvh] w-full rounded-control border border-border bg-white"
         />
+      ) : !shown.canSave ? (
+        <p className="text-ink">This browser cannot show this PDF in view-only mode. Ask the studio to send it another way.</p>
       ) : (
         <p className="text-ink">
           This browser cannot show a PDF inside the page.{' '}
@@ -103,19 +108,37 @@ export function useFileViewer() {
           </a>{' '}
           in your phone’s viewer instead.
         </p>
-      )}
+      ));
+
+  const viewer = (
+    <Modal
+      open={shown !== null}
+      onClose={() => setShown(null)}
+      title={shown?.file.name ?? ''}
+      width="lg"
+      footer={
+        shown ? (
+          shown.canSave ? (
+            <DownloadButton id={shown.file.id} name={shown.file.name} />
+          ) : (
+            <p className="mr-auto text-xs text-ink-muted">{VIEW_ONLY_NOTE}</p>
+          )
+        ) : null
+      }
+    >
+      {shown === null ? null : shown.canSave ? content : <ProtectedView>{content}</ProtectedView>}
     </Modal>
   );
 
   return { show, opening, viewer };
 }
 
-/** View (PDFs and images, shown in the page) and Download for one document. */
+/** View (PDFs and images, shown in the page) and, if an Admin allowed it, Download for one document. */
 export function DocumentActions({
   document,
   className = 'flex justify-end gap-2',
 }: {
-  document: Pick<DocumentRecord, 'id' | 'name' | 'preview'>;
+  document: Pick<DocumentRecord, 'id' | 'name' | 'preview' | 'client_can_download'>;
   className?: string;
 }) {
   const files = useFileViewer();
@@ -133,7 +156,7 @@ export function DocumentActions({
           View
         </Button>
       ) : null}
-      <DownloadButton id={document.id} name={document.name} />
+      {document.client_can_download ? <DownloadButton id={document.id} name={document.name} /> : null}
       {files.viewer}
     </div>
   );
