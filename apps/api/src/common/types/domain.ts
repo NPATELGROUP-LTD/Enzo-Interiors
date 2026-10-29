@@ -203,6 +203,8 @@ export interface Client extends BaseRecord {
 
 /** Schema 3.3 */
 export interface Project extends BaseRecord {
+  /** PRJ-0001: a readable number, assigned by the database (a create leaves it out; a row read back has it). */
+  ref_no?: number;
   client_id: string;
   name: string;
   type: ServiceType;
@@ -469,6 +471,8 @@ export interface PortfolioItem extends BaseRecord {
 
 /** Schema 3.16 */
 export interface ContactSubmission extends BaseRecord {
+  /** ENQ-0001: a readable number, assigned by the database (a create leaves it out; a row read back has it). */
+  ref_no?: number;
   name: string;
   email: string;
   phone: string | null;

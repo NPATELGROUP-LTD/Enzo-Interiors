@@ -16,6 +16,7 @@ import { CalendarModule } from './modules/calendar/calendar.module';
 import { ChangeRequestsModule } from './modules/change-requests/change-requests.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { ConversationsModule } from './modules/conversations/conversations.controller';
+import { SearchModule } from './modules/search/search.module';
 import { TeamChatModule } from './modules/team-chat/team-chat.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -85,6 +86,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     DocumentsModule,
     DashboardModule,
     ConversationsModule,
+    SearchModule,
     TeamChatModule,
     SettingsModule,
   ],

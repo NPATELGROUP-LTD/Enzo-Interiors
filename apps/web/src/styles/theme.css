@@ -377,3 +377,8 @@
   from { transform: translateY(-50%); }
   to   { transform: translateY(0); }
 }
+
+/* A returning desktop visitor skips the intro (Hero.tsx), so its placeholder is never painted. */
+html[data-hero-seen] .hero-placeholder {
+  display: none;
+}

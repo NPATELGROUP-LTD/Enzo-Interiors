@@ -16,6 +16,7 @@ import {
 } from '@/components/ui';
 import { DocumentActions, DocumentName } from '@/components/DownloadButton';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { date, fileSize } from '@/lib/format';
 import type { DocumentRecord } from '@/types/api';
 import { categoryLabel } from '@/types/api';
@@ -38,6 +39,13 @@ export function DocumentsPage() {
       );
     });
   }, [documents.data, search, type]);
+  const { rows: sortedVisible, header } = useSort(visible, {
+    name: (document) => document.name,
+    category: (document) => document.category,
+    project: (document) => document.project_name,
+    added: (document) => document.upload_date,
+    size: (document) => document.size_bytes,
+  });
 
   return (
     <>
@@ -109,7 +117,7 @@ export function DocumentsPage() {
       ) : (
         <>
           <ul className="space-y-3 sm:hidden">
-            {visible.map((document) => (
+            {sortedVisible.map((document) => (
               <li key={document.id}>
                 <Card>
                   <p className="font-medium text-ink [overflow-wrap:anywhere]">
@@ -131,16 +139,16 @@ export function DocumentsPage() {
           <TableWrap>
             <thead>
               <tr>
-                <Th>Document</Th>
-                <Th className="max-sm:hidden">Category</Th>
-                <Th className="max-sm:hidden">Project</Th>
-                <Th className="max-sm:hidden">Added</Th>
-                <Th className="max-sm:hidden">Size</Th>
+                <Th sort={header('name')}>Document</Th>
+                <Th className="max-sm:hidden" sort={header('category')}>Category</Th>
+                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+                <Th className="max-sm:hidden" sort={header('added')}>Added</Th>
+                <Th className="max-sm:hidden" sort={header('size')}>Size</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((document) => (
+              {sortedVisible.map((document) => (
                 <tr key={document.id} className="hover:bg-surface-muted/40">
                   <Td className="font-medium text-ink [overflow-wrap:anywhere]">
                     <DocumentName document={document} />

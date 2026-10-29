@@ -21,6 +21,7 @@ import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, fileSize } from '@/lib/format';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import type { DocumentRecord } from '@/types/api';
 
 type Row = Omit<DocumentRecord, 'client_name' | 'project_name'>;
@@ -57,6 +58,12 @@ export function DocumentsTable({
   // Filter by the labels the files actually carry, so a category dropped from Settings still finds its files.
   const categories = [...new Set(documents.map((row) => row.category))].sort();
   const shown = category && categories.includes(category) ? documents.filter((row) => row.category === category) : documents;
+  const { rows: sortedShown, header } = useSort(shown, {
+    name: (row) => row.name,
+    category: (row) => row.category,
+    uploaded: (row) => row.upload_date,
+    size: (row) => row.size_bytes,
+  });
 
   const setDownload = async (row: Row, next: boolean) => {
     try {
@@ -116,17 +123,17 @@ export function DocumentsTable({
         <TableWrap>
           <thead>
             <tr>
-              <Th>Name</Th>
-              <Th>Category</Th>
-              <Th>Uploaded</Th>
-              <Th>Size</Th>
+              <Th sort={header('name')}>Name</Th>
+              <Th sort={header('category')}>Category</Th>
+              <Th sort={header('uploaded')}>Uploaded</Th>
+              <Th sort={header('size')}>Size</Th>
               <Th>Visible to client</Th>
               {isAdmin ? <Th>Client can download</Th> : null}
               <Th className="text-right">Actions</Th>
             </tr>
           </thead>
           <tbody>
-            {shown.map((row) => (
+            {sortedShown.map((row) => (
               <tr key={row.id}>
                 <Td className="font-medium text-ink">
                   {/* The name opens it: shown in the page when it can be, else saved. */}

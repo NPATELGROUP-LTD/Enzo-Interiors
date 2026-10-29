@@ -8,7 +8,7 @@ import { Button, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
 import { appendIfOpen } from '@/lib/enquiryThread';
-import { dateTime, relative } from '@/lib/format';
+import { dateTime, refNo, relative } from '@/lib/format';
 import { submissionTone } from '@/lib/status';
 import { SUBMISSION_STATUSES, type ContactSubmission, type EnquiryMessage, type SubmissionStatus } from '@/types/api';
 
@@ -196,6 +196,7 @@ export function EnquiriesPage() {
                         <span className={clsx('min-w-0 truncate text-ink', row.status === 'New' ? 'font-bold' : 'font-semibold')}>
                           {row.name}
                         </span>
+                        <span className="shrink-0 text-xs text-ink-muted">{refNo('ENQ', row.ref_no)}</span>
                         <span className="shrink-0">
                           <SourceTag row={row} />
                         </span>

@@ -38,6 +38,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money, moneyCompact } from '@/lib/format';
 import { invoiceTone } from '@/lib/status';
@@ -269,6 +270,14 @@ export function InvoicesPage() {
 
   const rows = useMemo(() => invoices.data ?? [], [invoices.data]);
   const visible = rows.filter(VIEW_FILTER[view]);
+  const { rows: sortedVisible, header } = useSort(visible, {
+    number: (invoice) => invoice.number,
+    client: (invoice) => invoice.client_name,
+    project: (invoice) => invoice.project_name,
+    status: (invoice) => invoice.status,
+    due: (invoice) => invoice.due_date,
+    total: (invoice) => invoice.amount,
+  });
   const counts = Object.fromEntries(INVOICE_VIEWS.map(({ id }) => [id, rows.filter(VIEW_FILTER[id]).length]));
   const issuer: InvoiceIssuer = rows[0]?.issuer ?? DEFAULT_ISSUER;
   // Same for the bank details: one block for every invoice, so any saved invoice carries it.
@@ -498,17 +507,17 @@ export function InvoicesPage() {
                     className="h-4 w-4 accent-green-900"
                   />
                 </Th>
-                <Th>Number</Th>
-                <Th className="max-sm:hidden">Client</Th>
-                <Th className="max-sm:hidden">Project</Th>
-                <Th>Status</Th>
-                <Th className="max-sm:hidden">Due</Th>
-                <Th className="text-right">Total</Th>
+                <Th sort={header('number')}>Number</Th>
+                <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
+                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+                <Th sort={header('status')}>Status</Th>
+                <Th className="max-sm:hidden" sort={header('due')}>Due</Th>
+                <Th className="text-right" sort={header('total')}>Total</Th>
                 <Th className="text-right max-sm:hidden">Actions</Th>
               </tr>
             </thead>
             <tbody>
-              {visible.map((invoice) => (
+              {sortedVisible.map((invoice) => (
                 <tr
                   key={invoice.id}
                   // The whole row opens it; its own checkbox and buttons keep their jobs.
