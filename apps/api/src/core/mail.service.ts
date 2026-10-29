@@ -419,7 +419,7 @@ ${link}`,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
 ${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Sign in with this email address and the password below.`)}
 <p style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-radius:8px;font:600 18px/1.4 Consolas,Menlo,monospace;letter-spacing:.04em;color:${FOREST}">${escapeHtml(password)}</p>
-${para('We recommend changing this password the first time you sign in. If you did not expect this email, you can ignore it.')}
+${para('We recommend changing this password the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.')}
 ${button(signInUrl, 'Sign in to your portal')}`,
       ),
       text: `Hi ${name},
@@ -428,7 +428,7 @@ ${inviter} has set up your Enzo Interiors client portal. Sign in at ${signInUrl}
 
 ${password}
 
-We recommend changing it the first time you sign in. If you did not expect this email, you can ignore it.`,
+We recommend changing it the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.`,
     };
   },
 
