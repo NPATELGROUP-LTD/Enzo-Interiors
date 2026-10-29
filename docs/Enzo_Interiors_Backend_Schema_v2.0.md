@@ -392,3 +392,8 @@ Additive only. Secrets marked *sealed* are AES-256-GCM with `APP_ENCRYPTION_KEY`
 - **No `tenant_id` field exists anywhere in this schema.** This is a single-tenant system by permanent design decision — Enzo Interiors is the only business this platform will ever serve.
 - **Migrations only add.** New tables, nullable or defaulted columns and indexes; no DROP, RENAME, ALTER COLUMN or data UPDATE, and a migration that has run is never edited. A rolled-back image must still run on the newer schema.
 - **No payment gateway integration exists or is planned.** `invoices.status` and `invoices.paid_at` are updated exclusively through the Admin's manual "Mark Paid" action; there is no `/payments` domain in the API.
+
+## v3.0.0 additions (migrations 21–29, all additive)
+
+New tables: `enquiry_messages` (21), `project_members` and `installer_assignments` (22, 23), `invoice_stages` (24), `gmail_accounts` (25), `staff_threads`, `staff_messages`, `staff_thread_reads` (28).
+New columns: `contact_submissions.source` / `ref_no`, `projects.ref_no` / `site_address`, `clients.password_is_default`, `documents.category` / `client_can_download`, `invoices.client_can_download`, `site_settings.bank_details` / `document_categories`. Columns and constraints are in `apps/api/prisma/schema.prisma`. The legacy `projects.assigned_designer_id` / `assigned_installer_id` stay and are copied into `project_members` by `npm run team:backfill`.

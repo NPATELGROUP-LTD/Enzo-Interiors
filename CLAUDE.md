@@ -20,12 +20,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   **Bookings** (`/bookings`, Admin only: list, month view, move/cancel, New
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
-  dark), notification emails, opening hours, booking schedule, newsletter,
+  dark), notification emails, opening hours, booking schedule, newsletter, bank details, document categories,
   users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Below xl the menu bar collapses into one app-name · current-page button that opens a page-menu popover (as in the portal; each screen lists its own sub-views). Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
   accept an invitation). **Messages** (`/messages`, Admin + Designers; `?client=` opens
-  or starts that client's thread; badge in the menu bar).
+  or starts that client's thread; badge in the menu bar). **Mail** (`/mail`, Admin + Designer + Editor, shown only when `GOOGLE_GMAIL_REDIRECT_URI` is set; Account › Mail links and unlinks) and **Team** (`/team`, staff chat, unread badge). Ctrl/⌘ K also finds a record by its reference (`PRJ-0012`, `ENQ-4`, `EZ-…`, an invoice number) or by a name, email or phone, and opens it.
 - `apps/api` — NestJS on **PostgreSQL 16 via Prisma**. v1 mounts health, auth
   (incl. forgot/reset password, `/users` invites and roles, `/auth/profile`),
   media, the CMS (incl. the public `GET /content/site` bundle, which carries
@@ -45,7 +45,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   enquiries have their own inbox, below). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 
-**Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled.
+**Enquiries inbox:** `/enquiries` (Admin only; menu bar entry with a New badge). `GET /enquiries` (status filter, `before` cursor, `new_count`), `GET /:id`, `PATCH /:id` (status only: New / Contacted / Converted / Archived). "Add as client" opens `/clients?new=1` prefilled. `contact_submissions.source` (Contact / Booking / Quote, null on old rows, migration 21) tags where it came from; a visitor's booking also creates one (`kind` booking, no setup email: the Admin still adds the client with "Add as client"), staff bookings do not. `GET /enquiries/:id` returns the enquiry with its `messages`; `POST /enquiries/:id/reply` (Admin, 20 per 15 min) emails the enquirer as plain text from the studio mailbox, Reply-To the first notification address, stores it in `enquiry_messages` and moves New to Contacted; all sending is `EnquiriesService.deliverReply`. The contact form emails the visitor a generic confirmation and the studio the enquiry plus the bell; with no notification address and no `ADMIN_EMAIL` the studio mail goes to the Admin users.
 
 **Infra manager** (`staff_users.role = 'Infra'`, plain text, no migration): runs
 the platform, never the business. It reaches Settings › Website, Pages, Alerts
@@ -144,8 +144,8 @@ Admin's send-back note stays on the entry (`cms_entries.review_feedback`)
 until the next send or publish. Reviews live on the entry
 (`cms_entries.review_*`) and clear on publish or send-back; both ends are told
 through `notifications` (the bell) and admins by email too. **Clients:** Admin
-all; `Designer` and `Installer` only clients with a project where
-`projects.assigned_designer_id` or `assigned_installer_id` is them
+all; `Designer` and `Installer` only clients with a project
+they are a member of (`project_members`, migration 22: any number of designers and installers per project; the legacy `projects.assigned_designer_id` / `assigned_installer_id` still grant access and mirror the first of each)
 (`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
 read-only; Editors none. Only an Admin writes a client. **Projects:** Admin all
 (create, delete, assignment, `client_visible`, default off); a Designer only
@@ -195,12 +195,18 @@ off the subtotal BEFORE VAT, per-line `section`/`detail` (a 0-priced line is a
 quantity-only row) and a display-only `payment_schedule`. Admin and portal
 render the same A4 sheet (`components/invoice/`, kept identical in both apps);
 Print = browser PDF. `GET /invoices/export?ids=` (Admin) feeds a multi-client
-PDF/CSV export. Deferred: emailing an invoice.
+PDF/CSV export. Deferred: emailing an invoice. An invoice can be paid in stages (`invoice_stages`, migration 24): a label (the trigger), a percentage of the gross or a fixed £ amount, worked out in the API with `Prisma.Decimal` (each to the penny, the last takes the remainder, a mix that does not sum to the total is refused). Stages edit until one is paid. The Admin records each stage paid with a date (`PUT /invoices/:id/stages/:stageId/paid`; undo with `DELETE` while the invoice is not fully paid); the invoice becomes Paid only when every stage is, through the mark-paid transaction (client `total_spent` once). Whole-invoice mark-paid is refused while a stage is unpaid; an invoice with no stages behaves as before. Settings › Bank details (Admin only, `site_settings.bank_details`) is printed on every invoice sheet/PDF and only sent inside authenticated invoice payloads, never `/content/site` or `GET /settings` (an Infra manager is 403 on it). Invoices have `client_can_download` (default false, `PATCH /invoices/:id/client-download`): without it a client sees the invoice but gets no Download / Print. `job_address` defaults to the project's `site_address`, then the client's.
+
+**Project team** (`modules/projects/team.*`, migrations 22 `project_members` and 23 `installer_assignments`): the Admin adds and removes designers and installers on a project (`POST /projects/:id/team`, `DELETE .../team/:memberId`; `PUT /projects/:id` no longer takes `assigned_*`). `npm run team:backfill` (Docker: `docker compose run --rm seed npm run team:backfill`) copies the legacy single designer/installer into the table (idempotent; reads also do it per project) and is run once after deploying v3. For each installer the Admin sets start/end dates and a pay amount + note (`PUT .../team/:memberId/installation`), then **Send to installer** (`POST .../send`: bell, push, email; before that the installer sees nothing). The installer approves or declines the pay (`POST .../pay`) and approves the dates (`POST .../dates/approve`) separately, or suggests other dates with a comment (`POST .../dates/suggest`); the Admin accepts or declines (`POST .../suggestion`) and is told of each answer by bell and email. An Admin edit to dates or pay after sending resets that approval and tells the installer. **Pay (`installer_assignments.pay`, `pay_note`) is visible only to the Admin and that installer, once sent**: one allow-listed view (`termsView`), never in lists, the dashboard, another member's view, the client's, activity logs (names only), bells, push or email. Designers see team names only.
+
+**Team chat** (`modules/team-chat`, migration 28 `staff_threads` / `staff_messages` / `staff_thread_reads`; admin `/team` and a Team card on each project; staff only, clients and Infra get 403): a project thread (`GET /team/projects/:id/thread`) for the people on the project plus every Admin (a Designer or Installer off the project gets 404; an Editor reaches no project thread), and direct chats (`POST /team/direct`), one per pair, readable only by the two (not even an Admin). One file per message: JPG/PNG/WebP, PDF or MP4/MOV/WebM up to 100 MB, sniffed by first bytes, kept in the private bucket under `team/<thread>/…` and opened through a 5-minute signed link per request; keys never leave the API. Live over the socket (`team:message`, sender excluded); the bell and push say who and where, never the message text. Ceilings: uploads are buffered in memory, and files are not removed when a project is deleted.
+
+**Live refresh, search and the home intro:** after any successful write the API sends a payload-less `data:changed` over the socket (`ChangeBroadcast`, coalesced 500 ms); `useQuery` in the admin and portal refetches quietly on it, on tab focus and every 60 s. Column headers sort the main list tables (`useSort`, `sortRows`). `projects.ref_no` and `contact_submissions.ref_no` (migration 29, autoincrement, unique) display as `PRJ-0012` / `ENQ-0004`. `GET /search?q=` (Admin, Designer, Installer; 403 otherwise) finds clients, projects, invoices, enquiries and bookings by reference, name, email or phone; a Designer or Installer only gets their own clients and projects, never invoices, enquiries or bookings. On the public home page reaching the hero's CTA stores `enzo:hero-seen` in localStorage; later visits (desktop, motion allowed) do not mount the hero or load its frames, read once per page view so it never vanishes under someone mid-scroll.
 
 **Project stages** come from `site_settings.project_stages` (null = the default
 five in `modules/projects/stages.ts`), edited at Settings › Project stages:
-`{name, progress, approval}`, 1–20 unique names; the last is Completed, one may be
-the client-approval stage; rename moves projects, removing an occupied one is 409.
+`{name, progress, approval}`, 1–20 unique names; the last is Completed, any number may be
+approval stages (never the first, the last or two adjacent): the client approves (next stage) or asks for changes (back one); rename moves projects, removing an occupied one is 409.
 Frontends read them via `useStages()` and pass them to `projectTone(status, stages)`.
 
 **Web Push** (`modules/notifications/push.ts`): every bell notification
@@ -254,13 +260,7 @@ whatever their project's visibility. A client changes their password at
 `PUT /account/password` (bumps `token_version`, returns a fresh session) and
 reads/writes `/notification-preferences`, both in `modules/auth/portal-account.ts`.
 
-**Client portal access** is by invitation only: nobody types a client's
-password. `POST /clients/:id/invite` (Admin) emails `PORTAL_URL/reset-password#token=…`,
-a JWT with purpose `portal-password` bound to `clients.token_version` (7 days;
-forgot = 30 min); `POST /auth/portal/reset` sets the bcrypt hash and bumps
-`token_version` in one conditional UPDATE, so a link works once and old portal
-sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt
-hash is stored. Changing a client's email bumps `token_version` too.
+**Client portal access** is by invitation. `POST /clients/:id/invite` (Admin) generates a random 14-character password (crypto), stores its bcrypt hash with `clients.password_is_default = true`, bumps `token_version` and emails `PORTAL_URL/login` plus that password; Resend invite issues a new one. This knowingly relaxes the earlier "nobody types a password" rule at the owner's request. The password is never logged and the invite is throttled (route 20/h, 5/h per client). On first sign-in the portal offers Change password or Keep (`POST /account/password/keep`); changing, keeping or a reset clears the flag; `/auth/me` and the login answer carry `passwordIsDefault`. Changing a client's email while the flag is set clears the password. Forgot/reset links are JWTs with purpose `portal-password` bound to `clients.token_version` (forgot = 30 min); `POST /auth/portal/reset` sets the hash and bumps `token_version` in one conditional UPDATE, so a link works once and old portal sessions die. No reset columns on `clients`. `has_portal_access` = a bcrypt hash is stored.
 
 **Legal pages (admin and portal):** `/privacy`, `/terms`, `/cookies` in each app,
 open signed in or out (`legalKind()` in `App.tsx`, before the auth check), linked
@@ -395,7 +395,7 @@ notice, which contact fields, which services). Free times are computed in
 `apps/api/src/modules/booking/slots.ts` in **Europe/London** (tested by
 `npm test` in apps/api). `appointments.slot` is unique while a booking holds
 its time and null once cancelled, so the database refuses double bookings.
-Staff bookings skip the notice period and horizon. Customers are emailed on
+Staff bookings skip the notice period and horizon. Contact fields (phone, address, postcode, notes) are Required / Optional / Hidden in Settings, enforced for visitors and staff; name, email, service and time are always required; defaults are computed on read (phone and postcode required, address and notes optional). Customers are emailed on
 book / move / cancel; admins get the email (notification_emails) and the bell.
 
 **Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id /
@@ -484,6 +484,7 @@ callbacks are served on `auth.enzo.client.npatelgroup.ltd` (second Traefik host
 on the API). `TRUST_CLOUDFLARE=true` takes the client IP from
 `CF-Connecting-IP` (`core/client-ip.ts`) — only safe if the API is reachable
 only through Cloudflare. Migration `7_two_factor_google_calendar`.
+*Mail* (`modules/mailbox`, `GOOGLE_GMAIL_REDIRECT_URI`, unset = no Mail UI; migration 25 `gmail_accounts`): each Admin/Designer/Editor links their own Gmail (scope `gmail.modify`), separate from the studio Calendar and from Sign in with Google; only the sealed refresh token is stored. Mail is read and sent live; no message content is stored or logged. Every `/mailbox` route works on the caller's own mailbox only; Installer and Infra get 403 (`mailbox.db.test.ts`). Connecting is two steps (the callback parks a one-time result, `POST /mailbox/connect/complete` links it for the signed-in starter only). `GmailService.sendAs` is the single send function. Message HTML is sanitised by `modules/newsletter/render.ts` and shown in a script-free sandboxed iframe with remote images off until asked. A revoked token = `needs_reconnect` + bell. Activity `mail_send` logs recipient domains only. The OAuth consent screen is **Internal** (Workspace; no Google verification).
 
 **Retired:** quotes and the part library are gone from the code (the quote builder is its own project). The tables `quotes`, `quote_line_items`, `components` and the columns `invoices.quote_id` / `bookings.linked_quote_id` stay in the schema because migrations only add; nothing reads or writes them. The old `unit_price` snapshot rule went with them.
 
@@ -718,4 +719,4 @@ See `docs/Implementation_Plan_Enzo_Interiors.md` for full deployment & QA checkl
 
 ---
 
-**Last updated:** September 2026 | **Project Status:** v1 (public site + admin CMS) implemented; CRM and portal kept in code, not mounted.
+**Last updated:** October 2026 (v3.0.0) | **Project Status:** v1 (public site + admin CMS) implemented; CRM and portal kept in code, not mounted.

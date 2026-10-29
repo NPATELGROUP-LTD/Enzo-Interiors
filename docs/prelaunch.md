@@ -160,6 +160,20 @@ calendar card. Two-step sign-in needs only the first and last items.
   auth:reset-2fa -- <email>`. `DISABLE_2FA=true` turns it off for everyone (the
   API warns at boot); remove it afterwards.
 
+## Gmail (Mail)
+
+Optional: with no `GOOGLE_GMAIL_REDIRECT_URI` the admin shows no Mail page.
+
+- [ ] Google Cloud Console, the project that owns the Enzo OAuth client: APIs & Services → Library → enable **Gmail API**.
+- [ ] OAuth consent screen: user type **Internal** (Workspace only, no Google verification); add scope `https://www.googleapis.com/auth/gmail.modify`.
+- [ ] Credentials → the existing Web client: add the redirect URI `https://auth.enzo.client.npatelgroup.ltd/mailbox/callback`.
+- [ ] `GOOGLE_GMAIL_REDIRECT_URI` set to that URL (same `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` and `APP_ENCRYPTION_KEY` as above); migration 25 deployed.
+- [ ] Each person opens Mail → **Connect your Gmail** and ticks every box on Google's screen.
+
+## After deploying v3.0.0
+
+- [ ] Run `npm run team:backfill` once (Docker: `docker compose run --rm seed npm run team:backfill`).
+
 ## Rate limits
 
 Three layers; each catches what the one below cannot.
