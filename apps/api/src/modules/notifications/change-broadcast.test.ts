@@ -6,8 +6,8 @@ import { of } from 'rxjs';
 import { ChangeBroadcast } from './change-broadcast';
 import { RealtimeService } from './realtime';
 
-const context = (method: string, type = 'http') =>
-  ({ getType: () => type, switchToHttp: () => ({ getRequest: () => ({ method }) }) }) as never;
+const context = (method: string, type = 'http', url = '/clients') =>
+  ({ getType: () => type, switchToHttp: () => ({ getRequest: () => ({ method, url }) }) }) as never;
 const handler = { handle: () => of('done') };
 
 test('a write nudges everyone once, however many writes; reads and sockets never do', async () => {
@@ -31,5 +31,19 @@ test('a write nudges everyone once, however many writes; reads and sockets never
   interceptor.intercept(context('PUT'), handler).subscribe();
   mock.timers.tick(500);
   assert.equal(sent.length, 2);
+  mock.timers.reset();
+});
+
+test('sign-in, push and bell writes change nothing on screen, so they do not nudge', () => {
+  mock.timers.enable({ apis: ['setTimeout'] });
+  const sent: string[] = [];
+  const realtime = new RealtimeService();
+  realtime.broadcast = (event) => void sent.push(event);
+  const interceptor = new ChangeBroadcast(realtime);
+  for (const url of ['/auth/refresh', '/push/subscribe', '/notifications/read']) {
+    interceptor.intercept(context('POST', 'http', url), handler).subscribe();
+  }
+  mock.timers.tick(1000);
+  assert.deepEqual(sent, []);
   mock.timers.reset();
 });

@@ -367,7 +367,7 @@ export class InvoicesService {
     // New stages as asked, else the stored ones re-worked against a changed total (same mode and value).
     const stages =
       dto.stages !== undefined ? stageRows(patch.amount ?? invoice.amount, dto.stages)
-      : patch.amount !== undefined && stored.length > 0 ? stageRows(patch.amount, stored)
+      : patch.amount !== undefined && stored.length > 0 ? this.reworkStages(patch.amount, stored)
       : undefined;
 
     if (Object.keys(patch).length === 0) return this.findOne(principal, id);
@@ -524,6 +524,18 @@ export class InvoicesService {
   }
 
   /* ------------------------------------------------------------------ */
+
+  /** Stored stages re-worked for a new total; fixed £ stages that no longer add up say what to do. */
+  private reworkStages(gross: number, stored: InvoiceStage[]) {
+    try {
+      return stageRows(gross, stored);
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw new BadRequestException(`${error.message} Update the payment stages to match the new total.`);
+      }
+      throw error;
+    }
+  }
 
   private lines(dtos: InvoiceItemDto[]): ItemInput[] {
     return dtos.map(({ description, section, detail, quantity, unit_price }) => ({

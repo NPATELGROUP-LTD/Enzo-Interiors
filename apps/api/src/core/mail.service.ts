@@ -276,17 +276,17 @@ ${button(forgotUrl, 'Reset my password')}`,
    * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
    * so the form cannot be used to mail someone else a message of the sender's choosing.
    */
-  enquiryReceived(name: string, contact: string): Rendered {
+  enquiryReceived(contact: string): Rendered {
     const subject = 'We have your enquiry';
     return {
       subject,
       html: layout(
         subject,
-        `${heading('Enquiry received', `Thank you, ${name.split(' ')[0]}`)}
+        `${heading('Enquiry received', 'Thank you')}
 ${para('We read every enquiry ourselves. You will hear from us the same working day.')}
 ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       ),
-      text: `Thank you, ${name.split(' ')[0]}.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+      text: `Thank you.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
     };
   },
 
@@ -313,7 +313,7 @@ ${replyParagraphs(body)}
       subject,
       html: layout(
         subject,
-        `${heading('Consultation booked', `See you soon, ${b.name.split(' ')[0]}`)}
+        `${heading('Consultation booked', 'See you soon')}
 ${para('Thank you for booking a free home consultation with Enzo Interiors. Here are the details:')}
 ${table(rows)}
 ${para(`Need to change or cancel? Reply to this email or ${contact}, and quote your reference.`)}`,

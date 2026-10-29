@@ -102,6 +102,7 @@ export function SearchPalette({ open, onClose, actions }: {
   const [active, setActive] = useState(0);
   const [failed, setFailed] = useState(false);
   /** Records (clients, projects, invoices, enquiries, bookings) matching the words or a reference. */
+  const [recordsFor, setRecordsFor] = useState('');
   const [records, setRecords] = useState<Array<{ type: string; id: string; title: string; detail: string; link: string }>>([]);
 
   // A layout effect, so the input has focus before the next keystroke lands:
@@ -130,7 +131,11 @@ export function SearchPalette({ open, onClose, actions }: {
     const timer = window.setTimeout(() => {
       api
         .get<{ results: typeof records }>(`/search?q=${encodeURIComponent(q)}`)
-        .then((found) => !cancelled && setRecords(found.results))
+        .then((found) => {
+          if (cancelled) return;
+          setRecords(found.results);
+          setRecordsFor(q);
+        })
         .catch(() => !cancelled && setRecords([]));
     }, 180);
     return () => {
@@ -296,7 +301,7 @@ export function SearchPalette({ open, onClose, actions }: {
       run: () => undefined,
     }));
 
-    const found: Result[] = records.map((record) => ({
+    const found: Result[] = (recordsFor === query.trim() ? records : []).map((record) => ({
       id: `record-${record.type}-${record.id}`,
       group: 'Records',
       label: record.title,
@@ -307,7 +312,7 @@ export function SearchPalette({ open, onClose, actions }: {
 
     // A reference or a name that matches a record is what was asked for, so it comes first.
     return [...found, ...shown.slice(0, 40), ...content, ...pictures];
-  }, [query, hits, records, actions, navigate, onClose]);
+  }, [query, hits, records, recordsFor, actions, navigate, onClose]);
 
   const clamped = Math.min(active, Math.max(0, results.length - 1));
 

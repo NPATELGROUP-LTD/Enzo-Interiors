@@ -258,6 +258,10 @@ export class DatabaseService {
       for (const { to, ids } of moves) {
         if (ids.length) await tx.project.updateMany({ where: { id: { in: ids } }, data: { status: to } });
       }
+      // Progress follows the stage, so a changed percentage reaches projects already in it.
+      for (const { name, progress } of stages) {
+        await tx.project.updateMany({ where: { status: name }, data: { progress_pct: progress } });
+      }
       await tx.siteSettings.update({
         where: { id: 'site' },
         data: { project_stages: stages as unknown as Prisma.InputJsonValue, updated_at: new Date(), updated_by: updatedBy },

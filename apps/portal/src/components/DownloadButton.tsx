@@ -93,6 +93,8 @@ export function useFileViewer() {
           title={shown.file.name}
           className="h-[70dvh] w-full rounded-control border border-border bg-white"
         />
+      ) : !shown.canSave ? (
+        <p className="text-ink">This browser cannot show this PDF in view-only mode. Ask the studio to send it another way.</p>
       ) : (
         <p className="text-ink">
           This browser cannot show a PDF inside the page.{' '}

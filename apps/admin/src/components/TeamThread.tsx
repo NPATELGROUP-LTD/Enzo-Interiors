@@ -30,10 +30,15 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
   const [sending, setSending] = useState(false);
   const picker = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
+  const current = useRef(threadId);
+  current.current = threadId;
 
   const load = useCallback(async () => {
     try {
-      setMessages(await api.get<TeamMessage[]>(`/team/threads/${threadId}/messages`));
+      const loaded = await api.get<TeamMessage[]>(`/team/threads/${threadId}/messages`);
+      // A slower reply for a thread we have since left must not replace this one's messages.
+      if (current.current !== threadId) return;
+      setMessages(loaded);
       setError(null);
       void api.put(`/team/threads/${threadId}/read`, {}).catch(() => undefined);
     } catch (caught) {

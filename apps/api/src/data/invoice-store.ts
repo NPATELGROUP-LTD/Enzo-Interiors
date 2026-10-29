@@ -68,6 +68,37 @@ export class InvoiceStore {
     return total._sum.amount ?? new Prisma.Decimal(0);
   }
 
+  /**
+   * Money actually received over `where` (an invoice filter) since `from`: every paid stage, plus
+   * Paid invoices that have no stages. A part-paid invoice counts for what has been paid so far.
+   */
+  async received(where: Where<Invoice> = {}, from?: Date): Promise<Prisma.Decimal> {
+    const paid_at = from ? { gte: from } : { not: null };
+    const [staged, plain] = await Promise.all([
+      this.prisma.invoiceStage.aggregate({
+        where: { paid_at, invoice: where as Prisma.InvoiceWhereInput },
+        _sum: { amount: true },
+      }),
+      this.prisma.invoice.aggregate({
+        where: { ...(where as Prisma.InvoiceWhereInput), status: 'Paid', stages: { none: {} }, paid_at },
+        _sum: { amount: true },
+      }),
+    ]);
+    return new Prisma.Decimal(staged._sum.amount ?? 0).add(plain._sum.amount ?? 0);
+  }
+
+  /** The receipts behind `received` since `from`, one per paid stage or stage-less Paid invoice. */
+  async receipts(from: Date): Promise<Array<{ paid_at: string; amount: number }>> {
+    const [staged, plain] = await Promise.all([
+      this.prisma.invoiceStage.findMany({ where: { paid_at: { gte: from } }, select: { paid_at: true, amount: true } }),
+      this.prisma.invoice.findMany({
+        where: { status: 'Paid', stages: { none: {} }, paid_at: { gte: from } },
+        select: { paid_at: true, amount: true },
+      }),
+    ]);
+    return [...staged, ...plain].map((r) => ({ paid_at: r.paid_at!.toISOString(), amount: Number(r.amount) }));
+  }
+
   /** What is still owed over `where`: SUM(amount) less the stages already paid, exact. */
   async balance(where: Where<Invoice>): Promise<Prisma.Decimal> {
     const paid = await this.prisma.invoiceStage.aggregate({
