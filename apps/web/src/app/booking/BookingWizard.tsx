@@ -321,9 +321,9 @@ export function BookingWizard({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row">
+    <div className="h-dvh overflow-hidden flex flex-col xl:flex-row">
       {/* Left Panel */}
-      <div className="hidden lg:flex lg:w-[40%] lg:sticky lg:top-0 lg:h-screen relative bg-primary flex-col justify-between p-12 overflow-hidden">
+      <div className="hidden xl:flex xl:w-[40%] xl:h-full relative bg-primary flex-col justify-between p-12 overflow-hidden">
         <div className="absolute inset-0 opacity-20">
           <ImageWithFallback src={backgroundImage.src} alt="" className="w-full h-full object-cover" />
         </div>
@@ -365,9 +365,9 @@ export function BookingWizard({
       </div>
 
       {/* Right Panel */}
-      <div className="flex-1 bg-background min-h-screen flex flex-col">
+      <div className="flex-1 min-h-0 bg-background flex flex-col">
         {/* Phones and tablets have no side panel, so the logo and the way home sit here. */}
-        <div className="flex items-center justify-between gap-4 px-6 pt-6 md:px-12 lg:hidden">
+        <div className="flex items-center justify-between gap-4 px-6 pt-6 md:px-12 xl:hidden">
           <Link href="/" aria-label={content.logoLabel}>
             {/* eslint-disable-next-line @next/next/no-img-element -- see the panel logo above */}
             <img src={logos.onLight.src} alt={logos.onLight.alt} className="h-9 w-auto" />
@@ -381,7 +381,7 @@ export function BookingWizard({
         </div>
 
         {/* Progress: every step named on wider screens, "Step n of 4" on phones. */}
-        <nav aria-label={content.progress.confirmed} className="px-6 pt-8 md:px-12 lg:pt-12">
+        <nav aria-label={content.progress.confirmed} className="shrink-0 px-6 pt-5 md:px-12 xl:pt-8">
           <ol className="hidden sm:flex items-center gap-2">
             {content.progress.labels.map((label, index) => {
               const n = index + 1;
@@ -415,7 +415,7 @@ export function BookingWizard({
           </div>
         </nav>
 
-        <div className="flex-1 px-6 py-8 md:px-12 md:py-10">
+        <div className="flex-1 min-h-0 overflow-y-auto px-6 py-5 md:px-12 md:py-6">
           <AnimatePresence mode="wait">
             {step === SERVICE && (
               <StepWrapper key="service" still={!!reduceMotion}>
@@ -428,7 +428,7 @@ export function BookingWizard({
                     {fill(content.steps.service.tierNote, { tier })}
                   </p>
                 )}
-                <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 max-w-2xl">
+                <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 max-w-2xl">
                   {bookable.map(({ id, label, icon }) => {
                     const Icon = ICONS[icon] ?? ChefHat;
                     const selected = selectedService === id;
@@ -464,10 +464,10 @@ export function BookingWizard({
                   {content.steps.datetime.heading}
                 </h2>
                 <p className="text-muted-foreground text-[14px] mt-2">{content.steps.datetime.lede}</p>
-                <div className="mt-8 grid gap-8 xl:grid-cols-[minmax(0,26rem)_1fr] max-w-4xl">
-                  <div className="xl:col-start-1">
-                    <div className="bg-white rounded-2xl p-5 shadow-[0_2px_16px_rgba(0,0,0,0.04)]">
-                      <div className="flex items-center justify-between mb-4">
+                <div className="mt-5 grid gap-5 md:grid-cols-[minmax(0,20rem)_1fr] md:gap-8 max-w-4xl">
+                  <div className="md:col-start-1">
+                    <div className="bg-white rounded-2xl p-4 shadow-[0_2px_16px_rgba(0,0,0,0.04)]">
+                      <div className="flex items-center justify-between mb-2">
                         <button
                           type="button"
                           onClick={() => moveMonth(-1)}
@@ -505,7 +505,7 @@ export function BookingWizard({
                       ) : (
                         <div className="grid grid-cols-7 gap-1 text-center" aria-busy={calendarState === "loading"}>
                           {content.calendar.weekdays.map((d) => (
-                            <div key={d} className="text-secondary text-[11px] uppercase tracking-wider py-2">
+                            <div key={d} className="text-secondary text-[11px] uppercase tracking-wider py-1">
                               {d}
                             </div>
                           ))}
@@ -526,12 +526,12 @@ export function BookingWizard({
                                 onClick={() => {
                                   setSelectedDate(date);
                                   setSelectedTime("");
-                                  // Below xl the times sit under the calendar, off screen on a phone.
+                                  // Below md the times sit under the calendar, off screen on a phone.
                                   requestAnimationFrame(() =>
-                                    timesRef.current?.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" }),
+                                    !window.matchMedia("(min-width: 768px)").matches && timesRef.current?.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" }),
                                   );
                                 }}
-                                className={`relative mx-auto h-11 w-11 rounded-full text-[14px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                                className={`relative mx-auto h-10 w-10 rounded-full text-[14px] transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
                                   isSelected
                                     ? "bg-primary text-primary-foreground"
                                     : open
@@ -548,7 +548,7 @@ export function BookingWizard({
                           })}
                         </div>
                       )}
-                      <p className="mt-3 min-h-5 text-center text-[13px] text-muted-foreground" role="status">
+                      <p className="mt-2 min-h-5 text-center text-[13px] text-muted-foreground" role="status">
                         {calendarState === "loading"
                           ? content.calendar.loading
                           : calendarState === "ready" && free && Object.keys(free.days).length === 0
@@ -558,7 +558,7 @@ export function BookingWizard({
                     </div>
                   </div>
 
-                  <div ref={timesRef} className="scroll-mt-6 xl:col-start-2 xl:row-span-2 xl:row-start-1">
+                  <div ref={timesRef} className="scroll-mt-6 md:col-start-2 md:row-span-2 md:row-start-1">
                     {selectedDate ? (
                       <>
                         <p className="flex items-center gap-2 text-[15px] text-primary" style={{ fontWeight: 500 }}>
@@ -570,9 +570,9 @@ export function BookingWizard({
                           [content.steps.datetime.afternoon, afternoon],
                         ].map(([label, group]) =>
                           (group as string[]).length ? (
-                            <div key={label as string} className="mt-5">
+                            <div key={label as string} className="mt-3 first:mt-4">
                               <p className="text-[12px] uppercase tracking-[0.15em] text-muted-foreground">{label as string}</p>
-                              <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 xl:grid-cols-3 2xl:grid-cols-4">
+                              <div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-3">
                                 {(group as string[]).map((time) => (
                                   <button
                                     key={time}
@@ -600,12 +600,12 @@ export function BookingWizard({
                     )}
                   </div>
 
-                  <OpeningHoursList
-                    label={content.calendar.hoursLabel ?? "Studio hours"}
-                    rows={hours.rows}
-                    note={hours.note}
-                    className="xl:col-start-1"
-                  />
+                  <details className="group md:col-start-1">
+                    <summary className="cursor-pointer list-none font-display text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground marker:hidden [&::-webkit-details-marker]:hidden">
+                      {content.calendar.hoursLabel ?? "Studio hours"} <span aria-hidden className="ml-1 inline-block transition-transform group-open:rotate-90">›</span>
+                    </summary>
+                    <OpeningHoursList label="" rows={hours.rows} note={hours.note} className="mt-1" />
+                  </details>
                 </div>
               </StepWrapper>
             )}
@@ -721,9 +721,9 @@ export function BookingWizard({
           </AnimatePresence>
         </div>
 
-        {/* Navigation: pinned so Next never scrolls out of reach on a phone. */}
+        {/* Navigation: sits under the step area, so Next is always in view and the page itself never scrolls. */}
         {step < DONE && (
-          <div className="sticky bottom-0 z-10 border-t border-border/60 bg-background/95 px-6 py-4 backdrop-blur md:px-12">
+          <div className="shrink-0 border-t border-border/60 bg-background px-6 py-3 md:px-12">
             <div className="flex items-center justify-between gap-4">
               <button
                 type="button"
