@@ -15,12 +15,13 @@
  *    is not listed as a provider. Add it before anyone connects an account.
  *
  * Not legal advice: have a solicitor read the Terms before they are relied on.
- * No ICO number appears because Enzo has none; do not invent one.
+ * The ICO registration number (icoNumber) was supplied by the owner; do not change it without them.
  */
 
 export const COMPANY = {
   name: 'Enzo Interiors Ltd',
   number: '16540291',
+  icoNumber: 'ZC047912',
   address: '51 Forest Road, Leicester, England, LE5 0DW',
   privacyEmail: 'privacy.enzointeriors@npatelgroup.ltd',
   supportEmail: 'support.enzointeriors@npatelgroup.ltd',
@@ -54,7 +55,7 @@ export function legalKind(pathname: string): LegalKind | null {
   return (LEGAL_KINDS as readonly string[]).includes(path) ? (path as LegalKind) : null;
 }
 
-const { name, number, address, privacyEmail, supportEmail, site, processor, processorNumber } = COMPANY;
+const { name, number, icoNumber, address, privacyEmail, supportEmail, site, processor, processorNumber } = COMPANY;
 
 const ico =
   'You can also complain to the Information Commissioner’s Office at ico.org.uk or on 0303 123 1113. We would like the chance to put things right first.';
@@ -77,7 +78,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
         id: 'who-we-are',
         heading: 'Who we are',
         body: [
-          `${name} (“Enzo”, “we”) decides what happens to the personal data in this admin, so it is the data controller. Company number ${number}, registered in England and Wales. Address: ${address}.`,
+          `${name} (“Enzo”, “we”) decides what happens to the personal data in this admin, so it is the data controller. Company number ${number}, registered in England and Wales. ICO registration number ${icoNumber}. Address: ${address}.`,
           `${processor} (company number ${processorNumber}) builds and runs the system for us. It acts only on our instructions, under a written contract, and does not use your information for its own purposes.`,
           `Questions about this notice or your information: ${privacyEmail}. Help signing in or using the admin: ${supportEmail}.`,
         ],

@@ -273,8 +273,8 @@ site's pages (those are CMS content). The text is code, in each app's
 `lib/legal.ts` (admin: written for staff; portal: for clients; `pages/Legal.tsx`
 and `LegalLinks` are identical copies). Controller Enzo Interiors Ltd
 (16540291); NPATEL GROUP LTD (16236097) is the processor, under a contract that
-must be signed before launch. No ICO or VAT number is shown (Enzo has neither
-yet); do not invent one. They describe only what exists: when the access log
+must be signed before launch. The ICO registration number (ZC047912, given by the owner) is shown in the
+controller line; no VAT number is shown (Enzo has none yet), do not invent one. They describe only what exists: when the access log
 (IP/device) is built, add it to `what-we-collect` and `retention` in both files.
 The apps set no cookies, only localStorage, so no banner. Google Fonts is loaded
 from Google (disclosed). Terms are a draft for a solicitor.
