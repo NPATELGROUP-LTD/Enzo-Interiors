@@ -15,6 +15,7 @@ import {
   Kanban,
   ListBullets,
   Question,
+  ChatsCircle,
   Receipt,
   SquaresFour,
   Star,
@@ -312,6 +313,8 @@ export const CLIENT_ROLES = ['Admin', 'Designer', 'Installer'] as const;
 /** Who edits the website: Admin and Editor. Never Designers or Installers. */
 export const CMS_ROLES = ['Admin', 'Editor'] as const;
 /** Who links their own Gmail and uses Mail: Admin, Designer and Editor. Never Installers or Infra. */
+/** Who uses staff chat: the whole studio team. Never Infra or clients. */
+export const TEAM_ROLES = ['Admin', 'Designer', 'Installer', 'Editor'] as const;
 export const MAIL_ROLES = ['Admin', 'Designer', 'Editor'] as const;
 
 /** The lists on the Clients screen, addressed as /clients?view=inactive. */
@@ -529,6 +532,7 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
   if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
   if (pathname === '/messages') return { title: 'Messages', back: null };
+  if (pathname === '/team') return { title: 'Team', back: null };
   if (pathname === '/mail') return { title: 'Mail', back: null };
   if (pathname === '/') return { title: 'Dashboard', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
@@ -550,6 +554,8 @@ export function AdminLayout() {
   // Mail is in the menu only once the server has Google's keys for it.
   const mailConfigured = useQuery<{ configured: boolean }>(can(...MAIL_ROLES) ? '/mailbox/status' : null).data?.configured === true;
   const unreadMessages = useUnreadCount(canSeeClients);
+  const canTeam = can(...TEAM_ROLES);
+  const unreadTeam = useUnreadCount(canTeam, '/team/unread-count', ['team:message']);
   // The shell only exists while signed in: leaving it (sign-out) closes the socket.
   useEffect(() => () => disconnectSocket(), []);
   const { toggle: toggleTheme } = useTheme();
@@ -611,6 +617,7 @@ export function AdminLayout() {
           { to: '/messages', label: 'Messages', Icon: ChatCircle, active: at('/messages'), badge: unreadMessages },
         ]
       : []),
+    ...(canTeam ? [{ to: '/team', label: 'Team', Icon: ChatsCircle, active: at('/team'), badge: unreadTeam }] : []),
     ...(mailConfigured ? [{ to: '/mail', label: 'Mail', Icon: Envelope, active: at('/mail') }] : []),
     ...(isAdmin
       ? [
@@ -646,6 +653,7 @@ export function AdminLayout() {
           {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}
+          {canTeam ? <MenuBarLink to="/team" label="Team" badge={unreadTeam} /> : null}
           {mailConfigured ? <MenuBarLink to="/mail" label="Mail" /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}

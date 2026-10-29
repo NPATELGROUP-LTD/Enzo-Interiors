@@ -359,6 +359,35 @@ export interface MessageAttachment {
   size_bytes: number;
 }
 
+/** Staff-only chat: a project's thread (project_id) or a pair of staff (pair_key). Never reaches a client. */
+export interface StaffThread extends BaseRecord {
+  project_id: string | null;
+  pair_key: string | null;
+  created_at: string;
+}
+
+/** A file on a staff message: its key in the private bucket, never a URL. */
+export interface StaffAttachment {
+  key: string;
+  name: string;
+  size_bytes: number;
+  type: string;
+}
+
+export interface StaffMessage extends BaseRecord {
+  thread_id: string;
+  sender_id: string;
+  body: string;
+  attachments: StaffAttachment[] | null;
+  created_at: string;
+}
+
+export interface StaffThreadRead extends BaseRecord {
+  thread_id: string;
+  staff_id: string;
+  read_at: string;
+}
+
 /** Schema 3.10 */
 export interface Message extends BaseRecord {
   conversation_id: string;

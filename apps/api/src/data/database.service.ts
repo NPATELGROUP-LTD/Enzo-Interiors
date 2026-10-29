@@ -19,6 +19,9 @@ import {
   Conversation,
   DocumentRecord,
   EnquiryMessage,
+  StaffMessage,
+  StaffThread,
+  StaffThreadRead,
   Invoice,
   InvoiceItem,
   InvoiceStage,
@@ -87,6 +90,9 @@ export class DatabaseService {
   readonly portfolioItems: PrismaRepository<PortfolioItem>;
   readonly contactSubmissions: PrismaRepository<ContactSubmission>;
   readonly enquiryMessages: PrismaRepository<EnquiryMessage>;
+  readonly staffThreads: PrismaRepository<StaffThread>;
+  readonly staffMessages: PrismaRepository<StaffMessage>;
+  readonly staffThreadReads: PrismaRepository<StaffThreadRead>;
   readonly businessSettings: PrismaRepository<BusinessSettings>;
   readonly activityLogs: PrismaRepository<ActivityLog>;
   readonly cmsEntries: PrismaRepository<CmsEntry>;
@@ -164,6 +170,9 @@ export class DatabaseService {
       { dates: ['created_at'] },
     );
     this.enquiryMessages = new PrismaRepository(prisma.enquiryMessage, 'enquiry_messages', { dates: ['sent_at'] });
+    this.staffThreads = new PrismaRepository(prisma.staffThread, 'staff_threads', { dates: ['created_at'] });
+    this.staffMessages = new PrismaRepository(prisma.staffMessage, 'staff_messages', { dates: ['created_at'] });
+    this.staffThreadReads = new PrismaRepository(prisma.staffThreadRead, 'staff_thread_reads', { dates: ['read_at'] });
     this.businessSettings = new PrismaRepository(prisma.businessSettings, 'business_settings', {
       decimals: ['vat_rate'],
     });
