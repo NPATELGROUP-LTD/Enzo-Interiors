@@ -17,6 +17,7 @@ import { ChangeRequestsModule } from './modules/change-requests/change-requests.
 import { ClientsModule } from './modules/clients/clients.module';
 import { ConversationsModule } from './modules/conversations/conversations.controller';
 import { SearchModule } from './modules/search/search.module';
+import { QuotesModule } from './modules/quotes/quotes.module';
 import { TeamChatModule } from './modules/team-chat/team-chat.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -88,6 +89,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     ConversationsModule,
     SearchModule,
     TeamChatModule,
+    QuotesModule,
     SettingsModule,
   ],
   providers: [

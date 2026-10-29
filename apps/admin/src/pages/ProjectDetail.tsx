@@ -147,6 +147,11 @@ export function ProjectDetailPage() {
             <span className="text-sm text-ink-muted">{refNo('PRJ', project.ref_no)}</span>
             <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
             {isAdmin ? (
+              <Button variant="secondary" onClick={() => navigate(`/quotes?new=1&project=${project.id}`)}>
+                New quote
+              </Button>
+            ) : null}
+            {isAdmin ? (
               <Button
                 variant="ghost"
                 className="text-danger"

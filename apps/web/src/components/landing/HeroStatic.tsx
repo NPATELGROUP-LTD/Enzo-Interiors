@@ -41,7 +41,7 @@ export function HeroStatic({
   }, []);
 
   return (
-    <section className="relative flex min-h-dvh w-full flex-col justify-start gap-8 overflow-hidden bg-enzo-dark px-5 pb-10 pt-28 sm:px-10 sm:pt-32 lg:grid lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:grid-rows-[1fr_auto_auto] lg:items-center lg:gap-x-16 lg:gap-y-10 lg:px-16 lg:pb-8 lg:pt-36 xl:px-24">
+    <section className="relative flex min-h-dvh w-full flex-col justify-start gap-8 overflow-hidden bg-enzo-dark px-5 pb-10 pt-28 sm:px-10 sm:pt-32 lg:grid lg:grid-cols-[minmax(0,6fr)_minmax(0,7fr)] lg:grid-rows-[1fr_auto_auto] lg:items-center lg:gap-x-16 lg:gap-y-10 lg:px-16 lg:pb-8 lg:pt-36 xl:px-24">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0"
@@ -56,7 +56,7 @@ export function HeroStatic({
             and a wrapping headline was doing worse with even less width
             once a strapline sat above it. */}
         <h1
-          className="font-title text-[clamp(2.4rem,11vw,3.4rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream lg:text-[clamp(3.6rem,5.6vw,6.2rem)]"
+          className="font-title text-[clamp(2.4rem,11vw,3.4rem)] font-semibold leading-[0.98] tracking-[-0.045em] text-enzo-cream lg:text-[clamp(3rem,4.4vw,5.2rem)]"
         >
           {content.headingLead}
           <br />

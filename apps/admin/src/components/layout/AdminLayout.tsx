@@ -16,6 +16,7 @@ import {
   ListBullets,
   Question,
   ChatsCircle,
+  FileText,
   Receipt,
   SquaresFour,
   Star,
@@ -530,6 +531,8 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
       back: null,
     };
   }
+  if (pathname === '/quotes') return { title: 'Quotes', back: null };
+  if (pathname.startsWith('/quotes/')) return { title: 'Quotes', back: { to: '/quotes', label: 'Quotes' } };
   if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
   if (pathname === '/messages') return { title: 'Messages', back: null };
@@ -623,6 +626,7 @@ export function AdminLayout() {
     ...(isAdmin
       ? [
           { to: '/invoices', label: 'Invoices', Icon: Receipt, active: at('/invoices') },
+          { to: '/quotes', label: 'Quotes', Icon: FileText, active: at('/quotes') },
           { to: '/enquiries', label: 'Enquiries', Icon: Tray, active: at('/enquiries'), badge: enquiries.data?.new_count ?? 0 },
           { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
         ]
@@ -657,6 +661,7 @@ export function AdminLayout() {
           {canTeam ? <MenuBarLink to="/team" label="Team" badge={unreadTeam} /> : null}
           {mailConfigured ? <MenuBarLink to="/mail" label="Mail" /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
+          {isAdmin ? <MenuBarLink to="/quotes" label="Quotes" /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {canSettings ? <SettingsMenu /> : null}
