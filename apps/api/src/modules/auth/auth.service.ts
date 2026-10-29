@@ -263,6 +263,10 @@ export class AuthService implements OnApplicationBootstrap {
       await this.recordFailure(key, ip);
       throw new UnauthorizedException('Incorrect email or password');
     }
+    // The right password, but the emailed one has lapsed: say so (it is the owner typing it), and point at Forgot password.
+    if (client.password_is_default && client.default_password_expires_at && new Date(client.default_password_expires_at) < new Date()) {
+      throw new UnauthorizedException('Your temporary password has expired. Choose "Forgot password" to set a new one.');
+    }
     await this.limits.clear(`login:fail:${ip}|${key}`);
     return this.issueClient(client);
   }
@@ -474,6 +478,7 @@ export class AuthService implements OnApplicationBootstrap {
       {
         password_hash: await hashPassword(password),
         password_is_default: true,
+        default_password_expires_at: new Date(Date.now() + 7 * 24 * 3600_000).toISOString(),
         token_version: version + 1,
         updated_at: new Date().toISOString(),
       },

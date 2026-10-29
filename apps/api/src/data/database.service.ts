@@ -123,7 +123,7 @@ export class DatabaseService {
       dates: [...stamps, 'reset_expires_at', 'totp_confirmed_at', 'login_code_expires_at'],
     });
     this.clients = new PrismaRepository(prisma.client, 'clients', {
-      dates: [...stamps, 'joined_date'],
+      dates: [...stamps, 'joined_date', 'default_password_expires_at'],
       decimals: ['total_spent'],
     });
     this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
@@ -257,6 +257,10 @@ export class DatabaseService {
       }
       for (const { to, ids } of moves) {
         if (ids.length) await tx.project.updateMany({ where: { id: { in: ids } }, data: { status: to } });
+      }
+      // Progress follows the stage, so a changed percentage reaches projects already in it.
+      for (const { name, progress } of stages) {
+        await tx.project.updateMany({ where: { status: name }, data: { progress_pct: progress } });
       }
       await tx.siteSettings.update({
         where: { id: 'site' },

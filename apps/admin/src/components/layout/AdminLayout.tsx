@@ -555,7 +555,7 @@ export function AdminLayout() {
   const mailConfigured = useQuery<{ configured: boolean }>(can(...MAIL_ROLES) ? '/mailbox/status' : null).data?.configured === true;
   const unreadMessages = useUnreadCount(canSeeClients);
   const canTeam = can(...TEAM_ROLES);
-  const unreadTeam = useUnreadCount(canTeam, '/team/unread-count', ['team:message']);
+  const unreadTeam = useUnreadCount(canTeam, '/team/unread-count', ['team:message', 'data:changed']);
   // The shell only exists while signed in: leaving it (sign-out) closes the socket.
   useEffect(() => () => disconnectSocket(), []);
   const { toggle: toggleTheme } = useTheme();

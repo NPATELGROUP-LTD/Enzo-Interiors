@@ -305,7 +305,7 @@ export class EnquiriesService {
         : null,
       this.settings
         .contactLine()
-        .then((contact) => this.mail.send({ to: row.email, replyTo: studio[0], ...templates.enquiryReceived(row.name, contact) })),
+        .then((contact) => this.mail.send({ to: row.email, replyTo: studio[0], ...templates.enquiryReceived(contact) })),
     ]);
     for (const result of results) {
       if (result.status === 'rejected') {

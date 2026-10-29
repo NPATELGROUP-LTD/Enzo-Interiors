@@ -199,6 +199,8 @@ export interface Client extends BaseRecord {
   token_version?: number;
   /** True while the password is the one emailed at invite; cleared when they change or keep it. */
   password_is_default?: boolean;
+  /** The emailed password stops working after this while it is still the default. Null = no expiry (clients invited before v3). */
+  default_password_expires_at?: string | null;
 }
 
 /** Schema 3.3 */

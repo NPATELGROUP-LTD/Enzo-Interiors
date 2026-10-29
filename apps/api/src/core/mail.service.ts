@@ -276,17 +276,17 @@ ${button(forgotUrl, 'Reset my password')}`,
    * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
    * so the form cannot be used to mail someone else a message of the sender's choosing.
    */
-  enquiryReceived(name: string, contact: string): Rendered {
+  enquiryReceived(contact: string): Rendered {
     const subject = 'We have your enquiry';
     return {
       subject,
       html: layout(
         subject,
-        `${heading('Enquiry received', `Thank you, ${name.split(' ')[0]}`)}
+        `${heading('Enquiry received', 'Thank you')}
 ${para('We read every enquiry ourselves. You will hear from us the same working day.')}
 ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       ),
-      text: `Thank you, ${name.split(' ')[0]}.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+      text: `Thank you.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
     };
   },
 
@@ -313,7 +313,7 @@ ${replyParagraphs(body)}
       subject,
       html: layout(
         subject,
-        `${heading('Consultation booked', `See you soon, ${b.name.split(' ')[0]}`)}
+        `${heading('Consultation booked', 'See you soon')}
 ${para('Thank you for booking a free home consultation with Enzo Interiors. Here are the details:')}
 ${table(rows)}
 ${para(`Need to change or cancel? Reply to this email or ${contact}, and quote your reference.`)}`,
@@ -419,7 +419,7 @@ ${link}`,
         `<p style="margin:0 0 16px">Hi ${escapeHtml(name)},</p>
 ${para(`${inviter} has set up your Enzo Interiors client portal, where you can follow your project, see documents and invoices, and message the team. Sign in with this email address and the password below.`)}
 <p style="margin:0 0 16px;padding:14px 18px;background:${CREAM};border-radius:8px;font:600 18px/1.4 Consolas,Menlo,monospace;letter-spacing:.04em;color:${FOREST}">${escapeHtml(password)}</p>
-${para('We recommend changing this password the first time you sign in. If you did not expect this email, you can ignore it.')}
+${para('We recommend changing this password the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.')}
 ${button(signInUrl, 'Sign in to your portal')}`,
       ),
       text: `Hi ${name},
@@ -428,7 +428,7 @@ ${inviter} has set up your Enzo Interiors client portal. Sign in at ${signInUrl}
 
 ${password}
 
-We recommend changing it the first time you sign in. If you did not expect this email, you can ignore it.`,
+We recommend changing it the first time you sign in. It stops working after 7 days unless you change it or choose to keep it. If you did not expect this email, you can ignore it.`,
     };
   },
 

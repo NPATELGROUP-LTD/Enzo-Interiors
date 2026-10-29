@@ -69,9 +69,14 @@ export function useQuery<T>(path: string | null): QueryState<T> {
       const id = ++requestId.current;
       try {
         const result = await api.get<T>(path);
-        if (id === requestId.current) setDataState(result);
+        // Same content keeps the same object, so a form seeded from `data` is not reset mid-edit.
+        if (id === requestId.current)
+          setDataState((cur) => (JSON.stringify(cur) === JSON.stringify(result) ? cur : result));
       } catch {
         /* keep the stale copy */
+      } finally {
+        // This call superseded an in-flight run(), which will skip its own setLoading(false).
+        if (id === requestId.current) setLoading(false);
       }
     };
     const soon = () => {

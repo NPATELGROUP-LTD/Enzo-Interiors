@@ -33,7 +33,7 @@ export class SearchService {
   ) {}
 
   async search(principal: AuthPrincipal, query: string | undefined): Promise<{ results: SearchResult[] }> {
-    const term = (query ?? '').trim().slice(0, 60);
+    const term = (typeof query === 'string' ? query : '').trim().slice(0, 60);
     if (term.length < 2) return { results: [] };
     const contains = <T>(...fields: string[]): Where<T> => ({ OR: fields.map((field) => ({ [field]: { contains: term, mode: 'insensitive' } })) }) as Where<T>;
     // Scope and search are both OR-shaped for a Designer, so they are ANDed rather than spread together.

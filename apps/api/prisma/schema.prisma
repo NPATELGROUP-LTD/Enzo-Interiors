@@ -79,6 +79,8 @@ model Client {
   token_version     Int      @default(0)
   /// True while the password is the one emailed at invite; cleared when they change or keep it.
   password_is_default Boolean @default(false)
+  /// The emailed password stops working after this (7 days from the invite) while it is still the default. Null = no expiry.
+  default_password_expires_at DateTime? @db.Timestamptz(6)
 
   @@index([assigned_staff_id])
   @@map("clients")

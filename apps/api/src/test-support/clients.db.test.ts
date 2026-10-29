@@ -214,6 +214,14 @@ test('an invitation emails a generated password; resending replaces it; keeping 
   const view = (await (await call('GET', `/clients/${NEWBIE.id}`, tokens.admin)).json()) as { has_portal_access: boolean; password_is_default: boolean };
   assert.deepEqual([view.has_portal_access, view.password_is_default], [true, true]);
 
+  // The emailed password lapses after 7 days (a week, give or take the test's own seconds) while it is still the default.
+  const week = (await prisma.client.findUniqueOrThrow({ where: { id: NEWBIE.id } })).default_password_expires_at!.getTime() - Date.now();
+  assert.ok(week > 6.9 * 24 * 3600_000 && week <= 7 * 24 * 3600_000);
+  await prisma.client.update({ where: { id: NEWBIE.id }, data: { default_password_expires_at: new Date(Date.now() - 1000) } });
+  const lapsed = await call('POST', '/auth/portal/login', undefined, { email: NEWBIE.email, password: first });
+  assert.equal(lapsed.status, 401);
+  assert.match(((await lapsed.json()) as { message: string }).message, /expired/);
+
   // Resend issues a new password: the first and the old session stop working.
   assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.admin)).status, 200);
   const second = passwordIn(sentTo());

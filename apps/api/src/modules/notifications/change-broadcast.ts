@@ -5,6 +5,8 @@ import { RealtimeService } from './realtime';
 
 const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 const QUIET_MS = 500;
+/** Writes that change nothing a screen shows: sign-in/refresh, push registration, the bell's own read marks. */
+const NO_PING = /^\/(auth|push|alerts|notifications)(\/|\?|$)/;
 
 /**
  * After any successful write, nudge every connected screen to refetch (`data:changed`, no payload).
@@ -19,8 +21,8 @@ export class ChangeBroadcast implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     if (context.getType() !== 'http') return next.handle();
-    const { method } = context.switchToHttp().getRequest<{ method: string }>();
-    return WRITES.has(method) ? next.handle().pipe(tap(() => this.ping())) : next.handle();
+    const { method, url } = context.switchToHttp().getRequest<{ method: string; url: string }>();
+    return WRITES.has(method) && !NO_PING.test(url) ? next.handle().pipe(tap(() => this.ping())) : next.handle();
   }
 
   private ping(): void {

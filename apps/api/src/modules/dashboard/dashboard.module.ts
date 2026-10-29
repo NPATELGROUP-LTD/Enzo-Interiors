@@ -88,9 +88,9 @@ export class DashboardService {
       store.balance({ status: UNPAID }), // less any stages already paid
       store.balance({ status: UNPAID, due_date: { gte: utcToday, lt: inAWeek } }),
       this.db.invoices.countWhere({ status: UNPAID, due_date: { lt: utcToday } }),
-      store.sum({ status: 'Paid' }),
-      store.sum({ status: 'Paid', paid_at: { gte: thisMonth } }),
-      this.db.invoices.findWhere({ status: 'Paid', paid_at: { gte: since } }),
+      store.received(),
+      store.received({}, new Date(thisMonth)),
+      store.receipts(new Date(since)),
       this.db.clients.countWhere({}),
       this.db.clients.countWhere({ status: 'Active' }),
     ]);
@@ -103,7 +103,7 @@ export class DashboardService {
     const revenue_chart = lastMonths(today.slice(0, 7), 12);
     for (const bucket of revenue_chart) {
       bucket.value = sumMoney(
-        paidRows.filter((row) => studioParts(new Date(row.paid_at!)).date.startsWith(bucket.month)).map((row) => row.amount),
+        paidRows.filter((row) => studioParts(new Date(row.paid_at)).date.startsWith(bucket.month)).map((row) => row.amount),
       );
     }
 
@@ -183,7 +183,7 @@ export class DashboardService {
     const [projects, documents, paid, outstanding, nextDue, appointment] = await Promise.all([
       this.db.projects.findWhere({ ...mine, client_visible: true }, { orderBy: { updated_at: 'desc' } }),
       this.access.documentScope(principal).then((scope) => this.db.documents.countWhere(scope)),
-      store.sum({ ...mine, status: 'Paid' }),
+      store.received(mine),
       store.balance({ ...mine, status: UNPAID }),
       this.db.invoices.findFirstWhere({ ...mine, status: { notIn: ['Draft', 'Paid'] } }, { due_date: 'asc' }),
       // A consultation booked on the website is theirs when it carries their email.
