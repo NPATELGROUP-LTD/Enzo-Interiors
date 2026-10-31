@@ -352,6 +352,9 @@ export interface ProjectQuoteItem extends BaseRecord {
   detail: string | null;
   quantity: number;
   unit_price: number;
+  /** Studio-only: what the line costs, and the % put on top to make unit_price. Never sent to a client. */
+  cost_price: number | null;
+  margin_pct: number | null;
   position: number;
 }
 

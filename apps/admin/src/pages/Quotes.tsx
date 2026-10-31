@@ -1,6 +1,7 @@
-import { PaperPlaneRight, Plus, Receipt, Trash } from '@phosphor-icons/react';
+import { closestCenter, DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { DotsSixVertical, PaperPlaneRight, Plus, Receipt, Trash } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import {
@@ -39,19 +40,23 @@ const FILTERS = [
 ];
 
 /* The form works in strings so a half-typed price is allowed; the sums are a PREVIEW in whole pennies,
- * and the API's figures replace them once the quote is saved. */
+ * and the API's figures replace them once the quote is saved. A line is a cost plus a margin (a % on top
+ * of the cost); what the client pays each is worked out from the two, and the API repeats the sum. */
 interface Row {
   key: number;
   description: string;
   quantity: string;
-  unit_price: string;
+  cost: string;
+  margin: string;
 }
 let rowKey = 0;
-const blank = (): Row => ({ key: ++rowKey, description: '', quantity: '1', unit_price: '' });
+const blank = (margin = ''): Row => ({ key: ++rowKey, description: '', quantity: '1', cost: '', margin });
 const pennies = (value: number) => Math.round(value * 100) || 0;
+/** The price each, in pennies, the client pays for a line. */
+const sellPence = (row: Row) => Math.round((pennies(Number(row.cost) || 0) * (100 + (Number(row.margin) || 0))) / 100);
 
 function preview(rows: Row[], vatRate: number, discount: number) {
-  const subtotal = rows.reduce((total, row) => total + pennies((Number(row.quantity) || 0) * (Number(row.unit_price) || 0)), 0);
+  const subtotal = rows.reduce((total, row) => total + (Number(row.quantity) || 0) * sellPence(row), 0);
   const net = subtotal - pennies(discount);
   const vat = Math.round((net * vatRate) / 100);
   return { subtotal: subtotal / 100, net: net / 100, vat: vat / 100, gross: (net + vat) / 100 };
@@ -222,10 +227,12 @@ export function QuotesPage() {
   );
 }
 
-/** One quote as the client sees it, plus their answer. */
+/** One quote: the studio's own figures, and a tab showing exactly what the client is sent. */
 function QuoteBody({ quote }: { quote: Quote }) {
+  const [tab, setTab] = useState('studio');
   return (
     <div className="flex flex-col gap-4">
+      <Tabs tabs={[{ id: 'studio', label: 'Studio view' }, { id: 'client', label: 'Client view' }]} active={tab} onChange={setTab} />
       <div className="flex flex-wrap items-center gap-2">
         <StatusTag tone={quote.expired ? 'warning' : TONE[quote.status]}>{quote.expired ? 'Expired' : quote.status}</StatusTag>
         {quote.valid_until ? <span className="text-sm text-ink-muted">Valid until {date(quote.valid_until)}</span> : null}
@@ -233,13 +240,38 @@ function QuoteBody({ quote }: { quote: Quote }) {
         {quote.invoice_id ? <span className="text-sm text-ink-muted">Invoice made</span> : null}
       </div>
       {quote.response_comment ? <p className="rounded-control bg-surface-muted px-3 py-2 text-sm text-ink">“{quote.response_comment}”</p> : null}
-      <QuoteLines quote={quote} />
-      {quote.notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{quote.notes}</p> : null}
+      {tab === 'client' ? (
+        <ClientQuoteView subtotal={quote.subtotal_amount} discount={quote.discount} vatRate={quote.vat_rate} vat={quote.vat_amount} total={quote.amount} notes={quote.notes} />
+      ) : (
+        <>
+          <QuoteLines quote={quote} />
+          {quote.notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{quote.notes}</p> : null}
+        </>
+      )}
     </div>
   );
 }
 
-export function QuoteLines({ quote }: { quote: Quote }) {
+/** What the client's portal shows: the installation charges and the totals. Never the lines, costs or margins. Keep in step with apps/portal Quotes.tsx. */
+function ClientQuoteView({ subtotal, discount, vatRate, vat, total, notes }: { subtotal: number; discount: number; vatRate: number; vat: number; total: number; notes?: string | null }) {
+  return (
+    <div className="flex flex-col gap-3 rounded-control border border-dashed border-border p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">What the client sees</p>
+      <div className="flex items-baseline justify-between text-sm font-semibold text-ink"><span>Installation charges</span><span className="tabular">{money(subtotal)}</span></div>
+      <dl className="flex flex-col gap-1 border-t border-border pt-3 text-sm">
+        <div className="flex justify-between"><dt className="text-ink-muted">Subtotal</dt><dd className="tabular">{money(subtotal)}</dd></div>
+        {discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(discount)}</dd></div> : null}
+        <div className="flex justify-between"><dt className="text-ink-muted">VAT ({vatRate}%)</dt><dd className="tabular">{money(vat)}</dd></div>
+        <div className="flex justify-between text-base font-semibold text-ink"><dt>Total</dt><dd className="tabular">{money(total)}</dd></div>
+      </dl>
+      {notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{notes}</p> : null}
+    </div>
+  );
+}
+
+function QuoteLines({ quote }: { quote: Quote }) {
+  // Lines made before margins existed have no cost: they count as sold at cost.
+  const cost = quote.items.reduce((total, item) => total + item.quantity * (item.cost_price ?? item.unit_price), 0);
   return (
     <div>
       <ul className="divide-y divide-border/60 text-sm">
@@ -247,7 +279,9 @@ export function QuoteLines({ quote }: { quote: Quote }) {
           <li key={item.id} className="flex items-baseline justify-between gap-4 py-2">
             <span className="min-w-0 text-ink">
               {item.description}
-              {item.detail ? <span className="block text-xs text-ink-muted">{item.detail}</span> : null}
+              <span className="block text-xs text-ink-muted">
+                {item.cost_price !== null ? `Cost ${money(item.cost_price)} + ${item.margin_pct ?? 0}% margin` : item.detail}
+              </span>
             </span>
             <span className="tabular shrink-0 text-ink-muted">
               {item.quantity} × {money(item.unit_price)} = <span className="font-semibold text-ink">{money(item.quantity * item.unit_price)}</span>
@@ -260,7 +294,58 @@ export function QuoteLines({ quote }: { quote: Quote }) {
         {quote.discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(quote.discount)}</dd></div> : null}
         <div className="flex justify-between"><dt className="text-ink-muted">VAT ({quote.vat_rate}%)</dt><dd className="tabular">{money(quote.vat_amount)}</dd></div>
         <div className="flex justify-between text-base font-semibold text-ink"><dt>Total</dt><dd className="tabular">{money(quote.amount)}</dd></div>
+        <div className="flex justify-between border-t border-border pt-2 text-ink-muted"><dt>Profit after discount, before VAT</dt><dd className="tabular font-semibold text-ink">{money(quote.net_amount - cost)}</dd></div>
       </dl>
+    </div>
+  );
+}
+
+/** One draggable, droppable line: the grip (or the up and down keys on it) reorders; every field is labelled. */
+function LineRow({ row, index, count, onChange, onRemove, onShift }: { row: Row; index: number; count: number; onChange: (patch: Partial<Row>) => void; onRemove: () => void; onShift: (by: -1 | 1) => void }) {
+  const drag = useDraggable({ id: row.key });
+  const drop = useDroppable({ id: row.key });
+  const field = (label: string, input: ReactNode) => (
+    <label className="flex flex-col gap-1 text-xs text-ink-muted">
+      {label}
+      {input}
+    </label>
+  );
+  return (
+    <div
+      ref={(node) => {
+        drag.setNodeRef(node);
+        drop.setNodeRef(node);
+      }}
+      style={{ transform: drag.transform ? `translate3d(0, ${drag.transform.y}px, 0)` : undefined }}
+      className={clsx('relative flex flex-col gap-2 rounded-control border bg-surface p-2', drag.isDragging ? 'z-10 border-green-900 shadow-overlay' : drop.isOver ? 'border-green-900' : 'border-border')}
+    >
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          {...drag.listeners}
+          {...drag.attributes}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+              event.preventDefault();
+              onShift(event.key === 'ArrowUp' ? -1 : 1);
+            }
+          }}
+          aria-label={`Move line ${index + 1} of ${count}: drag, or press the up and down arrow keys`}
+          className="flex min-h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-ink-muted hover:text-ink active:cursor-grabbing"
+        >
+          <DotsSixVertical size={18} aria-hidden="true" />
+        </button>
+        <input value={row.description} onChange={(event) => onChange({ description: event.target.value })} aria-label={`Line ${index + 1} item`} placeholder="Item" maxLength={300} className={FIELD_BASE} />
+        <button type="button" disabled={count === 1} onClick={onRemove} aria-label={`Remove line ${index + 1}`} className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger disabled:opacity-30">
+          <Trash size={16} aria-hidden="true" />
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2 pl-10 sm:grid-cols-4">
+        {field('Qty', <input type="number" inputMode="numeric" min={1} step={1} value={row.quantity} onChange={(event) => onChange({ quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })} className={clsx(FIELD_BASE, 'tabular')} />)}
+        {field('Cost each (£)', <input type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} onChange={(event) => onChange({ cost: event.target.value })} placeholder="0.00" className={clsx(FIELD_BASE, 'tabular')} />)}
+        {field('Margin (%)', <input type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} onChange={(event) => onChange({ margin: event.target.value })} placeholder="0" className={clsx(FIELD_BASE, 'tabular')} />)}
+        {field('Price each (£)', <output className="tabular flex min-h-11 items-center text-sm font-semibold text-ink">{money(sellPence(row) / 100)}</output>)}
+      </div>
     </div>
   );
 }
@@ -289,10 +374,14 @@ function QuoteEditor({
   const [discount, setDiscount] = useState(quote?.discount ? String(quote.discount) : '');
   const [notes, setNotes] = useState(quote?.notes ?? '');
   const [rows, setRows] = useState<Row[]>(() =>
-    quote?.items.length ? quote.items.map((item) => ({ key: ++rowKey, description: item.description, quantity: String(item.quantity), unit_price: String(item.unit_price) })) : [blank()],
+    quote?.items.length
+      ? quote.items.map((item) => ({ key: ++rowKey, description: item.description, quantity: String(item.quantity), cost: String(item.cost_price ?? item.unit_price), margin: String(item.margin_pct ?? 0) }))
+      : [blank()],
   );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState('edit');
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }));
 
   // A project on the way in (from its page) fills the client once the lists have loaded.
   useEffect(() => {
@@ -305,12 +394,25 @@ function QuoteEditor({
   const own = projects.filter((project) => project.client_id === clientId);
   const totals = preview(rows, Number(vatRate) || 0, Number(discount) || 0);
   const set = (key: number, patch: Partial<Row>) => setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
+  /** Moves a line to another place in the list (dragged, or by the arrow keys). */
+  const moveRow = (from: number, to: number) =>
+    setRows((current) => {
+      if (to < 0 || to >= current.length) return current;
+      const next = [...current];
+      next.splice(to, 0, next.splice(from, 1)[0]!);
+      return next;
+    });
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (over && active.id !== over.id) moveRow(rows.findIndex((r) => r.key === active.id), rows.findIndex((r) => r.key === over.id));
+  };
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     if (!clientId || !projectId) return setError('Choose the client and the project this quote is for.');
-    const items = rows.filter((row) => row.description.trim()).map((row) => ({ description: row.description.trim(), quantity: Number(row.quantity), unit_price: Number(row.unit_price) || 0 }));
+    const items = rows
+      .filter((row) => row.description.trim())
+      .map((row) => ({ description: row.description.trim(), quantity: Number(row.quantity), unit_price: sellPence(row) / 100, cost_price: Number(row.cost) || 0, margin_pct: Number(row.margin) || 0 }));
     if (items.length === 0) return setError('Add at least one line.');
     const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, vat_rate: Number(vatRate) || 0, discount: Number(discount) || 0, items };
     setSaving(true);
@@ -326,6 +428,11 @@ function QuoteEditor({
   return (
     <Modal open onClose={onClose} title={quote ? `Edit ${quote.number}` : 'New quote'} width="lg">
       <form onSubmit={save} className="flex flex-col gap-4" noValidate>
+        <Tabs tabs={[{ id: 'edit', label: 'Edit' }, { id: 'preview', label: 'Client preview' }]} active={tab} onChange={setTab} />
+        {tab === 'preview' ? (
+          <ClientQuoteView subtotal={totals.subtotal} discount={Number(discount) || 0} vatRate={Number(vatRate) || 0} vat={totals.vat} total={totals.gross} notes={notes.trim() || null} />
+        ) : null}
+        <div className={clsx('flex flex-col gap-4', tab === 'preview' && 'hidden')}>
         <div className="grid gap-3 sm:grid-cols-2">
           <Select label="Client" value={clientId} disabled={Boolean(quote)} onChange={(event) => { setClientId(event.target.value); setProjectId(''); }}>
             <option value="">Choose a client…</option>
@@ -344,23 +451,22 @@ function QuoteEditor({
         </div>
 
         <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">Lines <span className="font-normal text-ink-muted">(prices are before VAT)</span></p>
-          {rows.map((row, index) => (
-            <div key={row.key} className="grid grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_2.75rem] items-center gap-2">
-              <input value={row.description} onChange={(event) => set(row.key, { description: event.target.value })} aria-label={`Line ${index + 1} item`} placeholder="Item" maxLength={300} className={FIELD_BASE} />
-              <input
-                type="number" inputMode="numeric" min={1} step={1} value={row.quantity}
-                onChange={(event) => set(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })}
-                aria-label={`Line ${index + 1} quantity`} placeholder="Qty" className={clsx(FIELD_BASE, 'tabular')}
+          <p className="text-sm font-semibold text-ink">Lines <span className="font-normal text-ink-muted">(cost and price are before VAT; price = cost + margin)</span></p>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            {rows.map((row, index) => (
+              <LineRow
+                key={row.key}
+                row={row}
+                index={index}
+                count={rows.length}
+                onChange={(patch) => set(row.key, patch)}
+                onRemove={() => setRows((current) => current.filter((r) => r.key !== row.key))}
+                onShift={(by) => moveRow(index, index + by)}
               />
-              <input type="number" inputMode="decimal" min={0} step="0.01" value={row.unit_price} onChange={(event) => set(row.key, { unit_price: event.target.value })} aria-label={`Line ${index + 1} price each, in pounds`} placeholder="£ each" className={clsx(FIELD_BASE, 'tabular')} />
-              <button type="button" disabled={rows.length === 1} onClick={() => setRows((current) => current.filter((r) => r.key !== row.key))} aria-label={`Remove line ${index + 1}`} className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger disabled:opacity-30">
-                <Trash size={16} aria-hidden="true" />
-              </button>
-            </div>
-          ))}
+            ))}
+          </DndContext>
           <div>
-            <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={rows.length >= 50} onClick={() => setRows((current) => [...current, blank()])}>
+            <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={rows.length >= 50} onClick={() => setRows((current) => [...current, blank(current.at(-1)?.margin ?? '')])}>
               Add line
             </Button>
           </div>
@@ -371,6 +477,7 @@ function QuoteEditor({
           <Input label="Discount (£)" type="number" inputMode="decimal" min="0" step="0.01" value={discount} hint="Taken off before VAT." onChange={(event) => setDiscount(event.target.value)} />
         </div>
         <Textarea label="Notes for the client" rows={3} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} />
+        </div>
 
         <p className="tabular text-right text-sm text-ink-muted">
           Subtotal {money(totals.subtotal)} · VAT {money(totals.vat)} · <span className="text-base font-semibold text-ink">Total {money(totals.gross)}</span>

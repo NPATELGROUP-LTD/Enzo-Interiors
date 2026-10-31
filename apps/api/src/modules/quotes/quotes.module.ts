@@ -22,11 +22,11 @@ import { ProjectQuote, ProjectQuoteItem, QuoteStatus } from '../../common/types/
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
-import { ItemInput } from '../../data/invoice-store';
+import { QuoteItemInput } from '../../data/quote-store';
 import { InvoicesModule } from '../invoices/invoices.controller';
 import { InvoiceItemDto, InvoicesService } from '../invoices/invoices.service';
 import { DEFAULT_STAGES } from '../invoices/stages';
-import { MAX_AMOUNT, totalsOf } from '../invoices/totals';
+import { MAX_AMOUNT, pennies, totalsOf } from '../invoices/totals';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 
 /* -------------------------------------------------------------------------- */
@@ -34,6 +34,16 @@ import { NotificationsModule, NotificationsService } from '../notifications/noti
 /* -------------------------------------------------------------------------- */
 
 const OptionalText = () => Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value));
+
+/** A line as the Admin writes it: with a cost, the price each is cost + margin and is worked out here. */
+export class QuoteItemDto extends InvoiceItemDto {
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Cost must have at most 2 decimal places' }) @Min(0) @Max(9_999_999.99)
+  cost_price?: number | null;
+
+  /** Percent added on top of the cost. */
+  @IsOptional() @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Margin must have at most 2 decimal places' }) @Min(0) @Max(1000)
+  margin_pct?: number | null;
+}
 
 class QuoteFields {
   @OptionalText() @IsOptional() @IsString() @MaxLength(200) title?: string | null;
@@ -49,14 +59,14 @@ export class CreateQuoteDto extends QuoteFields {
   @IsString() client_id!: string;
   /** A quote is always for a project of that client. */
   @IsString() project_id!: string;
-  @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
-  items!: InvoiceItemDto[];
+  @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => QuoteItemDto)
+  items!: QuoteItemDto[];
 }
 
 export class UpdateQuoteDto extends QuoteFields {
   @IsOptional()
-  @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => InvoiceItemDto)
-  items?: InvoiceItemDto[];
+  @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => QuoteItemDto)
+  items?: QuoteItemDto[];
 }
 
 export class RespondDto {
@@ -105,7 +115,7 @@ export class QuotesService {
     const where = this.access.isClient(principal)
       ? { client_id: principal.id, status: { not: 'Draft' } }
       : { ...(query.project_id ? { project_id: query.project_id } : {}), ...(query.client_id ? { client_id: query.client_id } : {}) };
-    return this.views(await this.db.projectQuotes.findWhere(where, { orderBy: { created_at: 'desc' } }));
+    return this.views(await this.db.projectQuotes.findWhere(where, { orderBy: { created_at: 'desc' } }), this.access.isClient(principal));
   }
 
   async findOne(principal: AuthPrincipal, id: string): Promise<QuoteView> {
@@ -114,7 +124,7 @@ export class QuotesService {
     if (!quote || (this.access.isClient(principal) && (quote.client_id !== principal.id || quote.status === 'Draft'))) {
       throw new NotFoundException('Quote not found');
     }
-    return (await this.views([quote]))[0]!;
+    return (await this.views([quote], this.access.isClient(principal)))[0]!;
   }
 
   async create(principal: AuthPrincipal, dto: CreateQuoteDto): Promise<QuoteView> {
@@ -171,7 +181,7 @@ export class QuotesService {
     if (!EDITABLE.includes(quote.status)) throw new BadRequestException(`A ${quote.status} quote cannot be edited. Withdraw it first, or raise a new one.`);
 
     const existing = await this.db.projectQuoteItems.findWhere({ quote_id: id }, { orderBy: { position: 'asc' } });
-    const items = dto.items ? this.lines(dto.items) : existing.map(({ description, section, detail, quantity, unit_price }) => ({ description, section, detail, quantity, unit_price }));
+    const items = dto.items ? this.lines(dto.items) : existing.map(({ description, section, detail, quantity, unit_price, cost_price, margin_pct }) => ({ description, section, detail, quantity, unit_price, cost_price, margin_pct }));
     const vat_rate = dto.vat_rate ?? quote.vat_rate;
     const discount = dto.discount ?? quote.discount;
     const saved = await this.db.quoteStore.replace(
@@ -242,7 +252,7 @@ export class QuotesService {
     const invoice = await this.invoices.create(principal, {
       client_id: quote.client_id,
       project_id: quote.project_id,
-      items: quote.items.map((item) => Object.assign(new InvoiceItemDto(), item)),
+      items: quote.items.map(({ description, section, detail, quantity, unit_price }) => Object.assign(new InvoiceItemDto(), { description, section, detail, quantity, unit_price })),
       vat_rate: quote.vat_rate,
       discount: quote.discount,
       due_date: new Date(Date.now() + INVOICE_DUE_DAYS * 86_400_000).toISOString().slice(0, 10),
@@ -272,11 +282,17 @@ export class QuotesService {
 
   /* ------------------------------------------------------------------ */
 
-  private lines(dtos: InvoiceItemDto[]): ItemInput[] {
-    return dtos.map(({ description, section, detail, quantity, unit_price }) => ({ description, section: section ?? null, detail: detail ?? null, quantity, unit_price }));
+  private lines(dtos: QuoteItemDto[]): QuoteItemInput[] {
+    return dtos.map(({ description, section, detail, quantity, unit_price, cost_price, margin_pct }) => {
+      const cost = cost_price ?? null;
+      const margin = cost === null ? null : (margin_pct ?? 0);
+      // With a cost, the price the client pays is cost + margin, to the penny; the browser's own sum is never trusted.
+      const price = cost === null ? unit_price : pennies(new Prisma.Decimal(cost).mul(100 + margin!).div(100)).toNumber();
+      return { description, section: section ?? null, detail: detail ?? null, quantity, unit_price: price, cost_price: cost, margin_pct: margin };
+    });
   }
 
-  private gross(items: ItemInput[], vatRate: number, discount: number): number {
+  private gross(items: QuoteItemInput[], vatRate: number, discount: number): number {
     const totals = totalsOf(items, vatRate, discount);
     if (totals.net < 0) throw new BadRequestException('The discount cannot be more than the lines add up to.');
     if (totals.gross >= MAX_AMOUNT) throw new BadRequestException('That total is too large for one quote.');
@@ -290,8 +306,8 @@ export class QuotesService {
     return `${prefix}${String(highest + 1).padStart(4, '0')}`;
   }
 
-  /** Quotes with their lines and names, in a handful of queries however many there are. */
-  private async views(quotes: ProjectQuote[]): Promise<QuoteView[]> {
+  /** Quotes with their lines and names, in a handful of queries however many there are. A client gets totals only: no lines, so no cost or margin. */
+  private async views(quotes: ProjectQuote[], forClient = false): Promise<QuoteView[]> {
     if (quotes.length === 0) return [];
     const ids = (pick: (q: ProjectQuote) => string) => [...new Set(quotes.map(pick))];
     const [items, clients, projects] = await Promise.all([
@@ -306,7 +322,7 @@ export class QuotesService {
       const split = totalsOf(own, quote.vat_rate, quote.discount);
       return {
         ...quote,
-        items: own,
+        items: forClient ? [] : own,
         client_name: clientName.get(quote.client_id) ?? 'Unknown client',
         project_name: projectName.get(quote.project_id) ?? null,
         subtotal_amount: split.subtotal,

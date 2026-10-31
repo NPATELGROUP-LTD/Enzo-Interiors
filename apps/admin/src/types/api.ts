@@ -586,7 +586,11 @@ export interface QuoteItem {
   section: string | null;
   detail: string | null;
   quantity: number;
+  /** The price each the client pays: cost + margin. */
   unit_price: number;
+  /** Studio only: what the line costs, and the % added on top. Null on older quotes. */
+  cost_price: number | null;
+  margin_pct: number | null;
   position: number;
 }
 
