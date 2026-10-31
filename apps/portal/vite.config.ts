@@ -50,18 +50,13 @@ export default defineConfig({
         navigateFallback: 'index.html',
         navigateFallbackDenylist: [/^\/api\//],
         /**
-         * Only the app shell is cached. Everything else goes to the network
-         * and is never stored: API answers are a client's private data and
-         * live for one session, and a document link is signed for five
-         * minutes. That is anything on another origin (the API, the private
-         * bucket's signed URLs, fonts) and any /api path on this one.
+         * Only the app shell is cached, and no runtime route is registered on purpose: a route's
+         * handler would fetch() from inside the service worker, which /sw.js's connect-src (the API
+         * and the PUBLIC bucket's path only) refuses, so a private-bucket document image came up
+         * broken (alt text and an icon). Unrouted requests go straight to the network from the page,
+         * under its img-src / frame-src, and are never stored: API answers are a client's private
+         * data and a document link is signed for five minutes.
          */
-        runtimeCaching: [
-          {
-            urlPattern: ({ url, sameOrigin }) => !sameOrigin || url.pathname.startsWith('/api/'),
-            handler: 'NetworkOnly',
-          },
-        ],
       },
       devOptions: {
         // Keep the SW off in dev: it caches aggressively and makes "did my

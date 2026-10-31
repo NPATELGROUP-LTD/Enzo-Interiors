@@ -99,19 +99,8 @@ function QuoteDetail({ id }: { id: string }) {
       />
       <Card className="flex flex-col gap-4">
         {q.valid_until ? <p className="text-sm text-ink-muted">Valid until {date(q.valid_until)}.</p> : null}
-        <ul className="divide-y divide-border/60 text-sm">
-          {q.items.map((item) => (
-            <li key={item.id} className="flex items-baseline justify-between gap-4 py-2">
-              <span className="min-w-0 text-ink">
-                {item.description}
-                {item.detail ? <span className="block text-xs text-ink-muted">{item.detail}</span> : null}
-              </span>
-              <span className="tabular shrink-0 text-ink-muted">
-                {item.quantity} × {money(item.unit_price)} = <span className="font-semibold text-ink">{money(item.quantity * item.unit_price)}</span>
-              </span>
-            </li>
-          ))}
-        </ul>
+        {/* Installation charges and the totals only: the API sends no lines, costs or margins. Keep in step with apps/admin Quotes.tsx. */}
+        <div className="flex items-baseline justify-between text-sm font-semibold text-ink"><span>Installation charges</span><span className="tabular">{money(q.subtotal_amount)}</span></div>
         <dl className="flex flex-col gap-1 border-t border-border pt-3 text-sm">
           <div className="flex justify-between"><dt className="text-ink-muted">Subtotal</dt><dd className="tabular">{money(q.subtotal_amount)}</dd></div>
           {q.discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(q.discount)}</dd></div> : null}

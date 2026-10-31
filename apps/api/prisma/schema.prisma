@@ -317,6 +317,8 @@ model ProjectQuoteItem {
   detail      String?
   quantity    Decimal      @db.Decimal(10, 2)
   unit_price  Decimal      @db.Decimal(12, 2)
+  cost_price  Decimal?     @db.Decimal(12, 2)
+  margin_pct  Decimal?     @db.Decimal(6, 2)
   position    Int          @default(0)
   quote       ProjectQuote @relation(fields: [quote_id], references: [id], onDelete: Cascade)
 
