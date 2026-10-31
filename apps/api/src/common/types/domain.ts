@@ -201,6 +201,9 @@ export interface Client extends BaseRecord {
   password_is_default?: boolean;
   /** The emailed password stops working after this while it is still the default. Null = no expiry (clients invited before v3). */
   default_password_expires_at?: string | null;
+  /** The portal terms version they last accepted (modules/auth/terms.ts); null or older = asked again. */
+  terms_version?: string | null;
+  terms_accepted_at?: string | null;
 }
 
 /** Schema 3.3 */
@@ -751,6 +754,17 @@ export interface StaffRemovalRequest extends BaseRecord {
   decision_note: string | null;
   decided_at: string | null;
   created_at: string;
+}
+
+/** A client accepting the portal terms; kept as evidence, with no link to the client row. */
+export interface TermsAcceptance extends BaseRecord {
+  client_id: string;
+  client_name: string;
+  client_email: string;
+  version: string;
+  ip: string | null;
+  device: string | null;
+  accepted_at: string;
 }
 
 /** A Designer's client edit or an Installer's stage move, waiting for an Admin (modules/change-requests). */

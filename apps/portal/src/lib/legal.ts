@@ -32,7 +32,9 @@ export const COMPANY = {
 };
 
 export const APP_NAME = 'Enzo Interiors client portal';
-export const UPDATED = '24 October 2026';
+export const UPDATED = '31 October 2026';
+/** What a client accepts. Keep in step with PORTAL_TERMS_VERSION in apps/api/src/modules/auth/terms.ts: the API refuses any other. */
+export const TERMS_VERSION = '2026-10-31';
 
 /** A paragraph, or a bullet list. */
 export type Block = string | string[];
@@ -95,6 +97,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Your invoices: the lines, amounts, dates, payment schedule and whether they are paid.',
             'A security record of when you sign in and of requests that change something or are refused: the time, your IP address, the country it comes from and the kind of browser and system (for example “Chrome · Windows”). A failed sign-in keeps only a masked version of the address that was typed.',
             'Messages between you and our team, and whether they have been read.',
+            'A record that you accepted the portal terms: the date and time, which version, your IP address and the kind of browser.',
             'Your notification choices and, if you allow them, the address your browser gives us to send notifications to that device, with the browser’s name.',
           ],
           'Your device’s IP address is handled by Cloudflare and our server to deliver pages and to slow down repeated sign-in attempts. Those counters last a short time. We also keep it in a security record, as above.',
@@ -140,6 +143,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Your client and project records, including files, messages and notes: 6 years after your project is completed, then deleted or made anonymous.',
             'Your portal access: until you ask us to close it or your project work has ended. Closing it does not delete the records above.',
             'Short-lived items: password reset links last 30 minutes, and a notification address stays until you turn notifications off or sign out.',
+            'The record that you accepted the terms: 6 years after your project is completed, with your other records.',
             'The security record of sign-ins and requests, with the IP addresses in it: 90 days, then deleted.',
             'Backups roll over on a schedule, so deleted information drops out as they are replaced.',
           ],
@@ -196,6 +200,16 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'You are responsible for what is done with your account until you tell us it may be compromised.',
           ],
           'We may suspend access if it looks insecure or is being misused.',
+        ],
+      },
+      {
+        id: 'agreement',
+        heading: 'Accepting these terms, and what you do in your account',
+        body: [
+          'You accept these terms by ticking “I agree” when the portal asks. We record the date and time, the version you accepted, your IP address and the kind of browser you used, and keep that record as evidence of what you agreed to.',
+          'Your account is you. What is done while signed in to your account, such as approving a design, accepting or declining a quotation, asking for changes, sending a message or sharing a file, is treated as done by you and is legally binding on you, as if you had signed it on paper.',
+          'This does not take away any right you have as a consumer, including any right to cancel under your job contract.',
+          'We may ask you to accept the terms again, for example when they change. You cannot use the portal until you do.',
         ],
       },
       {

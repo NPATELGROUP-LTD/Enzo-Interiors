@@ -89,6 +89,8 @@ export function ClientsPage() {
   const [saving, setSaving] = useState(false);
 
   const [deleting, setDeleting] = useState<Client | null>(null);
+  const [askingAll, setAskingAll] = useState(false);
+  const [askAllPending, setAskAllPending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
 
   const counts = useMemo(() => {
@@ -197,6 +199,20 @@ export function ClientsPage() {
       setFormError(caught instanceof ApiError ? caught.message : 'Could not save this client.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const askAll = async () => {
+    setAskAllPending(true);
+    try {
+      const { asked } = await api.post<{ asked: number }>('/clients/terms/reset');
+      toast.success(asked === 1 ? '1 client will be asked again.' : `${asked} clients will be asked again.`);
+      setAskingAll(false);
+      await clients.refetch();
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not ask for the terms.');
+    } finally {
+      setAskAllPending(false);
     }
   };
 
@@ -321,6 +337,11 @@ export function ClientsPage() {
               className="min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900"
             />
           </div>
+          {isAdmin ? (
+            <Button variant="secondary" onClick={() => setAskingAll(true)}>
+              Ask all to accept terms
+            </Button>
+          ) : null}
           {isAdmin ? (
             <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={openCreate}>
               Add client
@@ -461,6 +482,16 @@ export function ClientsPage() {
       >
         {formFields}
       </Modal>
+
+      <ConfirmDialog
+        open={askingAll}
+        title="Ask every client to accept the terms again?"
+        message="Each client sees the terms window the next time they open the portal and cannot carry on until they accept. What they already accepted stays on record."
+        confirmLabel="Ask everyone"
+        pending={askAllPending}
+        onCancel={() => setAskingAll(false)}
+        onConfirm={() => void askAll()}
+      />
 
       <ConfirmDialog
         open={deleting !== null}

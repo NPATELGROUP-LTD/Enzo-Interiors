@@ -6,7 +6,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleAuthController, GoogleAuthService } from './google';
-import { PortalAccountService, PortalPasswordController, PortalPreferencesController } from './portal-account';
+import { PortalAccountService, PortalPasswordController, PortalPreferencesController, PortalTermsController } from './portal-account';
 import { TwoFactorService } from './two-factor';
 import { UsersController, UsersService } from './users';
 
@@ -48,7 +48,7 @@ function mustHaveSecret(config: ConfigService): string {
       }),
     }),
   ],
-  controllers: [AuthController, GoogleAuthController, UsersController, PortalPasswordController, PortalPreferencesController],
+  controllers: [AuthController, GoogleAuthController, UsersController, PortalPasswordController, PortalPreferencesController, PortalTermsController],
   providers: [AuthService, TwoFactorService, GoogleAuthService, UsersService, PortalAccountService],
   // For ClientsModule's portal invitations.
   exports: [AuthService],

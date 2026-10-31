@@ -50,6 +50,7 @@ interface AuthState {
   logout: () => void;
   /** They changed or kept the emailed password: stop asking. */
   passwordChosen: () => void;
+  termsAgreed: () => void;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -156,9 +157,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const termsAgreed = useCallback(() => {
+    setUser((current) => {
+      const next = current && { ...current, termsAccepted: true };
+      userCache.write(next);
+      return next;
+    });
+  }, []);
+
   const value = useMemo<AuthState>(
-    () => ({ user, loading, login, logout, passwordChosen }),
-    [user, loading, login, logout, passwordChosen],
+    () => ({ user, loading, login, logout, passwordChosen, termsAgreed }),
+    [user, loading, login, logout, passwordChosen, termsAgreed],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

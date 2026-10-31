@@ -1,4 +1,4 @@
-import { ChatsCircle, EnvelopeSimple, Plus } from '@phosphor-icons/react';
+import { ArrowsClockwise, ChatsCircle, EnvelopeSimple, Plus } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -55,6 +55,7 @@ export function ClientDetailPage() {
   const { isAdmin } = useAuth();
   const toast = useToast();
   const [inviting, setInviting] = useState(false);
+  const [asking, setAsking] = useState(false);
   const [creatingProject, setCreatingProject] = useState(false);
   const designers = useDesigners(isAdmin);
 
@@ -79,6 +80,20 @@ export function ClientDetailPage() {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not send the invitation.');
     } finally {
       setInviting(false);
+    }
+  };
+
+  // The portal shows the terms window on their next open; every earlier acceptance stays on record.
+  const askTerms = async () => {
+    setAsking(true);
+    try {
+      await api.post(`/clients/${client.id}/terms/reset`);
+      toast.success(`${client.name} will be asked to accept the terms again the next time they open the portal.`);
+      await refetch();
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not ask for the terms.');
+    } finally {
+      setAsking(false);
     }
   };
 
@@ -122,6 +137,17 @@ export function ClientDetailPage() {
             {isAdmin ? (
               <Button variant="secondary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setCreatingProject(true)}>
                 New project
+              </Button>
+            ) : null}
+            {isAdmin && client.has_portal_access && client.terms_accepted ? (
+              <Button
+                variant="secondary"
+                icon={<ArrowsClockwise size={16} aria-hidden="true" />}
+                loading={asking}
+                onClick={askTerms}
+                title="Shows them the terms window again on their next open, for example after testing"
+              >
+                Ask to accept terms again
               </Button>
             ) : null}
             {isAdmin && client.status === 'Active' && (!client.has_portal_access || onEmailedPassword) ? (
@@ -191,6 +217,16 @@ export function ClientDetailPage() {
                   'Portal access',
                   client.has_portal_access && !onEmailedPassword ? 'Signed up' : invited ? 'Invited, still on the emailed password' : 'Not invited',
                 ],
+                ...(client.has_portal_access
+                  ? [
+                      [
+                        'Portal terms',
+                        client.terms_accepted
+                          ? `Accepted ${client.terms_accepted_at ? dateTime(client.terms_accepted_at) : ''}`.trim()
+                          : 'Not accepted yet; asked on their next open',
+                      ],
+                    ]
+                  : []),
                 ['Looked after by', assigned_staff ? assigned_staff.name : 'Nobody in particular'],
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-wrap justify-between gap-2">

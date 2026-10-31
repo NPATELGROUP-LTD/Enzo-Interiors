@@ -6,6 +6,7 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
+import { PORTAL_TERMS_VERSION as version } from '../modules/auth/terms';
 import { ADMIN, startTestApp } from './app';
 
 /** Portal sign-in and default-deny for client tokens, against the real AppModule. */
@@ -49,7 +50,7 @@ test('a client signs in and /auth/me answers as that client', async () => {
   const res = await post('/auth/portal/login', { email: ACTIVE.email.toUpperCase(), password: PASSWORD });
   assert.equal(res.status, 200);
   const body = (await res.json()) as { access_token: string; user: Record<string, unknown> };
-  assert.deepEqual(body.user, { id: ACTIVE.id, kind: 'Client', role: 'Client', name: 'Test Client', email: ACTIVE.email, passwordIsDefault: false });
+  assert.deepEqual(body.user, { id: ACTIVE.id, kind: 'Client', role: 'Client', name: 'Test Client', email: ACTIVE.email, passwordIsDefault: false, termsAccepted: false });
 
   const me = await get('/auth/me', body.access_token);
   assert.equal(me.status, 200);
@@ -201,6 +202,47 @@ test('a client changes their password: the old token and old password die, a new
     assert.equal((await put('/account/password', admin, { current_password: ADMIN.password, new_password: next })).status, 403);
   } finally {
     await prisma.notificationPreference.deleteMany({ where: { owner_id: me.id } });
+    await prisma.client.delete({ where: { id: me.id } });
+  }
+});
+
+test('a client must accept the portal terms; the Admin can ask again; every acceptance is kept', async () => {
+  const me = { id: `cli_terms_${run}`, email: `terms-${run}@test.enzo.local` };
+  await prisma.client.create({ data: { ...me, name: 'Terms Client', status: 'Active', joined_date: new Date(), password_hash: await bcrypt.hash(PASSWORD, 4) } });
+  const sign = () => app.nest.get(JwtService).signAsync({ sub: me.id, kind: 'Client', role: 'Client', name: 'Terms Client', email: me.email, tv: 0 });
+  const send = (method: string, path: string, bearer: string, body?: unknown) =>
+    fetch(`${app.url}${path}`, { method, headers: { authorization: `Bearer ${bearer}`, 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
+  const termsAccepted = async (bearer: string) => ((await (await get('/auth/me', bearer)).json()) as { termsAccepted: boolean }).termsAccepted;
+  try {
+    const client = await sign();
+    const admin = await token('/auth/admin/login', ADMIN.email, ADMIN.password);
+    assert.equal(await termsAccepted(client), false);
+
+    // Only the version they were shown can be accepted; staff cannot accept for anyone.
+    assert.equal((await send('POST', '/account/terms/accept', client, { version: 'old' })).status, 409);
+    assert.equal((await send('POST', '/account/terms/accept', admin, { version: 'x' })).status, 403);
+    assert.equal((await send('POST', '/account/terms/accept', client, { version })).status, 204);
+    assert.equal((await send('POST', '/account/terms/accept', client, { version })).status, 204); // a double click adds nothing
+    assert.equal(await termsAccepted(client), true);
+    assert.equal(await prisma.termsAcceptance.count({ where: { client_id: me.id } }), 1);
+
+    // The Admin asks again: the flag drops, the record stays, and accepting adds a second row.
+    assert.equal((await send('POST', `/clients/${me.id}/terms/reset`, client)).status, 403);
+    assert.equal((await send('POST', `/clients/${me.id}/terms/reset`, admin)).status, 200);
+    assert.equal(await termsAccepted(client), false);
+    assert.equal(await prisma.termsAcceptance.count({ where: { client_id: me.id } }), 1);
+    assert.equal((await send('POST', '/account/terms/accept', client, { version })).status, 204);
+    assert.equal(await prisma.termsAcceptance.count({ where: { client_id: me.id } }), 2);
+
+    // Ask everyone: this client is among them.
+    const all = await send('POST', '/clients/terms/reset', admin);
+    assert.equal(all.status, 200);
+    assert.ok(((await all.json()) as { asked: number }).asked >= 1);
+    assert.equal(await termsAccepted(client), false);
+    const view = (await (await get(`/clients/${me.id}`, admin)).json()) as { terms_accepted: boolean };
+    assert.equal(view.terms_accepted, false);
+  } finally {
+    await prisma.termsAcceptance.deleteMany({ where: { client_id: me.id } });
     await prisma.client.delete({ where: { id: me.id } });
   }
 });

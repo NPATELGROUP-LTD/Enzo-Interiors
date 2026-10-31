@@ -20,7 +20,8 @@ export function DefaultPasswordPrompt() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  if (!user?.passwordIsDefault) return null;
+  // The terms window comes first.
+  if (!user?.passwordIsDefault || user.termsAccepted === false) return null;
 
   const keep = async () => {
     setBusy(true);
