@@ -8,6 +8,7 @@ import { PrivateStorage } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { AuthService, looksHashed } from '../auth/auth.service';
 import { confirmPassword } from '../auth/reauth';
+import { hasAcceptedTerms } from '../auth/terms';
 import { sumMoney } from '../invoices/totals';
 import { categoryOf } from '../documents/categories';
 import { doneStage, loadStages } from '../projects/stages';
@@ -19,6 +20,8 @@ import { CreateClientDto, UpdateClientDto } from './dto';
  */
 export type ClientView = Omit<Client, 'password_hash' | 'token_version' | 'total_spent'> & {
   has_portal_access: boolean;
+  /** They have accepted the current portal terms. */
+  terms_accepted: boolean;
   /** Admin only: money is not a Designer's business. */
   total_spent?: number;
 };
@@ -26,7 +29,7 @@ export type ClientView = Omit<Client, 'password_hash' | 'token_version' | 'total
 export function toClientView(client: Client): ClientView {
   const { password_hash, ...rest } = client;
   delete rest.token_version;
-  return { ...rest, has_portal_access: looksHashed(password_hash) };
+  return { ...rest, has_portal_access: looksHashed(password_hash), terms_accepted: hasAcceptedTerms(client) };
 }
 
 @Injectable()
@@ -157,6 +160,24 @@ export class ClientsService {
       details: { email: client.email, emailed },
     });
     return { emailed };
+  }
+
+  /**
+   * Asks for the terms again: the client's next request answers with termsAccepted false and the portal
+   * shows the acceptance window. `id` omitted = every client. Past acceptances stay in terms_acceptances.
+   */
+  async resetTerms(principal: AuthPrincipal, id?: string): Promise<{ asked: number }> {
+    if (id) await this.require(principal, id);
+    const where = id ? { id } : { terms_version: { not: null } };
+    const asked = await this.db.clients.updateWhere(where, { terms_version: null });
+    await this.activity.record({
+      principal,
+      action: 'client_terms_reset',
+      targetTable: 'clients',
+      targetId: id ?? 'all',
+      details: { clients: asked },
+    });
+    return { asked };
   }
 
   /**

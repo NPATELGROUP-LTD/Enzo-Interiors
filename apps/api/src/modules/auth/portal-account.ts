@@ -1,11 +1,12 @@
-import { Body, Controller, Get, HttpCode, Injectable, NotFoundException, Post, Put } from '@nestjs/common';
+import { Body, Controller, Get, Headers, HttpCode, Injectable, NotFoundException, Post, Put } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsOptional, ValidateNested } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { NotificationPreference } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
+import { deviceOf } from '../../core/access-log.service';
 import { ClientIp } from '../../core/client-ip';
 import { DatabaseService } from '../../data/database.service';
 import { NOTIFY_CATEGORIES, choicesOf } from '../notifications/preferences';
@@ -41,6 +42,10 @@ export class UpdateNotificationPreferencesDto {
 
 /** The row, plus the full grid of what each kind of update may do (defaults filled in). */
 const view = (row: NotificationPreference) => ({ ...row, categories: choicesOf(row) });
+
+export class AcceptTermsDto {
+  @IsString() @MaxLength(40) version!: string;
+}
 
 @Injectable()
 export class PortalAccountService {
@@ -98,6 +103,25 @@ export class PortalPasswordController {
   @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
   keepPassword(@CurrentUser() principal: AuthPrincipal): Promise<void> {
     return this.auth.keepClientPassword(principal);
+  }
+}
+
+@Controller('account/terms')
+@Roles('Client')
+export class PortalTermsController {
+  constructor(private readonly auth: AuthService) {}
+
+  /** "I agree": recorded with the time, version, IP and browser kind (auth.service acceptClientTerms). */
+  @Post('accept')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  accept(
+    @CurrentUser() principal: AuthPrincipal,
+    @Body() dto: AcceptTermsDto,
+    @ClientIp() ip: string,
+    @Headers('user-agent') userAgent?: string,
+  ): Promise<void> {
+    return this.auth.acceptClientTerms(principal, dto.version, ip, deviceOf(userAgent));
   }
 }
 

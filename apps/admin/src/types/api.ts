@@ -125,6 +125,9 @@ export interface Client {
   has_portal_access: boolean;
   /** Still the password that was emailed: they have neither changed it nor chosen to keep it. */
   password_is_default?: boolean;
+  /** They have accepted the current portal terms. */
+  terms_accepted?: boolean;
+  terms_accepted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
