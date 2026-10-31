@@ -42,6 +42,7 @@ import {
   SavedReplyTemplate,
   SiteSettings,
   StaffRemovalRequest,
+  TermsAcceptance,
   StaffUser,
   Testimonial,
   TrustedDevice,
@@ -115,6 +116,7 @@ export class DatabaseService {
   readonly gmailAccounts: PrismaRepository<GmailAccount>;
   readonly changeRequests: PrismaRepository<ChangeRequest>;
   readonly staffRemovalRequests: PrismaRepository<StaffRemovalRequest>;
+  readonly termsAcceptances: PrismaRepository<TermsAcceptance>;
   readonly alertSettings: PrismaRepository<AlertSettings>;
   readonly alertEvents: PrismaRepository<AlertEvent>;
   readonly alertStore: AlertStore;
@@ -129,7 +131,7 @@ export class DatabaseService {
       dates: [...stamps, 'reset_expires_at', 'totp_confirmed_at', 'login_code_expires_at'],
     });
     this.clients = new PrismaRepository(prisma.client, 'clients', {
-      dates: [...stamps, 'joined_date', 'default_password_expires_at'],
+      dates: [...stamps, 'joined_date', 'default_password_expires_at', 'terms_accepted_at'],
       decimals: ['total_spent'],
     });
     this.projects = new PrismaRepository(prisma.project, 'projects', { dates: stamps });
@@ -215,6 +217,7 @@ export class DatabaseService {
     this.staffRemovalRequests = new PrismaRepository(prisma.staffRemovalRequest, 'staff_removal_requests', {
       dates: ['created_at', 'decided_at'],
     });
+    this.termsAcceptances = new PrismaRepository(prisma.termsAcceptance, 'terms_acceptances', { dates: ['accepted_at'] });
     this.alertSettings = new PrismaRepository(prisma.alertSettings, 'alert_settings', { dates: ['updated_at'] });
     this.alertEvents = new PrismaRepository(prisma.alertEvent, 'alert_events', { dates: ['first_at', 'last_at'] });
     this.alertStore = new AlertStore(prisma);

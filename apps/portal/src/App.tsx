@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { DefaultPasswordPrompt } from './components/DefaultPasswordPrompt';
+import { TermsPrompt } from './components/TermsPrompt';
 import { PortalLayout } from './components/layout/PortalLayout';
 import { LoadingState } from './components/ui';
 import { useAuth } from './lib/auth';
@@ -67,6 +68,7 @@ export function App() {
 
   return (
     <>
+    <TermsPrompt />
     <DefaultPasswordPrompt />
     <Routes>
       <Route path="/login" element={<Navigate to="/dashboard" replace />} />

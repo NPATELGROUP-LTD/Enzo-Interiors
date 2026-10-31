@@ -81,9 +81,27 @@ model Client {
   password_is_default Boolean @default(false)
   /// The emailed password stops working after this (7 days from the invite) while it is still the default. Null = no expiry.
   default_password_expires_at DateTime? @db.Timestamptz(6)
+  /// The terms version (modules/auth/terms.ts) they last accepted; null, or an older one, = the portal asks again.
+  terms_version     String?
+  terms_accepted_at DateTime? @db.Timestamptz(6)
 
   @@index([assigned_staff_id])
   @@map("clients")
+}
+
+/// Evidence that a client accepted the portal terms: one row per acceptance, kept when the client asks again. No FK, so it outlives the client row.
+model TermsAcceptance {
+  id          String   @id
+  client_id   String
+  client_name String
+  client_email String
+  version     String
+  ip          String?
+  device      String?
+  accepted_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([client_id, accepted_at])
+  @@map("terms_acceptances")
 }
 
 model Project {

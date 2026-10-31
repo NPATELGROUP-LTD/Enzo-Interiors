@@ -67,6 +67,8 @@ export interface Principal {
   email: string;
   /** Still on the password the studio emailed: they are asked once to change it or keep it. */
   passwordIsDefault?: boolean;
+  /** False = the current terms are not accepted yet and the portal asks first. Undefined = an older cached session. */
+  termsAccepted?: boolean;
 }
 
 export interface LoginResponse {

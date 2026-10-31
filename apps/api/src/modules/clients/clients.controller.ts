@@ -54,6 +54,24 @@ export class ClientsController {
     return this.clients.update(principal, id, dto);
   }
 
+  /** Asks every client to accept the portal terms again (their next visit shows the window). */
+  @Post('terms/reset')
+  @Roles('Admin')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  resetAllTerms(@CurrentUser() principal: AuthPrincipal) {
+    return this.clients.resetTerms(principal);
+  }
+
+  /** Asks this client to accept the portal terms again. */
+  @Post(':id/terms/reset')
+  @Roles('Admin')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 15 * 60_000 } })
+  resetTerms(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    return this.clients.resetTerms(principal, id);
+  }
+
   /** Emails a one-time link to choose a portal password. Also how an invitation is resent. */
   @Post(':id/invite')
   @Roles('Admin')

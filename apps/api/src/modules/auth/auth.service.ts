@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomInt } from 'node:crypto';
 
 import {
   BadRequestException,
+  ConflictException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -12,17 +13,18 @@ import {
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 
-import { Client, StaffUser, TwoFactorMethod } from '../../common/types/domain';
+import { Client, StaffUser, TermsAcceptance, TwoFactorMethod } from '../../common/types/domain';
 import { AuthPrincipal, JwtPayload } from '../../common/types/principal';
 import { waitFor } from '../../common/guards/throttle.guard';
 import { MailService, templates } from '../../core/mail.service';
 import { RateLimitStore } from '../../core/rate-limit';
 import { DatabaseService } from '../../data/database.service';
+import { PORTAL_TERMS_VERSION, hasAcceptedTerms } from './terms';
 
 export interface LoginResult {
   access_token: string;
   /** A client also learns whether they are still on the emailed password (the portal then offers to change it). */
-  user: AuthPrincipal & { passwordIsDefault?: boolean };
+  user: AuthPrincipal & { passwordIsDefault?: boolean; termsAccepted?: boolean };
   /** Set when "remember this device" was ticked: send it back as deviceToken on the next sign-in. */
   deviceToken?: string;
   /** Set once, when an authenticator app is enrolled. */
@@ -32,6 +34,8 @@ export interface LoginResult {
 export interface Me extends AuthPrincipal {
   /** Clients only. */
   passwordIsDefault?: boolean;
+  /** Clients only: they have accepted the current portal terms (otherwise the portal asks before anything else). */
+  termsAccepted?: boolean;
   twoFactorMethod: TwoFactorMethod | null;
   googleLinked: boolean;
   googleEmail: string | null;
@@ -280,6 +284,7 @@ export class AuthService implements OnApplicationBootstrap {
       name: client.name,
       email: client.email,
       passwordIsDefault: Boolean(client.password_is_default),
+      termsAccepted: hasAcceptedTerms(client),
     };
     const payload: JwtPayload = {
       sub: client.id,
@@ -329,6 +334,29 @@ export class AuthService implements OnApplicationBootstrap {
   }
 
   /**
+   * POST /account/terms/accept: the client agrees to the terms they were shown. `version` is what the page
+   * showed, so a stale tab cannot accept text that has since changed. Each acceptance is a row in
+   * terms_acceptances (time, version, IP, browser kind); asking again later adds another, never edits one.
+   */
+  async acceptClientTerms(principal: AuthPrincipal, version: string, ip: string, device: string | null): Promise<void> {
+    if (version !== PORTAL_TERMS_VERSION) throw new ConflictException('The terms have changed. Reload the page and read them again.');
+    const client = await this.db.clients.findById(principal.id);
+    if (!client) throw new UnauthorizedException('Invalid or expired session token');
+    if (hasAcceptedTerms(client)) return;
+    const now = new Date().toISOString();
+    await this.db.termsAcceptances.create({
+      client_id: client.id,
+      client_name: client.name,
+      client_email: client.email,
+      version,
+      ip,
+      device,
+      accepted_at: now,
+    } as Omit<TermsAcceptance, 'id'>);
+    await this.db.clients.update(client.id, { terms_version: version, terms_accepted_at: now });
+  }
+
+  /**
    * Re-entering your password while signed in (linking Google). A wrong one
    * counts toward the lockout like a wrong sign-in. 400, not 401: a 401 would
    * end the session the admin is using.
@@ -363,7 +391,7 @@ export class AuthService implements OnApplicationBootstrap {
   async me(principal: AuthPrincipal): Promise<Me> {
     if (principal.kind === 'Client') {
       const client = await this.db.clients.findById(principal.id);
-      return { ...principal, passwordIsDefault: Boolean(client?.password_is_default), twoFactorMethod: null, googleLinked: false, googleEmail: null };
+      return { ...principal, passwordIsDefault: Boolean(client?.password_is_default), termsAccepted: client ? hasAcceptedTerms(client) : false, twoFactorMethod: null, googleLinked: false, googleEmail: null };
     }
     const staff = await this.db.staffUsers.findById(principal.id);
     return {
