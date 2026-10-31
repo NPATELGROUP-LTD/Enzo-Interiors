@@ -94,6 +94,16 @@ test('only an Admin can write a quote, and it must be for a project of that clie
   assert.equal(quote.items.length, 2);
 });
 
+test('a line with a cost and a margin is priced by the API, not the browser', async () => {
+  const quote = await json<Quote & { items: { unit_price: number; cost_price: number; margin_pct: number }[] }>(
+    await call('POST', '/quotes', tokens.admin, { ...NEW, discount: 0, items: [{ description: 'Worktop', quantity: 2, unit_price: 1, cost_price: 80, margin_pct: 25 }] }),
+    201,
+  );
+  assert.deepEqual([quote.items[0]!.cost_price, quote.items[0]!.margin_pct, quote.items[0]!.unit_price], [80, 25, 100], 'cost 80 + 25% = 100 each, whatever unit_price was sent');
+  assert.equal(quote.amount, 240, '2 x 100 + 20% VAT');
+  assert.equal((await call('DELETE', `/quotes/${quote.id}`, tokens.admin)).status, 200);
+});
+
 test('a client never sees a Draft, and never someone else’s quote', async () => {
   assert.equal((await call('GET', `/quotes/${quoteId}`, tokens.client)).status, 404);
   assert.deepEqual(await json<Quote[]>(await call('GET', '/quotes', tokens.client)), []);
@@ -107,6 +117,8 @@ test('sending shows it to its client only; an edit is refused until it is withdr
   assert.equal((await call('GET', `/quotes/${quoteId}`, tokens.other)).status, 404);
   const seen = await json<Quote>(await call('GET', `/quotes/${quoteId}`, tokens.client));
   assert.equal(seen.status, 'Sent');
+  assert.deepEqual(seen.items, [], 'a client gets totals only: no lines, so no cost or margin');
+  assert.equal((await json<Quote>(await call('GET', `/quotes/${quoteId}`, tokens.admin))).items.length, 2);
   assert.equal((await call('POST', `/quotes/${quoteId}/respond`, tokens.admin, { decision: 'accept' })).status, 403, 'staff do not answer for the client');
   assert.equal((await call('POST', `/quotes/${quoteId}/respond`, tokens.other, { decision: 'accept' })).status, 404);
 });

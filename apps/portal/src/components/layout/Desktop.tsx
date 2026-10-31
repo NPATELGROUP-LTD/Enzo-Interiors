@@ -18,6 +18,7 @@ import { initials } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 
 import { InstallPrompt } from '@/components/InstallPrompt';
+import { PullToRefresh } from '@/components/PullToRefresh';
 import { PushPrompt } from '@/components/PushToggle';
 import { LegalLinks } from './LegalLinks';
 import { Notifications } from './Notifications';
@@ -293,6 +294,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
         </section>
       </div>
       <InstallPrompt appName="Enzo Interiors" />
+      <PullToRefresh />
       <PushPrompt detail="Replies from the studio, project updates and new invoices, even when the app is closed." />
     </div>
   );
