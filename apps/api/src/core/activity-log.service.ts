@@ -19,6 +19,8 @@ const SECURITY_ACTIONS: Record<string, string> = {
   client_delete: 'A client was deleted',
   project_delete: 'A project was deleted',
   invoice_delete: 'An invoice was deleted',
+  enquiry_delete: 'An enquiry was deleted',
+  appointment_delete: 'A booking was deleted',
 };
 
 export interface RecordActivityInput {
