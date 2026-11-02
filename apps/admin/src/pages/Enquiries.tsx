@@ -1,10 +1,10 @@
-import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, UserPlus } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, Trash, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useCmsShell } from '@/components/layout/AdminLayout';
-import { Button, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
+import { Button, ConfirmDialog, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { ApiError, api } from '@/lib/api';
 import { appendIfOpen } from '@/lib/enquiryThread';
@@ -55,6 +55,8 @@ export function EnquiriesPage() {
   const [thread, setThread] = useState<EnquiryMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [deleting, setDeleting] = useState<ContactSubmission | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
 
   const load = useCallback(
     async (before?: string) => {
@@ -143,6 +145,24 @@ export function EnquiriesPage() {
     }
   };
 
+  const remove = async (password: string) => {
+    if (!deleting) return;
+    setDeletePending(true);
+    try {
+      await api.delete(`/enquiries/${deleting.id}`, { password });
+      toast.success(`${deleting.name}'s enquiry deleted.`);
+      setItems((current) => current.filter((item) => item.id !== deleting.id));
+      if (openIdRef.current === deleting.id) select(null);
+      setDeleting(null);
+      refreshEnquiries();
+    } catch (caught) {
+      // Stays open: a mistyped password is retyped, not re-clicked from the start.
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this enquiry.');
+    } finally {
+      setDeletePending(false);
+    }
+  };
+
   const addClient = (row: ContactSubmission) => {
     const query = new URLSearchParams({ new: '1', name: row.name, email: row.email });
     if (row.phone) query.set('phone', row.phone);
@@ -150,7 +170,7 @@ export function EnquiriesPage() {
   };
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8 xl:flex xl:h-full xl:min-h-0 xl:flex-col xl:pb-5">
       <div className={clsx(open && 'max-xl:hidden')}>
         <Tabs
           tabs={FILTERS}
@@ -173,8 +193,8 @@ export function EnquiriesPage() {
           }
         />
       ) : (
-        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-8 gap-y-6 xl:grid-cols-[minmax(0,1fr)_24rem]">
-          <section aria-label="Enquiries" className={clsx(open && 'max-xl:hidden')}>
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-x-8 gap-y-6 xl:mt-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,1fr)_24rem] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+          <section aria-label="Enquiries" className={clsx('xl:min-h-0 xl:overflow-y-auto xl:overscroll-contain', open && 'max-xl:hidden')}>
             <ul className="rounded-card bg-surface p-1.5 shadow-soft">
               {items.map((row) => (
                 <li key={row.id}>
@@ -232,7 +252,7 @@ export function EnquiriesPage() {
           <aside
             aria-label="Enquiry"
             className={clsx(
-              'rounded-card bg-surface p-5 shadow-soft xl:sticky xl:top-6 xl:flex xl:h-[calc(100dvh-9.5rem)] xl:flex-col',
+              'rounded-card bg-surface p-5 shadow-soft xl:flex xl:min-h-0 xl:flex-col xl:overflow-y-auto',
               !open && 'max-xl:hidden',
             )}
           >
@@ -256,10 +276,10 @@ export function EnquiriesPage() {
                   </p>
                 </div>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-                  <div>
+                  <div className="col-span-2 min-w-0">
                     <dt className="text-ink-muted">Email</dt>
                     <dd>
-                      <a href={`mailto:${open.email}`} className="text-link">
+                      <a href={`mailto:${open.email}`} className="text-link [overflow-wrap:anywhere]">
                         {open.email}
                       </a>
                     </dd>
@@ -300,6 +320,9 @@ export function EnquiriesPage() {
                       Add as client
                     </Button>
                   </Link>
+                  <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(open)}>
+                    Delete…
+                  </Button>
                 </div>
                 <section aria-label="Replies" className="flex min-h-0 flex-1 flex-col gap-3 border-t border-border pt-4">
                   {thread.length ? (
@@ -341,6 +364,21 @@ export function EnquiriesPage() {
           </aside>
         </div>
       )}
+      <ConfirmDialog
+        open={deleting !== null}
+        title={`Delete ${deleting?.name ?? 'this'} enquiry?`}
+        message={
+          <>
+            <p>This permanently deletes the enquiry and the replies sent from it. Nothing is kept.</p>
+            <p className="mt-2 text-ink-muted">It cannot be undone. To keep it on file, mark it Archived instead.</p>
+          </>
+        }
+        confirmLabel="Delete enquiry"
+        password
+        pending={deletePending}
+        onConfirm={(password) => void remove(password)}
+        onCancel={() => setDeleting(null)}
+      />
     </div>
   );
 }

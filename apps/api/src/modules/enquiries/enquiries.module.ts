@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   Injectable,
@@ -48,6 +49,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { MailService, templates } from '../../core/mail.service';
 import { DatabaseService } from '../../data/database.service';
+import { PasswordConfirmDto, confirmPassword } from '../auth/reauth';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
 import { SiteSettingsModule, SiteSettingsService } from '../site-settings/site-settings.module';
 
@@ -199,6 +201,21 @@ export class EnquiriesService {
     return updated;
   }
 
+  /** Removes the enquiry for good; its sent replies go with it (FK cascade). Needs the Admin's password. */
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
+    const existing = await this.findOne(id);
+    await confirmPassword(this.db, principal, password);
+    if (!(await this.db.contactSubmissions.delete(id))) throw new NotFoundException('Enquiry not found');
+    await this.activity.record({
+      principal,
+      action: 'enquiry_delete',
+      targetTable: 'contact_submissions',
+      targetId: id,
+      details: { name: existing.name, kind: existing.kind },
+    });
+    return { id, deleted: true };
+  }
+
   /** The enquiry and the replies sent from it. */
   async detail(id: string): Promise<EnquiryDetail> {
     const [row, messages] = await Promise.all([
@@ -348,6 +365,14 @@ export class EnquiriesController {
   @Roles('Admin')
   update(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: UpdateEnquiryDto) {
     return this.enquiries.setStatus(principal, id, dto);
+  }
+
+  /** Deletes the enquiry and its replies; needs `password` (the Admin's own). */
+  @Delete(':id')
+  @Roles('Admin')
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.enquiries.remove(principal, id, dto.password);
   }
 
   /** Emails the enquirer from the studio mailbox and keeps the message on the enquiry. */

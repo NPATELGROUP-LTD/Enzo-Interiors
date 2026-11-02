@@ -207,7 +207,15 @@ export function AppointmentsPage() {
       <MonthGlance appointments={appointments.data} today={todayKey} onPick={jump} />
 
       {open ? (
-        <AppointmentDialog appointment={open} onClose={() => setOpen(null)} onChanged={replace} />
+        <AppointmentDialog
+          appointment={open}
+          onClose={() => setOpen(null)}
+          onChanged={replace}
+          onDeleted={(id) => {
+            setOpen(null);
+            appointments.setData((list) => (list ?? []).filter((row) => row.id !== id));
+          }}
+        />
       ) : null}
       <NewBookingDialog
         open={creating}
@@ -342,12 +350,29 @@ function AppointmentDialog({
   appointment: row,
   onClose,
   onChanged,
+  onDeleted,
 }: {
   appointment: Appointment;
   onClose: () => void;
   onChanged: (row: Appointment) => void;
+  onDeleted: (id: string) => void;
 }) {
   const toast = useToast();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const remove = async (password: string) => {
+    setPending(true);
+    try {
+      await api.delete(`/appointments/${row.id}`, { password });
+      toast.success(`${row.name}'s booking deleted.`);
+      onDeleted(row.id);
+    } catch (caught) {
+      // Stays open: a mistyped password is retyped, not re-clicked from the start.
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not delete this booking.');
+    } finally {
+      setPending(false);
+    }
+  };
   const [moving, setMoving] = useState(false);
   const [date, setDate] = useState<string | null>(null);
   const [time, setTime] = useState<string | null>(null);
@@ -457,13 +482,16 @@ function AppointmentDialog({
             </Detail>
           </dl>
           <div className="mt-6 flex flex-wrap justify-between gap-2">
-            {cancelled ? (
-              <span />
-            ) : (
-              <Button variant="destructive" onClick={() => setConfirmCancel(true)}>
-                Cancel booking
+            <div className="flex gap-2">
+              {cancelled ? null : (
+                <Button variant="destructive" onClick={() => setConfirmCancel(true)}>
+                  Cancel booking
+                </Button>
+              )}
+              <Button variant="secondary" onClick={() => setConfirmDelete(true)}>
+                Delete…
               </Button>
-            )}
+            </div>
             <div className="flex gap-2">
               <Button variant="secondary" onClick={onClose}>
                 Close
@@ -486,6 +514,24 @@ function AppointmentDialog({
           void update({ status: 'Cancelled' }, 'Cancelled. The customer has been emailed.');
         }}
         onCancel={() => setConfirmCancel(false)}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${row.name}'s booking?`}
+        message={
+          <>
+            <p>
+              This permanently removes the booking ({row.reference}) and frees its time. The customer is not emailed and
+              nothing is kept.
+            </p>
+            <p className="mt-2 text-ink-muted">It cannot be undone. To keep a record, cancel it instead.</p>
+          </>
+        }
+        confirmLabel="Delete booking"
+        password
+        pending={pending}
+        onConfirm={(password) => void remove(password)}
+        onCancel={() => setConfirmDelete(false)}
       />
     </Modal>
   );
