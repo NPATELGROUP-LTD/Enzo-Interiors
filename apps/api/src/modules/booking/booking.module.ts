@@ -5,6 +5,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   ForbiddenException,
   Get,
   HttpCode,
@@ -40,6 +41,7 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { BookingMail, MailService, templates } from '../../core/mail.service';
 import { CacheService } from '../../core/cache';
 import { DatabaseService } from '../../data/database.service';
+import { PasswordConfirmDto, confirmPassword } from '../auth/reauth';
 import { CalendarModule, CalendarService } from '../calendar/calendar.module';
 import { EnquiriesModule, EnquiriesService } from '../enquiries/enquiries.module';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
@@ -496,6 +498,33 @@ export class BookingService {
     return updated;
   }
 
+  /**
+   * Removes the booking for good, freeing its time. Its Google Calendar event is taken out first
+   * (best effort: sync never throws, and the admins are told if Google would not). The customer
+   * is not emailed: cancel is the way to tell them. Needs the Admin's password.
+   */
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
+    const current = await this.db.appointments.findById(id);
+    if (!current) throw new NotFoundException('That booking no longer exists.');
+    await confirmPassword(this.db, principal, password);
+
+    if (current.google_event_id) {
+      await this.db.appointments.update(id, { status: 'Cancelled', slot: null });
+      await this.calendar.sync(id);
+    }
+    if (!(await this.db.appointments.delete(id))) throw new NotFoundException('That booking no longer exists.');
+    await this.cache.incr('booking:v');
+
+    await this.activity.record({
+      principal,
+      action: 'appointment_delete',
+      targetTable: 'appointments',
+      targetId: id,
+      details: { reference: current.reference, name: current.name, starts_at: current.starts_at },
+    });
+    return { id, deleted: true };
+  }
+
   /* ---- Telling people ---- */
 
   private toMail(row: Appointment): BookingMail {
@@ -608,6 +637,13 @@ export class AppointmentsController {
   @Put(':id')
   update(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: UpdateAppointmentDto) {
     return this.booking.update(principal, id, dto);
+  }
+
+  /** Deletes the booking outright (Cancel keeps it); needs `password` (the Admin's own). */
+  @Delete(':id')
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.booking.remove(principal, id, dto.password);
   }
 }
 
