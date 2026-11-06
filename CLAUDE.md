@@ -648,6 +648,7 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 - `release/vX.Y.Z` branches: cut from `develop`, run `sh .github/strip-for-release.sh`, commit, PR to `main`, tag after merge, then delete the branch. Nothing else is committed on them.
 - Conventional commits: `feat(api):`, `fix(web):`, `chore:`, `docs:`, imperative and specific.
 - Rollback = `git revert` the PR, never force-push `main`.
+- Pre-prod (Coolify, branch `pre-prod`, tested before `main`) uses `docker-compose.preprod.yml`: a copy of `docker-compose.yml` with its own image tags, host ports (+10000), Traefik router names, hosts from `PREPROD_*_HOST` and preprod-only aliases on the shared `coolify` network. Change both files together.
 - Local compose needs a one-time `docker network create coolify` (the compose file joins the external network Coolify/Traefik uses in production).
 
 ---
