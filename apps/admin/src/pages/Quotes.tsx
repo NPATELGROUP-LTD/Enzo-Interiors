@@ -301,7 +301,11 @@ function QuoteLines({ quote }: { quote: Quote }) {
 }
 
 /** One draggable, droppable line: the grip (or the up and down keys on it) reorders; every field is labelled. */
-function LineRow({ row, index, count, onChange, onRemove, onShift }: { row: Row; index: number; count: number; onChange: (patch: Partial<Row>) => void; onRemove: () => void; onShift: (by: -1 | 1) => void }) {
+/** Inventory items offered on a line's name; picking one fills its name and its average cost (still editable). */
+type StockOption = { sku: string; name: string; avg_cost: number; active: boolean };
+const stockLabel = (item: StockOption) => `${item.sku} · ${item.name}`;
+
+function LineRow({ row, index, count, stock, onChange, onRemove, onShift }: { row: Row; index: number; count: number; stock: StockOption[]; onChange: (patch: Partial<Row>) => void; onRemove: () => void; onShift: (by: -1 | 1) => void }) {
   const drag = useDraggable({ id: row.key });
   const drop = useDroppable({ id: row.key });
   const field = (label: string, input: ReactNode) => (
@@ -335,7 +339,18 @@ function LineRow({ row, index, count, onChange, onRemove, onShift }: { row: Row;
         >
           <DotsSixVertical size={18} aria-hidden="true" />
         </button>
-        <input value={row.description} onChange={(event) => onChange({ description: event.target.value })} aria-label={`Line ${index + 1} item`} placeholder="Item" maxLength={300} className={FIELD_BASE} />
+        <input
+          value={row.description}
+          list={stock.length ? 'quote-stock-items' : undefined}
+          onChange={(event) => {
+            const picked = stock.find((item) => stockLabel(item) === event.target.value);
+            onChange(picked ? { description: picked.name, cost: picked.avg_cost.toFixed(2) } : { description: event.target.value });
+          }}
+          aria-label={`Line ${index + 1} item`}
+          placeholder={stock.length ? 'Item, or pick from stock' : 'Item'}
+          maxLength={300}
+          className={FIELD_BASE}
+        />
         <button type="button" disabled={count === 1} onClick={onRemove} aria-label={`Remove line ${index + 1}`} className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger disabled:opacity-30">
           <Trash size={16} aria-hidden="true" />
         </button>
@@ -373,6 +388,8 @@ function QuoteEditor({
   const [vatRate, setVatRate] = useState(String(quote?.vat_rate ?? 20));
   const [discount, setDiscount] = useState(quote?.discount ? String(quote.discount) : '');
   const [notes, setNotes] = useState(quote?.notes ?? '');
+  // No inventory (switched off or removed) = a 404 here and plain text lines.
+  const stock = (useQuery<StockOption[]>('/inventory/items').data ?? []).filter((item) => item.active);
   const [rows, setRows] = useState<Row[]>(() =>
     quote?.items.length
       ? quote.items.map((item) => ({ key: ++rowKey, description: item.description, quantity: String(item.quantity), cost: String(item.cost_price ?? item.unit_price), margin: String(item.margin_pct ?? 0) }))
@@ -459,12 +476,20 @@ function QuoteEditor({
                 row={row}
                 index={index}
                 count={rows.length}
+                stock={stock}
                 onChange={(patch) => set(row.key, patch)}
                 onRemove={() => setRows((current) => current.filter((r) => r.key !== row.key))}
                 onShift={(by) => moveRow(index, index + by)}
               />
             ))}
           </DndContext>
+          {stock.length ? (
+            <datalist id="quote-stock-items">
+              {stock.map((item) => (
+                <option key={item.sku} value={stockLabel(item)} />
+              ))}
+            </datalist>
+          ) : null}
           <div>
             <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={rows.length >= 50} onClick={() => setRows((current) => [...current, blank(current.at(-1)?.margin ?? '')])}>
               Add line

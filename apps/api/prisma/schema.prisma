@@ -123,6 +123,8 @@ model Project {
   updated_at            DateTime @default(now()) @db.Timestamptz(6)
   members               ProjectMember[]
   staff_thread          StaffThread?
+  materials             ProjectMaterial[]
+  stock_movements       StockMovement[]
 
   @@index([client_id])
   @@index([assigned_designer_id])
@@ -991,4 +993,145 @@ model StaffThreadRead {
 
   @@unique([thread_id, staff_id])
   @@map("staff_thread_reads")
+}
+
+// Inventory (modules/inventory, migration 34). The ledger is the truth; on_hand and avg_cost are kept in step with it.
+model InventorySupplier {
+  id           String          @id
+  name         String
+  contact_name String?
+  email        String?
+  phone        String?
+  lead_days    Int?
+  notes        String?
+  created_at   DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime        @default(now()) @db.Timestamptz(6)
+  items        InventoryItem[]
+  orders       PurchaseOrder[]
+
+  @@map("inventory_suppliers")
+}
+
+model InventoryItem {
+  id            String             @id
+  sku           String             @unique
+  name          String
+  /// Sheet | Hardware | Bought-in
+  type          String
+  category      String?
+  unit          String             @default("each")
+  size_note     String?
+  supplier_id   String?
+  /// Whole units; a CHECK in the migration keeps it >= 0.
+  on_hand       Int                @default(0)
+  /// Weighted average net cost per unit.
+  avg_cost      Decimal            @default(0) @db.Decimal(12, 2)
+  reorder_level Int?
+  low_notified  Boolean            @default(false)
+  active        Boolean            @default(true)
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @default(now()) @db.Timestamptz(6)
+  supplier      InventorySupplier? @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
+  movements     StockMovement[]
+  materials     ProjectMaterial[]
+  order_lines   PurchaseOrderItem[]
+
+  @@index([supplier_id])
+  @@map("inventory_items")
+}
+
+/// Append-only: never updated or deleted.
+model StockMovement {
+  id         String        @id
+  item_id    String
+  /// receive | issue | return | adjust
+  kind       String
+  /// Signed: + into stock, - out of it.
+  quantity   Int
+  unit_cost  Decimal       @db.Decimal(12, 2)
+  reason     String?
+  by_id      String?
+  by_name    String
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  project_id String?
+  /// A receipt booked against a purchase order (migration 36).
+  po_id      String?
+  item       InventoryItem  @relation(fields: [item_id], references: [id], onDelete: Restrict)
+  project    Project?       @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  order      PurchaseOrder? @relation(fields: [po_id], references: [id], onDelete: SetNull)
+
+  @@index([item_id, created_at])
+  @@index([project_id])
+  @@index([po_id])
+  @@map("stock_movements")
+}
+
+/// What a project needs, holds (reserved) and has used (issued) of one item. Available stock is
+/// on_hand minus every line's reserved, computed, never stored.
+model ProjectMaterial {
+  id         String        @id
+  project_id String
+  item_id    String
+  needed     Int           @default(0)
+  reserved   Int           @default(0)
+  issued     Int           @default(0)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @db.Timestamptz(6)
+  project    Project       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  item       InventoryItem @relation(fields: [item_id], references: [id], onDelete: Restrict)
+
+  @@unique([project_id, item_id])
+  @@index([item_id])
+  @@map("project_materials")
+}
+
+/// One row, id 'inventory'.
+model InventorySetting {
+  id               String   @id
+  /// Entering this project stage reserves what each line still needs. Null = by hand only.
+  reserve_on_stage String?
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("inventory_settings")
+}
+
+/// A purchase order to a supplier (migration 36). Draft -> Sent -> Part-received -> Received, or Cancelled
+/// before anything arrives. Line costs are net; VAT and gross come from invoices/totals.ts.
+model PurchaseOrder {
+  id          String              @id
+  ref_no      Int                 @unique @default(autoincrement())
+  supplier_id String
+  /// Draft | Sent | Part-received | Received | Cancelled
+  status      String              @default("Draft")
+  vat_rate    Decimal             @default(20) @db.Decimal(5, 2)
+  expected_at DateTime?           @db.Timestamptz(6)
+  notes       String?
+  sent_at     DateTime?           @db.Timestamptz(6)
+  created_by  String?
+  created_at  DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime            @default(now()) @db.Timestamptz(6)
+  supplier    InventorySupplier   @relation(fields: [supplier_id], references: [id], onDelete: Restrict)
+  items       PurchaseOrderItem[]
+  movements   StockMovement[]
+
+  @@index([supplier_id])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+/// Whole units ordered; received never passes it (CHECK in the migration).
+model PurchaseOrderItem {
+  id        String        @id
+  po_id     String
+  item_id   String
+  quantity  Int
+  received  Int           @default(0)
+  unit_cost Decimal       @db.Decimal(12, 2)
+  position  Int           @default(0)
+  order     PurchaseOrder @relation(fields: [po_id], references: [id], onDelete: Cascade)
+  item      InventoryItem @relation(fields: [item_id], references: [id], onDelete: Restrict)
+
+  @@index([po_id])
+  @@index([item_id])
+  @@map("purchase_order_items")
 }

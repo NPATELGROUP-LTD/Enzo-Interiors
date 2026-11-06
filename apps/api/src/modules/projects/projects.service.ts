@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 
 import { AccessService } from '../../common/access/access.service';
 import { Project, ProjectStageConfig } from '../../common/types/domain';
@@ -23,6 +23,13 @@ export interface ProjectView extends Project {
   assigned_designer_name: string | null;
   assigned_installer_name: string | null;
 }
+
+/**
+ * Told after a project lands on a new stage (staff move or client decision). Other modules add
+ * themselves (inventory reserves stock), so projects depends on none of them. A failing listener
+ * is logged and never undoes the move.
+ */
+export const stageListeners: ((projectId: string, stage: string, last: boolean) => Promise<void>)[] = [];
 
 /** What a Designer may change on a project assigned to them. The rest is the Admin's. */
 const DESIGNER_FIELDS = new Set(['current_stage']);
@@ -70,6 +77,14 @@ export class ProjectsService {
       details: { stages: plan.stages.map((stage) => stage.name), renamed: plan.renames, removed: plan.removed },
     });
     return plan.stages;
+  }
+
+  private async afterStage(projectId: string, stage: string): Promise<void> {
+    if (!stageListeners.length) return;
+    const last = (await this.stages()).at(-1)?.name === stage;
+    for (const listener of stageListeners) {
+      await listener(projectId, stage, last).catch((error: Error) => new Logger(ProjectsService.name).error(`Stage listener failed: ${error.message}`));
+    }
   }
 
   /** The configured stage called `name`, or a 400 naming the choices. */
@@ -272,6 +287,7 @@ export class ProjectsService {
       current_stage: dto.current_stage ?? project.current_stage,
       updated_at: new Date().toISOString(),
     });
+    await this.afterStage(id, dto.status);
 
     await this.activity.record({
       principal,
@@ -306,6 +322,7 @@ export class ProjectsService {
       current_stage: `Approved by the client (${at.name})`,
       updated_at: new Date().toISOString(),
     });
+    await this.afterStage(id, next.name);
 
     await this.activity.record({
       principal,
@@ -348,6 +365,7 @@ export class ProjectsService {
       current_stage: `Client requested changes at ${at.name}`,
       updated_at: new Date().toISOString(),
     });
+    await this.afterStage(id, previous.name);
 
     await this.activity.record({
       principal,
