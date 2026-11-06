@@ -42,6 +42,7 @@ export function ProjectMaterials({ projectId }: { projectId: string }) {
   const base = `/inventory/projects/${projectId}`;
   const { data, setData } = useQuery<Line[]>(base + '/materials');
   const items = useQuery<StockItem[]>(isAdmin ? '/inventory/items' : null);
+  const cost = useQuery<{ used: number; quoted: number | null }>(isAdmin ? base + '/cost' : null);
   const [adding, setAdding] = useState({ item_id: '', needed: '' });
   const [move, setMove] = useState<{ item_id: string; action: Action; quantity: string }>({ item_id: '', action: isAdmin ? 'reserve' : 'issue', quantity: '' });
   const [busy, setBusy] = useState(false);
@@ -159,7 +160,12 @@ export function ProjectMaterials({ projectId }: { projectId: string }) {
         <p className="mt-3 text-sm text-ink-muted">Nothing listed yet. Add what this project needs from stock.</p>
       )}
 
-      {isAdmin && lines.length ? <p className="tabular mt-2 text-right text-sm font-semibold text-ink">Materials used so far {money(total)}</p> : null}
+      {isAdmin && lines.length ? (
+        <p className="tabular mt-2 text-right text-sm font-semibold text-ink">
+          Materials used so far {money(total)}
+          {cost.data?.quoted != null ? <span className="font-normal text-ink-muted"> · accepted quote at cost {money(cost.data.quoted)}</span> : null}
+        </p>
+      ) : null}
 
       {canBook && lines.length ? (
         <form onSubmit={book} className="mt-4 grid gap-3 sm:grid-cols-[1fr_8rem_6rem_auto] sm:items-end">

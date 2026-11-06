@@ -37,6 +37,7 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.purchaseOrder.deleteMany({ where: { supplier: { name: `Supplier ${run}` } } });
   await prisma.inventorySetting.deleteMany({ where: { id: 'inventory' } });
   await prisma.projectMaterial.deleteMany({ where: { project_id: PROJECT } });
   await prisma.stockMovement.deleteMany({ where: { item: { sku: { startsWith: SKU } } } });
@@ -192,4 +193,61 @@ test('project stock: the chosen stage holds what is still needed; the last stage
   await json(await call('PATCH', `/projects/${PROJECT}/stage`, tokens.admin, { status: stages.at(-1)! }));
   const done = await first(await lines(tokens.admin));
   assert.equal(done.reserved, 0);
+});
+
+type Order = { id: string; ref: string; status: string; items: { id: string; received: number }[]; totals: { net: number; vat: number; gross: number } };
+
+test('purchase orders: Admin only; a Draft edits, Sent books in at the line cost, never past what was ordered', async () => {
+  const supplier = await prisma.inventorySupplier.findFirstOrThrow({ where: { name: `Supplier ${run}` } });
+  const item = await json<Item>(await call('POST', '/inventory/items', tokens.admin, { sku: `${SKU}-PO`, name: `Hinge ${run}`, type: 'Hardware', supplier_id: supplier.id }), 201);
+  const body = { supplier_id: supplier.id, items: [{ item_id: item.id, quantity: 10, unit_cost: 2.5 }] };
+  assert.equal((await call('POST', '/inventory/orders', tokens.designer, body)).status, 403);
+  assert.equal((await call('GET', '/inventory/shortfall', tokens.installer)).status, 403);
+
+  const draft = await json<Order>(await call('POST', '/inventory/orders', tokens.admin, body), 201);
+  assert.match(draft.ref, /^PO-\d{4,}$/);
+  assert.deepEqual(draft.totals, { subtotal: 25, discount: 0, net: 25, vat: 5, gross: 30 });
+  const lineId = draft.items[0]!.id;
+  assert.equal((await call('POST', `/inventory/orders/${draft.id}/receive`, tokens.admin, { lines: [{ line_id: lineId, quantity: 1 }] })).status, 409, 'a Draft is not booked in');
+
+  await json(await call('POST', `/inventory/orders/${draft.id}/send`, tokens.admin), 200);
+  assert.equal((await call('PUT', `/inventory/orders/${draft.id}`, tokens.admin, body)).status, 409, 'Sent is not edited');
+  const items = await json<(Item & { on_order: number })[]>(await call('GET', '/inventory/items', tokens.admin));
+  assert.equal(items.find((i) => i.id === item.id)!.on_order, 10);
+
+  const receive = (quantity: number) => call('POST', `/inventory/orders/${draft.id}/receive`, tokens.admin, { lines: [{ line_id: lineId, quantity }] });
+  assert.equal((await json<Order>(await receive(4))).status, 'Part-received');
+  assert.equal((await receive(7)).status, 409, 'more than is still to come');
+  const racing = await Promise.all([receive(6), receive(6)]);
+  assert.deepEqual(racing.map((r) => r.status).sort(), [200, 409], 'two people booking in the rest: once');
+  const done = await json<Order>(await call('GET', `/inventory/orders/${draft.id}`, tokens.admin));
+  assert.equal(done.status, 'Received');
+  assert.equal(done.items[0]!.received, 10);
+
+  const row = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } });
+  assert.equal(row.on_hand, 10);
+  assert.equal(row.avg_cost.toNumber(), 2.5);
+  const prices = await json<{ unit_cost: number; supplier_name: string }[]>(await call('GET', `/inventory/items/${item.id}/prices`, tokens.admin));
+  assert.equal(prices.length, 2);
+  assert.equal(prices[0]!.supplier_name, `Supplier ${run}`);
+
+  assert.equal((await call('POST', `/inventory/orders/${draft.id}/cancel`, tokens.admin)).status, 409, 'what arrived is not cancelled');
+  assert.equal((await call('DELETE', `/inventory/suppliers/${supplier.id}`, tokens.admin)).status, 409, 'a supplier with orders stays');
+});
+
+test('shortfall: unheld project needs plus the reorder floor, less free stock and what is on order', async () => {
+  const supplier = await prisma.inventorySupplier.findFirstOrThrow({ where: { name: `Supplier ${run}` } });
+  const item = await json<Item>(await call('POST', '/inventory/items', tokens.admin, { sku: `${SKU}-SF`, name: `Panel ${run}`, type: 'Sheet', supplier_id: supplier.id, reorder_level: 2 }), 201);
+  await json(await call('PUT', `/inventory/projects/${PROJECT}/materials/${item.id}`, tokens.admin, { needed: 5 }), 200);
+  const suggest = async () => (await json<{ id: string; suggest: number }[]>(await call('GET', '/inventory/shortfall', tokens.admin))).find((r) => r.id === item.id)?.suggest ?? 0;
+  assert.equal(await suggest(), 8, '5 needed + 3 to sit above a reorder level of 2');
+  const order = await json<Order>(await call('POST', '/inventory/orders', tokens.admin, { supplier_id: supplier.id, items: [{ item_id: item.id, quantity: 8, unit_cost: 30 }] }), 201);
+  assert.equal(await suggest(), 8, 'a Draft is not on order yet');
+  await json(await call('POST', `/inventory/orders/${order.id}/send`, tokens.admin), 200);
+  assert.equal(await suggest(), 0);
+  await json(await call('POST', `/inventory/orders/${order.id}/cancel`, tokens.admin), 200);
+  assert.equal(await suggest(), 8, 'a cancelled order is not on order');
+  const cost = await json<{ used: number; quoted: number | null }>(await call('GET', `/inventory/projects/${PROJECT}/cost`, tokens.admin));
+  assert.equal(cost.quoted, null, 'no accepted quote');
+  assert.equal((await call('GET', `/inventory/projects/${PROJECT}/cost`, tokens.installer)).status, 403);
 });

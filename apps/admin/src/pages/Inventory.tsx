@@ -5,6 +5,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, Select, StatusTag, TableWrap, Tabs, Td, Textarea, Th } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
+import { OrdersTable, ShortfallList } from '@/components/inventory/Orders';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
@@ -25,6 +26,8 @@ interface Item {
   /** Held for projects; available = on_hand - reserved. */
   reserved: number;
   available: number;
+  /** Ordered from a supplier (Sent or Part-received) and not in yet. */
+  on_order: number;
   avg_cost: number;
   reorder_level: number | null;
   active: boolean;
@@ -53,6 +56,8 @@ const VIEWS = [
   { id: 'all', label: 'Items' },
   { id: 'low', label: 'Low stock' },
   { id: 'off', label: 'Switched off' },
+  { id: 'orders', label: 'Orders' },
+  { id: 'shortfall', label: 'Shortfall' },
   { id: 'suppliers', label: 'Suppliers' },
 ];
 const KIND_LABEL = { receive: 'Received', issue: 'Used', return: 'Returned', adjust: 'Adjusted' } as const;
@@ -61,7 +66,7 @@ const failed = (caught: unknown) => (caught instanceof ApiError ? caught.message
 const orNull = (value: string) => value.trim() || null;
 const intOrNull = (value: string) => (value.trim() === '' ? null : Number(value));
 
-/** Stock for the whole business: `?view=low|off|suppliers`, `?new=1` adds an item (or a supplier on that tab). */
+/** Stock for the whole business: `?view=low|off|orders|shortfall|suppliers`, `?new=1` adds an item (or a supplier / order on that tab). */
 export function InventoryPage() {
   const [params, setParams] = useSearchParams();
   const view = params.get('view') ?? 'all';
@@ -87,6 +92,7 @@ export function InventoryPage() {
   const value = (items.data ?? []).reduce((total, item) => total + item.on_hand * item.avg_cost, 0);
   const opened = items.data?.find((item) => item.id === openId) ?? null;
   const onSuppliers = view === 'suppliers';
+  const onOrders = view === 'orders' || view === 'shortfall';
   const refetch = () => Promise.all([items.refetch(), suppliers.refetch()]);
   const close = () => {
     setEditing(null);
@@ -106,15 +112,21 @@ export function InventoryPage() {
           onChange={(id) => setParams(id === 'all' ? {} : { view: id })}
         />
         <div className="flex flex-wrap items-center gap-3">
-          {onSuppliers ? null : <ReserveStage />}
-          {onSuppliers ? null : <span className="tabular text-sm text-ink-muted">Stock value {money(value)}</span>}
-          <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setEditing('new')}>
-            {onSuppliers ? 'New supplier' : 'New item'}
-          </Button>
+          {onSuppliers || onOrders ? null : <ReserveStage />}
+          {onSuppliers || onOrders ? null : <span className="tabular text-sm text-ink-muted">Stock value {money(value)}</span>}
+          {view === 'shortfall' ? null : (
+            <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => (view === 'orders' ? setParams({ view, new: '1' }) : setEditing('new'))}>
+              {onSuppliers ? 'New supplier' : view === 'orders' ? 'New order' : 'New item'}
+            </Button>
+          )}
         </div>
       </div>
 
-      {onSuppliers ? (
+      {view === 'orders' ? (
+        <OrdersTable items={items.data ?? []} suppliers={suppliers.data ?? []} newOrder={params.get('new') === '1'} onNewDone={() => setParams({ view })} />
+      ) : view === 'shortfall' ? (
+        <ShortfallList suppliers={suppliers.data ?? []} onOrdered={() => setParams({ view: 'orders' })} />
+      ) : onSuppliers ? (
         <SupplierTable suppliers={suppliers.data ?? []} onOpen={setEditing} />
       ) : shown.length === 0 ? (
         <EmptyState
@@ -147,6 +159,7 @@ export function InventoryPage() {
                     <span className="font-semibold">{item.on_hand}</span> {item.unit}
                   </span>
                   {item.reserved ? <span className="block text-xs text-ink-muted">{item.reserved} held · {item.available} free</span> : null}
+                  {item.on_order ? <span className="block text-xs text-ink-muted">{item.on_order} on order</span> : null}
                 </Td>
                 <Td className="tabular text-right max-sm:hidden">{money(item.avg_cost)}</Td>
                 <Td className="tabular text-right max-sm:hidden">{money(item.on_hand * item.avg_cost)}</Td>
@@ -157,7 +170,7 @@ export function InventoryPage() {
       )}
 
       {opened ? <ItemPanel item={opened} onClose={() => setOpenId(null)} onEdit={() => setEditing(opened)} onChanged={refetch} /> : null}
-      {editing && (onSuppliers ? editing === 'new' || !('sku' in editing) : editing === 'new' || 'sku' in editing) ? (
+      {editing && !onOrders && (onSuppliers ? editing === 'new' || !('sku' in editing) : editing === 'new' || 'sku' in editing) ? (
         onSuppliers ? (
           <SupplierForm supplier={editing === 'new' ? null : (editing as Supplier)} onClose={close} onSaved={refetch} />
         ) : (
@@ -226,6 +239,7 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
 function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: () => void; onEdit: () => void; onChanged: () => Promise<unknown> }) {
   const toast = useToast();
   const movements = useQuery<Movement[]>(`/inventory/items/${item.id}/movements`);
+  const prices = useQuery<{ unit_cost: number; created_at: string; po_ref: number | null; supplier_name: string | null }[]>(`/inventory/items/${item.id}/prices`);
   const [kind, setKind] = useState<Movement['kind']>('receive');
   const [quantity, setQuantity] = useState('');
   const [cost, setCost] = useState('');
@@ -246,7 +260,7 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
       setQuantity('');
       setCost('');
       setReason('');
-      await Promise.all([onChanged(), movements.refetch()]);
+      await Promise.all([onChanged(), movements.refetch(), prices.refetch()]);
     } catch (caught) {
       toast.error(failed(caught));
     } finally {
@@ -300,6 +314,18 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
             </div>
           ))}
         </dl>
+
+        {prices.data?.length ? (
+          <p className="text-sm text-ink-muted">
+            Last paid:{' '}
+            {prices.data.slice(0, 4).map((price, index) => (
+              <span key={index} className="tabular">
+                {index ? ' · ' : ''}
+                {money(price.unit_cost)} {price.supplier_name ? `from ${price.supplier_name}` : ''} ({date(price.created_at)})
+              </span>
+            ))}
+          </p>
+        ) : null}
 
         {item.active ? (
           <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[10rem_7rem_1fr_auto] sm:items-end">

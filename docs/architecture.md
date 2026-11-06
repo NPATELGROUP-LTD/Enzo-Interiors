@@ -273,12 +273,13 @@ Two component directories rather than one shared runtime package: one exclusivel
 | Team chat | `staff_threads`, `staff_messages`, `staff_thread_reads` | `/team/*`; socket event `team:message` |
 | Search / live refresh | `projects.ref_no` | `GET /search`; socket event `data:changed` (payload-less) |
 
-### 9.y Inventory (migrations 34–35, `modules/inventory`, `data/inventory-store.ts`)
+### 9.y Inventory (migrations 34–36, `modules/inventory`, `data/inventory-store.ts`)
 
 | Area | Tables | Routes / notes |
 |---|---|---|
 | Stock | `inventory_items`, `inventory_suppliers`, `stock_movements` (append-only ledger) | `/inventory/*`, Admin only. A count change is a conditional UPDATE on the locked item row plus a ledger row in one transaction; `on_hand >= 0` is a CHECK; a loser gets 409. Weighted average cost via `Prisma.Decimal`; an issue records the average at that moment. Low stock (free ≤ reorder level) rings the Admin bell once until restocked. |
 | Project stock | `project_materials`, `stock_movements.project_id`, `inventory_settings` | `/projects/:id/materials/*`: Admin sets needs and holds; installers on the project use and return; designers read without cost. Free = `on_hand − Σ reserved` (holds are not stored on the item, so deleting a project frees them). A stage listener holds the remaining need at the chosen stage and releases all at the last; `projects` imports nothing from inventory. |
+| Purchase orders | `purchase_orders`, `purchase_order_items`, `stock_movements.po_id` | `/inventory/orders*`, `/inventory/shortfall`, Admin only. Draft -> Sent -> Part-received -> Received (or Cancelled before anything arrives). Booking in locks the order; a line's `received` never passes `quantity` (conditional UPDATE + CHECK) and each unit is a receipt at the line's cost. Shortfall = unheld project need + reorder floor − free − on order. `orders.ts` and `components/inventory/Orders.tsx` remove on their own. |
 
 Removing the feature: delete `modules/inventory`, `data/inventory-store.ts`, the admin `Inventory` page and `ProjectMaterials` card, and their one-line registrations; the tables stay (migrations only add).
 

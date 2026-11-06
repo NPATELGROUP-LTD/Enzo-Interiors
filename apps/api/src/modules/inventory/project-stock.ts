@@ -1,4 +1,17 @@
-import { Body, ConflictException, Controller, Delete, Get, HttpCode, Injectable, NotFoundException, OnModuleInit, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  ConflictException,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Injectable,
+  NotFoundException,
+  OnModuleInit,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { IsInt, Max, Min } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
@@ -6,6 +19,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import { Refusal } from '../../data/inventory-store';
+import { sumMoney } from '../invoices/totals';
 import { stageListeners } from '../projects/projects.service';
 import { LowStockWatch } from './low-stock';
 
@@ -32,7 +46,9 @@ export interface MaterialView {
 }
 
 const refuse = (result: Refusal, short: string): never => {
-  throw result === 'missing' ? new NotFoundException('That item is not on this project, or is switched off.') : new ConflictException(short);
+  throw result === 'missing'
+    ? new NotFoundException('That item is not on this project, or is switched off.')
+    : new ConflictException(short);
 };
 
 /**
@@ -59,6 +75,18 @@ export class ProjectStockService implements OnModuleInit {
   async onStage(projectId: string, stage: string, last: boolean): Promise<void> {
     if (last) return this.store.releaseAll(projectId);
     if (stage === (await this.store.reserveOnStage())) await this.reserveAll(projectId);
+  }
+
+  async cost(
+    principal: AuthPrincipal,
+    projectId: string,
+  ): Promise<{ used: number; quoted: number | null }> {
+    await this.access.requireProject(principal, projectId);
+    const [used, quoted] = await Promise.all([
+      this.store.projectCost(projectId),
+      this.store.quotedCost(projectId),
+    ]);
+    return { used: sumMoney([...used.values()]), quoted };
   }
 
   async list(principal: AuthPrincipal, projectId: string): Promise<MaterialView[]> {
@@ -100,14 +128,21 @@ export class ProjectStockService implements OnModuleInit {
 
   async remove(principal: AuthPrincipal, projectId: string, itemId: string) {
     await this.access.requireProject(principal, projectId);
-    if (!(await this.store.removeLine(projectId, itemId))) throw new ConflictException('Stock has been used on this line. Return it first.');
+    if (!(await this.store.removeLine(projectId, itemId)))
+      throw new ConflictException('Stock has been used on this line. Return it first.');
     await this.low.check(itemId);
   }
 
   async reserve(principal: AuthPrincipal, projectId: string, itemId: string, delta: number) {
     await this.access.requireProject(principal, projectId);
     const result = await this.store.reserve(projectId, itemId, delta);
-    if (typeof result !== 'number') refuse(result, delta > 0 ? 'Not that much is free, or this project does not need that many more.' : 'Not that many are held.');
+    if (typeof result !== 'number')
+      refuse(
+        result,
+        delta > 0
+          ? 'Not that much is free, or this project does not need that many more.'
+          : 'Not that many are held.',
+      );
     await this.low.check(itemId);
     return this.list(principal, projectId);
   }
@@ -116,7 +151,11 @@ export class ProjectStockService implements OnModuleInit {
   async reserveAll(projectId: string): Promise<void> {
     for (const line of await this.store.materials.findWhere({ project_id: projectId })) {
       const want = line.needed - line.issued - line.reserved;
-      if (want > 0 && typeof (await this.store.reserve(projectId, line.item_id, want, true)) === 'number') await this.low.check(line.item_id);
+      if (
+        want > 0 &&
+        typeof (await this.store.reserve(projectId, line.item_id, want, true)) === 'number'
+      )
+        await this.low.check(line.item_id);
     }
   }
 
@@ -126,7 +165,13 @@ export class ProjectStockService implements OnModuleInit {
     return this.list(principal, projectId);
   }
 
-  async move(principal: AuthPrincipal, projectId: string, itemId: string, kind: 'issue' | 'return', quantity: number) {
+  async move(
+    principal: AuthPrincipal,
+    projectId: string,
+    itemId: string,
+    kind: 'issue' | 'return',
+    quantity: number,
+  ) {
     const project = await this.access.requireProject(principal, projectId);
     const result = await this.store.book({
       item_id: itemId,
@@ -138,7 +183,13 @@ export class ProjectStockService implements OnModuleInit {
       by_name: principal.name,
       project_id: projectId,
     });
-    if (typeof result === 'string') refuse(result, kind === 'issue' ? 'There is not that much free in stock.' : 'That is more than was used here.');
+    if (typeof result === 'string')
+      refuse(
+        result,
+        kind === 'issue'
+          ? 'There is not that much free in stock.'
+          : 'That is more than was used here.',
+      );
     await this.low.check(itemId);
     return this.list(principal, projectId);
   }
@@ -148,43 +199,93 @@ export class ProjectStockService implements OnModuleInit {
 export class ProjectStockController {
   constructor(private readonly stock: ProjectStockService) {}
 
-  @Get('materials') @Roles('Admin', 'Designer', 'Installer')
+  @Get('materials')
+  @Roles('Admin', 'Designer', 'Installer')
   list(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string) {
     return this.stock.list(principal, projectId);
   }
 
-  @Put('materials/:itemId') @Roles('Admin')
-  setNeeded(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string, @Body() dto: NeededDto) {
+  /** Stock used here at cost vs the cost side of its accepted quotes. Admin only: it is money. */
+  @Get('cost')
+  @Roles('Admin')
+  cost(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string) {
+    return this.stock.cost(principal, projectId);
+  }
+
+  @Put('materials/:itemId')
+  @Roles('Admin')
+  setNeeded(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: NeededDto,
+  ) {
     return this.stock.setNeeded(principal, projectId, itemId, dto.needed);
   }
 
-  @Delete('materials/:itemId') @Roles('Admin') @HttpCode(204)
-  remove(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string) {
+  @Delete('materials/:itemId')
+  @Roles('Admin')
+  @HttpCode(204)
+  remove(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+  ) {
     return this.stock.remove(principal, projectId, itemId);
   }
 
-  @Post('reserve-all') @Roles('Admin') @HttpCode(200)
+  @Post('reserve-all')
+  @Roles('Admin')
+  @HttpCode(200)
   reserveAll(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string) {
     return this.stock.reserveAllFor(principal, projectId);
   }
 
-  @Post('materials/:itemId/reserve') @Roles('Admin') @HttpCode(200)
-  reserve(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string, @Body() dto: CountDto) {
+  @Post('materials/:itemId/reserve')
+  @Roles('Admin')
+  @HttpCode(200)
+  reserve(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CountDto,
+  ) {
     return this.stock.reserve(principal, projectId, itemId, dto.quantity);
   }
 
-  @Post('materials/:itemId/release') @Roles('Admin') @HttpCode(200)
-  release(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string, @Body() dto: CountDto) {
+  @Post('materials/:itemId/release')
+  @Roles('Admin')
+  @HttpCode(200)
+  release(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CountDto,
+  ) {
     return this.stock.reserve(principal, projectId, itemId, -dto.quantity);
   }
 
-  @Post('materials/:itemId/issue') @Roles('Admin', 'Installer') @HttpCode(200)
-  issue(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string, @Body() dto: CountDto) {
+  @Post('materials/:itemId/issue')
+  @Roles('Admin', 'Installer')
+  @HttpCode(200)
+  issue(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CountDto,
+  ) {
     return this.stock.move(principal, projectId, itemId, 'issue', dto.quantity);
   }
 
-  @Post('materials/:itemId/return') @Roles('Admin', 'Installer') @HttpCode(200)
-  giveBack(@CurrentUser() principal: AuthPrincipal, @Param('projectId') projectId: string, @Param('itemId') itemId: string, @Body() dto: CountDto) {
+  @Post('materials/:itemId/return')
+  @Roles('Admin', 'Installer')
+  @HttpCode(200)
+  giveBack(
+    @CurrentUser() principal: AuthPrincipal,
+    @Param('projectId') projectId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CountDto,
+  ) {
     return this.stock.move(principal, projectId, itemId, 'return', dto.quantity);
   }
 }
