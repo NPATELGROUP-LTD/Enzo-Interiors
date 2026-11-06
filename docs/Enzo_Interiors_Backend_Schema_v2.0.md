@@ -397,3 +397,15 @@ Additive only. Secrets marked *sealed* are AES-256-GCM with `APP_ENCRYPTION_KEY`
 
 New tables: `enquiry_messages` (21), `project_members` and `installer_assignments` (22, 23), `invoice_stages` (24), `gmail_accounts` (25), `staff_threads`, `staff_messages`, `staff_thread_reads` (28).
 New columns: `contact_submissions.source` / `ref_no`, `projects.ref_no` / `site_address`, `clients.password_is_default`, `documents.category` / `client_can_download`, `invoices.client_can_download`, `site_settings.bank_details` / `document_categories`. Columns and constraints are in `apps/api/prisma/schema.prisma`. The legacy `projects.assigned_designer_id` / `assigned_installer_id` stay and are copied into `project_members` by `npm run team:backfill`.
+
+## Inventory (migrations 34–35, all additive)
+
+| Table | Key columns | Constraints |
+|---|---|---|
+| `inventory_suppliers` | name, contact_name, email, phone, lead_days, notes | — |
+| `inventory_items` | sku (unique), name, type (sheet / hardware / bought-in), category, unit, size_note, supplier_id, on_hand INT, avg_cost DECIMAL(12,2), reorder_level, low_notified, active | `on_hand >= 0` CHECK; supplier FK SET NULL |
+| `stock_movements` | item_id, kind (receive / issue / return / adjust), quantity INT (signed), unit_cost DECIMAL(12,2), reason, project_id, by_id, by_name, created_at | append-only; item FK RESTRICT (items with history are switched off, not deleted); project FK SET NULL |
+| `project_materials` | project_id, item_id, needed, reserved, issued | unique (project_id, item_id); counts ≥ 0 CHECK; project FK CASCADE, item FK RESTRICT |
+| `inventory_settings` | one row: reserve_on_stage (stage name or null = holds by hand only) | — |
+
+Quantities are whole numbers (whole sheets, units, boxes). Free stock is computed, never stored: `on_hand − SUM(project_materials.reserved)`.

@@ -729,7 +729,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry' | 'request';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry' | 'request' | 'stock';
   title: string;
   body: string | null;
   link: string | null;
