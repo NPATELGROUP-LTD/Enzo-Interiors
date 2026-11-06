@@ -385,7 +385,12 @@ function QuoteEditor({
   const [projectId, setProjectId] = useState(quote?.project_id ?? preset?.id ?? '');
   const [title, setTitle] = useState(quote?.title ?? '');
   const [validUntil, setValidUntil] = useState(quote?.valid_until?.slice(0, 10) ?? '');
-  const [vatRate, setVatRate] = useState(String(quote?.vat_rate ?? 20));
+  const [vatRate, setVatRate] = useState(quote ? String(quote.vat_rate) : '');
+  // A new one starts at Settings › VAT; a saved one keeps its own rate.
+  const defaultVat = useQuery<{ vat_rate: number }>(quote ? null : '/settings/vat').data?.vat_rate;
+  useEffect(() => {
+    if (defaultVat !== undefined) setVatRate((current) => (current === '' ? String(defaultVat) : current));
+  }, [defaultVat]);
   const [discount, setDiscount] = useState(quote?.discount ? String(quote.discount) : '');
   const [notes, setNotes] = useState(quote?.notes ?? '');
   // No inventory (switched off or removed) = a 404 here and plain text lines.

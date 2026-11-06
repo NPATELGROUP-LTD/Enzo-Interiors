@@ -51,6 +51,7 @@ after(async () => {
   await prisma.client.deleteMany({ where: { id: { in: [MINE.id, OTHER.id] } } });
   await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id, INFRA.id] } } });
   await prisma.siteSettings.updateMany({ data: { bank_details: Prisma.DbNull } });
+  await prisma.businessSettings.deleteMany({});
   await prisma.$disconnect();
   await app.close();
 });
@@ -90,6 +91,7 @@ interface Stage {
 }
 interface Inv {
   id: string;
+  vat_rate: number;
   status: string;
   amount: number;
   paid_at: string | null;
@@ -324,6 +326,8 @@ test('role access: Admin only for staff; a client sees their own non-Draft stage
     ['GET', `/invoices/export?ids=${sent.id}`],
     ['GET', '/settings/bank-details'],
     ['PUT', '/settings/bank-details', { account_name: 'x', bank_name: 'x', sort_code: '123456', account_number: '12345678' }],
+    ['GET', '/settings/vat'],
+    ['PUT', '/settings/vat', { vat_rate: 20 }],
   ];
   for (const token of [tokens.designer, tokens.editor, tokens.infra]) {
     for (const [method, path, body] of routes) {
@@ -384,4 +388,28 @@ test('bank details: Admin only, validated, on authenticated invoices, never publ
   }
   assert.equal((await call('GET', '/settings/bank-details')).status, 401, 'signed-out callers get nothing');
   assert.equal((await call('GET', '/invoices/' + sent.id)).status, 401);
+});
+
+test('VAT rate: 0 by default, Admin sets it, a new invoice starts from it', async () => {
+  await prisma.businessSettings.deleteMany({});
+  const get = async () => (await json<{ vat_rate: number }>(await call('GET', '/settings/vat', tokens.admin))).vat_rate;
+  const put = (vat_rate: unknown) => call('PUT', '/settings/vat', tokens.admin, { vat_rate });
+  assert.equal(await get(), 0, 'not registered until a rate is saved');
+  for (const bad of [-1, 100.01, 12.345, 'twenty', null]) assert.equal((await put(bad)).status, 400, String(bad));
+  assert.equal((await call('PUT', '/settings/vat', tokens.admin, { vat_rate: 20, extra: 1 })).status, 400);
+
+  assert.equal((await json<{ vat_rate: number }>(await put(17.5))).vat_rate, 17.5);
+  assert.equal(await get(), 17.5);
+  assert.equal((await json<{ vat_rate: number }>(await put(20))).vat_rate, 20, 'a second save updates the row');
+  assert.equal(await prisma.businessSettings.count(), 1);
+
+  const body = { client_id: MINE.id, due_date: '2099-01-31', items: [{ description: 'x', quantity: 1, unit_price: 100 }] };
+  const invoice = await json<Inv>(await call('POST', '/invoices', tokens.admin, body), 201);
+  assert.equal(invoice.vat_rate, 20, 'an invoice without a rate takes the setting');
+  assert.equal(invoice.amount, 120);
+  const kept = await json<Inv>(await call('POST', '/invoices', tokens.admin, { ...body, vat_rate: 5 }), 201);
+  assert.equal(kept.vat_rate, 5, 'a rate sent with the invoice wins');
+  await put(0);
+  assert.equal((await json<Inv>(await call('GET', `/invoices/${invoice.id}`, tokens.admin))).vat_rate, 20, 'saved invoices keep their own rate');
+  assert.equal((await call('GET', '/settings/vat')).status, 401);
 });
