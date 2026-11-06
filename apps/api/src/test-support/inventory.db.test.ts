@@ -15,19 +15,34 @@ const run = randomUUID().slice(0, 8);
 const PASSWORD = 'inventory-password-123';
 const DESIGNER = { id: `stf_inv_${run}`, email: `inv-designer-${run}@test.enzo.local` };
 const SKU = `INV-${run}`;
-const tokens = { admin: '', designer: '' };
+const INSTALLER = { id: `stf_inv_i_${run}`, email: `inv-installer-${run}@test.enzo.local` };
+const OUTSIDER = { id: `stf_inv_o_${run}`, email: `inv-outsider-${run}@test.enzo.local` };
+const CLIENT = `cli_inv_${run}`;
+const PROJECT = `prj_inv_${run}`;
+const tokens = { admin: '', designer: '', installer: '', outsider: '' };
 let itemId = '';
 
 before(async () => {
   app = await startTestApp();
   prisma = new PrismaClient();
-  await prisma.staffUser.create({ data: { ...DESIGNER, name: 'Inv Designer', role: 'Designer', password_hash: await bcrypt.hash(PASSWORD, 4) } });
+  const password_hash = await bcrypt.hash(PASSWORD, 4);
+  await prisma.staffUser.create({ data: { ...DESIGNER, name: 'Inv Designer', role: 'Designer', password_hash } });
+  await prisma.staffUser.create({ data: { ...INSTALLER, name: 'Inv Installer', role: 'Installer', password_hash } });
+  await prisma.staffUser.create({ data: { ...OUTSIDER, name: 'Inv Outsider', role: 'Installer', password_hash } });
+  await prisma.client.create({ data: { id: CLIENT, name: 'Inv Client', email: `inv-client-${run}@test.enzo.local`, joined_date: new Date(), status: 'Active', password_hash: '' } });
   tokens.admin = await signIn(ADMIN.email, ADMIN.password);
   tokens.designer = await signIn(DESIGNER.email, PASSWORD);
+  tokens.installer = await signIn(INSTALLER.email, PASSWORD);
+  tokens.outsider = await signIn(OUTSIDER.email, PASSWORD);
 });
 
 after(async () => {
+  await prisma.inventorySetting.deleteMany({ where: { id: 'inventory' } });
+  await prisma.projectMaterial.deleteMany({ where: { project_id: PROJECT } });
   await prisma.stockMovement.deleteMany({ where: { item: { sku: { startsWith: SKU } } } });
+  await prisma.project.deleteMany({ where: { id: PROJECT } });
+  await prisma.client.deleteMany({ where: { id: CLIENT } });
+  await prisma.staffUser.deleteMany({ where: { id: { in: [INSTALLER.id, OUTSIDER.id] } } });
   await prisma.inventoryItem.deleteMany({ where: { sku: { startsWith: SKU } } });
   await prisma.inventorySupplier.deleteMany({ where: { name: `Supplier ${run}` } });
   await prisma.notification.deleteMany({ where: { kind: 'stock', title: { contains: run } } });
@@ -116,4 +131,65 @@ test('an item with history is switched off, not deleted; a switched-off item tak
   assert.equal((await book({ kind: 'receive', quantity: 1, unit_cost: 1 })).status, 404);
   const fresh = await json<Item>(await call('POST', '/inventory/items', tokens.admin, { sku: `${SKU}-2`, name: 'Spare', type: 'Hardware' }), 201);
   assert.equal((await call('DELETE', `/inventory/items/${fresh.id}`, tokens.admin)).status, 204);
+});
+
+/* ---- Project stock ---- */
+
+type Line = { item_id: string; needed: number; reserved: number; issued: number; available: number; cost?: number };
+const lines = (token: string) => call('GET', `/inventory/projects/${PROJECT}/materials`, token);
+const on = (path: string, token: string, body?: unknown) => call('POST', `/inventory/projects/${PROJECT}/materials/${itemId}/${path}`, token, body);
+let stages: string[] = [];
+const first = async (res: Response) => (await json<Line[]>(res))[0]!;
+
+test('project stock: a project lists what it needs; only its team sees it, and only the Admin sees cost', async () => {
+  stages = (await json<{ stages: string[] }>(await call('GET', '/inventory/settings', tokens.admin))).stages;
+  await prisma.project.create({
+    data: { id: PROJECT, client_id: CLIENT, name: `Kitchen ${run}`, type: 'Kitchen', status: stages[0]!, assigned_designer_id: DESIGNER.id, assigned_installer_id: INSTALLER.id },
+  });
+  const item = await json<Item>(await call('POST', '/inventory/items', tokens.admin, { sku: `${SKU}-P`, name: `Hinge ${run}`, type: 'Hardware' }), 201);
+  itemId = item.id;
+  await json(await book({ kind: 'receive', quantity: 6, unit_cost: 10 }), 201);
+
+  assert.equal((await call('PUT', `/inventory/projects/${PROJECT}/materials/${itemId}`, tokens.designer, { needed: 5 })).status, 403);
+  const line = await first(await call('PUT', `/inventory/projects/${PROJECT}/materials/${itemId}`, tokens.admin, { needed: 5 }));
+  assert.deepEqual([line.needed, line.reserved, line.available, line.cost], [5, 0, 6, 0]);
+
+  const seen = await first(await lines(tokens.designer));
+  assert.equal(seen.cost, undefined, 'no money for a Designer');
+  assert.equal((await lines(tokens.outsider)).status, 404, 'not on the project');
+});
+
+test('project stock: a hold is never more than is free or still needed, and workshop use cannot take it', async () => {
+  assert.equal((await on('reserve', tokens.installer, { quantity: 1 })).status, 403, 'holding stock is the Admin’s');
+  const held = await first(await on('reserve', tokens.admin, { quantity: 4 }));
+  assert.deepEqual([held.reserved, held.available], [4, 2]);
+  assert.equal((await on('reserve', tokens.admin, { quantity: 2 })).status, 409, 'only 1 more is needed');
+  assert.equal((await book({ kind: 'issue', quantity: 3, reason: 'workshop' })).status, 409, '2 are free, 4 are held');
+  const listed = (await json<(Item & { reserved: number; available: number })[]>(await call('GET', '/inventory/items', tokens.admin))).find((i) => i.id === itemId)!;
+  assert.deepEqual([listed.on_hand, listed.reserved, listed.available], [6, 4, 2]);
+});
+
+test('project stock: the installer uses the hold first, returns at most what was used; cost follows', async () => {
+  assert.equal((await on('issue', tokens.outsider, { quantity: 1 })).status, 404);
+  const used = await first(await on('issue', tokens.installer, { quantity: 5 }));
+  assert.deepEqual([used.reserved, used.issued, used.available], [0, 5, 1], '4 from the hold, 1 free');
+  assert.equal((await on('return', tokens.installer, { quantity: 6 })).status, 409);
+  await json(await on('return', tokens.installer, { quantity: 2 }));
+  const line = await first(await lines(tokens.admin));
+  assert.deepEqual([line.issued, line.available, line.cost], [3, 3, 30]);
+  assert.equal((await call('DELETE', `/inventory/projects/${PROJECT}/materials/${itemId}`, tokens.admin)).status, 409, 'used stock keeps the line');
+  const ledger = await prisma.stockMovement.aggregate({ where: { item_id: itemId }, _sum: { quantity: true } });
+  assert.equal(ledger._sum.quantity, 3, 'the ledger adds up to the count');
+});
+
+test('project stock: the chosen stage holds what is still needed; the last stage lets it go', async () => {
+  assert.equal((await call('PUT', '/inventory/settings', tokens.admin, { reserve_on_stage: 'Nowhere' })).status, 400);
+  await json(await call('PUT', '/inventory/settings', tokens.admin, { reserve_on_stage: stages[1] }));
+  await json(await call('PUT', `/inventory/projects/${PROJECT}/materials/${itemId}`, tokens.admin, { needed: 10 }));
+  await json(await call('PATCH', `/projects/${PROJECT}/stage`, tokens.admin, { status: stages[1] }));
+  const held = await first(await lines(tokens.admin));
+  assert.deepEqual([held.reserved, held.available], [3, 0], 'wanted 7, 3 were free: the rest is a shortfall');
+  await json(await call('PATCH', `/projects/${PROJECT}/stage`, tokens.admin, { status: stages.at(-1)! }));
+  const done = await first(await lines(tokens.admin));
+  assert.equal(done.reserved, 0);
 });

@@ -33,6 +33,7 @@ import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
+import { ProjectMaterials } from '@/components/ProjectMaterials';
 import { ProjectTeam } from '@/components/ProjectTeam';
 import { ProjectThread } from '@/components/TeamThread';
 
@@ -325,6 +326,8 @@ export function ProjectDetailPage() {
         />
         <ProjectThread projectId={project.id} />
       </div>
+
+      <ProjectMaterials projectId={project.id} />
 
       {/* The Documents tab's Upload sits at the end of the tabs row. */}
       <div className="flex items-start gap-3">

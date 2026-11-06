@@ -21,7 +21,10 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import { ITEM_TYPES, InventoryItem, InventorySupplier, StockMovement } from '../../data/inventory-store';
-import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
+import { NotificationsModule } from '../notifications/notifications.module';
+import { loadStages } from '../projects/stages';
+import { LowStockWatch } from './low-stock';
+import { ProjectStockController, ProjectStockService } from './project-stock';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
 
@@ -55,7 +58,13 @@ export class SupplierDto {
   @IsOptional() @Transform(trim) @IsString() @MaxLength(2000) notes?: string | null;
 }
 
-export type ItemView = InventoryItem & { supplier_name: string | null; low: boolean };
+export class StockSettingsDto {
+  /** A project stage name, or null to reserve by hand only. */
+  @IsOptional() @IsString() @MaxLength(60) reserve_on_stage!: string | null;
+}
+
+/** reserved = held for projects; available = on_hand - reserved, what is free to use or hold. */
+export type ItemView = InventoryItem & { supplier_name: string | null; reserved: number; available: number; low: boolean };
 
 /**
  * Stock for the whole business, Admin only. Every change to a count is a stock_movements row
@@ -66,7 +75,7 @@ export type ItemView = InventoryItem & { supplier_name: string | null; low: bool
 export class InventoryService {
   constructor(
     private readonly db: DatabaseService,
-    private readonly notifications: NotificationsService,
+    private readonly low: LowStockWatch,
   ) {}
 
   private get store() {
@@ -74,13 +83,31 @@ export class InventoryService {
   }
 
   async items(): Promise<ItemView[]> {
-    const [items, suppliers] = await Promise.all([this.store.items.findWhere({}, { orderBy: { name: 'asc' } }), this.store.suppliers.findAll()]);
+    const [items, suppliers, held] = await Promise.all([
+      this.store.items.findWhere({}, { orderBy: { name: 'asc' } }),
+      this.store.suppliers.findAll(),
+      this.store.reservedByItem(),
+    ]);
     const names = new Map(suppliers.map((s) => [s.id, s.name]));
-    return items.map((item) => this.view(item, names.get(item.supplier_id ?? '') ?? null));
+    return items.map((item) => {
+      const reserved = held.get(item.id) ?? 0;
+      const available = item.on_hand - reserved;
+      return { ...item, supplier_name: names.get(item.supplier_id ?? '') ?? null, reserved, available, low: item.reorder_level !== null && available <= item.reorder_level };
+    });
   }
 
-  private view(item: InventoryItem, supplier_name: string | null): ItemView {
-    return { ...item, supplier_name, low: item.reorder_level !== null && item.on_hand <= item.reorder_level };
+  /** The stage that reserves project stock, and the stages to pick from. */
+  async settings() {
+    const [reserve_on_stage, stages] = await Promise.all([this.store.reserveOnStage(), loadStages(this.db)]);
+    return { reserve_on_stage, stages: stages.map((stage) => stage.name) };
+  }
+
+  async saveSettings(dto: StockSettingsDto) {
+    const stage = dto.reserve_on_stage || null;
+    const { stages } = await this.settings();
+    if (stage && !stages.includes(stage)) throw new BadRequestException(`Stage must be one of: ${stages.join(', ')}`);
+    await this.store.setReserveOnStage(stage);
+    return this.settings();
   }
 
   private async fields(dto: ItemDto) {
@@ -108,12 +135,12 @@ export class InventoryService {
   async update(id: string, dto: ItemDto): Promise<InventoryItem> {
     const item = await this.unique(async () => this.store.items.update(id, { ...(await this.fields(dto)), updated_at: new Date().toISOString() }));
     if (!item) throw new NotFoundException('Item not found.');
-    await this.watchLevel(item);
+    await this.low.check(id);
     return item;
   }
 
   async remove(id: string): Promise<void> {
-    if (await this.store.movements.countWhere({ item_id: id })) {
+    if ((await this.store.movements.countWhere({ item_id: id })) || (await this.store.materials.countWhere({ item_id: id }))) {
       throw new ConflictException('This item has stock history. Switch it off instead.');
     }
     if (!(await this.store.items.delete(id))) throw new NotFoundException('Item not found.');
@@ -127,7 +154,7 @@ export class InventoryService {
     const reason = dto.reason ?? null;
     if (dto.kind === 'adjust' ? dto.quantity === 0 : dto.quantity <= 0) throw new BadRequestException('Enter how many.');
     if (dto.kind === 'receive' && dto.unit_cost === undefined) throw new BadRequestException('Enter the cost per unit.');
-    // shortcut: issuing has no project until project stock lands, so it is workshop use and needs a reason.
+    // Here, issue is workshop use (no project), so it needs a reason; project issues are project-stock.ts.
     if (dto.kind !== 'receive' && !reason) throw new BadRequestException('Say why.');
     const result = await this.store.book({
       item_id: id,
@@ -137,26 +164,12 @@ export class InventoryService {
       reason,
       by_id: principal.id,
       by_name: principal.name,
+      project_id: null,
     });
-    if (result === null) throw new NotFoundException('Item not found, or switched off.');
-    if (result === 'short') throw new ConflictException('There is not that much in stock.');
-    await this.watchLevel(result);
+    if (result === 'missing') throw new NotFoundException('Item not found, or switched off.');
+    if (result === 'short') throw new ConflictException('There is not that much free in stock. Some may be held for projects.');
+    await this.low.check(id);
     return result;
-  }
-
-  /** At or under its reorder level: the Admins are told once, until it is restocked above it. */
-  private async watchLevel(item: InventoryItem): Promise<void> {
-    const low = item.reorder_level !== null && item.on_hand <= item.reorder_level;
-    if (low === item.low_notified) return;
-    if (!(await this.store.items.updateWhere({ id: item.id, low_notified: !low }, { low_notified: low }))) return;
-    if (low) {
-      await this.notifications.notifyAdminsByEmail({
-        kind: 'stock',
-        title: `Low stock: ${item.name}`,
-        body: `${item.on_hand} ${item.unit} left (reorder at ${item.reorder_level}).`,
-        link: '/inventory?view=low',
-      });
-    }
   }
 
   suppliers(): Promise<InventorySupplier[]> {
@@ -217,6 +230,13 @@ export class InventoryController {
     return this.inventory.book(principal, id, dto);
   }
 
+  @Get('settings') settings() {
+    return this.inventory.settings();
+  }
+  @Put('settings') saveSettings(@Body() dto: StockSettingsDto) {
+    return this.inventory.saveSettings(dto);
+  }
+
   @Get('suppliers') suppliers() {
     return this.inventory.suppliers();
   }
@@ -231,10 +251,13 @@ export class InventoryController {
   }
 }
 
-/** Remove the feature: delete this folder, data/inventory-store.ts, its line in DatabaseService and AppModule. */
+/**
+ * Remove the feature: delete this folder, data/inventory-store.ts, its line in DatabaseService and AppModule.
+ * Remove only project stock: drop ProjectStock* below (projects keeps an empty stageListeners).
+ */
 @Module({
   imports: [NotificationsModule],
-  controllers: [InventoryController],
-  providers: [InventoryService],
+  controllers: [InventoryController, ProjectStockController],
+  providers: [InventoryService, ProjectStockService, LowStockWatch],
 })
 export class InventoryModule {}

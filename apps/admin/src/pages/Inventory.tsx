@@ -22,6 +22,9 @@ interface Item {
   supplier_id: string | null;
   supplier_name: string | null;
   on_hand: number;
+  /** Held for projects; available = on_hand - reserved. */
+  reserved: number;
+  available: number;
   avg_cost: number;
   reorder_level: number | null;
   active: boolean;
@@ -38,7 +41,7 @@ interface Supplier {
 }
 interface Movement {
   id: string;
-  kind: 'receive' | 'issue' | 'adjust';
+  kind: 'receive' | 'issue' | 'return' | 'adjust';
   quantity: number;
   unit_cost: number;
   reason: string | null;
@@ -52,7 +55,7 @@ const VIEWS = [
   { id: 'off', label: 'Switched off' },
   { id: 'suppliers', label: 'Suppliers' },
 ];
-const KIND_LABEL = { receive: 'Received', issue: 'Used', adjust: 'Adjusted' } as const;
+const KIND_LABEL = { receive: 'Received', issue: 'Used', return: 'Returned', adjust: 'Adjusted' } as const;
 const failed = (caught: unknown) => (caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
 /** '' -> null and numbers from text inputs, so the form can stay in strings. */
 const orNull = (value: string) => value.trim() || null;
@@ -102,7 +105,8 @@ export function InventoryPage() {
           active={view}
           onChange={(id) => setParams(id === 'all' ? {} : { view: id })}
         />
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {onSuppliers ? null : <ReserveStage />}
           {onSuppliers ? null : <span className="tabular text-sm text-ink-muted">Stock value {money(value)}</span>}
           <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setEditing('new')}>
             {onSuppliers ? 'New supplier' : 'New item'}
@@ -142,6 +146,7 @@ export function InventoryPage() {
                     {item.low && item.active ? <StatusTag tone="warning">Low</StatusTag> : null}
                     <span className="font-semibold">{item.on_hand}</span> {item.unit}
                   </span>
+                  {item.reserved ? <span className="block text-xs text-ink-muted">{item.reserved} held · {item.available} free</span> : null}
                 </Td>
                 <Td className="tabular text-right max-sm:hidden">{money(item.avg_cost)}</Td>
                 <Td className="tabular text-right max-sm:hidden">{money(item.on_hand * item.avg_cost)}</Td>
@@ -160,6 +165,31 @@ export function InventoryPage() {
         )
       ) : null}
     </div>
+  );
+}
+
+/** Which project stage holds stock for a project's materials (also by hand on the project). */
+function ReserveStage() {
+  const toast = useToast();
+  const settings = useQuery<{ reserve_on_stage: string | null; stages: string[] }>('/inventory/settings');
+  if (!settings.data) return null;
+  const save = async (value: string) => {
+    try {
+      settings.setData(await api.put('/inventory/settings', { reserve_on_stage: value || null }));
+      toast.success(value ? `Stock is held when a project reaches ${value}.` : 'Stock is held by hand only.');
+    } catch (caught) {
+      toast.error(failed(caught));
+    }
+  };
+  return (
+    <Select label="Project stock" value={settings.data.reserve_on_stage ?? ''} onChange={(event) => void save(event.target.value)}>
+      <option value="">Hold project stock by hand</option>
+      {settings.data.stages.slice(0, -1).map((stage) => (
+        <option key={stage} value={stage}>
+          Hold at {stage}
+        </option>
+      ))}
+    </Select>
   );
 }
 
@@ -256,9 +286,11 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
       }
     >
       <div className="flex flex-col gap-5">
-        <dl className="grid grid-cols-3 gap-3 text-sm">
+        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
           {[
             ['In stock', `${item.on_hand} ${item.unit}`],
+            ['Held for projects', String(item.reserved)],
+            ['Free', String(item.available)],
             ['Avg cost', money(item.avg_cost)],
             ['Reorder at', item.reorder_level === null ? '—' : String(item.reorder_level)],
           ].map(([label, figure]) => (
