@@ -992,3 +992,64 @@ model StaffThreadRead {
   @@unique([thread_id, staff_id])
   @@map("staff_thread_reads")
 }
+
+// Inventory (modules/inventory, migration 34). The ledger is the truth; on_hand and avg_cost are kept in step with it.
+model InventorySupplier {
+  id           String          @id
+  name         String
+  contact_name String?
+  email        String?
+  phone        String?
+  lead_days    Int?
+  notes        String?
+  created_at   DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime        @default(now()) @db.Timestamptz(6)
+  items        InventoryItem[]
+
+  @@map("inventory_suppliers")
+}
+
+model InventoryItem {
+  id            String             @id
+  sku           String             @unique
+  name          String
+  /// Sheet | Hardware | Bought-in
+  type          String
+  category      String?
+  unit          String             @default("each")
+  size_note     String?
+  supplier_id   String?
+  /// Whole units; a CHECK in the migration keeps it >= 0.
+  on_hand       Int                @default(0)
+  /// Weighted average net cost per unit.
+  avg_cost      Decimal            @default(0) @db.Decimal(12, 2)
+  reorder_level Int?
+  low_notified  Boolean            @default(false)
+  active        Boolean            @default(true)
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @default(now()) @db.Timestamptz(6)
+  supplier      InventorySupplier? @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
+  movements     StockMovement[]
+
+  @@index([supplier_id])
+  @@map("inventory_items")
+}
+
+/// Append-only: never updated or deleted.
+model StockMovement {
+  id         String        @id
+  item_id    String
+  /// receive | issue | adjust
+  kind       String
+  /// Signed: + into stock, - out of it.
+  quantity   Int
+  unit_cost  Decimal       @db.Decimal(12, 2)
+  reason     String?
+  by_id      String?
+  by_name    String
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  item       InventoryItem @relation(fields: [item_id], references: [id], onDelete: Restrict)
+
+  @@index([item_id, created_at])
+  @@map("stock_movements")
+}
