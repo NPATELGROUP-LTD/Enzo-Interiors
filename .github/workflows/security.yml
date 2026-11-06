@@ -25,7 +25,7 @@ jobs:
       matrix:
         app: [api, admin, web, portal]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -38,7 +38,7 @@ jobs:
     name: secrets (gitleaks)
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       - name: Install gitleaks 8.18.4
@@ -53,7 +53,7 @@ jobs:
     name: code (semgrep)
     runs-on: ${{ vars.CI_RUNNER || 'ubuntu-latest' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: >-
           docker run --rm -v "$PWD:/src" semgrep/semgrep:1.97.0
           semgrep scan --config p/ci --severity ERROR --error --metrics=off /src
