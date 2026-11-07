@@ -235,7 +235,7 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     return { bank_details };
   }
 
-  /** The rate new quotes, invoices and purchase orders start with; saved ones keep their own. */
+  /** The rate new quotes and invoices start with; saved ones keep their own. Purchase orders keep the supplier's 20%. */
   async vat(): Promise<{ vat_rate: number }> {
     return { vat_rate: (await this.db.settings()).vat_rate };
   }

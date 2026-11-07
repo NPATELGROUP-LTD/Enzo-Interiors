@@ -75,7 +75,7 @@ export function VatSettings() {
           step="0.01"
           value={rate}
           error={error}
-          hint={value === 0 ? 'Off: quotes and invoices show no VAT line.' : 'The UK standard rate is 20%.'}
+          hint={value === 0 ? 'Off: no VAT is added to new quotes and invoices.' : 'The UK standard rate is 20%.'}
           onChange={(event) => setRate(event.target.value)}
         />
       </form>

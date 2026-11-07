@@ -900,7 +900,8 @@ function InvoiceEditor({
           ...paperwork,
           project_id: projectId || null,
           due_date: dueDate,
-          ...(moneyEditable ? { vat_rate: rate, discount: off, items } : {}),
+          // Blank VAT = the setting had not loaded: the API then applies Settings › VAT itself.
+          ...(moneyEditable ? { ...(vatRate.trim() === '' ? {} : { vat_rate: rate }), discount: off, items } : {}),
           ...(stagesEditable ? { stages: stagePayload(stageRows) } : {}),
         };
 
