@@ -371,8 +371,18 @@ export class QuoteMakerService {
 
   /* ---- Public ---- */
 
-  private async assertOpen(): Promise<void> {
+  async assertOpen(): Promise<void> {
     if (!(await this.site.pageOn('quote'))) throw new ForbiddenException('The quote maker is not open yet.');
+  }
+
+  /** The units a visitor may design with: the catalogue's list (switched on, nothing missing to price them). */
+  async publicTemplates(): Promise<UnitTemplate[]> {
+    const [templates, pricing] = await Promise.all([
+      this.store.templates.findWhere({ active: true }, { orderBy: { position: 'asc' } }),
+      this.pricing(),
+    ]);
+    const items = await this.items(this.itemIds(templates, pricing));
+    return templates.filter((t) => templateProblems(t, items, pricing).length === 0);
   }
 
   /** What a visitor may design with: no costs, no panels, no inventory names, no hardware. */

@@ -276,17 +276,22 @@ ${button(forgotUrl, 'Reset my password')}`,
    * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
    * so the form cannot be used to mail someone else a message of the sender's choosing.
    */
-  enquiryReceived(contact: string): Rendered {
+  /** `estimate`: a quote maker design's range, already worded ("£2,800 to £3,100"). */
+  enquiryReceived(contact: string, estimate: string | null = null): Rendered {
     const subject = 'We have your enquiry';
+    const range = estimate
+      ? `Your design's estimate is ${estimate}. We will check it and send you a full quote.`
+      : null;
     return {
       subject,
       html: layout(
         subject,
         `${heading('Enquiry received', 'Thank you')}
+${range ? para(escapeHtml(range)) : ''}
 ${para('We read every enquiry ourselves. You will hear from us the same working day.')}
 ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       ),
-      text: `Thank you.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+      text: `Thank you.\n\n${range ? `${range}\n\n` : ''}We read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
     };
   },
 

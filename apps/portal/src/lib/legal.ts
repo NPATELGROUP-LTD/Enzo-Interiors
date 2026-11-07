@@ -145,6 +145,7 @@ export const LEGAL: Record<LegalKind, LegalDoc> = {
             'Short-lived items: password reset links last 30 minutes, and a notification address stays until you turn notifications off or sign out.',
             'The record that you accepted the terms: 6 years after your project is completed, with your other records.',
             'The security record of sign-ins and requests, with the IP addresses in it: 90 days, then deleted.',
+            'A room you designed on our website: 12 months after you sent it, then deleted, unless we made you a quote from it or you became a client.',
             'Backups roll over on a schedule, so deleted information drops out as they are replaced.',
           ],
         ],
