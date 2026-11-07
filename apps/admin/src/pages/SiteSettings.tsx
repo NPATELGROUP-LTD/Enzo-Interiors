@@ -12,6 +12,7 @@ import {
   Kanban,
   Newspaper,
   PaintBrush,
+  Percent,
   Plus,
   Pulse,
   ShieldCheck,
@@ -40,6 +41,7 @@ import { OpeningHours } from './settings/OpeningHours';
 import { ProjectStages } from './settings/ProjectStages';
 import { useAuth } from '@/lib/auth';
 import { UsersSection } from './settings/Users';
+import { VatSettings } from './settings/VatSettings';
 
 interface SiteSettings {
   status: 'live' | 'coming_soon';
@@ -81,6 +83,7 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
   { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
   { id: 'documents', label: 'Document categories', detail: 'What a file can be filed under', Icon: FolderSimple },
   { id: 'bank', label: 'Bank details', detail: 'Where clients pay, printed on invoices', Icon: Bank },
+  { id: 'vat', label: 'VAT', detail: 'The rate new quotes and invoices start with', Icon: Percent },
   { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
   { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
   { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
@@ -124,6 +127,7 @@ export function SiteSettingsPage() {
   else if (section === 'stages') pane = <ProjectStages />;
   else if (section === 'documents') pane = <DocumentCategories />;
   else if (section === 'bank') pane = <BankDetailsSettings />;
+  else if (section === 'vat') pane = <VatSettings />;
   else if (section === 'newsletter') pane = <Newsletter />;
   else if (section === 'users') pane = <UsersSection />;
   else if (section === 'alerts') pane = <Alerts />;

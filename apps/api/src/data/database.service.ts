@@ -345,7 +345,8 @@ export class DatabaseService {
       existing ?? {
         id: 'settings_enzo',
         business_name: 'Enzo Interiors',
-        vat_rate: 20,
+        // Settings › VAT; 0 until the studio is VAT-registered and saves a rate.
+        vat_rate: 0,
         logo_url: null,
         brand_primary_color: '#173C30',
         email_from_address: null,

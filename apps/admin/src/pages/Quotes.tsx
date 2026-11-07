@@ -385,7 +385,12 @@ function QuoteEditor({
   const [projectId, setProjectId] = useState(quote?.project_id ?? preset?.id ?? '');
   const [title, setTitle] = useState(quote?.title ?? '');
   const [validUntil, setValidUntil] = useState(quote?.valid_until?.slice(0, 10) ?? '');
-  const [vatRate, setVatRate] = useState(String(quote?.vat_rate ?? 20));
+  const [vatRate, setVatRate] = useState(quote ? String(quote.vat_rate) : '');
+  // A new one starts at Settings › VAT; a saved one keeps its own rate.
+  const defaultVat = useQuery<{ vat_rate: number }>(quote ? null : '/settings/vat').data?.vat_rate;
+  useEffect(() => {
+    if (defaultVat !== undefined) setVatRate((current) => (current === '' ? String(defaultVat) : current));
+  }, [defaultVat]);
   const [discount, setDiscount] = useState(quote?.discount ? String(quote.discount) : '');
   const [notes, setNotes] = useState(quote?.notes ?? '');
   // No inventory (switched off or removed) = a 404 here and plain text lines.
@@ -431,7 +436,8 @@ function QuoteEditor({
       .filter((row) => row.description.trim())
       .map((row) => ({ description: row.description.trim(), quantity: Number(row.quantity), unit_price: sellPence(row) / 100, cost_price: Number(row.cost) || 0, margin_pct: Number(row.margin) || 0 }));
     if (items.length === 0) return setError('Add at least one line.');
-    const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, vat_rate: Number(vatRate) || 0, discount: Number(discount) || 0, items };
+    // Blank VAT = the setting had not loaded: the API then applies Settings › VAT itself.
+    const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, ...(vatRate.trim() === '' ? {} : { vat_rate: Number(vatRate) || 0 }), discount: Number(discount) || 0, items };
     setSaving(true);
     try {
       const saved = quote ? await api.put<Quote>(`/quotes/${quote.id}`, body) : await api.post<Quote>('/quotes', { ...body, client_id: clientId, project_id: projectId });

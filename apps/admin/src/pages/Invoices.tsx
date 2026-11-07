@@ -692,7 +692,12 @@ function InvoiceEditor({
   const [clientId, setClientId] = useState(invoice?.client_id ?? '');
   const [projectId, setProjectId] = useState(invoice?.project_id ?? '');
   const [dueDate, setDueDate] = useState(invoice ? invoice.due_date.slice(0, 10) : inDays(30));
-  const [vatRate, setVatRate] = useState(String(invoice?.vat_rate ?? 20));
+  const [vatRate, setVatRate] = useState(invoice ? String(invoice.vat_rate) : '');
+  // A new one starts at Settings › VAT; a saved one keeps its own rate.
+  const defaultVat = useQuery<{ vat_rate: number }>(invoice ? null : '/settings/vat').data?.vat_rate;
+  useEffect(() => {
+    if (defaultVat !== undefined) setVatRate((current) => (current === '' ? String(defaultVat) : current));
+  }, [defaultVat]);
   const [discount, setDiscount] = useState(invoice?.discount ? String(invoice.discount) : '');
   const [jobName, setJobName] = useState(invoice?.job_name ?? '');
   const [jobAddress, setJobAddress] = useState(invoice?.job_address ?? '');
@@ -895,7 +900,8 @@ function InvoiceEditor({
           ...paperwork,
           project_id: projectId || null,
           due_date: dueDate,
-          ...(moneyEditable ? { vat_rate: rate, discount: off, items } : {}),
+          // Blank VAT = the setting had not loaded: the API then applies Settings › VAT itself.
+          ...(moneyEditable ? { ...(vatRate.trim() === '' ? {} : { vat_rate: rate }), discount: off, items } : {}),
           ...(stagesEditable ? { stages: stagePayload(stageRows) } : {}),
         };
 
