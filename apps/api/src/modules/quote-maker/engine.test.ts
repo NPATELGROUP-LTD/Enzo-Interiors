@@ -7,7 +7,22 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
 import type { QuotePricing, UnitTemplate } from '../../data/quote-maker-store';
-import { type PriceItem, type Piece, generatePanels, nestPieces, priceDesign, resolveUnit, templateProblems } from './engine';
+import {
+  type FillAnswers,
+  type PriceItem,
+  type Piece,
+  fillPlan,
+  fillRun,
+  generatePanels,
+  nestPieces,
+  planShapeProblem,
+  planUnits,
+  priceDesign,
+  resolveUnit,
+  templateProblems,
+  unitsOffWall,
+  wallLabel,
+} from './engine';
 import { DEFAULT_PRICING, TemplateDto } from './quote-maker.module';
 import { STARTER_LIBRARY } from './starter';
 
@@ -176,4 +191,66 @@ test('starter library: every unit passes the same checks as an Admin save', () =
     for (const variant of template.variants) for (const panel of variant.panels) assert.ok(keys.has(panel.slot), `${template.slug} ${panel.label}`);
   }
   assert.equal(new Set(STARTER_LIBRARY.map((t) => t.slug)).size, STARTER_LIBRARY.length);
+});
+
+/* ---------------------------------------------------------------- plans & questions */
+
+const starter = STARTER_LIBRARY.map((t, i) => ({ ...t, id: t.slug, updated_by: null, created_at: '', updated_at: '', position: i })) as UnitTemplate[];
+const ids = () => {
+  let n = 0;
+  return () => `u${(n += 1)}`;
+};
+const answers = (over: Partial<FillAnswers> = {}): FillAnswers => ({
+  room_type: 'kitchen', layout: 'single', walls: [3000], height_mm: 2400, island_mm: null, upper: false, finishes: {}, gaps: [], ...over,
+});
+const widthOf = (u: { template_id: string; variant_id: string }) => starter.find((t) => t.id === u.template_id)!.variants.find((v) => v.id === u.variant_id)!.width_mm;
+
+test('fill: covers the most wall with the fewest units, widest first', () => {
+  assert.deepEqual(fillRun([300, 400, 500, 600, 800, 1000], 3000), [1000, 1000, 1000]);
+  assert.deepEqual(fillRun([300, 400, 500, 600, 800, 1000], 2700), [1000, 1000, 400, 300]);
+  // Greedy would take 1000 and leave 150; 600 + 550 cannot be made, so 1100 is the most that fits.
+  assert.deepEqual(fillRun([600, 1000, 500], 1150), [600, 500]);
+  assert.deepEqual(fillRun([600], 500), []);
+});
+
+test('fill: a kitchen run with wall units above and a dishwasher gap first', () => {
+  const plan = fillPlan(answers({ upper: true, gaps: ['gap-dishwasher'], finishes: { front: 'oak', worktop: 'quartz' } }), starter, ids());
+  const [wall] = plan.walls;
+  const floor = wall!.units.filter((u) => u.template_id !== 'kitchen-wall');
+  assert.equal(floor[0]!.template_id, 'gap-dishwasher');
+  assert.equal(floor.reduce((sum, u) => sum + widthOf(u), 0), 3000);
+  assert.ok(wall!.units.some((u) => u.template_id === 'kitchen-wall'));
+  // Finishes land only on the slots a unit has: the wall unit has no worktop.
+  const wallUnit = wall!.units.find((u) => u.template_id === 'kitchen-wall')!;
+  assert.deepEqual(wallUnit.finishes, { front: 'oak' });
+  assert.equal(planShapeProblem(plan, 80), null);
+  assert.deepEqual(unitsOffWall(plan, planUnits(plan).map(widthOf)), []);
+});
+
+test('fill: in an L the second wall starts clear of the corner', () => {
+  const plan = fillPlan(answers({ layout: 'L', walls: [3000, 2400] }), starter, ids());
+  assert.equal(plan.walls.length, 2);
+  assert.equal(Math.min(...plan.walls[1]!.units.map((u) => u.x_mm)), 560);
+  assert.equal(plan.walls[0]!.units[0]!.x_mm, 0);
+});
+
+test('fill: bedrooms are lined with wardrobes and top boxes; alcove shelving never sits on a tall unit', () => {
+  const bedroom = fillPlan(answers({ room_type: 'bedroom', walls: [2400], upper: true }), starter, ids());
+  const used = new Set(bedroom.walls[0]!.units.map((u) => u.template_id));
+  assert.deepEqual([...used].sort(), ['wardrobe-hinged', 'wardrobe-top-box']);
+  const alcove = fillPlan(answers({ room_type: 'alcove', walls: [1000], upper: true }), starter, ids());
+  assert.deepEqual(alcove.walls[0]!.units.map((u) => u.template_id), ['alcove-cupboard', 'alcove-shelving']);
+});
+
+test('plans: shape problems are caught before anything is looked up', () => {
+  const plan = fillPlan(answers(), starter, ids());
+  assert.match(planShapeProblem({ ...plan, layout: 'U' }, 80)!, /3 wall/);
+  assert.match(planShapeProblem({ ...plan, height_mm: 900 }, 80)!, /ceiling/);
+  assert.match(planShapeProblem(plan, 2)!, /at most 2/);
+  const dup = { ...plan, walls: [{ ...plan.walls[0]!, units: [plan.walls[0]!.units[0]!, plan.walls[0]!.units[0]!] }] };
+  assert.match(planShapeProblem(dup, 80)!, /same id/);
+  const off = { ...plan, walls: [{ length_mm: 3000, units: [{ ...plan.walls[0]!.units[0]!, x_mm: 2500 }] }] };
+  assert.deepEqual(unitsOffWall(off, [1000]), [0]);
+  assert.equal(wallLabel(plan, 0), 'Wall A');
+  assert.equal(wallLabel(plan, 1), 'Island');
 });

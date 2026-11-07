@@ -11,6 +11,7 @@ import { RateLimitStore } from './core/rate-limit';
 import { AlertsModule } from './modules/alerts/alerts.module';
 import { InfraModule } from './modules/infra/infra.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { QuoteDesignsModule } from './modules/quote-maker/designs';
 import { QuoteMakerModule } from './modules/quote-maker/quote-maker.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
@@ -94,6 +95,7 @@ import { SiteSettingsModule } from './modules/site-settings/site-settings.module
     QuotesModule,
     InventoryModule,
     QuoteMakerModule,
+    QuoteDesignsModule,
     SettingsModule,
   ],
   providers: [

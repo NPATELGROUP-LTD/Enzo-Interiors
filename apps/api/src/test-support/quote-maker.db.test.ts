@@ -23,6 +23,8 @@ const PASSWORD = 'quote-maker-password-123';
 const EDITOR = { id: `stf_qm_e_${run}`, email: `qm-editor-${run}@test.enzo.local` };
 const DESIGNER = { id: `stf_qm_d_${run}`, email: `qm-designer-${run}@test.enzo.local` };
 const SKU = `QM-${run}`;
+const CLIENT = `cli_qm_${run}`;
+const PROJECT = `prj_qm_${run}`;
 const IMAGE = `med_qm_${run}`;
 const tokens = { admin: '', editor: '', designer: '' };
 const ids = { white: '', green: '', hidden: '', quartz: '', hinge: '' };
@@ -58,6 +60,11 @@ before(async () => {
 });
 
 after(async () => {
+  await prisma.projectMaterial.deleteMany({ where: { project_id: PROJECT } });
+  await prisma.projectQuote.deleteMany({ where: { client_id: CLIENT } });
+  await prisma.quoteDesign.deleteMany({ where: { title: { startsWith: `QM ${run}` } } });
+  await prisma.project.deleteMany({ where: { id: PROJECT } });
+  await prisma.client.deleteMany({ where: { id: CLIENT } });
   await prisma.unitTemplate.deleteMany({ where: { slug: { startsWith: `qm-${run}` } } });
   await prisma.quoteMakerSetting.deleteMany({});
   await prisma.inventoryItem.deleteMany({ where: { sku: { startsWith: SKU } } });
@@ -276,4 +283,103 @@ test('switching off a default board takes its units off the website, never price
   const library = await json<Array<{ slug: string; problems: string[] }>>(await call('GET', '/quote-maker/templates', tokens.admin));
   assert.match(library.find((t) => t.slug === 'kitchen-base')!.problems.join(' '), /Carcass/);
   await prisma.inventoryItem.update({ where: { id: ids.white }, data: { active: true } });
+});
+
+/* ------------------------------------------------------------ saved designs (PR 3) */
+
+type Placed = { id: string; template_id: string; variant_id: string; x_mm: number; finishes?: Record<string, string> };
+type PlanBody = { layout: string; height_mm: number; walls: Array<{ length_mm: number; units: Placed[] }>; island: { length_mm: number; units: Placed[] } | null };
+type Design = {
+  id: string; ref: string; title: string | null; source: string; units: number;
+  estimate_low: number | null; estimate_high: number | null; design: PlanBody;
+  quotes: Array<{ id: string; status: string }>;
+};
+const unitAt = (id: string, x_mm: number): Placed => ({ id, template_id: baseId, variant_id: 'kitchen-base-600', x_mm });
+const single = (...units: Placed[]): PlanBody => ({ layout: 'single', height_mm: 2400, walls: [{ length_mm: 3000, units }], island: null });
+const save = (plan: PlanBody, title = `QM ${run} kitchen`) => ({ title, room_type: 'kitchen', design: plan });
+let designId = '';
+
+test('saved designs, the questions and Make quote are Admin only', async () => {
+  for (const token of [undefined, tokens.editor, tokens.designer]) {
+    const want = token ? 403 : 401;
+    assert.equal((await call('GET', '/quote-maker/designs', token)).status, want);
+    assert.equal((await call('POST', '/quote-maker/designs', token, save(single()))).status, want);
+    assert.equal((await call('POST', '/quote-maker/fill', token, { room_type: 'kitchen', layout: 'single', walls: [3000], height_mm: 2400, upper: false })).status, want);
+    assert.equal((await call('POST', '/quote-maker/designs/x/quote', token, { project_id: 'x' })).status, want);
+  }
+});
+
+test('the questions fill every wall of an L with units that fit, and the plan saves as it came', async () => {
+  const plan = await json<PlanBody>(await call('POST', '/quote-maker/fill', tokens.admin, {
+    room_type: 'kitchen', layout: 'L', walls: [3000, 2400], height_mm: 2400, island_mm: 1800, upper: true,
+  }));
+  assert.equal(plan.walls.length, 2);
+  assert.ok(plan.island && plan.island.units.length > 0, 'island filled');
+  const library = await json<Array<{ id: string; variants: Array<{ id: string; width_mm: number }> }>>(await call('GET', '/quote-maker/templates', tokens.admin));
+  const width = (u: Placed) => library.find((t) => t.id === u.template_id)!.variants.find((v) => v.id === u.variant_id)!.width_mm;
+  for (const wall of [...plan.walls, plan.island!]) {
+    assert.ok(wall.units.length > 0);
+    for (const unit of wall.units) assert.ok(unit.x_mm >= 0 && unit.x_mm + width(unit) <= wall.length_mm, 'inside its wall');
+  }
+  const saved = await json<Design>(await call('POST', '/quote-maker/designs', tokens.admin, save(plan, `QM ${run} filled`)), 201);
+  assert.match(saved.ref, /^QD-\d{4,}$/);
+  assert.equal(saved.source, 'staff');
+  assert.deepEqual(saved.design, plan);
+  assert.ok((saved.estimate_low === null) === (saved.estimate_high === null));
+  assert.ok(saved.estimate_low === null || saved.estimate_low <= saved.estimate_high!);
+});
+
+test('a design is refused when its shape is wrong or a unit is off its wall; it is priced on save', async () => {
+  const refuse = async (body: unknown, pattern: RegExp) => {
+    const res = await call('POST', '/quote-maker/designs', tokens.admin, body);
+    const text = await res.text();
+    assert.equal(res.status, 400, text);
+    assert.match(text, pattern);
+  };
+  await refuse(save(single(unitAt('a', 2600))), /does not fit on Wall A/);
+  await refuse(save({ ...single(), layout: 'L' }), /2 wall/);
+  await refuse(save(single(unitAt('a', 0), unitAt('a', 600))), /same id/);
+  await refuse(save(single({ ...unitAt('a', 0), template_id: 'nope' })), /no longer in the Unit library/);
+  await refuse(save(single({ ...unitAt('a', 0), variant_id: 'kitchen-base-601' })), /no longer in the Unit library/);
+  await refuse({ ...save(single()), room_type: 'garage' }, /room_type/);
+
+  // One base unit with the default (trade-only) front: white 48 + front 100 + quartz 145 + 1.5 h x £30, x 1.7, no VAT.
+  const net = (48 + 100 + 145 + 45) * 1.7;
+  const one = await json<Design>(await call('POST', '/quote-maker/designs', tokens.admin, save(single(unitAt('a', 0)))), 201);
+  assert.deepEqual([one.estimate_low, one.estimate_high], [Math.round((net * 0.95) / 50) * 50, Math.round((net * 1.15) / 50) * 50]);
+  designId = one.id;
+
+  const two = await json<Design>(await call('PUT', `/quote-maker/designs/${designId}`, tokens.admin, save(single(unitAt('a', 0), unitAt('b', 600)))));
+  assert.equal(two.units, 2);
+  assert.ok(two.estimate_high! > one.estimate_high!);
+  assert.equal((await call('GET', '/quote-maker/designs/nope', tokens.admin)).status, 404);
+  assert.ok((await json<Design[]>(await call('GET', '/quote-maker/designs', tokens.admin))).some((d) => d.id === designId && !('design' in d)));
+});
+
+test('Make quote writes a Draft for the project, identical units on one line; the design adds its stock once', async () => {
+  const stage = (await json<{ stages: string[] }>(await call('GET', '/inventory/settings', tokens.admin))).stages[0]!;
+  await prisma.client.create({ data: { id: CLIENT, name: 'QM Client', email: `qm-client-${run}@test.enzo.local`, joined_date: new Date(), status: 'Active', password_hash: '' } });
+  await prisma.project.create({ data: { id: PROJECT, client_id: CLIENT, name: `Kitchen ${run}`, type: 'Kitchen', status: stage } });
+  assert.equal((await call('POST', `/quote-maker/designs/${designId}/quote`, tokens.admin, { project_id: 'prj_missing' })).status, 400);
+
+  const quote = await json<{ id: string; status: string; client_id: string; project_id: string; design_id: string; items: Array<{ quantity: number; cost_price: number; margin_pct: number; unit_price: number }> }>(
+    await call('POST', `/quote-maker/designs/${designId}/quote`, tokens.admin, { project_id: PROJECT }), 201);
+  assert.deepEqual([quote.status, quote.client_id, quote.project_id, quote.design_id], ['Draft', CLIENT, PROJECT, designId]);
+  assert.equal(quote.items.length, 1);
+  assert.equal(quote.items[0]!.quantity, 2);
+  assert.equal(Number(quote.items[0]!.margin_pct), 70);
+  assert.equal(Number(quote.items[0]!.unit_price), Math.round(Number(quote.items[0]!.cost_price) * 170) / 100);
+  assert.deepEqual((await json<Design>(await call('GET', `/quote-maker/designs/${designId}`, tokens.admin))).quotes.map((q) => q.id), [quote.id]);
+
+  const first = await json<{ changed: number; lines: number }>(await call('POST', `/quote-maker/designs/${designId}/materials`, tokens.admin, { project_id: PROJECT }));
+  assert.ok(first.changed >= 3 && first.changed === first.lines, 'carcass, front, worktop at least');
+  const needs = await prisma.projectMaterial.findMany({ where: { project_id: PROJECT } });
+  assert.ok(needs.every((n) => n.needed >= 1));
+  assert.equal(needs.find((n) => n.item_id === ids.hinge), undefined, 'the starter base unit names no hinge');
+  assert.deepEqual(await json(await call('POST', `/quote-maker/designs/${designId}/materials`, tokens.admin, { project_id: PROJECT })), { changed: 0, lines: first.lines });
+
+  // Deleting the design keeps the quote, unlinked.
+  await json(await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin));
+  assert.equal((await prisma.projectQuote.findUnique({ where: { id: quote.id } }))!.design_id, null);
+  assert.equal((await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin)).status, 404);
 });

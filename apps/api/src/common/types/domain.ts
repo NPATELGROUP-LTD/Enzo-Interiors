@@ -343,6 +343,8 @@ export interface ProjectQuote extends BaseRecord {
   responded_at: string | null;
   response_comment: string | null;
   invoice_id: string | null;
+  /** The quote maker design it was made from (quote_designs), if any. */
+  design_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;

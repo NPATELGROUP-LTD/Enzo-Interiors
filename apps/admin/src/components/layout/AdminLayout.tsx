@@ -10,6 +10,7 @@ import {
   CloudCheck,
   Envelope,
   FilePlus,
+  Ruler,
   GearSix,
   ImagesSquare,
   Kanban,
@@ -51,6 +52,7 @@ import { disconnectSocket } from '@/lib/socket';
 import { useTheme } from '@/lib/theme';
 import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { SETTINGS_SECTIONS, settingsSections } from '@/pages/SiteSettings';
+import { QUOTE_MAKER_VIEWS } from '@/pages/QuoteMaker';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
 import { Badge, Desktop, type DesktopPage } from './Desktop';
@@ -122,12 +124,15 @@ function MenuBarMenu({
   label,
   to,
   end,
+  active = false,
   children,
 }: {
   id: string;
   label: string;
   to: string;
   end?: boolean;
+  /** Also lit on these screens (the path match only covers `to`). */
+  active?: boolean;
   children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -197,7 +202,7 @@ function MenuBarMenu({
         className={({ isActive }) =>
           clsx(
             'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
-            open ? 'bg-ink/15 text-ink' : isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+            open ? 'bg-ink/15 text-ink' : isActive || active ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
           )
         }
       >
@@ -426,6 +431,36 @@ function InvoicesMenu() {
   );
 }
 
+/** Quotes, and the quote maker that writes them. */
+function QuotesMenu() {
+  const { pathname, search } = useLocation();
+  const view = pathname === '/quote-maker' ? (new URLSearchParams(search).get('view') ?? 'designs') : null;
+  return (
+    <MenuBarMenu id="quotes-menu" label="Quotes" to="/quotes" active={pathname.startsWith('/quote-maker')}>
+      {(close) => (
+        <>
+          <MenuItem to="/quotes" label="Quotes" onChoose={close} />
+          <MenuItem to="/quotes?new=1" label="New quote…" Icon={FilePlus} active={false} onChoose={close} />
+          <Separator />
+          <p className={MENU_HEADING} aria-hidden="true">
+            Quote maker
+          </p>
+          {QUOTE_MAKER_VIEWS.map(({ id, label }) => (
+            <MenuItem
+              key={id}
+              to={id === 'designs' ? '/quote-maker' : `/quote-maker?view=${id}`}
+              label={label}
+              active={view === id || (id === 'designs' && pathname.startsWith('/quote-maker/'))}
+              onChoose={close}
+            />
+          ))}
+          <MenuItem to="/quote-maker/new" label="New design…" Icon={FilePlus} active={false} onChoose={close} />
+        </>
+      )}
+    </MenuBarMenu>
+  );
+}
+
 /** Settings: each pane, as in its sidebar. */
 function SettingsMenu() {
   const { isInfra } = useAuth();
@@ -535,6 +570,12 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
   }
   if (pathname === '/quotes') return { title: 'Quotes', back: null };
   if (pathname.startsWith('/quotes/')) return { title: 'Quotes', back: { to: '/quotes', label: 'Quotes' } };
+  if (pathname === '/quote-maker') {
+    const view = QUOTE_MAKER_VIEWS.find(({ id }) => id !== 'designs' && id === new URLSearchParams(search).get('view'));
+    return { title: view ? <Crumbs items={[{ label: 'Quote maker', to: '/quote-maker' }, { label: view.label }]} /> : 'Quote maker', back: null };
+  }
+  if (pathname.startsWith('/quote-maker/'))
+    return { title: pathname.endsWith('/new') ? 'New design' : 'Design', back: { to: '/quote-maker', label: 'Quote maker' } };
   if (pathname === '/inventory') return { title: 'Inventory', back: null };
   if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
   if (pathname === '/account') return { title: 'Account', back: null };
@@ -632,6 +673,7 @@ export function AdminLayout() {
       ? [
           { to: '/invoices', label: 'Invoices', Icon: Receipt, active: at('/invoices') },
           { to: '/quotes', label: 'Quotes', Icon: FileText, active: at('/quotes') },
+          { to: '/quote-maker', label: 'Quote maker', Icon: Ruler, active: at('/quote-maker') },
           { to: '/inventory', label: 'Inventory', Icon: Package, active: at('/inventory') },
           { to: '/enquiries', label: 'Enquiries', Icon: Tray, active: at('/enquiries'), badge: enquiries.data?.new_count ?? 0 },
           { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
@@ -668,7 +710,7 @@ export function AdminLayout() {
           {canTeam ? <MenuBarLink to="/team" label="Team" badge={unreadTeam} /> : null}
           {mailConfigured ? <MenuBarLink to="/mail" label="Mail" /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
-          {isAdmin ? <MenuBarLink to="/quotes" label="Quotes" /> : null}
+          {isAdmin ? <QuotesMenu /> : null}
           {isAdmin || isEditor ? <MenuBarLink to="/inventory" label="Inventory" /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}

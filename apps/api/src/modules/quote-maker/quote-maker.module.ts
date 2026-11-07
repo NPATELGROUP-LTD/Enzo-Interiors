@@ -47,6 +47,7 @@ import {
   Breakdown,
   DesignUnit,
   MAX_PIECES,
+  generatePanels,
   PriceItem,
   ROOM_TYPE_IDS,
   ROOM_TYPES,
@@ -59,7 +60,7 @@ import {
 } from './engine';
 
 const trim = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() || null : value);
-const ID = /^[a-z0-9][a-z0-9-]{0,59}$/;
+export const ID = /^[a-z0-9][a-z0-9-]{0,59}$/;
 const KEY = /^[a-z][a-z0-9_]{0,29}$/;
 const money = { maxDecimalPlaces: 2 };
 
@@ -138,6 +139,15 @@ export class PricingDto {
   @ValidateNested() @Type(() => PricingDefaultsDto) defaults!: PricingDefaultsDto;
 }
 
+/** A size and the unit's structure, for the standard cut-list the Unit library starts a size from. */
+export class PanelsDto {
+  @ValidateNested() @Type(() => StructureDto) structure!: StructureDto;
+  @IsInt() @Min(10) @Max(10_000) width_mm!: number;
+  @IsInt() @Min(10) @Max(5_000) height_mm!: number;
+  @IsInt() @Min(10) @Max(2_000) depth_mm!: number;
+  @IsArray() @ArrayMaxSize(6) @Matches(KEY, { each: true }) slots!: string[];
+}
+
 export class DesignUnitDto {
   @IsString() @MaxLength(64) template_id!: string;
   @Matches(ID) variant_id!: string;
@@ -175,7 +185,7 @@ const priceItem = (item: InventoryItem): PriceItem => ({
   cost: item.quote_cost ?? item.avg_cost,
 });
 
-function cleanFinishes(value: unknown): Record<string, string> | undefined {
+export function cleanFinishes(value: unknown): Record<string, string> | undefined {
   if (value === undefined || value === null) return undefined;
   const entries = typeof value === 'object' && !Array.isArray(value) ? Object.entries(value) : null;
   if (!entries || entries.length > 10 || entries.some(([k, v]) => !KEY.test(k) || typeof v !== 'string' || v.length > 64))
@@ -418,7 +428,8 @@ export class QuoteMakerService {
     };
   }
 
-  private async resolve(dto: DesignDto, publicOnly: boolean): Promise<{ units: ResolvedUnit[]; items: Map<string, PriceItem>; pricing: QuotePricing }> {
+  /** The posted units made concrete and checked, with what pricing them needs. Throws 400 with the reason. */
+  async resolve(dto: DesignDto, publicOnly: boolean): Promise<{ units: ResolvedUnit[]; items: Map<string, PriceItem>; pricing: QuotePricing }> {
     const units: DesignUnit[] = dto.units.map((u) => ({ template_id: u.template_id, variant_id: u.variant_id, finishes: cleanFinishes(u.finishes) }));
     const [templates, pricing] = await Promise.all([
       this.store.templates.findWhere({ id: { in: [...new Set(units.map((u) => u.template_id))] } }),
@@ -470,6 +481,11 @@ export class QuoteMakerController {
     return this.quoteMaker.estimate(dto);
   }
 
+  /** The standard cut-list for a size (a starting point the Admin edits); ids are made when the unit is saved. */
+  @Post('panels') @HttpCode(200) panels(@Body() dto: PanelsDto) {
+    return generatePanels(dto.structure, dto, dto.slots.map((key) => ({ key })), 'new').map(({ id: _id, ...panel }) => panel);
+  }
+
   @Post('breakdown') @HttpCode(200) breakdown(@Body() dto: DesignDto) {
     return this.quoteMaker.breakdown(dto);
   }
@@ -495,10 +511,11 @@ export class QuoteMakerController {
   }
 }
 
-/** Remove the feature: delete this folder, data/quote-maker-store.ts, its line in DatabaseService and AppModule, and the call in scripts/import-content.ts. */
+/** Remove the feature: delete this folder (QuoteDesignsModule in designs.ts too), data/quote-maker-store.ts, its line in DatabaseService and AppModule, and the call in scripts/import-content.ts. */
 @Module({
   imports: [SiteSettingsModule],
   controllers: [QuoteMakerController],
   providers: [QuoteMakerService],
+  exports: [QuoteMakerService],
 })
 export class QuoteMakerModule {}

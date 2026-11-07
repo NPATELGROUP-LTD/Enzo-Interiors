@@ -1,5 +1,9 @@
 import type {
   BoardRole,
+  Layout,
+  PlacedUnit,
+  Plan,
+  PlanWall,
   QuotePricing,
   TemplatePanel,
   TemplateSlot,
@@ -408,4 +412,135 @@ export function priceDesign(units: ResolvedUnit[], items: Map<string, PriceItem>
     unpriced: [...unpriced],
     warnings: [...warnings],
   };
+}
+
+/* ------------------------------------------------------------------ plans */
+
+export const LAYOUTS = ['single', 'galley', 'L', 'U'] as const satisfies readonly Layout[];
+/** Walls each layout has. In an L or a U, each wall's left end meets the previous wall's right end. */
+export const WALL_COUNT: Record<Layout, number> = { single: 1, galley: 2, L: 2, U: 3 };
+
+/** Bounds a posted plan is held to before anything is looked up. */
+export const PLAN_LIMITS = { wall_min: 300, wall_max: 12_000, island_min: 600, island_max: 6_000, height_min: 1_800, height_max: 4_000 };
+
+/** Every unit of a plan, walls first then the island, in the order prices and lines refer to them (by index). */
+export const planUnits = (plan: Plan): Array<PlacedUnit & { wall: number }> => [
+  ...plan.walls.flatMap((wall, i) => wall.units.map((unit) => ({ ...unit, wall: i }))),
+  ...(plan.island?.units ?? []).map((unit) => ({ ...unit, wall: plan.walls.length })),
+];
+
+/** "Wall A", "Wall B", ..., "Island": how the editor and the quote lines name a run. */
+export const wallLabel = (plan: Pick<Plan, 'walls'>, index: number) =>
+  index >= plan.walls.length ? 'Island' : `Wall ${String.fromCharCode(65 + index)}`;
+
+/** Why the plan's shape is wrong (before templates are looked up), or null. */
+export function planShapeProblem(plan: Plan, maxUnits: number): string | null {
+  if (plan.walls.length !== WALL_COUNT[plan.layout]) return `This layout has ${WALL_COUNT[plan.layout]} wall(s).`;
+  const L = PLAN_LIMITS;
+  if (plan.height_mm < L.height_min || plan.height_mm > L.height_max) return `The ceiling must be ${L.height_min}–${L.height_max} mm.`;
+  if (plan.walls.some((w) => w.length_mm < L.wall_min || w.length_mm > L.wall_max)) return `Each wall must be ${L.wall_min}–${L.wall_max} mm.`;
+  if (plan.island && (plan.island.length_mm < L.island_min || plan.island.length_mm > L.island_max))
+    return `The island must be ${L.island_min}–${L.island_max} mm.`;
+  const units = planUnits(plan);
+  if (units.length > maxUnits) return `A design can have at most ${maxUnits} units.`;
+  if (new Set(units.map((u) => u.id)).size !== units.length) return 'Two units in this design have the same id.';
+  return null;
+}
+
+/** Indexes (as planUnits) of the units that do not sit inside their wall, given their widths. */
+export function unitsOffWall(plan: Plan, widths: number[]): number[] {
+  const lengths = [...plan.walls.map((w) => w.length_mm), plan.island?.length_mm ?? 0];
+  return planUnits(plan).flatMap((unit, i) => (unit.x_mm < 0 || unit.x_mm + widths[i]! > lengths[unit.wall]! ? [i] : []));
+}
+
+/* ------------------------------------------------------------- questions */
+
+/** What the questions ask. Lengths in mm; finishes are slot key -> item id, applied to every unit that has the slot. */
+export interface FillAnswers {
+  room_type: string;
+  layout: Layout;
+  walls: number[];
+  height_mm: number;
+  island_mm: number | null;
+  upper: boolean;
+  finishes: Record<string, string>;
+  /** Unpriced spaces (appliances) to leave at the start of wall A, as template ids. */
+  gaps: string[];
+}
+
+/** Bedrooms are lined with wardrobes; every other room starts from its floor units. */
+const MAIN_MOUNT: Partial<Record<string, UnitTemplate['mount']>> = { bedroom: 'tall' };
+
+/**
+ * The widths that fill a run best: the most wall covered, then the fewest units, widest first.
+ * Exact over whole millimetres (a run is at most 12 m and a unit has at most 20 sizes).
+ */
+export function fillRun(widths: number[], length: number): number[] {
+  const L = Math.max(0, Math.floor(length));
+  const sizes = [...new Set(widths.filter((w) => Number.isInteger(w) && w > 0 && w <= L))];
+  const count = new Int32Array(L + 1).fill(-1); // fewest units that cover exactly i mm, -1 = cannot
+  const last = new Int32Array(L + 1);
+  count[0] = 0;
+  for (let i = 1; i <= L; i += 1)
+    for (const w of sizes)
+      if (w <= i && count[i - w]! >= 0 && (count[i]! < 0 || count[i - w]! + 1 < count[i]!)) {
+        count[i] = count[i - w]! + 1;
+        last[i] = w;
+      }
+  let i = L;
+  while (i > 0 && count[i]! < 0) i -= 1;
+  const out: number[] = [];
+  for (; i > 0; i -= last[i]!) out.push(last[i]!);
+  return out.sort((a, b) => b - a);
+}
+
+/**
+ * The questions turned into a plan to carry on from: the room type's first floor unit (in a bedroom,
+ * tall) along every wall, its first wall unit above if asked and it clears the run below, appliance
+ * gaps first on wall A. In an L or a U each later wall starts clear of the corner the previous wall
+ * owns. `templates` are the ones that may be used, in Unit library order.
+ */
+export function fillPlan(answers: FillAnswers, templates: UnitTemplate[], newId: () => string): Plan {
+  // Units made for this room (it is their first room type) come before ones shared from another.
+  const forRoom = templates
+    .filter((t) => t.room_types.includes(answers.room_type) && t.variants.length)
+    .sort((a, b) => Number(b.room_types[0] === answers.room_type) - Number(a.room_types[0] === answers.room_type));
+  const want = MAIN_MOUNT[answers.room_type] ?? 'floor';
+  const main = forRoom.find((t) => t.mount === want) ?? forRoom.find((t) => t.mount === 'floor' || t.mount === 'tall');
+  const mainTop = main ? Math.max(...main.variants.map((v) => v.height_mm)) : 0;
+  const upper = answers.upper ? forRoom.find((t) => t.mount === 'wall' && t.elevation_mm >= mainTop) : undefined;
+  const gaps = answers.gaps.flatMap((id) => templates.filter((t) => t.id === id && t.mount === 'gap' && t.variants.length));
+  const corner = answers.layout === 'L' || answers.layout === 'U';
+
+  const place = (template: UnitTemplate, variant: TemplateVariant, x_mm: number): PlacedUnit => {
+    const finishes = Object.fromEntries(template.slots.flatMap((slot) => (answers.finishes[slot.key] ? [[slot.key, answers.finishes[slot.key]!]] : [])));
+    return { id: newId(), template_id: template.id, variant_id: variant.id, x_mm, ...(Object.keys(finishes).length ? { finishes } : {}) };
+  };
+  const run = (template: UnitTemplate | undefined, from: number, to: number): PlacedUnit[] => {
+    if (!template || to <= from) return [];
+    let x = from;
+    return fillRun(template.variants.map((v) => v.width_mm), to - from).map((width) => {
+      const unit = place(template, template.variants.find((v) => v.width_mm === width)!, x);
+      x += width;
+      return unit;
+    });
+  };
+  const depth = (template: UnitTemplate | undefined) => (template ? Math.max(...template.variants.map((v) => v.depth_mm)) : 0);
+
+  const walls = answers.walls.slice(0, WALL_COUNT[answers.layout]).map((length_mm, i): PlanWall => {
+    const units: PlacedUnit[] = [];
+    let start = corner && i > 0 ? depth(main) : 0;
+    if (i === 0)
+      for (const gap of gaps) {
+        const variant = gap.variants[0]!;
+        if (start + variant.width_mm > length_mm) break;
+        units.push(place(gap, variant, start));
+        start += variant.width_mm;
+      }
+    units.push(...run(main, start, length_mm), ...run(upper, corner && i > 0 ? depth(upper) : 0, length_mm));
+    return { length_mm, units };
+  });
+  const islandUnit = forRoom.find((t) => t.mount === 'floor');
+  const island = answers.island_mm ? { length_mm: answers.island_mm, units: run(islandUnit, 0, answers.island_mm) } : null;
+  return { layout: answers.layout, height_mm: answers.height_mm, walls, island };
 }
