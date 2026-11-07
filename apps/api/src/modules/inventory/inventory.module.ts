@@ -14,8 +14,10 @@ import {
   Put,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEmail,
   IsIn,
@@ -24,15 +26,18 @@ import {
   IsOptional,
   IsString,
   Max,
+  Matches,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 
 import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import {
+  BOARD_ROLES,
   ITEM_TYPES,
   InventoryItem,
   InventorySupplier,
@@ -47,7 +52,29 @@ import { ProjectStockController, ProjectStockService } from './project-stock';
 const trim = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() || null : value;
 
-export class ItemDto {
+export class SpecLineDto {
+  @Transform(trim) @IsString() @MinLength(1) @MaxLength(60) label!: string;
+  @Transform(trim) @IsString() @MinLength(1) @MaxLength(200) value!: string;
+}
+
+/** What an Editor may change on an item, and the spec part of the Admin's form. Replaces all of it. */
+export class SpecsDto {
+  @IsOptional() @IsInt() @Min(1) @Max(100_000) length_mm?: number | null;
+  @IsOptional() @IsInt() @Min(1) @Max(100_000) width_mm?: number | null;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000) thickness_mm?: number | null;
+  @IsOptional() @IsBoolean() grain?: boolean;
+  @IsOptional() @IsIn(BOARD_ROLES) board_role?: InventoryItem['board_role'];
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() || null : value))
+  @Matches(/^#[0-9a-f]{6}$/, { message: 'A swatch is a colour such as #8a6f4e' })
+  swatch?: string | null;
+  @IsOptional() @IsString() @MaxLength(64) image_id?: string | null;
+  @IsOptional() @IsArray() @ArrayMaxSize(30) @ValidateNested({ each: true }) @Type(() => SpecLineDto) specs?: SpecLineDto[];
+  @IsOptional() @IsBoolean() show_on_site?: boolean;
+  @IsOptional() @Transform(trim) @IsString() @MaxLength(120) public_name?: string | null;
+}
+
+export class ItemDto extends SpecsDto {
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(40) sku!: string;
   @Transform(trim) @IsString() @MinLength(1) @MaxLength(200) name!: string;
   @IsIn(ITEM_TYPES) type!: InventoryItem['type'];
@@ -57,7 +84,17 @@ export class ItemDto {
   @IsOptional() @IsString() @MaxLength(64) supplier_id?: string | null;
   @IsOptional() @IsInt() @Min(0) @Max(1_000_000) reorder_level?: number | null;
   @IsOptional() @IsBoolean() active?: boolean;
+  @IsOptional() @IsNumber({ maxDecimalPlaces: 2 }) @Min(0) @Max(100_000_000) quote_cost?: number | null;
 }
+
+/** The fields an Editor sees: the item and its specs, never cost, stock, supplier or orders. */
+const CATALOGUE_FIELDS = [
+  'id', 'sku', 'name', 'type', 'category', 'unit', 'size_note', 'active', 'updated_at',
+  'length_mm', 'width_mm', 'thickness_mm', 'grain', 'board_role', 'swatch', 'image_id', 'specs', 'show_on_site', 'public_name',
+] as const satisfies ReadonlyArray<keyof InventoryItem>;
+export type CatalogueItem = Pick<InventoryItem, (typeof CATALOGUE_FIELDS)[number]>;
+const catalogueView = (item: InventoryItem): CatalogueItem =>
+  Object.fromEntries(CATALOGUE_FIELDS.map((key) => [key, item[key]])) as CatalogueItem;
 
 export class MovementDto {
   @IsIn(['receive', 'issue', 'adjust']) kind!: StockMovement['kind'];
@@ -147,10 +184,40 @@ export class InventoryService {
     return this.settings();
   }
 
+  /** Editors (and the Admin) see the catalogue: specs only. */
+  async catalogue(): Promise<CatalogueItem[]> {
+    return (await this.store.items.findWhere({}, { orderBy: { name: 'asc' } })).map(catalogueView);
+  }
+
+  async saveSpecs(id: string, dto: SpecsDto): Promise<CatalogueItem> {
+    const item = await this.store.items.update(id, { ...(await this.specFields(dto)), updated_at: new Date().toISOString() });
+    if (!item) throw new NotFoundException('Item not found.');
+    return catalogueView(item);
+  }
+
+  private async specFields(dto: SpecsDto) {
+    if (dto.image_id && !(await this.db.mediaAssets.findById(dto.image_id)))
+      throw new BadRequestException('That image is no longer in the media library.');
+    return {
+      length_mm: dto.length_mm ?? null,
+      width_mm: dto.width_mm ?? null,
+      thickness_mm: dto.thickness_mm ?? null,
+      grain: dto.grain ?? false,
+      board_role: dto.board_role ?? null,
+      swatch: dto.swatch ?? null,
+      image_id: dto.image_id || null,
+      specs: (dto.specs ?? []).map(({ label, value }) => ({ label, value })),
+      show_on_site: dto.show_on_site ?? false,
+      public_name: dto.public_name ?? null,
+    };
+  }
+
   private async fields(dto: ItemDto) {
     if (dto.supplier_id && !(await this.store.suppliers.findById(dto.supplier_id)))
       throw new BadRequestException('That supplier no longer exists.');
     return {
+      ...(await this.specFields(dto)),
+      quote_cost: dto.quote_cost ?? null,
       sku: dto.sku,
       name: dto.name,
       type: dto.type,
@@ -302,6 +369,12 @@ export class InventoryController {
 
   @Get('items') items() {
     return this.inventory.items();
+  }
+  @Get('catalogue') @Roles('Admin', 'Editor') catalogue() {
+    return this.inventory.catalogue();
+  }
+  @Put('items/:id/specs') @Roles('Admin', 'Editor') saveSpecs(@Param('id') id: string, @Body() dto: SpecsDto) {
+    return this.inventory.saveSpecs(id, dto);
   }
   @Post('items') create(@Body() dto: ItemDto) {
     return this.inventory.create(dto);

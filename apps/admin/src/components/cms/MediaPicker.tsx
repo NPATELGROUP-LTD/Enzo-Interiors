@@ -321,7 +321,7 @@ export function MediaField({
             </span>
           );
         })}
-        <Button variant="secondary" onClick={() => setOpen(true)} icon={<ImageIcon size={16} />}>
+        <Button type="button" variant="secondary" onClick={() => setOpen(true)} icon={<ImageIcon size={16} />}>
           {value.length === 0 ? 'Choose' : multiple ? 'Add or reorder' : 'Replace'}
         </Button>
       </div>
