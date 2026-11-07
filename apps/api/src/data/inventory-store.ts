@@ -7,6 +7,7 @@ import { PrismaService } from './prisma.service';
 /* Inventory (modules/inventory). Types live here, not in domain.ts, so the whole feature is these two files. */
 
 export const ITEM_TYPES = ['Sheet', 'Hardware', 'Bought-in'] as const;
+export const BOARD_ROLES = ['carcass', 'front', 'worktop', 'back'] as const;
 
 export interface InventorySupplier extends BaseRecord {
   name: string;
@@ -34,6 +35,18 @@ export interface InventoryItem extends BaseRecord {
   active: boolean;
   created_at: string;
   updated_at: string;
+  length_mm: number | null;
+  width_mm: number | null;
+  thickness_mm: number | null;
+  grain: boolean;
+  board_role: (typeof BOARD_ROLES)[number] | null;
+  swatch: string | null;
+  image_id: string | null;
+  specs: Array<{ label: string; value: string }>;
+  show_on_site: boolean;
+  public_name: string | null;
+  /** Admin only: what the quote maker prices this at; null = avg_cost. */
+  quote_cost: number | null;
 }
 
 export interface StockMovement extends BaseRecord {
@@ -133,7 +146,7 @@ export class InventoryStore {
     this.suppliers = new PrismaRepository(prisma.inventorySupplier, 'inventory_suppliers', STAMPS);
     this.items = new PrismaRepository(prisma.inventoryItem, 'inventory_items', {
       ...STAMPS,
-      decimals: ['avg_cost'],
+      decimals: ['avg_cost', 'quote_cost'],
     });
     this.movements = new PrismaRepository(prisma.stockMovement, 'stock_movements', {
       dates: ['created_at'],

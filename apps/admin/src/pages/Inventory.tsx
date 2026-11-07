@@ -6,13 +6,15 @@ import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Mod
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { OrdersTable, ShortfallList } from '@/components/inventory/Orders';
+import { SpecsFields, specsBody, specsError, specsForm, type Specs } from '@/components/inventory/Specs';
+import type { MediaAsset } from '@/types/cms';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
 
 /* Inventory (Admin only), apps/api modules/inventory. Its types live here so removing the feature is this file plus its route and menu entries. */
 const TYPES = ['Sheet', 'Hardware', 'Bought-in'] as const;
-interface Item {
+interface Item extends Specs {
   id: string;
   sku: string;
   name: string;
@@ -29,6 +31,8 @@ interface Item {
   /** Ordered from a supplier (Sent or Part-received) and not in yet. */
   on_order: number;
   avg_cost: number;
+  /** What the quote maker prices it at; null = avg_cost. */
+  quote_cost: number | null;
   reorder_level: number | null;
   active: boolean;
   low: boolean;
@@ -420,18 +424,26 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
     size_note: item?.size_note ?? '',
     supplier_id: item?.supplier_id ?? '',
     reorder_level: item?.reorder_level?.toString() ?? '',
+    quote_cost: item?.quote_cost?.toString() ?? '',
     active: item?.active ?? true,
   });
+  const [specs, setSpecs] = useState(() => specsForm(item));
+  const assets = useQuery<MediaAsset[]>('/cms/media');
+  const toast = useToast();
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    const problem = specsError(specs);
+    if (problem) return toast.error(problem);
     const body = {
       ...form,
+      ...specsBody(specs),
       category: orNull(form.category),
       size_note: orNull(form.size_note),
       supplier_id: form.supplier_id || null,
       reorder_level: intOrNull(form.reorder_level),
+      quote_cost: form.quote_cost.trim() === '' ? null : Number(form.quote_cost),
     };
     void save(() => (item ? api.put(`/inventory/items/${item.id}`, body) : api.post('/inventory/items', body)), item ? 'Saved.' : 'Item added.');
   };
@@ -440,6 +452,7 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
     <Modal
       open
       onClose={onClose}
+      width="lg"
       title={item ? `Edit ${item.name}` : 'New item'}
       footer={
         <Button type="submit" form="inventory-item" variant="primary" loading={busy}>
@@ -467,6 +480,17 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
           ))}
         </Select>
         <Input label="Reorder at" type="number" min={0} step={1} value={form.reorder_level} onChange={set('reorder_level')} hint="Admins are told when stock falls to this. Empty = never." />
+        <Input
+          label="Quoting cost (£, net)"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          value={form.quote_cost}
+          onChange={set('quote_cost')}
+          hint={`Per ${form.unit || 'unit'}, what quotes price it at. Empty = the average cost${item ? ` (${money(item.avg_cost)})` : ''}.`}
+        />
+        <SpecsFields form={specs} onChange={setSpecs} assets={assets.data ?? []} onAssetsChanged={() => void assets.refetch()} isSheet={form.type === 'Sheet'} />
         {item ? (
           <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
             <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />

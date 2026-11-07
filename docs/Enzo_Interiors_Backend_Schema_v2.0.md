@@ -403,7 +403,7 @@ New columns: `contact_submissions.source` / `ref_no`, `projects.ref_no` / `site_
 | Table | Key columns | Constraints |
 |---|---|---|
 | `inventory_suppliers` | name, contact_name, email, phone, lead_days, notes | — |
-| `inventory_items` | sku (unique), name, type (sheet / hardware / bought-in), category, unit, size_note, supplier_id, on_hand INT, avg_cost DECIMAL(12,2), reorder_level, low_notified, active | `on_hand >= 0` CHECK; supplier FK SET NULL |
+| `inventory_items` | sku (unique), name, type (sheet / hardware / bought-in), category, unit, size_note, supplier_id, on_hand INT, avg_cost DECIMAL(12,2), reorder_level, low_notified, active; specs (migration 37): length_mm / width_mm / thickness_mm INT, grain BOOL, board_role (carcass / front / worktop / back), swatch (#rrggbb), image_id, specs JSONB `[{label, value}]`, show_on_site BOOL, public_name, quote_cost DECIMAL(12,2) (null = avg_cost) | `on_hand >= 0` CHECK; dimension, board_role, swatch and `quote_cost >= 0` CHECKs; supplier and image (media_assets) FKs SET NULL |
 | `stock_movements` | item_id, kind (receive / issue / return / adjust), quantity INT (signed), unit_cost DECIMAL(12,2), reason, project_id, by_id, by_name, created_at | append-only; item FK RESTRICT (items with history are switched off, not deleted); project FK SET NULL |
 | `project_materials` | project_id, item_id, needed, reserved, issued | unique (project_id, item_id); counts ≥ 0 CHECK; project FK CASCADE, item FK RESTRICT |
 | `inventory_settings` | one row: reserve_on_stage (stage name or null = holds by hand only) | — |

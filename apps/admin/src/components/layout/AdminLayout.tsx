@@ -553,7 +553,9 @@ function useWindowTitle(): { title: ReactNode; back: { to: string; label: string
 
 export function AdminLayout() {
   const toast = useToast();
-  const { isAdmin, isInfra, logout, can } = useAuth();
+  const { isAdmin, isInfra, logout, can, user } = useAuth();
+  // An Editor keeps the catalogue (specs and photos) in step with the website's quote maker.
+  const isEditor = user?.role === 'Editor';
   // Settings: an Admin has every pane, an Infra manager the ones that run the platform.
   const canSettings = isAdmin || isInfra;
   const canSeeClients = can(...CLIENT_ROLES);
@@ -635,6 +637,7 @@ export function AdminLayout() {
           { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
         ]
       : []),
+    ...(isEditor ? [{ to: '/inventory', label: 'Inventory', Icon: Package, active: at('/inventory') }] : []),
     ...(canSettings ? [{ to: '/settings', label: 'Settings', Icon: GearSix, active: at('/settings') }] : []),
   ];
 
@@ -666,7 +669,7 @@ export function AdminLayout() {
           {mailConfigured ? <MenuBarLink to="/mail" label="Mail" /> : null}
           {isAdmin ? <InvoicesMenu /> : null}
           {isAdmin ? <MenuBarLink to="/quotes" label="Quotes" /> : null}
-          {isAdmin ? <MenuBarLink to="/inventory" label="Inventory" /> : null}
+          {isAdmin || isEditor ? <MenuBarLink to="/inventory" label="Inventory" /> : null}
           {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
           {isAdmin ? <BookingsMenu /> : null}
           {canSettings ? <SettingsMenu /> : null}
