@@ -197,6 +197,7 @@ export function SpecsFields({ form, onChange, assets, onAssetsChanged, isSheet }
               <Input label={index === 0 ? 'Label' : `Label ${index + 1}`} maxLength={60} value={line.label} onChange={(event) => row(index, { label: event.target.value })} />
               <Input label={index === 0 ? 'Value' : `Value ${index + 1}`} maxLength={200} value={line.value} onChange={(event) => row(index, { value: event.target.value })} />
               <Button
+                type="button"
                 variant="ghost"
                 aria-label={`Remove ${line.label || 'this row'}`}
                 onClick={() => set({ specs: form.specs.filter((_, at) => at !== index) })}
@@ -208,7 +209,7 @@ export function SpecsFields({ form, onChange, assets, onAssetsChanged, isSheet }
           ))}
           {form.specs.length < 30 ? (
             <div>
-              <Button variant="secondary" onClick={() => set({ specs: [...form.specs, { label: '', value: '' }] })}>
+              <Button type="button" variant="secondary" onClick={() => set({ specs: [...form.specs, { label: '', value: '' }] })}>
                 <Plus size={14} /> Add a row
               </Button>
             </div>
