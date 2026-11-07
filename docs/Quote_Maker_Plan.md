@@ -175,4 +175,9 @@ cutting-sheet export files, multiple quote options per design.
   - The questions → units fill moves to PR 3, with the editor it fills.
   - The admin breakdown is `POST /quote-maker/breakdown` on a posted design; `designs/:id/estimate` comes with saved designs in PR 3.
   - No template delete yet (switch off); delete-when-unused comes with designs.
+- **PR 3** `feature/quote-maker-admin`: migration 39 (`quote_designs`, `project_quotes.design_id`), saved designs, fill from questions, Make quote, Add to project stock, and the admin screens (designs, editor with 2D front view + 3D, Unit library, Pricing). Changes:
+  - The 12-month clean-up of website designs moves to PR 4, with the first code that creates them (staff designs are never purged).
+  - No `designs/:id/estimate`: the editor posts its current plan to `POST /quote-maker/breakdown`, and every save stores the range.
+  - Make quote: one line per kind of unit **per run** (identical units share a line), so the Admin can still read the quote by wall.
+  - 3D is plain `three` (no react-three-fiber), loaded only when the Admin opens the 3D view.
 - Release: v3.1.0 is taken by history (release/v3.5.0 exists); ship as the next version.

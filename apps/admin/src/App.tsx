@@ -18,6 +18,7 @@ import { EnquiriesPage } from './pages/Enquiries';
 import { InvoicesPage } from './pages/Invoices';
 import { QuotesPage } from './pages/Quotes';
 import { InventoryPage } from './pages/Inventory';
+import { QuoteMakerPage } from './pages/QuoteMaker';
 import { CataloguePage } from './components/inventory/Specs';
 import { MailPage } from './pages/Mail';
 import { MessagesPage } from './pages/Messages';
@@ -130,6 +131,8 @@ export function App() {
         />
         <Route path="/quotes" element={user.role === 'Admin' ? <QuotesPage /> : <Navigate to={home} replace />} />
         <Route path="/quotes/:id" element={user.role === 'Admin' ? <QuotesPage /> : <Navigate to={home} replace />} />
+        <Route path="/quote-maker" element={user.role === 'Admin' ? <QuoteMakerPage /> : <Navigate to={home} replace />} />
+        <Route path="/quote-maker/:id" element={user.role === 'Admin' ? <QuoteMakerPage /> : <Navigate to={home} replace />} />
         <Route
           path="/inventory"
           element={user.role === 'Admin' ? <InventoryPage /> : user.role === 'Editor' ? <CataloguePage /> : <Navigate to={home} replace />}
