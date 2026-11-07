@@ -181,3 +181,11 @@ cutting-sheet export files, multiple quote options per design.
   - Make quote: one line per kind of unit **per run** (identical units share a line), so the Admin can still read the quote by wall.
   - 3D is plain `three` (no react-three-fiber), loaded only when the Admin opens the 3D view.
 - Release: v3.1.0 is taken by history (release/v3.5.0 exists); ship as the next version.
+- **PR 4** `feature/quote-maker-web` (cut from PR 3; opened once #139 is merged). Design, agreed from the code as it stands:
+  - API, public, all behind the `quote` page switch: `POST /quote-maker/start` (the questions → a starting plan, only units the catalogue offers and only show-on-site finishes; 30/min) and `POST /quote-maker/submit` (plan + answers + name, email, phone, message, honeypot `website`; 5 per 15 min as `POST /enquiries`). Submit checks the plan as staff saves do, plus `resolve(publicOnly)`, prices it (unpriced = no range, still sent), stores the enquiry (`kind: 'quote'`, details: room, layout, range) through `EnquiriesService.store`, then the design (`source: 'web'`, `enquiry_id`), then `announce` (made public); the visitor's confirmation carries the range.
+  - `GET /quote-maker/designs?enquiry_id=` (Admin) so the enquiry page shows **Open design QD-…**; no coupling from enquiries to the quote maker.
+  - 12-month clean-up: hourly timer in `QuoteDesignsService`, deletes `source = 'web'` designs older than 12 months with no `project_quotes` pointing at them and an enquiry that is not Converted. Staff designs never.
+  - Web: `PAGE_KEYS` + `PAGE_COPY` gain `quote` (default off); `/quote` (outside the marketing group like /booking, reads `searchParams` before any early return): two starts → room type → questions or empty plan → editor (front view per wall, ported from admin `Elevation.tsx`; 3D ported from admin `Preview3D.tsx`, plain `three`, lazy) → live range (debounced `POST /quote-maker/estimate` with the plan's units) → details → sent page with the range. Own copy of the plan types/helpers (house rule).
+  - Admin: Settings › Pages gains the `quote` switch; the enquiry detail gains Open design.
+  - Privacy: portal `lib/legal.ts` retention line; the website's privacy page is CMS content the owner updates.
+  - Not doing: the portal drawing/3D on the quote (the portal is stripped from release, so it reaches nobody yet).
