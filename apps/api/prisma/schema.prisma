@@ -1157,3 +1157,49 @@ model PurchaseOrderItem {
   @@index([item_id])
   @@map("purchase_order_items")
 }
+
+/* -------------------------------------------------------------------------- */
+/* Quote maker (migration 38)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/// The unit library. slots / variants / hardware are JSONB (shapes in data/quote-maker-store.ts);
+/// the inventory item ids inside are checked by the API on save and again when pricing.
+model UnitTemplate {
+  id           String   @id
+  slug         String   @unique
+  name         String
+  description  String?
+  /// ROOM_TYPES ids in modules/quote-maker/engine.ts
+  room_types   String[] @default([])
+  /// floor | wall | tall | gap (an unpriced appliance space)
+  mount        String
+  /// Height of the underside above the floor, for wall units.
+  elevation_mm Int      @default(0)
+  /// { doors, drawers, shelves, back, plinth_mm, worktop }: drawn in 3D, and the panel recipe.
+  structure    Json
+  slots        Json     @default("[]")
+  variants     Json     @default("[]")
+  hardware     Json     @default("[]")
+  /// Fitting time per unit, priced at the pricing settings' hourly rate.
+  labour_hours Decimal  @default(0) @db.Decimal(6, 2)
+  /// Optional fixed £ per unit on top (LED, fire install, ...).
+  labour_extra Decimal  @default(0) @db.Decimal(12, 2)
+  active       Boolean  @default(true)
+  position     Int      @default(0)
+  /// 'starter library' = as shipped and never edited, so the import may still update it.
+  updated_by   String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("unit_templates")
+}
+
+/// One row, id 'quote_maker': margin, range, saw allowances, hourly rate, default board per role.
+model QuoteMakerSetting {
+  id         String   @id
+  pricing    Json     @default("{}")
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@map("quote_maker_settings")
+}

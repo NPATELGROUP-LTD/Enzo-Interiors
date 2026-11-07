@@ -413,3 +413,12 @@ New columns: `contact_submissions.source` / `ref_no`, `projects.ref_no` / `site_
 `stock_movements.po_id` (nullable, FK SET NULL) marks a receipt booked against an order; price history is these receipts.
 
 Quantities are whole numbers (whole sheets, units, boxes). Free stock is computed, never stored: `on_hand − SUM(project_materials.reserved)`.
+
+## Quote maker (migration 38, additive)
+
+| Table | Key columns | Constraints |
+|---|---|---|
+| `unit_templates` | slug (unique), name, description, room_types TEXT[] (bedroom / media-wall / office / alcove / kitchen), mount (floor / wall / tall / gap), elevation_mm, structure JSONB `{doors, drawers, shelves, back, plinth_mm, worktop}`, slots JSONB `[{key, label, roles[], default_item_id}]`, variants JSONB `[{id, width_mm, height_mm, depth_mm, panels: [{id, label, slot, length_mm, width_mm, qty}]}]`, hardware JSONB `[{item_id, qty}]`, labour_hours DECIMAL(6,2), labour_extra DECIMAL(12,2), active, position, updated_by (`starter library` = as shipped, so the import may update it) | mount and elevation (0–5000) CHECKs; labour ≥ 0 CHECK. Item ids inside the JSONB are not FKs: the API checks them on save and again when pricing |
+| `quote_maker_settings` | one row `quote_maker`: pricing JSONB `{margin_pct, range_low_pct, range_high_pct, kerf_mm, edge_trim_mm, round_to, hourly_rate, defaults: {carcass?, front?, worktop?, back?}}`; missing keys = the defaults in `modules/quote-maker`, computed on read | — |
+
+VAT is not stored here: the quote maker uses `business_settings.vat_rate` (Settings › VAT). Pricing is its own table rather than a `site_settings` column so it can never ride along in `GET /settings` or `/content/site`.
