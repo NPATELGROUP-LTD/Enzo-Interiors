@@ -77,16 +77,67 @@ export interface QuotePricing {
   defaults: Partial<Record<BoardRole, string>>;
 }
 
+/** A run of walls: one, two facing (galley), two meeting (L) or three (U). See WALL_COUNT in modules/quote-maker/engine. */
+export type Layout = 'single' | 'galley' | 'L' | 'U';
+
+/** A unit on a wall: x_mm is its left edge, measured from the wall's left end as you face it. */
+export interface PlacedUnit {
+  id: string;
+  template_id: string;
+  variant_id: string;
+  x_mm: number;
+  /** slot key -> inventory item id; a missing slot uses its default. */
+  finishes?: Record<string, string>;
+}
+
+export interface PlanWall {
+  length_mm: number;
+  units: PlacedUnit[];
+}
+
+/** What a design draws and prices: the walls, an optional free-standing island, the ceiling. */
+export interface Plan {
+  layout: Layout;
+  height_mm: number;
+  walls: PlanWall[];
+  island: PlanWall | null;
+}
+
+export interface QuoteDesign extends BaseRecord {
+  ref_no: number;
+  source: 'web' | 'staff';
+  title: string | null;
+  room_type: string;
+  design: Plan;
+  answers: Record<string, unknown> | null;
+  estimate_low: number | null;
+  estimate_high: number | null;
+  enquiry_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const SETTINGS_ID = 'quote_maker';
 
 export class QuoteMakerStore {
   readonly templates: PrismaRepository<UnitTemplate>;
+  readonly designs: PrismaRepository<QuoteDesign>;
 
   constructor(private readonly prisma: PrismaService) {
     this.templates = new PrismaRepository(prisma.unitTemplate, 'unit_templates', {
       dates: ['created_at', 'updated_at'],
       decimals: ['labour_hours', 'labour_extra'],
     });
+    this.designs = new PrismaRepository(prisma.quoteDesign, 'quote_designs', {
+      dates: ['created_at', 'updated_at'],
+      decimals: ['estimate_low', 'estimate_high'],
+    });
+  }
+
+  /** ref_no is the database's (autoincrement). */
+  createDesign(data: Omit<QuoteDesign, 'id' | 'ref_no'>): Promise<QuoteDesign> {
+    return this.designs.create(data as Omit<QuoteDesign, 'id'>);
   }
 
   /** What was saved, unchecked: the service merges it over the defaults. */
