@@ -30,3 +30,7 @@ Thumbs.db
 .kilo/
 .claude/worktrees/
 .claude/settings.local.json
+
+# Dev stack env (docker-compose.dev.yml): real values live in Coolify / a local .env.dev
+.env.dev
+.env.dev.local
