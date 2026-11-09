@@ -223,7 +223,7 @@ services:
       # Named in alert emails. Coolify supplies SOURCE_COMMIT; empty elsewhere.
       RELEASE: ${SOURCE_COMMIT:-}
       # Publishing in the CMS pokes this so an edit is live in seconds.
-      WEB_REVALIDATE_URL: http://web:3000/api/revalidate
+      WEB_REVALIDATE_URL: http://enzo-preprod-web:3000/api/revalidate
       REVALIDATE_SECRET: ${REVALIDATE_SECRET:?generate with openssl rand -base64 32}
       S3_ENDPOINT: http://enzo-preprod-minio:9000
       S3_REGION: ${S3_REGION:-us-east-1}
@@ -313,7 +313,10 @@ services:
         NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
         SITE_URL: ${WEB_PUBLIC_URL:-http://localhost:3000}
     restart: unless-stopped
-    networks: [default, coolify]
+    networks:
+      default:
+        aliases: [enzo-preprod-web]
+      coolify: {}
     labels:
       - traefik.enable=true
       - traefik.docker.network=coolify

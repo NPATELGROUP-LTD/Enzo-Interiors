@@ -651,6 +651,7 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 - Conventional commits: `feat(api):`, `fix(web):`, `chore:`, `docs:`, imperative and specific.
 - Rollback = `git revert` the PR, never force-push `main`.
 - Pre-prod (Coolify, branch `pre-prod`, tested before `main`) uses `docker-compose.preprod.yml`: a copy of `docker-compose.yml` with its own image tags, host ports (+10000), Traefik router names, hosts from `PREPROD_*_HOST` and preprod-only aliases on the shared `coolify` network. Change both files together.
+- Dev (Coolify environment `development`, branch `develop`, `dev.enzointeriors.co.uk`: `www.` + apex redirecting to `www`, `api.`, `admin.`, `portal.`, `media.`) uses `docker-compose.dev.yml`, a third copy of the stack: ports prod + 20000 (web 23000, api 24000, admin 25174, portal 25175, postgres 25432, minio 29000/29001, redis 26379), `enzo-dev-*` routers, aliases and images, its own Coolify PostgreSQL and MinIO buckets. Its env is `.env.dev.example` (real values in Coolify, `.env.dev` is git-ignored), never `.env`. `DISABLE_2FA` stays off there. Change all three compose files together.
 - Local compose needs a one-time `docker network create coolify` (the compose file joins the external network Coolify/Traefik uses in production).
 
 ---
