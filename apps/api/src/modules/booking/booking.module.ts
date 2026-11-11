@@ -22,6 +22,8 @@ import {
 import { Throttle } from '@nestjs/throttler';
 import { Transform } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsEmail,
   IsIn,
@@ -71,6 +73,13 @@ const TIME = /^([01]\d|2[0-3]):[0-5]\d$/;
 export class CreateBookingDto {
   @Matches(/^[a-z0-9][a-z0-9-]{0,62}$/, { message: 'Choose a service.' })
   service!: string;
+
+  /** Every service picked (the form allows several); `service` stays the first, so old clients still book. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(10)
+  @Matches(/^[a-z0-9][a-z0-9-]{0,62}$/, { each: true, message: 'Choose a service.' })
+  services?: string[];
 
   @Matches(DATE, { message: 'Choose a day.' })
   date!: string;
@@ -355,7 +364,8 @@ export class BookingService {
     if (!staff && !(await this.siteSettings.pageOn('booking'))) {
       throw new ForbiddenException('Online booking is not open at the moment. Please call or email us instead.');
     }
-    const service_label = await this.serviceLabel(dto.service);
+    const slugs = [...new Set([dto.service, ...(dto.services ?? [])])];
+    const service_label = (await Promise.all(slugs.map((slug) => this.serviceLabel(slug)))).join(', ');
     const contact = await this.contactFields(dto);
     await this.assertFree(dto.date, dto.time, staff);
 

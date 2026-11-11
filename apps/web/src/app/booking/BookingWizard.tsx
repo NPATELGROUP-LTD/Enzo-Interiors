@@ -109,7 +109,7 @@ export function BookingWizard({
 }) {
   const [today] = useState(studioToday);
   const [step, setStep] = useState(SERVICE);
-  const [selectedService, setSelectedService] = useState<string>(initialService ?? "");
+  const [selectedServices, setSelectedServices] = useState<string[]>(initialService ? [initialService] : []);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState("");
   const [view, setView] = useState({ year: today.year, month: today.month });
@@ -185,9 +185,9 @@ export function BookingWizard({
   const times = selectedDate ? (free?.days[selectedDate] ?? []) : [];
   const morning = times.filter((t) => Number(t.split(":")[0]) < 12);
   const afternoon = times.filter((t) => Number(t.split(":")[0]) >= 12);
-  const serviceLabel = services.find((s) => s.id === selectedService)?.label;
+  const serviceLabel = services.filter((s) => selectedServices.includes(s.id)).map((s) => s.label).join(", ");
   // The tier belongs to the service the quote request named: pick another and it no longer applies.
-  const tier = selectedService === initialService ? initialTier : undefined;
+  const tier = initialService && selectedServices.includes(initialService) ? initialTier : undefined;
   const copy = content.steps.details;
 
   /** The message for a field that is not ready, or "" when it is. */
@@ -201,7 +201,7 @@ export function BookingWizard({
   const error = (key: FormKey) => (touched[key] ? problem(key) : "");
 
   const canProceed = () => {
-    if (step === SERVICE) return bookable.some((s) => s.id === selectedService);
+    if (step === SERVICE) return selectedServices.length > 0 && selectedServices.every((id) => bookable.some((s) => s.id === id));
     if (step === WHEN) return selectedDate !== null && times.includes(selectedTime);
     return step === DETAILS || step === REVIEW;
   };
@@ -229,7 +229,8 @@ export function BookingWizard({
     );
     sendBooking(
       {
-        service: selectedService,
+        service: selectedServices[0]!,
+        services: selectedServices,
         date: selectedDate,
         time: selectedTime,
         name: form.name,
@@ -422,7 +423,8 @@ export function BookingWizard({
                 <h2 ref={headingRef} tabIndex={-1} className={HEADING} style={{ fontSize: "1.8rem" }}>
                   {content.steps.service.heading}
                 </h2>
-                <p className="text-muted-foreground text-[14px] mt-2">{content.steps.service.lede}</p>
+                {/* The lede is CMS text written for one choice; this line is ours, so several are known to be allowed. */}
+                <p className="text-muted-foreground text-[14px] mt-2">{content.steps.service.lede} You can choose more than one.</p>
                 {tier && (
                   <p className="text-primary text-[13px] mt-2" style={{ fontWeight: 600 }}>
                     {fill(content.steps.service.tierNote, { tier })}
@@ -431,13 +433,13 @@ export function BookingWizard({
                 <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 max-w-2xl">
                   {bookable.map(({ id, label, icon }) => {
                     const Icon = ICONS[icon] ?? ChefHat;
-                    const selected = selectedService === id;
+                    const selected = selectedServices.includes(id);
                     return (
                       <button
                         key={id}
                         type="button"
                         aria-pressed={selected}
-                        onClick={() => setSelectedService(id)}
+                        onClick={() => setSelectedServices((all) => (all.includes(id) ? all.filter((s) => s !== id) : [...all, id]))}
                         className={`relative flex min-h-24 items-center gap-4 rounded-2xl border-2 p-5 text-left transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:flex-col sm:items-start sm:gap-3 ${
                           selected ? "border-primary bg-primary/5" : "border-border bg-white hover:border-secondary"
                         }`}
