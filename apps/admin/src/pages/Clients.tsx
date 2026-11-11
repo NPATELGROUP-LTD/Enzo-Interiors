@@ -165,9 +165,9 @@ export function ClientsPage() {
     let payload: Record<string, unknown> = contact;
     if (fullForm) {
       if (form.name.trim().length < 2) return setFormError('Enter the client’s name.');
-      // Email is optional on a new client; an Admin editing one keeps it required.
+      // Optional on a new client and on one that has none yet; an address once set can't be blanked.
       const email = form.email.trim();
-      if ((email || editing) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      if ((email || editing?.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return setFormError('Enter a valid email address.');
       }
       payload = { ...contact, name: form.name.trim(), ...(email ? { email } : {}) };
@@ -249,11 +249,11 @@ export function ClientsPage() {
             hint={
               editing?.has_portal_access
                 ? 'Also how they sign in to the portal.'
-                : editing
+                : editing?.email
                   ? undefined
                   : 'Optional for now. Needed before they can be invited to the portal.'
             }
-            required={Boolean(editing)}
+            required={Boolean(editing?.email)}
           />
           <Input
             label="Phone"
