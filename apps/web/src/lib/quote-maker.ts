@@ -42,7 +42,8 @@ export interface Finish {
   thickness_mm: number | null;
 }
 export interface Catalogue {
-  room_types: Array<{ id: string; name: string }>;
+  /** `layouts`: the wall arrangements offered for the room. */
+  room_types: Array<{ id: string; name: string; layouts?: Layout[] }>;
   templates: CatalogueTemplate[];
   finishes: Finish[];
 }
@@ -180,14 +181,24 @@ export interface Contact {
   website: string;
 }
 
-export const submitDesign = (room_type: string, design: Plan, answers: Answers | null, contact: Contact) =>
+/** A blank room drawn with any unit (Draw it yourself); the API's CUSTOM_ROOM. */
+export const CUSTOM_ROOM = "custom";
+
+/** One room of a request: its type, its plan and the questions it was filled from, if any. */
+export interface Room {
+  key: string;
+  type: string;
+  name: string;
+  plan: Plan;
+  answers: Answers | null;
+}
+
+export const submitDesign = (rooms: Room[], contact: Contact) =>
   send<Estimate | undefined>(
     "POST",
     "submit",
     {
-      room_type,
-      design,
-      ...(answers ? { answers } : {}),
+      rooms: rooms.map(({ type, plan, answers }) => ({ room_type: type, design: plan, ...(answers ? { answers } : {}) })),
       name: contact.name.trim(),
       email: contact.email.trim(),
       phone: contact.phone.trim() || undefined,

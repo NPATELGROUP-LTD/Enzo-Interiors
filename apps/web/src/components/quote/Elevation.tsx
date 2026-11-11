@@ -30,7 +30,10 @@ export function Elevation({
   onSelect,
   onMove,
   onRemove,
+  fill = false,
 }: {
+  /** Fill the parent's height and leave the caption to it (the full-screen designer). */
+  fill?: boolean;
   label: string;
   wall: PlanWall;
   ceiling_mm: number;
@@ -88,17 +91,19 @@ export function Elevation({
   const text = Math.max(70, Math.min(W, 6000) / 40);
 
   return (
-    <figure className="m-0">
-      <figcaption className="mb-2 flex items-baseline justify-between text-[14px]">
-        <span className="font-medium text-primary">{label}</span>
-        <span className="tabular-nums text-[13px] text-muted-foreground">
-          {W.toLocaleString("en-GB")} mm · {wall.units.length} {wall.units.length === 1 ? "unit" : "units"}
-        </span>
-      </figcaption>
+    <figure className={fill ? "m-0 flex h-full min-h-0 flex-col" : "m-0"}>
+      {fill ? null : (
+        <figcaption className="mb-2 flex items-baseline justify-between text-[14px]">
+          <span className="font-medium text-primary">{label}</span>
+          <span className="tabular-nums text-[13px] text-muted-foreground">
+            {W.toLocaleString("en-GB")} mm · {wall.units.length} {wall.units.length === 1 ? "unit" : "units"}
+          </span>
+        </figcaption>
+      )}
       <svg
         ref={svg}
         viewBox={`${-PAD} ${-PAD / 2} ${W + PAD * 2} ${H + PAD * 2}`}
-        className="h-auto max-h-[52vh] w-full touch-none select-none rounded-2xl border border-border bg-card"
+        className={`${fill ? "min-h-0 w-full flex-1" : "h-auto max-h-[52vh] w-full"} touch-none select-none rounded-2xl border border-border bg-card`}
         role="group"
         aria-label={`${label}, front view. Select a unit, then use the arrow keys to move it or Delete to remove it.`}
         onPointerMove={move}

@@ -17,6 +17,8 @@ export const ROOM_TYPES = [
   { id: 'alcove', name: 'Alcoves & living storage' },
   { id: 'kitchen', name: 'Kitchen' },
 ] as const;
+/** A room drawn from blank walls with any unit (the website's Draw it yourself); no unit is made for it. */
+export const CUSTOM_ROOM = { id: 'custom', name: 'Any room' };
 export const LAYOUTS: Array<{ id: Layout; name: string; walls: number }> = [
   { id: 'single', name: 'One wall', walls: 1 },
   { id: 'galley', name: 'Galley (two facing walls)', walls: 2 },

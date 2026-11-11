@@ -395,7 +395,7 @@ const kitchen = { room_type: 'kitchen', layout: 'single', walls: [2400], height_
 test('start and submit are shut with the page; a visitor starts only from what the website offers', async () => {
   await setPage(false);
   assert.equal((await call('POST', '/quote-maker/start', undefined, kitchen)).status, 403);
-  assert.equal((await call('POST', '/quote-maker/submit', undefined, { room_type: 'kitchen', design: single(unitAt('a', 0)), ...contact })).status, 403);
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(unitAt('a', 0)) }], ...contact })).status, 403);
   await setPage(true);
 
   const offered = new Set((await json<Catalogue>(await call('GET', '/quote-maker/catalogue'))).templates.map((t) => t.id));
@@ -410,18 +410,18 @@ test('start and submit are shut with the page; a visitor starts only from what t
 
 test('a visitor sends a design: priced on the server, stored as a Quote enquiry with the design on it', async () => {
   // Honeypot: a quiet 204 and nothing stored.
-  assert.equal((await call('POST', '/quote-maker/submit', undefined, { room_type: 'kitchen', design: single(unitAt('a', 0)), ...contact, website: 'x' })).status, 204);
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(unitAt('a', 0)) }], ...contact, website: 'x' })).status, 204);
   assert.equal(await prisma.contactSubmission.count({ where: { email: VISITOR } }), 0);
   // An empty design or a hidden finish is refused before anything is stored.
-  assert.equal((await call('POST', '/quote-maker/submit', undefined, { room_type: 'kitchen', design: single(), ...contact })).status, 400);
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single() }], ...contact })).status, 400);
   const hidden = { ...unitAt('a', 0), finishes: { front: ids.hidden } };
-  assert.equal((await call('POST', '/quote-maker/submit', undefined, { room_type: 'kitchen', design: single(hidden), ...contact })).status, 400);
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(hidden) }], ...contact })).status, 400);
   assert.equal(await prisma.contactSubmission.count({ where: { email: VISITOR } }), 0);
 
   const units = [unitAt('a', 0), { ...unitAt('b', 600), finishes: { front: ids.green } }];
   const quoted = await json<Estimate>(await call('POST', '/quote-maker/estimate', undefined, { units: units.map(({ template_id, variant_id, finishes }) => ({ template_id, variant_id, finishes })) }));
   const sent = await json<{ priced: boolean; low: number; high: number }>(
-    await call('POST', '/quote-maker/submit', undefined, { room_type: 'kitchen', design: single(...units), answers: kitchen, ...contact }), 201);
+    await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(...units), answers: kitchen }], ...contact }), 201);
   assert.deepEqual(sent, { priced: true, low: quoted.low, high: quoted.high }, 'the same range the visitor was shown');
 
   const enquiry = await prisma.contactSubmission.findFirstOrThrow({ where: { email: VISITOR } });

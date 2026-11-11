@@ -265,7 +265,7 @@ ${button(forgotUrl, 'Reset my password')}`,
         `<p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${SAGE}">${escapeHtml(label)}</p>
 <h1 style="margin:0 0 20px;font:600 22px/1.3 Georgia,serif;color:${FOREST}">${escapeHtml(input.name)}</h1>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:0 0 20px">${table}</table>
-<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap">${escapeHtml(input.message)}</div>
+${input.message.trim() ? `<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap">${escapeHtml(input.message)}</div>` : ''}
 <p style="margin:20px 0 0;color:#6B6B6B;font-size:14px">Reply to this email to answer ${escapeHtml(input.name)} directly.</p>`,
       ),
       text: `${label}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${input.message}\n\nReply to this email to answer directly.`,
@@ -287,7 +287,7 @@ ${button(forgotUrl, 'Reset my password')}`,
       html: layout(
         subject,
         `${heading('Enquiry received', 'Thank you')}
-${range ? para(escapeHtml(range)) : ''}
+${range ? para(range) : ''}
 ${para('We read every enquiry ourselves. You will hear from us the same working day.')}
 ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       ),

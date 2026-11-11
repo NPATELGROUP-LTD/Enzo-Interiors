@@ -22,14 +22,18 @@ import type {
  *   - Price = (boards + hardware + labour) marked up by the margin; VAT on top; the range is rounded.
  */
 
+/** `layouts`: the wall arrangements the website offers for the room (staff may draw any). */
 export const ROOM_TYPES = [
-  { id: 'bedroom', name: 'Bedroom & wardrobes' },
-  { id: 'media-wall', name: 'Media wall' },
-  { id: 'office', name: 'Home office' },
-  { id: 'alcove', name: 'Alcoves & living storage' },
-  { id: 'kitchen', name: 'Kitchen' },
+  { id: 'bedroom', name: 'Bedroom & wardrobes', layouts: ['single', 'L', 'U'] },
+  { id: 'media-wall', name: 'Media wall', layouts: ['single'] },
+  { id: 'office', name: 'Home office', layouts: ['single', 'L'] },
+  { id: 'alcove', name: 'Alcoves & living storage', layouts: ['single', 'galley'] },
+  { id: 'kitchen', name: 'Kitchen', layouts: ['single', 'galley', 'L', 'U'] },
 ] as const;
 export const ROOM_TYPE_IDS = ROOM_TYPES.map((room) => room.id);
+/** A room drawn from blank walls with any unit. A design may be one; no unit is made for it and nothing fills it. */
+export const CUSTOM_ROOM = 'custom';
+export const DESIGN_ROOM_IDS: string[] = [...ROOM_TYPE_IDS, CUSTOM_ROOM];
 
 /** Above this a design is refused before nesting, so one request cannot tie the API up. */
 export const MAX_PIECES = 3000;
@@ -468,8 +472,16 @@ export interface FillAnswers {
   gaps: string[];
 }
 
-/** Bedrooms are lined with wardrobes; every other room starts from its floor units. */
-const MAIN_MOUNT: Partial<Record<string, UnitTemplate['mount']>> = { bedroom: 'tall' };
+/**
+ * How each room is first laid out, so they do not all come out as one row of the same unit: what
+ * lines the walls, and where a tall unit frames the first one. Any other room is floor units only.
+ */
+const RECIPE: Partial<Record<string, { main: UnitTemplate['mount']; tall?: 'start' | 'both' }>> = {
+  bedroom: { main: 'tall' }, // wardrobes wall to wall
+  'media-wall': { main: 'floor', tall: 'both' }, // a column each side of the TV, low units between
+  office: { main: 'floor', tall: 'start' }, // a bookcase, then the desk run
+  kitchen: { main: 'floor', tall: 'start' }, // a larder at the free end, then base units
+};
 
 /**
  * The widths that fill a run best: the most wall covered, then the fewest units, widest first.
@@ -495,18 +507,21 @@ export function fillRun(widths: number[], length: number): number[] {
 }
 
 /**
- * The questions turned into a plan to carry on from: the room type's first floor unit (in a bedroom,
- * tall) along every wall, its first wall unit above if asked and it clears the run below, appliance
- * gaps first on wall A. In an L or a U each later wall starts clear of the corner the previous wall
- * owns. `templates` are the ones that may be used, in Unit library order.
+ * The questions turned into a plan to carry on from, by the room's RECIPE: its first floor unit (in a
+ * bedroom, tall) along every wall, its first wall unit above if asked and it clears the run below.
+ * On wall A a tall unit stands at the start (and the end, for a media wall) when the wall is long
+ * enough to keep most of its run, then the appliance gaps. In an L or a U each later wall starts clear
+ * of the corner the previous wall owns. `templates` are the ones that may be used, in Unit library order.
  */
 export function fillPlan(answers: FillAnswers, templates: UnitTemplate[], newId: () => string): Plan {
   // Units made for this room (it is their first room type) come before ones shared from another.
   const forRoom = templates
     .filter((t) => t.room_types.includes(answers.room_type) && t.variants.length)
     .sort((a, b) => Number(b.room_types[0] === answers.room_type) - Number(a.room_types[0] === answers.room_type));
-  const want = MAIN_MOUNT[answers.room_type] ?? 'floor';
-  const main = forRoom.find((t) => t.mount === want) ?? forRoom.find((t) => t.mount === 'floor' || t.mount === 'tall');
+  const recipe = RECIPE[answers.room_type] ?? { main: 'floor' };
+  const main = forRoom.find((t) => t.mount === recipe.main) ?? forRoom.find((t) => t.mount === 'floor' || t.mount === 'tall');
+  const column = recipe.tall ? forRoom.find((t) => t.mount === 'tall' && t !== main) : undefined;
+  const slim = column ? [...column.variants].sort((a, b) => a.width_mm - b.width_mm)[0]! : undefined;
   const mainTop = main ? Math.max(...main.variants.map((v) => v.height_mm)) : 0;
   const upper = answers.upper ? forRoom.find((t) => t.mount === 'wall' && t.elevation_mm >= mainTop) : undefined;
   const gaps = answers.gaps.flatMap((id) => templates.filter((t) => t.id === id && t.mount === 'gap' && t.variants.length));
@@ -530,14 +545,23 @@ export function fillPlan(answers: FillAnswers, templates: UnitTemplate[], newId:
   const walls = answers.walls.slice(0, WALL_COUNT[answers.layout]).map((length_mm, i): PlanWall => {
     const units: PlacedUnit[] = [];
     let start = corner && i > 0 ? depth(main) : 0;
-    if (i === 0)
+    let upperStart = corner && i > 0 ? depth(upper) : 0;
+    let end = length_mm;
+    if (i === 0) {
+      // Only when the tall units leave at least half the wall to the run they frame.
+      if (column && slim && length_mm >= slim.width_mm * (recipe.tall === 'both' ? 4 : 3)) {
+        units.push(place(column, slim, 0));
+        start = upperStart = slim.width_mm;
+        if (recipe.tall === 'both') units.push(place(column, slim, (end -= slim.width_mm)));
+      }
       for (const gap of gaps) {
         const variant = gap.variants[0]!;
-        if (start + variant.width_mm > length_mm) break;
+        if (start + variant.width_mm > end) break;
         units.push(place(gap, variant, start));
         start += variant.width_mm;
       }
-    units.push(...run(main, start, length_mm), ...run(upper, corner && i > 0 ? depth(upper) : 0, length_mm));
+    }
+    units.push(...run(main, start, end), ...run(upper, upperStart, end));
     return { length_mm, units };
   });
   const islandUnit = forRoom.find((t) => t.mount === 'floor');

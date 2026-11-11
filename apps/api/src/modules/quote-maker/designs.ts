@@ -51,6 +51,7 @@ import {
   type FillAnswers,
   LAYOUTS,
   PLAN_LIMITS,
+  DESIGN_ROOM_IDS,
   ROOM_TYPE_IDS,
   ROOM_TYPES,
   fillPlan,
@@ -70,6 +71,8 @@ const LIST_LIMIT = 200;
 
 export const designRef = (ref: number) => `QD-${String(ref).padStart(4, '0')}`;
 const LAYOUT_NAME: Record<Layout, string> = { single: 'One wall', galley: 'Galley', L: 'L-shape', U: 'U-shape' };
+/** A blank room (CUSTOM_ROOM) is in no list. */
+const roomName = (id: string) => ROOM_TYPES.find((room) => room.id === id)?.name ?? 'Custom room';
 const gbp = (n: number) => `£${n.toLocaleString('en-GB', { maximumFractionDigits: 0 })}`;
 const trimmed = ({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value);
 /** Website designs that came to nothing go after this long (privacy text in the portal and the site). */
@@ -111,7 +114,7 @@ export class FillDto {
 
 export class SaveDesignDto {
   @IsOptional() @Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value)) @IsString() @MaxLength(120) title?: string | null;
-  @IsIn(ROOM_TYPE_IDS) room_type!: string;
+  @IsIn(DESIGN_ROOM_IDS) room_type!: string;
   @ValidateNested() @Type(() => PlanDto) design!: PlanDto;
   /** The questions it was filled from, kept so the Admin sees what the visitor said. */
   @IsOptional() @ValidateNested() @Type(() => FillDto) answers?: FillDto | null;
@@ -126,10 +129,15 @@ export class ListDesignsQuery {
 }
 
 /** A visitor's design and how to reach them; it becomes an enquiry (source Quote) with the design on it. */
-export class SubmitDesignDto {
-  @IsIn(ROOM_TYPE_IDS) room_type!: string;
+export class SubmitRoomDto {
+  @IsIn(DESIGN_ROOM_IDS) room_type!: string;
   @ValidateNested() @Type(() => PlanDto) design!: PlanDto;
   @IsOptional() @ValidateNested() @Type(() => FillDto) answers?: FillDto | null;
+}
+
+export class SubmitDesignDto {
+  /** One design per room the visitor is asking about. */
+  @IsArray() @ArrayMinSize(1) @ArrayMaxSize(ROOM_TYPE_IDS.length) @ValidateNested({ each: true }) @Type(() => SubmitRoomDto) rooms!: SubmitRoomDto[];
   @Transform(trimmed) @IsString() @MinLength(1) @MaxLength(120) name!: string;
   @Transform(trimmed) @IsEmail({}, { message: 'Enter a valid email address' }) @MaxLength(254) email!: string;
   @IsOptional() @Transform(trimmed) @IsString() @MaxLength(40) phone?: string;
@@ -234,45 +242,64 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
    */
   async submit(dto: SubmitDesignDto): Promise<Estimate> {
     await this.quoteMaker.assertOpen();
-    const design = await this.clean(dto.design);
-    const units = planUnits(design);
-    if (!units.length) throw new BadRequestException('Add at least one unit to your design first.');
-    const resolved = await this.quoteMaker.resolve({ units }, true);
-    const result = priceDesign(resolved.units, resolved.items, resolved.pricing, (await this.db.settings()).vat_rate);
-    const priced = result.unpriced.length === 0;
-    const estimate: Estimate = { priced, low: priced ? result.low : null, high: priced ? result.high : null };
-    const range = priced ? `${gbp(result.low)} to ${gbp(result.high)}` : null;
-    const room = ROOM_TYPES.find((r) => r.id === dto.room_type)!.name;
+    const vat = (await this.db.settings()).vat_rate;
+    const rooms: Array<{ room_type: string; design: Plan; answers?: FillDto | null; units: number; low: number | null; high: number | null }> = [];
+    for (const room of dto.rooms) {
+      const design = await this.clean(room.design);
+      const units = planUnits(design);
+      if (!units.length) {
+        throw new BadRequestException(dto.rooms.length > 1 ? 'Add at least one unit to every room, or remove the empty room.' : 'Add at least one unit to your design first.');
+      }
+      const resolved = await this.quoteMaker.resolve({ units }, true);
+      const result = priceDesign(resolved.units, resolved.items, resolved.pricing, vat);
+      const priced = result.unpriced.length === 0;
+      rooms.push({ room_type: room.room_type, design, answers: room.answers, units: units.length, low: priced ? result.low : null, high: priced ? result.high : null });
+    }
+    // Each room is its own design with its own range; the enquiry's is their sum, unpriced if any room is.
+    const priced = rooms.every((room) => room.low !== null);
+    const sum = (key: 'low' | 'high') => rooms.reduce((total, room) => total + (room[key] ?? 0), 0);
+    const estimate: Estimate = { priced, low: priced ? sum('low') : null, high: priced ? sum('high') : null };
+    const range = priced ? `${gbp(estimate.low!)} to ${gbp(estimate.high!)}` : null;
+    const names = [...new Set(rooms.map((room) => roomName(room.room_type)))].join(', ');
 
     const enquiry = await this.enquiries.store({
       kind: 'quote',
       name: dto.name,
       email: dto.email,
       phone: dto.phone || null,
-      service_interest: room,
+      service_interest: names,
       message: dto.message?.trim() ?? '',
-      details: { Room: room, Layout: LAYOUT_NAME[design.layout], Units: String(units.length), Estimate: range ?? 'To be priced by the studio' },
+      details: {
+        Room: names,
+        ...(rooms.length === 1 ? { Layout: LAYOUT_NAME[rooms[0]!.design.layout] } : {}),
+        Units: String(rooms.reduce((total, room) => total + room.units, 0)),
+        Estimate: range ?? 'To be priced by the studio',
+      },
     });
     const now = new Date().toISOString();
-    const saved = await this.store
-      .createDesign({
-        source: 'web',
-        title: null,
-        room_type: dto.room_type,
-        design,
-        answers: dto.answers ? { ...this.answers(dto.answers) } : null,
-        estimate_low: estimate.low,
-        estimate_high: estimate.high,
-        enquiry_id: enquiry.id,
-        created_by: null,
-        created_at: now,
-        updated_at: now,
-      })
-      .catch((error: unknown) => {
-        this.logger.error(`Enquiry ${enquiry.id}: its design was not saved: ${error instanceof Error ? error.message : String(error)}`);
-        return null;
-      });
-    const told = saved ? { ...enquiry, details: { ...enquiry.details, Design: designRef(saved.ref_no) } } : enquiry;
+    const refs: string[] = [];
+    for (const room of rooms) {
+      const saved = await this.store
+        .createDesign({
+          source: 'web',
+          title: null,
+          room_type: room.room_type,
+          design: room.design,
+          answers: room.answers ? { ...this.answers(room.answers) } : null,
+          estimate_low: room.low,
+          estimate_high: room.high,
+          enquiry_id: enquiry.id,
+          created_by: null,
+          created_at: now,
+          updated_at: now,
+        })
+        .catch((error: unknown) => {
+          this.logger.error(`Enquiry ${enquiry.id}: its design was not saved: ${error instanceof Error ? error.message : String(error)}`);
+          return null;
+        });
+      if (saved) refs.push(designRef(saved.ref_no));
+    }
+    const told = refs.length ? { ...enquiry, details: { ...enquiry.details, Design: refs.join(', ') } } : enquiry;
     await this.enquiries.announce(told, range);
     return estimate;
   }
@@ -453,7 +480,7 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
       else lines.set(key, { description: `${template.name}, ${variant.width_mm} mm`, section, detail, quantity: 1, cost });
     });
     if (lines.size > MAX_LINES) throw new BadRequestException(`This design needs ${lines.size} lines; a quote takes ${MAX_LINES}. Split it into two designs.`);
-    const room = ROOM_TYPES.find((r) => r.id === row.room_type)?.name ?? 'Design';
+    const room = roomName(row.room_type);
     return this.quotes.create(
       principal,
       {

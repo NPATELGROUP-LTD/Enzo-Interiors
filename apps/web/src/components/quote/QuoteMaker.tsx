@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { Box, Check, PencilRuler, Plus, Sparkles, Trash2 } from "lucide-react";
+import { ArrowLeft, Check, PencilRuler, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 import { Honeypot } from "@/components/shared/Honeypot";
 import {
+  CUSTOM_ROOM,
   LAYOUTS,
   LIMITS,
   clampX,
@@ -29,8 +31,10 @@ import {
   type Estimate,
   type Finish,
   type Layout,
+  type Mount,
   type Plan,
   type PlanWall,
+  type Room,
 } from "@/lib/quote-maker";
 import { Elevation } from "./Elevation";
 
@@ -46,9 +50,23 @@ const PRIMARY =
 const SECONDARY =
   "inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-border bg-white px-6 text-[14px] text-foreground transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40";
 const EYEBROW = "text-[12px] font-medium uppercase tracking-[0.18em] text-muted-foreground";
+const CHIP =
+  "min-h-11 rounded-full border px-5 text-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40";
+const chip = (on: boolean) => `${CHIP} ${on ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-foreground hover:border-primary"}`;
 
 type Step = "room" | "size" | "edit" | "details" | "sent";
 type Mode = "questions" | "draw";
+type Unit = PlanWall["units"][number];
+
+/** What differs by room in the questions: the "storage above" wording and default, and what a layout is called. */
+const ROOM_COPY: Record<string, { upper: string; upperOn?: boolean; layouts?: Partial<Record<Layout, string>> }> = {
+  kitchen: { upper: "Wall cupboards above the worktop", upperOn: true },
+  bedroom: { upper: "Top boxes above the wardrobes, up to the ceiling" },
+  "media-wall": { upper: "Shelves above the low units" },
+  office: { upper: "Shelving above the desk", upperOn: true },
+  alcove: { upper: "Shelves above the cupboard", upperOn: true, layouts: { single: "One alcove", galley: "Two alcoves" } },
+};
+const MOUNT_NAME: Record<Mount, string> = { floor: "Floor unit", wall: "Wall unit", tall: "Full height", gap: "Space, not priced" };
 
 const blankPlan = (layout: Layout, walls: number[], height_mm: number, island_mm: number | null): Plan => ({
   layout,
@@ -58,18 +76,20 @@ const blankPlan = (layout: Layout, walls: number[], height_mm: number, island_mm
 });
 
 /**
- * The public quote maker (/quote, behind Settings › Pages `quote`): pick a room, answer a few questions
- * or start from a blank wall, arrange units on a to-scale front view (and turn it in 3D), watch the
- * price range the API works out, then send it to the studio as an enquiry with the design on it.
+ * The public quote maker (/quote, behind Settings › Pages `quote`): pick one or more rooms and answer a
+ * few questions, or start from a blank room of any size; arrange units on a to-scale front view beside
+ * a 3D model in one full-screen designer, watch the price range the API works out, then send it to the
+ * studio as one enquiry with a design per room.
  */
 export function QuoteMaker({ phone }: { phone: { display: string; href: string } | null }) {
   const [catalogue, setCatalogue] = useState<Catalogue | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("room");
-  const [room, setRoom] = useState<string>("");
+  const [picked, setPicked] = useState<string[]>([]);
   const [mode, setMode] = useState<Mode>("questions");
-  const [answers, setAnswers] = useState<Answers | null>(null);
-  const [plan, setPlan] = useState<Plan | null>(null);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [sizing, setSizing] = useState(0); // the room the Sizes step is asking about
+  const [active, setActive] = useState(0); // the room the designer shows
   const [sent, setSent] = useState<Estimate | null>(null);
   const heading = useRef<HTMLHeadingElement>(null);
 
@@ -79,21 +99,23 @@ export function QuoteMaker({ phone }: { phone: { display: string; href: string }
   // Each step's heading takes focus, so a screen reader hears where it is (and the page scrolls to it).
   useEffect(() => {
     heading.current?.focus({ preventScroll: false });
-  }, [step]);
+  }, [step, sizing]);
 
   const templates = useMemo(() => new Map((catalogue?.templates ?? []).map((t) => [t.id, t])), [catalogue]);
   const finishes = useMemo(() => new Map((catalogue?.finishes ?? []).map((f) => [f.id, f])), [catalogue]);
-  const rooms = useMemo(
+  const roomTypes = useMemo(
     () => (catalogue?.room_types ?? []).filter((r) => catalogue!.templates.some((t) => t.mount !== "gap" && t.room_types.includes(r.id))),
     [catalogue],
   );
 
   if (loadError) return <Shell><Notice title="The quote maker could not load">{loadError} <ContactLine phone={phone} /></Notice></Shell>;
   if (!catalogue) return <Shell><div className="h-64 animate-pulse rounded-2xl bg-muted" aria-label="Loading" /></Shell>;
-  if (!rooms.length)
+  if (!roomTypes.length)
     return <Shell><Notice title="Nothing to design with just yet">We are setting up the units you can choose from. <ContactLine phone={phone} /></Notice></Shell>;
 
-  const roomName = rooms.find((r) => r.id === room)?.name ?? "";
+  // The rooms being designed: every one picked, or one blank room when drawing.
+  const wanted = mode === "draw" ? [{ id: CUSTOM_ROOM, name: "Your room", layouts: undefined }] : roomTypes.filter((r) => picked.includes(r.id));
+  const target = wanted[Math.min(sizing, wanted.length - 1)];
 
   return (
     <Shell>
@@ -104,79 +126,104 @@ export function QuoteMaker({ phone }: { phone: { display: string; href: string }
           <h2 id="qm-room" ref={heading} tabIndex={-1} className="text-[1.75rem] text-primary focus:outline-none">
             What are we making?
           </h2>
-          <p className="mt-2 max-w-[56ch] text-[15px] text-muted-foreground">Pick a room. You can answer a few questions and we will lay it out for you, or draw it yourself.</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {rooms.map((r) => (
-              <button
-                key={r.id}
-                type="button"
-                aria-pressed={room === r.id}
-                onClick={() => setRoom(r.id)}
-                className={`relative flex min-h-20 items-center rounded-2xl border-2 p-5 text-left text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                  room === r.id ? "border-primary bg-primary/5 text-primary" : "border-border bg-white text-foreground hover:border-secondary"
-                }`}
-              >
-                {r.name}
-                {room === r.id ? (
-                  <span className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
-                    <Check size={12} aria-hidden />
-                  </span>
-                ) : null}
-              </button>
-            ))}
-          </div>
+          <p className="mt-2 max-w-[56ch] text-[15px] text-muted-foreground">Answer a few questions and we lay each room out for you, or start from a blank room and draw it yourself.</p>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <ModeCard icon={<Sparkles size={22} aria-hidden />} title="Answer a few questions" line="Your wall sizes and a finish; we fill the room with units you then adjust." selected={mode === "questions"} onClick={() => setMode("questions")} />
-            <ModeCard icon={<PencilRuler size={22} aria-hidden />} title="Draw it yourself" line="Start from empty walls and add each unit where you want it." selected={mode === "draw"} onClick={() => setMode("draw")} />
+            <ModeCard icon={<PencilRuler size={22} aria-hidden />} title="Draw it yourself" line="A blank room of any size. Add whichever units you like, wherever you want them." selected={mode === "draw"} onClick={() => setMode("draw")} />
           </div>
+          {mode === "questions" ? (
+            <fieldset className="mt-8">
+              <legend className="text-[15px] font-medium text-foreground">
+                Which rooms? <span className="font-normal text-muted-foreground">Pick one or more.</span>
+              </legend>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {roomTypes.map((r) => {
+                  const on = picked.includes(r.id);
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      aria-pressed={on}
+                      onClick={() => setPicked((all) => (on ? all.filter((id) => id !== r.id) : [...all, r.id]))}
+                      className={`relative flex min-h-20 items-center rounded-2xl border-2 p-5 pr-12 text-left text-[15px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
+                        on ? "border-primary bg-primary/5 text-primary" : "border-border bg-white text-foreground hover:border-secondary"
+                      }`}
+                    >
+                      {r.name}
+                      {on ? (
+                        <span className="absolute right-4 top-4 flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check size={12} aria-hidden />
+                        </span>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+          ) : null}
           <Nav>
             <span />
-            <button type="button" className={PRIMARY} disabled={!room} onClick={() => setStep("size")}>
+            <button
+              type="button"
+              className={PRIMARY}
+              disabled={!wanted.length}
+              onClick={() => {
+                setRooms((all) => all.filter((room) => wanted.some((w) => w.id === room.type)));
+                setSizing(0);
+                setStep("size");
+              }}
+            >
               Continue
             </button>
           </Nav>
         </section>
       ) : null}
 
-      {step === "size" ? (
+      {step === "size" && target ? (
         <RoomForm
-          key={`${room}-${mode}`}
+          key={`${target.id}-${mode}`}
           headingRef={heading}
-          room={room}
-          roomName={roomName}
+          target={target}
+          count={wanted.length > 1 ? `Room ${sizing + 1} of ${wanted.length}` : null}
           mode={mode}
           catalogue={catalogue}
-          initial={answers}
-          onBack={() => setStep("room")}
-          onReady={(nextPlan, nextAnswers) => {
-            setPlan(nextPlan);
-            setAnswers(nextAnswers);
+          initial={rooms.find((room) => room.type === target.id)?.answers ?? null}
+          onBack={() => (sizing > 0 ? setSizing(sizing - 1) : setStep("room"))}
+          onReady={(plan, answers) => {
+            const room: Room = { key: target.id, type: target.id, name: target.name, plan, answers };
+            const next = wanted.flatMap((w) => (w.id === target.id ? [room] : rooms.filter((r) => r.type === w.id)));
+            setRooms(next);
+            // On to the next room that has no sizes yet; a room already laid out keeps its design.
+            const missing = wanted.findIndex((w, i) => i > sizing && !next.some((r) => r.type === w.id));
+            if (missing >= 0) return setSizing(missing);
+            setActive(next.indexOf(room));
             setStep("edit");
           }}
         />
       ) : null}
 
-      {step === "edit" && plan ? (
+      {step === "edit" && rooms.length ? (
         <Editor
           headingRef={heading}
-          room={room}
-          roomName={roomName}
-          plan={plan}
-          setPlan={(update) => setPlan((p) => (p ? update(p) : p))}
+          rooms={rooms}
+          active={Math.min(active, rooms.length - 1)}
+          setActive={setActive}
+          setPlan={(key, update) => setRooms((all) => all.map((room) => (room.key === key ? { ...room, plan: update(room.plan) } : room)))}
           templates={templates}
           finishes={finishes}
           catalogue={catalogue}
-          onBack={() => setStep("size")}
+          onBack={() => {
+            setSizing(Math.max(0, wanted.findIndex((w) => w.id === rooms[Math.min(active, rooms.length - 1)]?.type)));
+            setStep("size");
+          }}
           onNext={() => setStep("details")}
         />
       ) : null}
 
-      {step === "details" && plan ? (
+      {step === "details" && rooms.length ? (
         <Details
           headingRef={heading}
-          room={room}
-          plan={plan}
-          answers={answers}
+          rooms={rooms}
           onBack={() => setStep("edit")}
           onSent={(result) => {
             setSent(result);
@@ -214,8 +261,8 @@ export function QuoteMaker({ phone }: { phone: { display: string; href: string }
 
 function RoomForm({
   headingRef,
-  room,
-  roomName,
+  target,
+  count,
   mode,
   catalogue,
   initial,
@@ -223,46 +270,52 @@ function RoomForm({
   onReady,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
-  room: string;
-  roomName: string;
+  target: { id: string; name: string; layouts?: Layout[] };
+  /** "Room 2 of 3" when several rooms are being sized. */
+  count: string | null;
   mode: Mode;
   catalogue: Catalogue;
   initial: Answers | null;
   onBack: () => void;
   onReady: (plan: Plan, answers: Answers | null) => void;
 }) {
-  const kitchen = room === "kitchen";
-  const same = initial?.room_type === room ? initial : null;
-  const [layout, setLayout] = useState<Layout>(same?.layout ?? "single");
-  const [walls, setWalls] = useState<string[]>((same?.walls ?? [3000, 3000, 3000]).map(String).concat(["3000", "3000", "3000"]).slice(0, 3));
-  const [height, setHeight] = useState(String(same?.height_mm ?? 2400));
-  const [island, setIsland] = useState(same?.island_mm ? String(same.island_mm) : "");
-  const [upper, setUpper] = useState(same?.upper ?? kitchen);
-  const [front, setFront] = useState(same?.finishes?.front ?? "");
-  const [worktop, setWorktop] = useState(same?.finishes?.worktop ?? "");
-  const [gaps, setGaps] = useState<string[]>(same?.gaps ?? []);
+  const room = target.id;
+  const copy = ROOM_COPY[room];
+  // A kitchen can have an island; so can a blank room, where anything goes.
+  const islandAllowed = room === "kitchen" || room === CUSTOM_ROOM;
+  const layouts = LAYOUTS.filter((l) => !target.layouts || target.layouts.includes(l.id));
+  const [layout, setLayout] = useState<Layout>(initial?.layout ?? layouts[0]!.id);
+  const [walls, setWalls] = useState<string[]>((initial?.walls ?? [3000, 3000, 3000]).map(String).concat(["3000", "3000", "3000"]).slice(0, 3));
+  const [height, setHeight] = useState(String(initial?.height_mm ?? 2400));
+  const [island, setIsland] = useState(initial?.island_mm ? String(initial.island_mm) : "");
+  const [upper, setUpper] = useState(initial?.upper ?? copy?.upperOn ?? false);
+  const [front, setFront] = useState(initial?.finishes?.front ?? "");
+  const [worktop, setWorktop] = useState(initial?.finishes?.worktop ?? "");
+  const [gaps, setGaps] = useState<string[]>(initial?.gaps ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const forRoom = catalogue.templates.filter((t) => t.room_types.includes(room));
   const fronts = catalogue.finishes.filter((f) => f.role === "front");
-  const worktops = catalogue.finishes.filter((f) => f.role === "worktop");
-  const gapTemplates = catalogue.templates.filter((t) => t.mount === "gap" && t.room_types.includes(room));
-  const count = wallCount(layout);
+  const worktops = forRoom.some((t) => t.structure.worktop) ? catalogue.finishes.filter((f) => f.role === "worktop") : [];
+  const gapTemplates = forRoom.filter((t) => t.mount === "gap");
+  const hasUpper = forRoom.some((t) => t.mount === "wall");
+  const count_ = wallCount(layout);
   const n = (value: string) => Math.round(Number(value));
   const inRange = (value: string, min: number, max: number) => value.trim() !== "" && Number.isFinite(Number(value)) && n(value) >= min && n(value) <= max;
-  const wallsOk = walls.slice(0, count).every((w) => inRange(w, LIMITS.wall_min, LIMITS.wall_max));
+  const wallsOk = walls.slice(0, count_).every((w) => inRange(w, LIMITS.wall_min, LIMITS.wall_max));
   const heightOk = inRange(height, LIMITS.height_min, LIMITS.height_max);
-  const islandOk = !kitchen || island.trim() === "" || inRange(island, LIMITS.island_min, LIMITS.island_max);
+  const islandOk = !islandAllowed || island.trim() === "" || inRange(island, LIMITS.island_min, LIMITS.island_max);
   const ok = wallsOk && heightOk && islandOk;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!ok || busy) return;
-    const lengths = walls.slice(0, count).map(n);
-    const islandMm = kitchen && island.trim() ? n(island) : null;
+    const lengths = walls.slice(0, count_).map(n);
+    const islandMm = islandAllowed && island.trim() ? n(island) : null;
     if (mode === "draw") return onReady(blankPlan(layout, lengths, n(height), islandMm), null);
     const finishes = Object.fromEntries([["front", front], ["worktop", worktop]].filter(([, id]) => id));
-    const answers: Answers = { room_type: room, layout, walls: lengths, height_mm: n(height), island_mm: islandMm, upper, finishes, gaps };
+    const answers: Answers = { room_type: room, layout, walls: lengths, height_mm: n(height), island_mm: islandMm, upper: hasUpper && upper, finishes, gaps };
     setBusy(true);
     setError(null);
     try {
@@ -276,39 +329,33 @@ function RoomForm({
 
   return (
     <form onSubmit={submit} aria-labelledby="qm-size" noValidate>
-      <p className={EYEBROW}>{roomName}</p>
+      <p className={EYEBROW}>{count ? `${count} · ${target.name}` : target.name}</p>
       <h2 id="qm-size" ref={headingRef} tabIndex={-1} className="mt-2 text-[1.75rem] text-primary focus:outline-none">
-        Your room
+        {mode === "draw" ? "How big is the room?" : "Your room"}
       </h2>
       <p className="mt-2 max-w-[60ch] text-[15px] text-muted-foreground">
         Measure each wall from corner to corner, in millimetres (3 metres is 3000). Close is fine: we measure properly at the survey.
       </p>
 
-      <fieldset className="mt-6">
-        <legend className="text-[14px] text-foreground">Layout</legend>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {LAYOUTS.map((l) => (
-            <button
-              key={l.id}
-              type="button"
-              aria-pressed={layout === l.id}
-              onClick={() => setLayout(l.id)}
-              className={`min-h-11 rounded-full border px-5 text-[14px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${
-                layout === l.id ? "border-primary bg-primary text-primary-foreground" : "border-border bg-white text-foreground hover:border-primary"
-              }`}
-            >
-              {l.name}
-            </button>
-          ))}
-        </div>
-      </fieldset>
+      {layouts.length > 1 ? (
+        <fieldset className="mt-6">
+          <legend className="text-[14px] text-foreground">{mode === "draw" ? "Walls to fit out" : "Layout"}</legend>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {layouts.map((l) => (
+              <button key={l.id} type="button" aria-pressed={layout === l.id} onClick={() => setLayout(l.id)} className={chip(layout === l.id)}>
+                {copy?.layouts?.[l.id] ?? l.name}
+              </button>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
 
       <div className="mt-6 grid max-w-3xl gap-4 sm:grid-cols-3">
-        {Array.from({ length: count }, (_, i) => (
+        {Array.from({ length: count_ }, (_, i) => (
           <MmField
             key={i}
             id={`qm-wall-${i}`}
-            label={`Wall ${String.fromCharCode(65 + i)} length`}
+            label={count_ > 1 ? `Wall ${String.fromCharCode(65 + i)} length` : "Wall length"}
             value={walls[i]!}
             onChange={(v) => setWalls((all) => all.map((w, j) => (j === i ? v : w)))}
             invalid={!inRange(walls[i]!, LIMITS.wall_min, LIMITS.wall_max)}
@@ -316,19 +363,21 @@ function RoomForm({
           />
         ))}
         <MmField id="qm-height" label="Ceiling height" value={height} onChange={setHeight} invalid={!heightOk} hint={`${LIMITS.height_min.toLocaleString("en-GB")}–${LIMITS.height_max.toLocaleString("en-GB")} mm`} />
-        {kitchen ? (
+        {islandAllowed ? (
           <MmField id="qm-island" label="Island length (optional)" value={island} onChange={setIsland} invalid={!islandOk} hint="Leave blank for no island" />
         ) : null}
       </div>
 
       {mode === "questions" ? (
         <>
-          <label className="mt-6 flex min-h-11 items-center gap-3 text-[15px] text-foreground">
-            <input type="checkbox" checked={upper} onChange={(e) => setUpper(e.target.checked)} className="h-5 w-5 accent-[#102E2D]" />
-            {kitchen ? "Wall cupboards above the worktop" : "Storage above, up to the ceiling"}
-          </label>
+          {hasUpper ? (
+            <label className="mt-6 flex min-h-11 items-center gap-3 text-[15px] text-foreground">
+              <input type="checkbox" checked={upper} onChange={(e) => setUpper(e.target.checked)} className="h-5 w-5 accent-[#102E2D]" />
+              {copy?.upper ?? "Storage above, up to the ceiling"}
+            </label>
+          ) : null}
           {fronts.length ? <SwatchPicker legend="Doors and fronts" options={fronts} value={front} onChange={setFront} /> : null}
-          {kitchen && worktops.length ? <SwatchPicker legend="Worktop" options={worktops} value={worktop} onChange={setWorktop} /> : null}
+          {worktops.length ? <SwatchPicker legend="Worktop" options={worktops} value={worktop} onChange={setWorktop} /> : null}
           {gapTemplates.length ? (
             <fieldset className="mt-6">
               <legend className="text-[14px] text-foreground">Leave space for</legend>
@@ -361,11 +410,51 @@ function RoomForm({
   );
 }
 
+/** Each room's range, re-asked (debounced) when its plan changes; a newer request cancels the one in flight. */
+function useEstimates(rooms: Room[]) {
+  const [prices, setPrices] = useState<Record<string, { plan: Plan; result?: Estimate; error?: string }>>({});
+  useEffect(() => {
+    const stale = rooms.filter((room) => planUnits(room.plan).length && prices[room.key]?.plan !== room.plan);
+    if (!stale.length) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      for (const room of stale)
+        fetchEstimate(room.plan, controller.signal).then(
+          // An abort that lands while the body is being read resolves empty, so a cancelled call is dropped here.
+          (result) => !controller.signal.aborted && setPrices((all) => ({ ...all, [room.key]: { plan: room.plan, result } })),
+          (error: Error) => error.name !== "AbortError" && setPrices((all) => ({ ...all, [room.key]: { plan: room.plan, error: error.message } })),
+        );
+    }, 400);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [rooms, prices]);
+
+  const drawn = rooms.filter((room) => planUnits(room.plan).length);
+  const known = drawn.map((room) => prices[room.key]);
+  const results = known.flatMap((p) => (p?.result ? [p.result] : []));
+  const sum = (key: "low" | "high") => results.reduce((total, r) => total + (r[key] ?? 0), 0);
+  return {
+    empty: !drawn.length,
+    loading: drawn.some((room) => prices[room.key]?.plan !== room.plan),
+    error: known.find((p) => p?.error)?.error ?? null,
+    // The enquiry's range is the sum of its rooms', and "we'll price it" if any room is.
+    total: results.length === drawn.length && drawn.length ? { priced: results.every((r) => r.priced), low: sum("low"), high: sum("high") } : null,
+  };
+}
+
+/**
+ * The designer: one screen, no page scroll on a desktop. The wall being worked on fills the left, the
+ * 3D model and the unit list (or the selected unit's settings) sit in a rail on the right, and the
+ * price and Send stay in the bar on top. It covers the site's header and frame (z 100) but not the cookie
+ * banner (z 110), and the rest of the page is inert while it is open.
+ */
 function Editor({
   headingRef,
-  room,
-  roomName,
-  plan,
+  rooms,
+  active,
+  setActive,
   setPlan,
   templates,
   finishes,
@@ -374,245 +463,253 @@ function Editor({
   onNext,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
-  room: string;
-  roomName: string;
-  plan: Plan;
-  setPlan: (update: (plan: Plan) => Plan) => void;
+  rooms: Room[];
+  active: number;
+  setActive: (index: number) => void;
+  setPlan: (key: string, update: (plan: Plan) => Plan) => void;
   templates: Map<string, CatalogueTemplate>;
   finishes: Map<string, Finish>;
   catalogue: Catalogue;
   onBack: () => void;
   onNext: () => void;
 }) {
+  const room = rooms[active]!;
+  const plan = room.plan;
   const [selected, setSelected] = useState<string | null>(null);
-  const [show3d, setShow3d] = useState(false);
-  const [price, setPrice] = useState<{ state: "idle" | "loading" | "done" | "error"; result?: Estimate; message?: string }>({ state: "idle" });
+  const [wallIndex, setWallIndex] = useState(0);
+  const [full, setFull] = useState(false);
+  const price = useEstimates(rooms);
+  const root = useRef<HTMLElement>(null);
 
-  const roomTemplates = catalogue.templates.filter((t) => t.room_types.includes(room));
-  const colourOf = useCallback((unit: PlanWall["units"][number], template: CatalogueTemplate) => frontColour(unit, template, finishes), [finishes]);
-  const count = planUnits(plan).length;
-
-  // The range follows the design, debounced; a newer request cancels the one in flight.
   useEffect(() => {
-    if (!count) return; // the panel says "Add a unit" without asking
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      setPrice((p) => ({ ...p, state: "loading" }));
-      fetchEstimate(plan, controller.signal).then(
-        (result) => setPrice({ state: "done", result }),
-        (error: Error) => error.name !== "AbortError" && setPrice({ state: "error", message: error.message }),
-      );
-    }, 400);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
+    // Everything behind, bar the cookie banner (it sits above and must stay answerable).
+    const behind: Element[] = [];
+    const walk = (parent: Element) => {
+      for (const el of parent.children) {
+        if (el === root.current || el.matches("script, next-route-announcer, [data-cookie-banner]")) continue;
+        if (el.querySelector("[data-cookie-banner]")) walk(el);
+        else behind.push(el);
+      }
     };
-  }, [plan, count]);
+    walk(document.body);
+    behind.forEach((el) => el.setAttribute("inert", ""));
+    document.body.style.overflow = "hidden";
+    return () => {
+      behind.forEach((el) => el.removeAttribute("inert"));
+      document.body.style.overflow = "";
+    };
+  }, []);
+
+  const colourOf = useCallback((unit: Unit, template: CatalogueTemplate) => frontColour(unit, template, finishes), [finishes]);
+  const widthOf = (unit: Unit) => templates.get(unit.template_id)?.variants.find((v) => v.id === unit.variant_id)?.width_mm ?? 0;
+  const all = runs(plan);
+  const at = Math.min(wallIndex, all.length - 1);
+  const wall = all[at]!;
+  const isIsland = at >= plan.walls.length;
+  const show = (roomIndex: number, wallAt: number) => {
+    setActive(roomIndex);
+    setWallIndex(wallAt);
+    setSelected(null);
+    setFull(false);
+  };
 
   const updateRun = (index: number, update: (wall: PlanWall) => PlanWall) =>
-    setPlan((p) => {
+    setPlan(room.key, (p) => {
       if (index < p.walls.length) return { ...p, walls: p.walls.map((w, i) => (i === index ? update(w) : w)) };
       return p.island ? { ...p, island: update(p.island) } : p;
     });
-  const widthOf = (unit: PlanWall["units"][number]) => templates.get(unit.template_id)?.variants.find((v) => v.id === unit.variant_id)?.width_mm ?? 0;
-  const findUnit = (id: string | null) => {
-    if (!id) return null;
-    for (const [index, wall] of runs(plan).entries()) {
-      const unit = wall.units.find((u) => u.id === id);
-      if (unit) return { index, wall, unit, template: templates.get(unit.template_id) };
-    }
-    return null;
-  };
-  const current = findUnit(selected);
-
-  const setLength = (index: number, length_mm: number) =>
-    updateRun(index, (wall) => ({ length_mm, units: wall.units.map((u) => ({ ...u, x_mm: clampX(u.x_mm, widthOf(u), length_mm) })) }));
+  const current = wall.units.find((u) => u.id === selected);
+  const currentTemplate = current ? templates.get(current.template_id) : undefined;
+  const patchUnit = (id: string, patch: Partial<Unit>) => updateRun(at, (w) => ({ ...w, units: w.units.map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
   const removeUnit = (id: string) => {
-    const at = findUnit(id);
-    if (!at) return;
-    updateRun(at.index, (wall) => ({ ...wall, units: wall.units.filter((u) => u.id !== id) }));
+    updateRun(at, (w) => ({ ...w, units: w.units.filter((u) => u.id !== id) }));
     setSelected(null);
   };
-  const patchUnit = (id: string, patch: Partial<PlanWall["units"][number]>) => {
-    const at = findUnit(id);
-    if (at) updateRun(at.index, (wall) => ({ ...wall, units: wall.units.map((u) => (u.id === id ? { ...u, ...patch } : u)) }));
+  const setLength = (length_mm: number) => updateRun(at, (w) => ({ length_mm, units: w.units.map((u) => ({ ...u, x_mm: clampX(u.x_mm, widthOf(u), length_mm) })) }));
+  /** One click adds the unit in its first size, or the widest that still fits; its size is then changed in its panel. */
+  const add = (template: CatalogueTemplate) => {
+    const others = wall.units.map((u) => [u.x_mm, widthOf(u), templates.get(u.template_id)?.mount ?? "floor"] as [number, number, Mount]);
+    for (const variant of [template.variants[0]!, ...[...template.variants].sort((a, b) => b.width_mm - a.width_mm)]) {
+      const x = firstFree(others, variant.width_mm, template.mount, wall.length_mm);
+      if (x === null) continue;
+      const id = newUnitId();
+      updateRun(at, (w) => ({ ...w, units: [...w.units, { id, template_id: template.id, variant_id: variant.id, x_mm: x }] }));
+      setSelected(id);
+      return setFull(false);
+    }
+    setFull(true);
   };
 
-  // A run's length can't go below its units; the API refuses a unit off its wall anyway.
-  const overflow = runs(plan).some((wall) => wall.units.some((u) => u.x_mm + widthOf(u) > wall.length_mm));
+  // A blank room takes any unit, listed under the room it was made for; an island only floor units.
+  const palette = catalogue.templates.filter((t) => t.variants.length && (room.type === CUSTOM_ROOM || t.room_types.includes(room.type)) && (!isIsland || t.mount === "floor"));
+  const groups =
+    room.type === CUSTOM_ROOM
+      ? catalogue.room_types.map((r) => ({ name: r.name, items: palette.filter((t) => t.room_types[0] === r.id) })).filter((g) => g.items.length)
+      : [{ name: "", items: palette }];
 
-  return (
-    <section aria-labelledby="qm-edit">
-      <p className={EYEBROW}>{roomName}</p>
-      <h2 id="qm-edit" ref={headingRef} tabIndex={-1} className="mt-2 text-[1.75rem] text-primary focus:outline-none">
-        Arrange your units
-      </h2>
-      <p className="mt-2 max-w-[62ch] text-[15px] text-muted-foreground">
-        Drag a unit along its wall, or select it and use the arrow keys. Pick a unit to change its size or finish.
-      </p>
+  // The API refuses a unit off its wall and an empty room; say so here rather than after Send.
+  const overflow = rooms.some((r) => runs(r.plan).some((w) => w.units.some((u) => u.x_mm + widthOf(u) > w.length_mm)));
+  const emptyRooms = rooms.filter((r) => !planUnits(r.plan).length).map((r) => r.name);
+  const min = Math.max(isIsland ? LIMITS.island_min : LIMITS.wall_min, ...wall.units.map(widthOf));
 
-      <div className="mt-6 grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="space-y-8">
-          {runs(plan).map((wall, index) => (
-            <div key={index}>
-              <Elevation
-                label={wallLabel(plan, index)}
-                wall={wall}
-                ceiling_mm={plan.height_mm}
-                templates={templates}
-                colourOf={colourOf}
-                selectedId={selected}
-                onSelect={setSelected}
-                onMove={(id, x_mm) => patchUnit(id, { x_mm })}
-                onRemove={removeUnit}
-              />
-              <RunTools
-                wall={wall}
-                isIsland={index >= plan.walls.length}
-                templates={roomTemplates}
-                widthOf={widthOf}
-                onLength={(length) => setLength(index, length)}
-                onAdd={(template, variantId) => {
-                  const variant = template.variants.find((v) => v.id === variantId)!;
-                  const others = wall.units.map((u) => [u.x_mm, widthOf(u), templates.get(u.template_id)?.mount ?? "floor"] as [number, number, CatalogueTemplate["mount"]]);
-                  const x = firstFree(others, variant.width_mm, template.mount, wall.length_mm);
-                  if (x === null) return false;
-                  const id = newUnitId();
-                  updateRun(index, (w) => ({ ...w, units: [...w.units, { id, template_id: template.id, variant_id: variant.id, x_mm: x }] }));
-                  setSelected(id);
-                  return true;
-                }}
-              />
-            </div>
-          ))}
-
-          <div>
-            <button type="button" className={SECONDARY} aria-expanded={show3d} onClick={() => setShow3d((s) => !s)}>
-              <Box size={16} aria-hidden /> {show3d ? "Hide 3D view" : "Show in 3D"}
-            </button>
-            {show3d ? <div className="mt-4"><Preview3D plan={plan} templates={templates} colourOf={colourOf} /></div> : null}
-          </div>
+  return createPortal(
+    <section ref={root} role="dialog" aria-modal="true" aria-labelledby="qm-edit" data-lenis-prevent className="fixed inset-0 z-[105] flex flex-col bg-background">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 px-4 py-3 md:px-6">
+        <button type="button" className={`${SECONDARY} px-4`} onClick={onBack}>
+          <ArrowLeft size={16} aria-hidden /> <span className="max-sm:sr-only">Back</span>
+        </button>
+        <div className="mr-auto min-w-0 max-sm:sr-only">
+          <h2 id="qm-edit" ref={headingRef} tabIndex={-1} className="text-[1.2rem] leading-tight text-primary focus:outline-none">
+            Arrange your units
+          </h2>
+          {rooms.length === 1 ? <p className="text-[13px] text-muted-foreground">{room.name}</p> : null}
         </div>
-
-        <aside className="space-y-5 lg:sticky lg:top-28 lg:self-start">
-          <div className="rounded-2xl bg-primary p-6 text-primary-foreground" aria-live="polite">
-            <p className="text-[12px] uppercase tracking-[0.18em] text-primary-foreground/70">Estimate</p>
-            {!count ? (
-              <p className="mt-2 text-[15px] text-primary-foreground/80">Add a unit to see a price.</p>
-            ) : price.state === "error" ? (
-              <p className="mt-2 text-[15px]">{price.message}</p>
-            ) : price.result && !price.result.priced ? (
-              <p className="mt-2 text-[15px]">We will price this one for you. Send it and we will reply with a quote.</p>
-            ) : price.result ? (
-              <p className={`mt-2 font-title text-[2rem] leading-tight tabular-nums transition-opacity ${price.state === "loading" ? "opacity-60" : ""}`}>
-                {gbp(price.result.low!)} – {gbp(price.result.high!)}
-              </p>
-            ) : (
-              <p className="mt-2 text-[15px] text-primary-foreground/80">Working it out…</p>
-            )}
-            <p className="mt-3 text-[13px] leading-relaxed text-primary-foreground/70">
-              Made and fitted, from the materials you picked. A guide, not a quote: we confirm it after a free survey.
-            </p>
+        {rooms.length > 1 ? (
+          <div role="tablist" aria-label="Rooms" className="order-last flex w-full gap-2 overflow-x-auto lg:order-none lg:w-auto">
+            {rooms.map((r, i) => (
+              <button key={r.key} type="button" role="tab" aria-selected={i === active} onClick={() => show(i, 0)} className={`${chip(i === active)} shrink-0 whitespace-nowrap`}>
+                {r.name}
+              </button>
+            ))}
           </div>
-
-          {current?.template ? (
-            <UnitPanel
-              key={current.unit.id}
-              unit={current.unit}
-              template={current.template}
-              finishes={catalogue.finishes}
-              fits={(width) => current.unit.x_mm + width <= current.wall.length_mm}
-              onChange={(patch) => patchUnit(current.unit.id, patch)}
-              onRemove={() => removeUnit(current.unit.id)}
-            />
-          ) : (
-            <p className="rounded-2xl border border-dashed border-border p-5 text-[14px] text-muted-foreground">
-              Select a unit on a wall to change its size or finish.
+        ) : null}
+        <div className="rounded-2xl bg-primary px-5 py-2 text-primary-foreground max-sm:flex-1" aria-live="polite">
+          <p className="text-[11px] uppercase tracking-[0.18em] text-primary-foreground/70">{rooms.length > 1 ? "Estimate, all rooms" : "Estimate"}</p>
+          {price.empty ? (
+            <p className="text-[14px] text-primary-foreground/80">Add a unit to see a price</p>
+          ) : price.total && !price.total.priced ? (
+            <p className="text-[14px]">We will price this one for you</p>
+          ) : price.total ? (
+            <p className={`font-title text-[1.4rem] leading-tight tabular-nums transition-opacity ${price.loading || price.error ? "opacity-60" : ""}`}>
+              {gbp(price.total.low)} – {gbp(price.total.high)}
             </p>
+          ) : (
+            <p className="text-[14px] text-primary-foreground/80">{price.error ?? "Working it out…"}</p>
           )}
-        </aside>
-      </div>
-
-      {overflow ? <p role="alert" className="mt-5 text-[14px] text-destructive">A unit runs past the end of its wall. Move it, or make the wall longer.</p> : null}
-      <Nav>
-        <button type="button" className={SECONDARY} onClick={onBack}>Back</button>
-        <button type="button" className={PRIMARY} disabled={!count || overflow} onClick={onNext}>
+        </div>
+        {/* On a phone Send is pinned to the bottom, in reach of a thumb, and the bar keeps to one row. */}
+        <button type="button" className={`${PRIMARY} max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4 max-sm:z-10 max-sm:shadow-lg`} disabled={emptyRooms.length > 0 || overflow} onClick={onNext}>
           Send to the studio
         </button>
-      </Nav>
-    </section>
+      </header>
+
+      <div className="grid min-h-0 flex-1 gap-5 overflow-y-auto p-4 max-sm:pb-24 md:p-6 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_26rem]">
+        <div className="flex h-[62vh] min-h-[20rem] flex-col gap-3 lg:h-auto lg:min-h-0">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div role="tablist" aria-label="Walls" className="flex flex-wrap gap-2">
+              {all.map((w, i) => (
+                <button key={i} type="button" role="tab" aria-selected={i === at} aria-label={`${wallLabel(plan, i)}, ${w.units.length} ${w.units.length === 1 ? "unit" : "units"}`} onClick={() => show(active, i)} className={chip(i === at)}>
+                  {wallLabel(plan, i)}
+                  <span className="ml-2 tabular-nums opacity-70">{w.units.length}</span>
+                </button>
+              ))}
+            </div>
+            <LengthField key={`${room.key}-${at}-${wall.length_mm}`} value={wall.length_mm} min={min} max={isIsland ? LIMITS.island_max : LIMITS.wall_max} onChange={setLength} />
+          </div>
+          <div className="min-h-0 flex-1">
+            <Elevation
+              fill
+              label={wallLabel(plan, at)}
+              wall={wall}
+              ceiling_mm={plan.height_mm}
+              templates={templates}
+              colourOf={colourOf}
+              selectedId={selected}
+              onSelect={setSelected}
+              onMove={(id, x_mm) => patchUnit(id, { x_mm })}
+              onRemove={removeUnit}
+            />
+          </div>
+          {overflow ? (
+            <p role="alert" className="text-[13px] text-destructive">A unit runs past the end of its wall. Move it, or make the wall longer.</p>
+          ) : emptyRooms.length && rooms.length > 1 ? (
+            <p role="status" className="text-[13px] text-destructive">Add at least one unit to {emptyRooms.join(" and ")} before you send.</p>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">Drag a unit along the wall, or select it and use the arrow keys. Delete removes it.</p>
+          )}
+        </div>
+
+        <aside className="flex min-h-0 flex-col gap-4 lg:overflow-y-auto lg:pr-1">
+          <Preview3D plan={plan} templates={templates} colourOf={colourOf} />
+          {current && currentTemplate ? (
+            <UnitPanel
+              key={current.id}
+              unit={current}
+              template={currentTemplate}
+              finishes={catalogue.finishes}
+              fits={(width) => current.x_mm + width <= wall.length_mm}
+              onChange={(patch) => patchUnit(current.id, patch)}
+              onRemove={() => removeUnit(current.id)}
+              onDone={() => setSelected(null)}
+            />
+          ) : (
+            <div>
+              <p className="text-[15px] font-medium text-primary">Add a unit to {wallLabel(plan, at).toLowerCase() === "island" ? "the island" : wallLabel(plan, at)}</p>
+              {full ? <p role="status" className="mt-1 text-[13px] text-destructive">No space left for that one on this wall. Make room, or lengthen the wall.</p> : null}
+              {groups.map((group) => (
+                <div key={group.name}>
+                  {group.name ? <p className={`${EYEBROW} mt-4`}>{group.name}</p> : null}
+                  <ul className="mt-2 space-y-2">
+                    {group.items.map((t) => {
+                      const widths = t.variants.map((v) => v.width_mm);
+                      const lo = Math.min(...widths);
+                      const hi = Math.max(...widths);
+                      return (
+                        <li key={t.id}>
+                          <button
+                            type="button"
+                            onClick={() => add(t)}
+                            className="flex min-h-14 w-full items-center gap-3 rounded-xl border border-border bg-white px-4 py-2.5 text-left transition-colors hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                          >
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-[14px] font-medium text-foreground">{t.name}</span>
+                              <span className="block text-[12.5px] tabular-nums text-muted-foreground">
+                                {MOUNT_NAME[t.mount]} · {lo === hi ? `${lo} mm` : `${lo}–${hi} mm`} wide
+                              </span>
+                            </span>
+                            <Plus size={16} aria-hidden className="shrink-0 text-secondary" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="text-[12.5px] leading-relaxed text-muted-foreground">
+            The estimate is made and fitted, from the materials you picked. A guide, not a quote: we confirm it after a free survey.
+          </p>
+        </aside>
+      </div>
+    </section>,
+    document.body,
   );
 }
 
-function RunTools({
-  wall,
-  isIsland,
-  templates,
-  widthOf,
-  onLength,
-  onAdd,
-}: {
-  wall: PlanWall;
-  isIsland: boolean;
-  templates: CatalogueTemplate[];
-  widthOf: (unit: PlanWall["units"][number]) => number;
-  onLength: (length: number) => void;
-  onAdd: (template: CatalogueTemplate, variantId: string) => boolean;
-}) {
-  const choices = templates.filter((t) => !isIsland || t.mount === "floor");
-  const [templateId, setTemplateId] = useState(choices[0]?.id ?? "");
-  const template = choices.find((t) => t.id === templateId);
-  const [variantId, setVariantId] = useState(template?.variants[0]?.id ?? "");
-  const [length, setLengthText] = useState(String(wall.length_mm));
-  const [full, setFull] = useState(false);
-  const min = Math.max(isIsland ? LIMITS.island_min : LIMITS.wall_min, ...wall.units.map(widthOf));
-  const max = isIsland ? LIMITS.island_max : LIMITS.wall_max;
-
+function LengthField({ value, min, max, onChange }: { value: number; min: number; max: number; onChange: (length: number) => void }) {
+  const [text, setText] = useState(String(value));
+  // A length can't go below the wall's widest unit or the limits; anything else snaps back.
   const commit = () => {
-    const value = Math.round(Number(length));
-    if (Number.isFinite(value) && value >= min && value <= max) onLength(value);
-    else setLengthText(String(wall.length_mm));
+    const next = Math.round(Number(text));
+    if (Number.isFinite(next) && next >= min && next <= max) onChange(next);
+    else setText(String(value));
   };
-
   return (
-    <div className="mt-3 flex flex-wrap items-end gap-3">
-      <label className="w-36 text-[13px] text-muted-foreground">
-        Length (mm)
-        <input className={`${INPUT} mt-1 min-h-11 py-2`} inputMode="numeric" value={length} onChange={(e) => setLengthText(e.target.value.replace(/[^\d]/g, ""))} onBlur={commit} onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), commit())} />
-      </label>
-      {choices.length ? (
-        <>
-          <label className="min-w-48 flex-1 text-[13px] text-muted-foreground">
-            Unit
-            <select
-              className={`${INPUT} mt-1 min-h-11 py-2`}
-              value={templateId}
-              onChange={(e) => {
-                setTemplateId(e.target.value);
-                setVariantId(choices.find((t) => t.id === e.target.value)?.variants[0]?.id ?? "");
-                setFull(false);
-              }}
-            >
-              {choices.map((t) => (
-                <option key={t.id} value={t.id}>{t.name}</option>
-              ))}
-            </select>
-          </label>
-          <label className="w-32 text-[13px] text-muted-foreground">
-            Width
-            <select className={`${INPUT} mt-1 min-h-11 py-2`} value={variantId} onChange={(e) => (setVariantId(e.target.value), setFull(false))}>
-              {template?.variants.map((v) => (
-                <option key={v.id} value={v.id}>{v.width_mm} mm</option>
-              ))}
-            </select>
-          </label>
-          <button type="button" className={SECONDARY} disabled={!template || !variantId} onClick={() => template && setFull(!onAdd(template, variantId))}>
-            <Plus size={16} aria-hidden /> Add
-          </button>
-        </>
-      ) : null}
-      {full ? <p role="status" className="w-full text-[13px] text-destructive">No space for that width on this wall. Make room, or pick a narrower one.</p> : null}
-    </div>
+    <label className="flex items-center gap-2 text-[13px] text-muted-foreground">
+      Length
+      <span className="relative block w-32">
+        <input
+          className={`${INPUT} min-h-11 py-2 pr-11 tabular-nums`}
+          inputMode="numeric"
+          value={text}
+          onChange={(e) => setText(e.target.value.replace(/[^\d]/g, "").slice(0, 5))}
+          onBlur={commit}
+          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), commit())}
+        />
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[13px]">mm</span>
+      </span>
+    </label>
   );
 }
 
@@ -623,13 +720,15 @@ function UnitPanel({
   fits,
   onChange,
   onRemove,
+  onDone,
 }: {
-  unit: PlanWall["units"][number];
+  unit: Unit;
   template: CatalogueTemplate;
   finishes: Finish[];
   fits: (width: number) => boolean;
-  onChange: (patch: Partial<PlanWall["units"][number]>) => void;
+  onChange: (patch: Partial<Unit>) => void;
   onRemove: () => void;
+  onDone: () => void;
 }) {
   const setFinish = (slot: string, id: string) => {
     const next = { ...(unit.finishes ?? {}) };
@@ -639,7 +738,12 @@ function UnitPanel({
   };
   return (
     <div className="rounded-2xl border border-border bg-white p-5">
-      <p className="text-[16px] font-medium text-primary">{template.name}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[16px] font-medium text-primary">{template.name}</p>
+        <button type="button" onClick={onDone} aria-label="Close and add another unit" className="-mr-2 -mt-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+          <X size={18} aria-hidden />
+        </button>
+      </div>
       {template.description ? <p className="mt-1 text-[14px] text-muted-foreground">{template.description}</p> : null}
       {template.variants.length > 1 ? (
         <label className="mt-4 block text-[13px] text-muted-foreground">
@@ -677,16 +781,12 @@ function UnitPanel({
 
 function Details({
   headingRef,
-  room,
-  plan,
-  answers,
+  rooms,
   onBack,
   onSent,
 }: {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
-  room: string;
-  plan: Plan;
-  answers: Answers | null;
+  rooms: Room[];
   onBack: () => void;
   onSent: (result: Estimate | null) => void;
 }) {
@@ -705,7 +805,7 @@ function Details({
     setBusy(true);
     setError(null);
     try {
-      onSent((await submitDesign(room, plan, answers, contact)) ?? null);
+      onSent((await submitDesign(rooms, contact)) ?? null);
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
