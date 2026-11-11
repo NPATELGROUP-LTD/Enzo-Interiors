@@ -146,8 +146,8 @@ until the next send or publish. Reviews live on the entry
 through `notifications` (the bell) and admins by email too. **Clients:** Admin
 all; `Designer` and `Installer` only clients with a project
 they are a member of (`project_members`, migration 22: any number of designers and installers per project; the legacy `projects.assigned_designer_id` / `assigned_installer_id` still grant access and mirror the first of each)
-(`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
-read-only; Editors none. Only an Admin writes a client. **Projects:** Admin all
+(`AccessService.projectScope`; `clients.assigned_staff_id` also grants a Designer the client, which is how a Designer sees one they added before any project),
+read-only; Editors none. An Admin or a Designer adds a client (`POST /clients`, **name only is enough**: `email` is optional, a Designer's is assigned to them and Active); only an Admin edits one and invites it. A client with no email is stored with a unique stand-in `client-<uuid>@no-email.invalid` (`modules/clients/no-email.ts`; `clients.email` stays NOT NULL UNIQUE, no migration), shown as `''`, never emailed, and `POST /clients/:id/invite` refuses it until an Admin adds a real address. **Projects:** Admin all
 (create, delete, assignment, `client_visible`, default off); a Designer only
 projects they design or install (others 404), moving the stage directly and
 editing `current_stage` only; an Installer reads the same and cannot move a
@@ -405,7 +405,7 @@ notice, which contact fields, which services). Free times are computed in
 `apps/api/src/modules/booking/slots.ts` in **Europe/London** (tested by
 `npm test` in apps/api). `appointments.slot` is unique while a booking holds
 its time and null once cancelled, so the database refuses double bookings.
-Staff bookings skip the notice period and horizon. Contact fields (phone, address, postcode, notes) are Required / Optional / Hidden in Settings, enforced for visitors and staff; name, email, service and time are always required; defaults are computed on read (phone and postcode required, address and notes optional). Customers are emailed on
+Staff bookings skip the notice period and horizon. Contact fields (phone, address, postcode, notes) are Required / Optional / Hidden in Settings, enforced for visitors and staff; name, email, service and time are always required; defaults are computed on read (phone, address and postcode required, notes optional; a saved schedule keeps its own rules). Customers are emailed on
 book / move / cancel; admins get the email (notification_emails) and the bell.
 
 **Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id /

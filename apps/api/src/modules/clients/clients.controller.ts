@@ -13,7 +13,8 @@ import { CreateClientDto, UpdateClientDto } from './dto';
  * Every route names its roles: Admin, plus Designer and Installer where they
  * may look. Editors and client tokens never get in. Which rows a Designer or
  * Installer reaches is AccessService's call (clients of projects assigned to
- * them). Only an Admin writes; a Designer asks one (/change-requests).
+ * them). An Admin or Designer adds a client (a Designer's is looked after by them, so they
+ * see it before any project); only an Admin edits one, a Designer asks (/change-requests).
  */
 @Controller('clients')
 export class ClientsController {
@@ -39,7 +40,7 @@ export class ClientsController {
   }
 
   @Post()
-  @Roles('Admin')
+  @Roles('Admin', 'Designer')
   create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateClientDto) {
     return this.clients.create(principal, dto);
   }
