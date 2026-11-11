@@ -145,11 +145,11 @@ test('a visitor books: confirmation and studio alert go out, an enquiry tagged B
   assert.equal(await prisma.notification.count({ where: { kind: 'enquiry', title: { contains: run } } }), 0, 'and not a second time for the enquiry');
 });
 
-test('by default a visitor must give phone and postcode; address and notes are optional', async () => {
-  const noPostcode = await visitor('nopost', { phone: '07700900123' });
+test('by default a visitor must give phone, address and postcode; notes are optional', async () => {
+  const noPostcode = await visitor('nopost', { phone: '07700900123', address: '1 High St' });
   assert.equal(noPostcode.status, 400);
   assert.equal(await reason(noPostcode), 'Enter your postcode.');
-  const noPhone = await visitor('nophone', { postcode: 'LE1 1AA' });
+  const noPhone = await visitor('nophone', { postcode: 'LE1 1AA', address: '1 High St' });
   assert.equal(noPhone.status, 400);
   assert.equal(await reason(noPhone), 'Enter your phone number.');
   assert.equal(await prisma.appointment.count({ where: { email: { in: [emailOf('nopost'), emailOf('nophone')] } } }), 0);
@@ -159,7 +159,7 @@ test('by default a visitor must give phone and postcode; address and notes are o
 test('the availability the form reads carries the rules', async () => {
   const day = slots[0]!.date;
   const body = (await (await call('GET', `/booking/availability?from=${day}&to=${day}`)).json()) as { fields: Record<string, string> };
-  assert.deepEqual(body.fields, { phone: 'required', address: 'optional', postcode: 'required', notes: 'optional' });
+  assert.deepEqual(body.fields, { phone: 'required', address: 'required', postcode: 'required', notes: 'optional' });
 });
 
 test('the Admin changes a rule and the API follows: Required refuses, Hidden is ignored', async () => {

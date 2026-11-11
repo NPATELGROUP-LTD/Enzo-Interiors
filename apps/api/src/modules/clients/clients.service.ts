@@ -13,6 +13,7 @@ import { sumMoney } from '../invoices/totals';
 import { categoryOf } from '../documents/categories';
 import { doneStage, loadStages } from '../projects/stages';
 import { CreateClientDto, UpdateClientDto } from './dto';
+import { hasEmail, placeholderEmail } from './no-email';
 
 /**
  * A client as returned over the wire. `password_hash` and `token_version` are
@@ -29,7 +30,12 @@ export type ClientView = Omit<Client, 'password_hash' | 'token_version' | 'total
 export function toClientView(client: Client): ClientView {
   const { password_hash, ...rest } = client;
   delete rest.token_version;
-  return { ...rest, has_portal_access: looksHashed(password_hash), terms_accepted: hasAcceptedTerms(client) };
+  return {
+    ...rest,
+    email: hasEmail(client.email) ? client.email : '',
+    has_portal_access: looksHashed(password_hash),
+    terms_accepted: hasAcceptedTerms(client),
+  };
 }
 
 @Injectable()
@@ -71,17 +77,20 @@ export class ClientsService {
   }
 
   async create(principal: AuthPrincipal, dto: CreateClientDto): Promise<ClientView> {
-    await this.assertEmailFree(dto.email);
-    if (dto.assigned_staff_id) await this.assertStaffExists(dto.assigned_staff_id);
+    const admin = this.access.isAdmin(principal);
+    const email = dto.email?.trim().toLowerCase();
+    if (email) await this.assertEmailFree(email);
+    if (admin && dto.assigned_staff_id) await this.assertStaffExists(dto.assigned_staff_id);
 
     const now = new Date().toISOString();
     const created = await this.db.clients.create({
       name: dto.name.trim(),
-      email: dto.email.trim().toLowerCase(),
+      email: email || placeholderEmail(),
       phone: dto.phone ?? null,
       address: dto.address ?? null,
-      status: dto.status ?? 'Active',
-      assigned_staff_id: dto.assigned_staff_id ?? null,
+      // A Designer's client is looked after by them (that is how they see it) and starts Active.
+      status: admin ? (dto.status ?? 'Active') : 'Active',
+      assigned_staff_id: admin ? (dto.assigned_staff_id ?? null) : principal.id,
       joined_date: now.slice(0, 10),
       total_spent: 0,
       notes: dto.notes ?? null,
@@ -96,7 +105,7 @@ export class ClientsService {
       action: 'client_create',
       targetTable: 'clients',
       targetId: created.id,
-      details: { name: created.name, email: created.email },
+      details: { name: created.name, email: hasEmail(created.email) ? created.email : null },
     });
     return this.view(principal, created);
   }
@@ -145,6 +154,7 @@ export class ClientsService {
    */
   async invite(principal: AuthPrincipal, id: string): Promise<{ emailed: boolean }> {
     const client = await this.require(principal, id);
+    if (!hasEmail(client.email)) throw new BadRequestException(`${client.name} has no email address yet. Add one before inviting them.`);
     if (client.status !== 'Active') {
       throw new BadRequestException(`${client.name} is Inactive. Set them to Active before inviting them.`);
     }
@@ -199,7 +209,7 @@ export class ClientsService {
       action: 'client_delete',
       targetTable: 'clients',
       targetId: id,
-      details: { name: client.name, email: client.email, projects: removed.projects, invoices: removed.invoices },
+      details: { name: client.name, email: hasEmail(client.email) ? client.email : null, projects: removed.projects, invoices: removed.invoices },
     });
     return { id, deleted: true };
   }
