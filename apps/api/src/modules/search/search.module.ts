@@ -6,6 +6,7 @@ import { CurrentUser, Roles } from '../../common/decorators';
 import { AuthPrincipal } from '../../common/types/principal';
 import { DatabaseService } from '../../data/database.service';
 import { Where } from '../../data/prisma-repository';
+import { hasEmail } from '../clients/no-email';
 
 export interface SearchResult {
   type: 'client' | 'project' | 'invoice' | 'enquiry' | 'booking';
@@ -71,7 +72,7 @@ export class SearchService {
       (await this.db.clients.findWhere({ id: { in: [...new Set([...projects, ...invoices].map((row) => row.client_id))] } })).map((client) => [client.id, client.name]),
     );
     const results: SearchResult[] = [
-      ...clients.map((client) => ({ type: 'client' as const, id: client.id, title: client.name, detail: [client.email, client.phone].filter(Boolean).join(' · '), link: `/clients/${client.id}` })),
+      ...clients.map((client) => ({ type: 'client' as const, id: client.id, title: client.name, detail: [hasEmail(client.email) ? client.email : '', client.phone].filter(Boolean).join(' · '), link: `/clients/${client.id}` })),
       ...projects.map((project) => ({ type: 'project' as const, id: project.id, title: `${ref('PRJ', project.ref_no)} · ${project.name}`, detail: `${names.get(project.client_id) ?? ''} · ${project.current_stage ?? project.status}`, link: `/projects/${project.id}` })),
       ...invoices.map((invoice) => ({ type: 'invoice' as const, id: invoice.id, title: invoice.number, detail: `${names.get(invoice.client_id) ?? ''} · ${invoice.status}`, link: `/invoices?open=${invoice.id}` })),
       ...enquiries.map((row) => ({ type: 'enquiry' as const, id: row.id, title: `${ref('ENQ', row.ref_no)} · ${row.name}`, detail: `${row.email} · ${row.status}`, link: `/enquiries?id=${row.id}` })),

@@ -74,7 +74,7 @@ export const DEFAULT_CONFIG: BookingConfig = {
   maxPerDay: 0,
   horizonDays: 60,
   noticeHours: 24,
-  fields: { phone: 'required', address: 'optional', postcode: 'required', notes: 'optional' },
+  fields: { phone: 'required', address: 'required', postcode: 'required', notes: 'optional' },
   services: [],
 };
 

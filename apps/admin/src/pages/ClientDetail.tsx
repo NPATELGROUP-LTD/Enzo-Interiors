@@ -150,7 +150,7 @@ export function ClientDetailPage() {
                 Ask to accept terms again
               </Button>
             ) : null}
-            {isAdmin && client.status === 'Active' && (!client.has_portal_access || onEmailedPassword) ? (
+            {isAdmin && client.email && client.status === 'Active' && (!client.has_portal_access || onEmailedPassword) ? (
               <Button
                 variant={invited ? 'secondary' : 'primary'}
                 icon={<EnvelopeSimple size={16} aria-hidden="true" />}
@@ -210,7 +210,7 @@ export function ClientDetailPage() {
             <p className="label-eyebrow">Contact details</p>
             <dl className="mt-3 rows">
               {[
-                ['Email', client.email],
+                ['Email', client.email || 'No email yet'],
                 ['Phone', client.phone ?? '—'],
                 ['Address', client.address ?? '—'],
                 [

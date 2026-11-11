@@ -704,7 +704,7 @@ export function AdminLayout() {
         <>
           {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
           {canCms ? <CmsMenu counts={counts} /> : null}
-          {canSeeClients ? <ClientsMenu canAdd={isAdmin} /> : null}
+          {canSeeClients ? <ClientsMenu canAdd={can('Admin', 'Designer')} /> : null}
           {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
           {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}
           {canTeam ? <MenuBarLink to="/team" label="Team" badge={unreadTeam} /> : null}
