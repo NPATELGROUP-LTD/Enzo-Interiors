@@ -54,7 +54,7 @@ before(async () => {
 
 after(async () => {
   await prisma.project.deleteMany({ where: { id: { in: Object.values(PROJECTS) } } });
-  await prisma.client.deleteMany({ where: { email: { contains: run } } });
+  await prisma.client.deleteMany({ where: { OR: [{ email: { contains: run } }, { name: { contains: run } }] } });
   await prisma.changeRequest.deleteMany({ where: { requested_by: DESIGNER.id } });
   await prisma.notification.deleteMany({ where: { recipient_id: DESIGNER.id } });
   await prisma.staffUser.deleteMany({ where: { id: { in: [EDITOR.id, DESIGNER.id] } } });
@@ -148,6 +148,44 @@ test('a Designer sees only the clients of their projects, and only their project
   assert.deepEqual(detail.projects.map((row) => row.id), [PROJECTS.assigned]);
 });
 
+test('a Designer adds a client by name alone and sees it; an Admin cannot invite it until it has an email', async () => {
+  type Created = { id: string; email: string; assigned_staff_id: string | null; status: string };
+  const add = async (token: string, body: object) => call('POST', '/clients', token, body);
+
+  // Name only, twice: the stand-in addresses are unique, and the API shows them as ''.
+  const first = (await (await add(tokens.designer, { name: `Name only A ${run}` })).json()) as Created;
+  const second = (await (await add(tokens.designer, { name: `Name only B ${run}`, status: 'Inactive', assigned_staff_id: 'someone-else' })).json()) as Created;
+  assert.equal(first.email, '');
+  assert.equal(second.email, '');
+  assert.equal(second.status, 'Active', 'a Designer cannot choose the status');
+  const designerId = (await prisma.staffUser.findUniqueOrThrow({ where: { email: DESIGNER.email } })).id;
+  assert.equal(second.assigned_staff_id, designerId, 'looked after by the Designer, whatever they send');
+
+  // They see their own and nobody else's, and the Admin sees them too.
+  const list = (await (await call('GET', '/clients', tokens.designer)).json()) as Array<{ id: string }>;
+  assert.ok(list.some((c) => c.id === first.id), 'creator sees it');
+  assert.ok(!list.some((c) => c.id === OTHER.id), 'still not others');
+  assert.equal((await call('GET', `/clients/${first.id}`, tokens.designer)).status, 200);
+  assert.equal((await call('GET', `/clients/${first.id}`, tokens.admin)).status, 200);
+  // Another Designer-less role gets nothing, and an Editor cannot add.
+  assert.equal((await add(tokens.editor, { name: `Editor ${run}` })).status, 403);
+
+  // A Designer's email is still checked and unique; they cannot invite or edit.
+  const email = `designer-added-${run}@test.enzo.local`;
+  assert.equal((await add(tokens.designer, { name: `With email ${run}`, email })).status, 201);
+  assert.equal((await add(tokens.designer, { name: `Dupe ${run}`, email: email.toUpperCase() })).status, 400);
+  assert.equal((await add(tokens.designer, { name: `Bad ${run}`, email: 'not-an-email' })).status, 400);
+  assert.equal((await call('POST', `/clients/${first.id}/invite`, tokens.designer)).status, 403);
+  assert.equal((await call('PUT', `/clients/${first.id}`, tokens.designer, { notes: 'x' })).status, 403);
+
+  // No email yet: the Admin cannot invite, and nothing is mailed. With one, they can.
+  const before = mails.length;
+  assert.equal((await call('POST', `/clients/${first.id}/invite`, tokens.admin)).status, 400);
+  assert.equal(mails.length, before);
+  assert.equal((await call('PUT', `/clients/${first.id}`, tokens.admin, { email: `later-${run}@test.enzo.local` })).status, 200);
+  assert.equal((await call('POST', `/clients/${first.id}/invite`, tokens.admin)).status, 200);
+});
+
 test('a Designer asks an Admin to change contact details and notes; only an Admin writes', async () => {
   for (const body of [{ notes: 'x' }, { email: `stolen-${run}@test.enzo.local` }, { status: 'Inactive' }, { total_spent: 1 }]) {
     assert.equal((await call('PUT', `/clients/${MINE.id}`, tokens.designer, body)).status, 403, JSON.stringify(body));
@@ -170,7 +208,6 @@ test('a Designer asks an Admin to change contact details and notes; only an Admi
   const changed = await prisma.client.findUniqueOrThrow({ where: { id: MINE.id } });
   assert.equal(changed.phone, `0116 ${run}`);
   assert.equal(changed.notes, 'Prefers afternoons');
-  assert.equal((await call('POST', '/clients', tokens.designer, { name: 'Nope', email: `nope2-${run}@test.enzo.local` })).status, 403);
   assert.equal((await call('POST', `/clients/${NEWBIE.id}/invite`, tokens.designer)).status, 403);
   assert.equal((await call('DELETE', `/clients/${MINE.id}`, tokens.designer)).status, 403);
 
