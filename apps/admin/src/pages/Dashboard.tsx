@@ -383,7 +383,6 @@ export function DashboardPage() {
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
       <PageHeader
-        prominent
         title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
         description={isAdmin ? 'Everything that needs you today, in one place.' : 'Where your projects are up to.'}
       />

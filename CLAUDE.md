@@ -21,7 +21,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   booking; `?view=` / `?new=1` / `#month` in the address) and **Settings**
   (`/settings/:section`, Admin only: website status, page on/off switches, logo & favicon (light +
   dark), notification emails, opening hours, booking schedule, newsletter, bank details, document categories,
-  users). CMS, Clients, Projects, Invoices, Bookings and Settings each drop a menu on hover. Below xl the menu bar collapses into one app-name · current-page button that opens a page-menu popover (as in the portal; each screen lists its own sub-views). Your own
+  users). **Shell** (`components/layout/Desktop.tsx`, each app its own copy): no window around the page. A glass menu bar, then a heading row (the page's heading top left with a back link where there is one, its buttons top right; a page fills both through `<PageHeader>`, otherwise the section's name shows), then the page straight on the canvas with its cards floating. From lg up the admin's menu bar is Dashboard and four menus: **Work** (Clients, Projects, Quotes, Quote maker, Invoices, Inventory), **Inbox** (Enquiries, Bookings, Messages, Team, Mail; the name carries the total of its badges), **Website** (the CMS and its sections) and **Settings**. Each lists only what the role may open and an empty group is not shown; Work and Inbox open on a click or tap as well as on hover. Below lg the pages are a bottom bar of icons (`BottomBar.tsx`: admin Dashboard, Projects, Clients, Bookings first; portal Home, Projects, Messages, Documents) with the rest under More: one icon per 64px of width, eight at most (`lib/bar.ts`), in the page's column so nothing sits behind it. Each screen lists its own sub-views. View website is in the profile menu and on the CMS overview. **Opening animation** (`components/Splash.tsx`, `.splash` in `styles/theme.css`, `public/theme-init.js`): on a device's first load and again 8 hours after it last played (`enzo:splash-at` in localStorage), the logo on brand green slides up and the green lifts off with a sagging edge, about 1.6 s, over whatever page loads; it plays under reduced motion too (the owner's decision). The logo is Settings' "Logo on dark backgrounds", its address remembered from the last showing (`enzo:splash-logo`), else the shipped mark. Your own
   name/password/appearance are under the profile menu at `/account`. Plus the
   notification bell, search (Ctrl/⌘ K) and forgot/reset password (also used to
   accept an invitation). **Messages** (`/messages`, Admin + Designers; `?client=` opens
@@ -284,7 +284,7 @@ controller line; no VAT number is shown (Enzo has none yet), do not invent one. 
 (IP/device) is built, add it to `what-we-collect` and `retention` in both files.
 The apps set no cookies, only localStorage, so no banner. Google Fonts is loaded
 from Google (disclosed). Terms are a draft for a solicitor.
-- `apps/portal` — client portal (React/Vite PWA, same macOS look as admin).
+- `apps/portal` — client portal (React/Vite PWA, same shell and look as the admin: pages in the menu bar from lg up, bottom bar below).
   Clients reach it only by invitation: `/reset-password` (invite or reset; the
   token is read from the link and wiped from the address bar) and
   `/forgot-password`. Pages: Dashboard, Projects (+ detail: approve / request

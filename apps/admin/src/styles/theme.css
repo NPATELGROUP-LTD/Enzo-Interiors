@@ -406,3 +406,80 @@
     font-size: 16px;
   }
 }
+
+/*
+ * The opening animation (components/Splash.tsx): the logo on brand green, the
+ * logo leaves upwards, then the green lifts off the top while the middle of
+ * its lower edge hangs back, like something thick being pulled away. 1.6s.
+ *
+ * In the base layer and !important on purpose: the owner wants it played on
+ * reduced-motion devices too, and only a rule in the same layer with a stronger
+ * selector outranks the reduced-motion rule above. The green is the brand's
+ * own in both themes (--green-900 turns light in the dark theme).
+ */
+@layer base {
+  /* public/theme-init.js marks the page when the animation is due, so the green is there before the app's code is. */
+  html.splash-due body {
+    background: #173c30;
+  }
+
+  .splash {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    display: grid;
+    place-items: center;
+    background: #173c30;
+    animation: splash-lift 0.7s cubic-bezier(0.76, 0, 0.24, 1) 0.9s both !important;
+  }
+
+  /* The hanging edge: half an ellipse below the green, stretched as the lift starts and let go as it ends. */
+  .splash::after {
+    content: "";
+    position: absolute;
+    inset: calc(100% - 1px) -12% auto;
+    height: 24vh;
+    border-radius: 0 0 50% 50% / 0 0 100% 100%;
+    background: inherit;
+    transform-origin: top;
+    animation: splash-sag 0.7s cubic-bezier(0.76, 0, 0.24, 1) 0.9s both !important;
+  }
+
+  .splash > * {
+    animation: splash-logo 1s cubic-bezier(0.65, 0, 0.35, 1) both !important;
+  }
+
+  @keyframes splash-logo {
+    0% {
+      opacity: 0;
+      transform: translateY(14px);
+    }
+    22%,
+    60% {
+      opacity: 1;
+      transform: none;
+    }
+    100% {
+      opacity: 0;
+      transform: translateY(-45vh);
+    }
+  }
+
+  @keyframes splash-lift {
+    to {
+      transform: translateY(-130%);
+    }
+  }
+
+  @keyframes splash-sag {
+    0% {
+      transform: scaleY(0);
+    }
+    45% {
+      transform: scaleY(1);
+    }
+    100% {
+      transform: scaleY(0.35);
+    }
+  }
+}

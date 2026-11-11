@@ -282,6 +282,20 @@ export function CmsHome() {
 
   return (
     <div className={PANE}>
+      <PageHeader
+        title="CMS"
+        actions={
+          <a
+            href={WEB_URL}
+            target="_blank"
+            rel="noopener"
+            className="flex min-h-9 items-center gap-1.5 rounded-control border border-border bg-surface px-3 text-sm font-semibold text-ink shadow-card hover:bg-secondary-hover pointer-coarse:min-h-11"
+          >
+            <ArrowSquareOut size={15} aria-hidden="true" />
+            View website
+          </a>
+        }
+      />
       <div className="grid items-start gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-10">
           {reviews.length ? (

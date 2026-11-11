@@ -256,8 +256,7 @@ export function CataloguePage() {
     <div className="flex flex-col gap-4">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight text-ink">Inventory</h1>
-          <p className="mt-1 max-w-[62ch] text-sm text-ink-muted">
+          <p className="max-w-[62ch] text-sm text-ink-muted">
             Sizes, finishes, photos and what the website&rsquo;s quote maker offers. Costs and stock are kept by an Admin.
           </p>
         </div>
