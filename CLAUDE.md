@@ -146,8 +146,8 @@ until the next send or publish. Reviews live on the entry
 through `notifications` (the bell) and admins by email too. **Clients:** Admin
 all; `Designer` and `Installer` only clients with a project
 they are a member of (`project_members`, migration 22: any number of designers and installers per project; the legacy `projects.assigned_designer_id` / `assigned_installer_id` still grant access and mirror the first of each)
-(`AccessService.projectScope`; `clients.assigned_staff_id` grants nothing),
-read-only; Editors none. Only an Admin writes a client. **Projects:** Admin all
+(`AccessService.projectScope`; `clients.assigned_staff_id` also grants a Designer the client, which is how a Designer sees one they added before any project),
+read-only; Editors none. An Admin or a Designer adds a client (`POST /clients`, **name only is enough**: `email` is optional, a Designer's is assigned to them and Active); only an Admin edits one and invites it. A client with no email is stored with a unique stand-in `client-<uuid>@no-email.invalid` (`modules/clients/no-email.ts`; `clients.email` stays NOT NULL UNIQUE, no migration), shown as `''`, never emailed, and `POST /clients/:id/invite` refuses it until an Admin adds a real address. **Projects:** Admin all
 (create, delete, assignment, `client_visible`, default off); a Designer only
 projects they design or install (others 404), moving the stage directly and
 editing `current_stage` only; an Installer reads the same and cannot move a
@@ -405,7 +405,7 @@ notice, which contact fields, which services). Free times are computed in
 `apps/api/src/modules/booking/slots.ts` in **Europe/London** (tested by
 `npm test` in apps/api). `appointments.slot` is unique while a booking holds
 its time and null once cancelled, so the database refuses double bookings.
-Staff bookings skip the notice period and horizon. The website's form may send `services` (up to 10 slugs, each checked like `service`, which stays the first); `service_label` is their names joined. Contact fields (phone, address, postcode, notes) are Required / Optional / Hidden in Settings, enforced for visitors and staff; name, email, service and time are always required; defaults are computed on read (phone and postcode required, address and notes optional). Customers are emailed on
+Staff bookings skip the notice period and horizon. The website's form may send `services` (up to 10 slugs, each checked like `service`, which stays the first); `service_label` is their names joined. Contact fields (phone, address, postcode, notes) are Required / Optional / Hidden in Settings, enforced for visitors and staff; name, email, service and time are always required; defaults are computed on read (phone, address and postcode required, notes optional; a saved schedule keeps its own rules). Customers are emailed on
 book / move / cancel; admins get the email (notification_emails) and the bell.
 
 **Brand:** `site_settings.logo_light_id / logo_dark_id / favicon_id /
@@ -651,6 +651,7 @@ All endpoints use NestJS Guards to enforce role + resource ownership. Never hard
 - Conventional commits: `feat(api):`, `fix(web):`, `chore:`, `docs:`, imperative and specific.
 - Rollback = `git revert` the PR, never force-push `main`.
 - Pre-prod (Coolify, branch `pre-prod`, tested before `main`) uses `docker-compose.preprod.yml`: a copy of `docker-compose.yml` with its own image tags, host ports (+10000), Traefik router names, hosts from `PREPROD_*_HOST` and preprod-only aliases on the shared `coolify` network. Change both files together.
+- Dev (Coolify environment `development`, branch `develop`, `dev.enzointeriors.co.uk`: `www.` + apex redirecting to `www`, `api.`, `admin.`, `portal.`, `media.`) uses `docker-compose.dev.yml`, a third copy of the stack: ports prod + 20000 (web 23000, api 24000, admin 25174, portal 25175, postgres 25432, minio 29000/29001, redis 26379), `enzo-dev-*` routers, aliases and images, its own Coolify PostgreSQL and MinIO buckets. Its env is `.env.dev.example` (real values in Coolify, `.env.dev` is git-ignored), never `.env`. `DISABLE_2FA` stays off there. Change all three compose files together.
 - Local compose needs a one-time `docker network create coolify` (the compose file joins the external network Coolify/Traefik uses in production).
 
 ---

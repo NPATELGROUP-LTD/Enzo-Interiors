@@ -172,7 +172,7 @@ export function BookingWizard({
 
   const fields: Record<ContactKey, FieldRule> = free?.fields ?? {
     phone: "required",
-    address: "optional",
+    address: "required",
     postcode: "required",
     notes: "optional",
   };

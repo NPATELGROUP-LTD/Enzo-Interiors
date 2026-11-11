@@ -67,7 +67,7 @@ export function ClientsPage() {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const view: View = CLIENT_VIEWS.find(({ id }) => id === params.get('view'))?.id ?? 'all';
-  const creating = isAdmin && params.get('new') === '1';
+  const creating = canEdit && params.get('new') === '1';
   /** Changes some of the address's parameters and keeps the rest (see Appointments). */
   const update = (changes: Record<string, string | null>, replace = false) =>
     setParams(
@@ -87,6 +87,8 @@ export function ClientsPage() {
   const [form, setForm] = useState<ClientForm>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Every field for an Admin, or for a Designer adding a client; a Designer editing one asks (phone, address, notes).
+  const fullForm = isAdmin || (canEdit && !editing);
 
   const [deleting, setDeleting] = useState<Client | null>(null);
   const [askingAll, setAskingAll] = useState(false);
@@ -161,18 +163,15 @@ export function ClientsPage() {
       notes: form.notes.trim() || null,
     };
     let payload: Record<string, unknown> = contact;
-    if (isAdmin) {
+    if (fullForm) {
       if (form.name.trim().length < 2) return setFormError('Enter the client’s name.');
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      // Optional on a new client and on one that has none yet; an address once set can't be blanked.
+      const email = form.email.trim();
+      if ((email || editing?.email) && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         return setFormError('Enter a valid email address.');
       }
-      payload = {
-        ...contact,
-        name: form.name.trim(),
-        email: form.email.trim(),
-        status: form.status,
-        assigned_staff_id: form.assigned_staff_id || null,
-      };
+      payload = { ...contact, name: form.name.trim(), ...(email ? { email } : {}) };
+      if (isAdmin) Object.assign(payload, { status: form.status, assigned_staff_id: form.assigned_staff_id || null });
     }
 
     setSaving(true);
@@ -234,7 +233,7 @@ export function ClientsPage() {
 
   const formFields = (
     <form id="client-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
-      {isAdmin ? (
+      {fullForm ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Input
             label="Full name"
@@ -247,8 +246,14 @@ export function ClientsPage() {
             type="email"
             value={form.email}
             onChange={(event) => setForm({ ...form, email: event.target.value })}
-            hint={editing?.has_portal_access ? 'Also how they sign in to the portal.' : undefined}
-            required
+            hint={
+              editing?.has_portal_access
+                ? 'Also how they sign in to the portal.'
+                : editing?.email
+                  ? undefined
+                  : 'Optional for now. Needed before they can be invited to the portal.'
+            }
+            required={Boolean(editing?.email)}
           />
           <Input
             label="Phone"
@@ -256,15 +261,17 @@ export function ClientsPage() {
             onChange={(event) => setForm({ ...form, phone: event.target.value })}
             placeholder="07700 900000"
           />
-          <Select
-            label="Status"
-            value={form.status}
-            onChange={(event) => setForm({ ...form, status: event.target.value as 'Active' | 'Inactive' })}
-            hint="Inactive clients cannot sign in to the portal."
-          >
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-          </Select>
+          {isAdmin ? (
+            <Select
+              label="Status"
+              value={form.status}
+              onChange={(event) => setForm({ ...form, status: event.target.value as 'Active' | 'Inactive' })}
+              hint="Inactive clients cannot sign in to the portal."
+            >
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </Select>
+          ) : null}
         </div>
       ) : (
         <Input
@@ -342,7 +349,7 @@ export function ClientsPage() {
               Ask all to accept terms
             </Button>
           ) : null}
-          {isAdmin ? (
+          {canEdit ? (
             <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={openCreate}>
               Add client
             </Button>
@@ -360,7 +367,7 @@ export function ClientsPage() {
           message={
             clients.data?.length
               ? 'Try a different search, or look under All clients.'
-              : isAdmin
+              : canEdit
                 ? 'Add your first client to start tracking projects and invoices.'
                 : 'Clients appear here once a project of theirs is assigned to you.'
           }
@@ -375,7 +382,7 @@ export function ClientsPage() {
               >
                 Show all clients
               </Button>
-            ) : isAdmin ? (
+            ) : canEdit ? (
               <Button variant="primary" onClick={openCreate}>
                 Add client
               </Button>
@@ -419,7 +426,7 @@ export function ClientsPage() {
                   </p>
                 </Td>
                 <Td className="max-sm:hidden">
-                  <p className="text-ink">{client.email}</p>
+                  <p className="text-ink">{client.email || 'No email yet'}</p>
                   <p className="text-xs text-ink-muted">{client.phone ?? 'No phone'}</p>
                 </Td>
                 <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(client.joined_date)}</Td>
