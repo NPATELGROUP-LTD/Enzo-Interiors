@@ -319,7 +319,10 @@ function RoomForm({
     setBusy(true);
     setError(null);
     try {
-      onReady(await startPlan(answers), answers);
+      const plan = await startPlan(answers);
+      // A plan with nothing in it would strand the visitor in the designer with Send switched off.
+      if (!planUnits(plan).length) throw new Error("Those sizes are too small for any of our units. Make a wall longer, or choose Draw it yourself.");
+      onReady(plan, answers);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -622,8 +625,8 @@ function Editor({
           </div>
           {overflow ? (
             <p role="alert" className="text-[13px] text-destructive">A unit runs past the end of its wall. Move it, or make the wall longer.</p>
-          ) : emptyRooms.length && rooms.length > 1 ? (
-            <p role="status" className="text-[13px] text-destructive">Add at least one unit to {emptyRooms.join(" and ")} before you send.</p>
+          ) : emptyRooms.length ? (
+            <p role="status" className="text-[13px] text-destructive">Add at least one unit{rooms.length > 1 ? ` to ${emptyRooms.join(" and ")}` : ""} before you send.</p>
           ) : (
             <p className="text-[13px] text-muted-foreground">Drag a unit along the wall, or select it and use the arrow keys. Delete removes it.</p>
           )}
