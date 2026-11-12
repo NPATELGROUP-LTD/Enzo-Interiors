@@ -28,11 +28,11 @@ interface StockItem {
   active: boolean;
 }
 
-const ACTIONS = { reserve: 'Hold', release: 'Let go', issue: 'Use', return: 'Return' } as const;
+const ACTIONS = { reserve: 'Reserve', release: 'Release', issue: 'Used on job', return: 'Return' } as const;
 type Action = keyof typeof ACTIONS;
 
 /**
- * What a project needs, holds and has used. The Admin sets needs and holds stock; an Installer
+ * What a project needs, has reserved and has used. The Admin sets needs and reserves stock; an Installer
  * on the project books what they use and return; a Designer reads it. Cost is the Admin's only.
  */
 export function ProjectMaterials({ projectId }: { projectId: string }) {
@@ -88,8 +88,8 @@ export function ProjectMaterials({ projectId }: { projectId: string }) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label-eyebrow">Materials</p>
         {isAdmin && lines.length ? (
-          <Button variant="secondary" loading={busy} onClick={() => void run(() => api.post<Line[]>(`${base}/reserve-all`), 'Held what is free.')}>
-            Hold what is needed
+          <Button variant="secondary" loading={busy} onClick={() => void run(() => api.post<Line[]>(`${base}/reserve-all`), 'Reserved what is free.')}>
+            Reserve what is needed
           </Button>
         ) : null}
       </div>
@@ -100,8 +100,8 @@ export function ProjectMaterials({ projectId }: { projectId: string }) {
             <tr>
               <Th>Item</Th>
               <Th className="text-right">Needed</Th>
-              <Th className="text-right">Held</Th>
-              <Th className="text-right">Used</Th>
+              <Th className="text-right">Reserved</Th>
+              <Th className="text-right">Used on job</Th>
               <Th className="text-right max-sm:hidden">Free in stock</Th>
               {isAdmin ? <Th className="text-right max-sm:hidden">Cost</Th> : null}
               {isAdmin ? <Th className="w-8"><span className="sr-only">Remove</span></Th> : null}
@@ -169,14 +169,14 @@ export function ProjectMaterials({ projectId }: { projectId: string }) {
 
       {canBook && lines.length ? (
         <form onSubmit={book} className="mt-4 grid gap-3 sm:grid-cols-[1fr_8rem_6rem_auto] sm:items-end">
-          <Select label="Item" value={move.item_id || lines[0]!.item_id}onChange={(event) => setMove({ ...move, item_id: event.target.value })}>
+          <Select label="Item" value={move.item_id || lines[0]!.item_id} onChange={(event) => setMove({ ...move, item_id: event.target.value })}>
             {lines.map((line) => (
               <option key={line.item_id} value={line.item_id}>
                 {line.name}
               </option>
             ))}
           </Select>
-          <Select label="Book" value={move.action} onChange={(event) => setMove({ ...move, action: event.target.value as Action })}>
+          <Select label="Action" value={move.action} onChange={(event) => setMove({ ...move, action: event.target.value as Action })}>
             {(Object.keys(ACTIONS) as Action[])
               .filter((action) => isAdmin || action === 'issue' || action === 'return')
               .map((action) => (

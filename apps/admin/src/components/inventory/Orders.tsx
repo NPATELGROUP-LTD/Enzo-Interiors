@@ -77,13 +77,13 @@ export function OrdersTable({ items, suppliers, newOrder, onNewDone }: { items: 
   return (
     <>
       {!orders.data ? null : orders.data.length === 0 ? (
-        <EmptyState title="No orders yet" message="Write one here, or turn the Shortfall list into drafts." />
+        <EmptyState title="No orders yet" message="Write one here, or turn the To order list into drafts." />
       ) : (
-        <TableWrap>
+        <TableWrap className="max-md:min-w-0">
           <thead>
             <tr>
               <Th sort={header('ref')}>Order</Th>
-              <Th sort={header('supplier')}>Supplier</Th>
+              <Th className="max-sm:hidden" sort={header('supplier')}>Supplier</Th>
               <Th sort={header('status')}>Status</Th>
               <Th className="max-sm:hidden" sort={header('when')}>Written</Th>
               <Th className="text-right" sort={header('gross')}>Total</Th>
@@ -92,8 +92,8 @@ export function OrdersTable({ items, suppliers, newOrder, onNewDone }: { items: 
           <tbody>
             {rows.map((order) => (
               <tr key={order.id} onClick={() => setOpenId(order.id)} className="cursor-pointer hover:bg-ink/[0.03]">
-                <Td className="font-semibold text-ink">{order.ref}</Td>
-                <Td>{order.supplier_name}</Td>
+                <Td className="font-semibold text-ink">{order.ref}<span className="block text-xs font-normal text-ink-muted sm:hidden">{order.supplier_name}</span></Td>
+                <Td className="max-sm:hidden">{order.supplier_name}</Td>
                 <Td>
                   <StatusTag tone={TONE[order.status]}>{order.status}</StatusTag>
                 </Td>
@@ -154,7 +154,7 @@ function OrderPanel({ id, items, suppliers, onClose, onChanged }: { id: string; 
       const next = await api.post<Order>(`/inventory/orders/${id}/receive`, { lines });
       setArrived({});
       return next;
-    }, 'Booked in.');
+    }, 'Stocked in.');
   };
 
   const print = async () => {
@@ -206,7 +206,7 @@ function OrderPanel({ id, items, suppliers, onClose, onChanged }: { id: string; 
       }
     >
       <form onSubmit={receive} className="flex flex-col gap-4">
-        <TableWrap>
+        <TableWrap className="max-md:min-w-0">
           <thead>
             <tr>
               <Th>Item</Th>
@@ -251,7 +251,7 @@ function OrderPanel({ id, items, suppliers, onClose, onChanged }: { id: string; 
           </p>
           {open ? (
             <Button type="submit" variant="primary" loading={busy}>
-              Book in
+              Stock in
             </Button>
           ) : null}
         </div>
@@ -497,7 +497,7 @@ export function ShortfallList({ suppliers, onOrdered }: { suppliers: Supplier[];
               <span className="text-sm text-ink-muted">Set a supplier on these items to order them.</span>
             )}
           </div>
-          <TableWrap>
+          <TableWrap className="max-md:min-w-0">
             <thead>
               <tr>
                 <Th>Item</Th>
