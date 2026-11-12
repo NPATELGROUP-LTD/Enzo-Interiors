@@ -1,9 +1,12 @@
-import { Link } from 'react-router-dom';
+import { Plus } from '@phosphor-icons/react';
+import clsx from 'clsx';
+import { useState, type PointerEvent, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 
 import {
+  Button,
   Card,
   ErrorState,
-  MetricCard,
   PageHeader,
   Progress,
   StatusTag,
@@ -12,72 +15,137 @@ import {
 import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
-import { dateTime, moneyCompact, padCount, relative } from '@/lib/format';
+import { money, moneyCompact, padCount, relative } from '@/lib/format';
 import { projectTone } from '@/lib/status';
-import type { AdminDashboard, ChangeRequest, DashboardProjects, DesignerDashboard, Project } from '@/types/api';
+import type { AdminDashboard, ChangeRequest, DashboardProjects, DesignerDashboard } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
+type Month = AdminDashboard['appointments_chart'][number];
+
+const TONE_TEXT = { primary: 'text-green-900', success: 'text-success', warning: 'text-warning', danger: 'text-danger' };
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+/** Where the projects list opens for these stages (the list view is the one that can be narrowed). */
+const stageLink = (stages: string[]) =>
+  stages.length ? `/projects?view=list&stage=${encodeURIComponent(stages.join(','))}` : '/projects?view=list';
+
+/** "Up 12% on last month (£1.1k)": this month against last, from a 12-month series. */
+function versus(data: Month[], format: (n: number) => string): string {
+  const now = data.at(-1)?.value ?? 0;
+  const before = data.at(-2)?.value ?? 0;
+  if (before === 0) return `${format(0)} last month`;
+  const pct = Math.round(((now - before) / before) * 100);
+  return `${pct >= 0 ? 'Up' : 'Down'} ${Math.abs(pct)}% on last month (${format(before)})`;
+}
+
 /**
- * Simple bar chart for a monthly figure.
- *
- * Hand-drawn SVG rather than a charting dependency: the brief's restraint rules
- * rule out most of what a chart library brings, and a 12-bar chart does not
- * justify the bundle. Values are labelled in text as well as height so the
- * chart is not the only way to read them.
+ * Twelve months as a small line. Hover (or drag, on touch) reads one month in the
+ * fixed-height line above it; a click opens the list the figure comes from.
+ * Hand-drawn SVG: the stretch (non-scaling stroke) keeps one line weight at any width.
  */
-function BarChart({
-  data,
-  formatValue,
-}: {
-  data: Array<{ month: string; label: string; value: number }>;
-  formatValue?: (value: number) => string;
-}) {
+function Spark({ data, format, to }: { data: Month[]; format: (n: number) => string; to: string }) {
+  const navigate = useNavigate();
+  const [at, setAt] = useState<number | null>(null);
   const max = Math.max(1, ...data.map((point) => point.value));
+  const last = data.length - 1;
+  const x = (i: number) => 2 + (i / last) * 96;
+  const y = (value: number) => 94 - (value / max) * 88;
+  const shown = data[at ?? last]!;
+  const pick = (event: PointerEvent<HTMLDivElement>) => {
+    const box = event.currentTarget.getBoundingClientRect();
+    setAt(Math.min(last, Math.max(0, Math.round(((event.clientX - box.left) / box.width) * last))));
+  };
 
   return (
-    <div className="flex h-full min-h-40 gap-1.5" role="img" aria-label="Monthly totals">
-      {data.map((point) => {
-        const height = (point.value / max) * 100;
-        const shown = formatValue ? formatValue(point.value) : String(point.value);
-        // basis-0 + min-w-0: every month is the same width whatever its label says.
-        // A phone has no room for twelve amounts: there they show only as a hover title.
-        return (
-          <div key={point.month} title={`${point.label}: ${shown}`} className="flex min-w-0 flex-1 basis-0 flex-col items-center gap-1.5">
-            <span className="tabular whitespace-nowrap text-[10px] font-semibold text-ink-muted max-sm:hidden">
-              {point.value > 0 ? shown : ''}
-            </span>
-            {/* flex-1 gives the bar a definite track, so its % height resolves. */}
-            <div className="flex w-full flex-1 items-end">
-              <div
-                className="w-full rounded-t-[4px] bg-green-900"
-                // A zero month still shows a hairline so the axis reads as continuous.
-                style={{ height: `${Math.max(height, point.value > 0 ? 4 : 1)}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-ink-muted">{point.label}</span>
-          </div>
-        );
-      })}
+    <div className="relative z-10 mt-4" aria-hidden="true">
+      <p className="tabular h-4 text-xs text-ink-muted">
+        {shown.label} {shown.month.slice(0, 4)} · {format(shown.value)}
+      </p>
+      <div
+        className="relative mt-2 h-12 cursor-pointer touch-pan-y"
+        onPointerMove={pick}
+        onPointerLeave={() => setAt(null)}
+        onClick={() => navigate(to)}
+      >
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full text-green-900">
+          <polyline
+            points={data.map((point, i) => `${x(i)},${y(point.value)}`).join(' ')}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span
+          className="absolute size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-green-900"
+          style={{ left: `${x(at ?? last)}%`, top: `${y(shown.value)}%` }}
+        />
+      </div>
     </div>
   );
 }
 
-/** Where the projects are, stage by stage. */
-function Pipeline({ projects }: { projects: DashboardProjects }) {
+/**
+ * One figure. The whole card opens `to` (the number is a stretched link, so
+ * keyboard users get one stop); links inside `children` sit above it.
+ */
+function Tile({
+  title,
+  value,
+  to,
+  tone = 'primary',
+  className,
+  children,
+}: {
+  title: string;
+  value: ReactNode;
+  to: string;
+  tone?: keyof typeof TONE_TEXT;
+  className?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <Card accent={tone} interactive className={clsx('flex flex-col p-5', className)}>
+      <p className="label-eyebrow">{title}</p>
+      <Link
+        to={to}
+        className={clsx(
+          'tabular mt-3 w-fit text-[40px] font-bold leading-none tracking-tight focus-visible:outline-none',
+          'after:absolute after:inset-0 after:rounded-card after:content-[""] focus-visible:after:ring-[3px] focus-visible:after:ring-focus-ring/40',
+          TONE_TEXT[tone],
+        )}
+      >
+        {value}
+      </Link>
+      {children}
+    </Card>
+  );
+}
+
+const SUB = 'mt-2 line-clamp-2 text-ink-muted';
+
+/** Where the projects are, stage by stage; each stage opens its projects. */
+function Pipeline({ projects, className }: { projects: DashboardProjects; className?: string }) {
   const total = Math.max(1, Object.values(projects.by_stage).reduce((sum, value) => sum + value, 0));
   return (
-    <Card>
+    <Card className={className}>
       <p className="label-eyebrow">Pipeline</p>
-      <ul className="mt-3 flex flex-col gap-2.5">
+      <ul className="-mx-2 mt-2 flex flex-col">
         {projects.stages.map((stage) => {
           const count = projects.by_stage[stage] ?? 0;
           return (
             <li key={stage}>
-              <div className="mb-1 flex items-center justify-between">
-                <span className="text-sm text-ink">{stage}</span>
-                <span className="tabular text-sm font-semibold text-ink">{count}</span>
-              </div>
-              <Progress value={Math.round((count / total) * 100)} label={`${stage} share`} />
+              <Link
+                to={stageLink([stage])}
+                className="block rounded-control px-2 py-2 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+              >
+                <span className="mb-1 flex items-center justify-between">
+                  <span className="text-sm text-ink">{stage}</span>
+                  <span className="tabular text-sm font-semibold text-ink">{padCount(count)}</span>
+                </span>
+                <Progress value={Math.round((count / total) * 100)} label={`${stage} share`} />
+              </Link>
             </li>
           );
         })}
@@ -86,69 +154,69 @@ function Pipeline({ projects }: { projects: DashboardProjects }) {
   );
 }
 
-/** Designs sitting with the client for approval (what the API lets this person see). */
-function AwaitingDecision() {
-  const projects = useQuery<Project[]>('/projects');
-  const { approvals, stages } = useStages();
-  const waiting = (projects.data ?? []).filter((project) => approvals.includes(project.status)).slice(0, 4);
+/** "Good morning, Neel" and, when there is one, what today holds. */
+function Heading({ line, actions }: { line?: string; actions?: ReactNode }) {
+  const { user } = useAuth();
+  const hour = new Date().getHours();
+  const hello = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
+  return <PageHeader title={`${hello}, ${user?.name.split(' ')[0] ?? 'there'}`} description={line} actions={actions} />;
+}
 
+/** The "New …" buttons this role may use. */
+function Shortcuts() {
+  const navigate = useNavigate();
+  const { can, isAdmin } = useAuth();
+  const items: Array<[string, string, string]> = [
+    ...(can('Admin', 'Designer') ? [['New client', 'Client', '/clients?new=1'] as [string, string, string]] : []),
+    ...(isAdmin
+      ? ([
+          ['New project', 'Project', '/projects?new=1'],
+          ['New quote', 'Quote', '/quote-maker/new'],
+          ['New invoice', 'Invoice', '/invoices?new=1'],
+          ['New booking', 'Booking', '/bookings?new=1'],
+        ] as Array<[string, string, string]>)
+      : []),
+  ];
   return (
-    <Card className="mt-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div>
-          <p className="label-eyebrow">Awaiting a client decision</p>
-          <p className="mt-1 text-ink-muted">Designs sitting with the client for approval.</p>
-        </div>
-        <Link to="/projects" className="text-link shrink-0">
-          View board
-        </Link>
-      </div>
-
-      {projects.loading ? (
-        <TableSkeleton rows={3} columns={3} />
-      ) : waiting.length === 0 ? (
-        <p className="py-6 text-center text-ink-muted">Nothing is waiting on a client right now.</p>
-      ) : (
-        <ul className="rows">
-          {waiting.map((project) => (
-            <li
-              key={project.id}
-              className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-            >
-              <div className="min-w-0">
-                <Link to={`/projects/${project.id}`} className="text-link block truncate">
-                  {project.name}
-                </Link>
-                <p className="truncate text-xs text-ink-muted">
-                  {project.client_name} · {SERVICE_LABELS[project.type]} · updated {dateTime(project.updated_at)}
-                </p>
-              </div>
-              <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
-            </li>
-          ))}
-        </ul>
-      )}
-    </Card>
+    <>
+      {items.map(([long, short, to]) => (
+        <Button key={to} icon={<Plus size={14} weight="bold" aria-hidden="true" />} onClick={() => navigate(to)}>
+          <span className="sm:hidden">{short}</span>
+          <span className="max-sm:hidden">{long}</span>
+        </Button>
+      ))}
+    </>
   );
 }
 
 function AdminView() {
   const { data, loading, error, refetch } = useQuery<AdminDashboard>('/dashboard/admin');
   const requests = useQuery<ChangeRequest[]>('/change-requests?status=Pending');
+  const { approvals } = useStages();
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading || !data) {
     return (
-      <Card className="p-0">
-        <TableSkeleton rows={6} columns={3} />
-      </Card>
+      <>
+        <Heading actions={<Shortcuts />} />
+        <Card className="p-0">
+          <TableSkeleton rows={6} columns={3} />
+        </Card>
+      </>
     );
   }
 
-  const { appointments, projects, invoices, enquiries, clients } = data;
+  const { appointments, projects, invoices, enquiries, quotes } = data;
+  const today = [
+    appointments.today ? `${plural(appointments.today, 'consultation')} today` : '',
+    enquiries.new ? `${plural(enquiries.new, 'new enquiry', 'new enquiries')}` : '',
+  ].filter(Boolean);
+  const decisions = projects.awaiting_decision + quotes.sent;
 
   return (
     <>
+      <Heading line={today.length ? today.join(', ') : 'Nothing urgent today.'} actions={<Shortcuts />} />
+
       {requests.data?.length ? (
         <Card accent="warning" className="mb-4 pl-5">
           <p className="font-semibold text-ink">
@@ -166,177 +234,103 @@ function AdminView() {
           </ul>
         </Card>
       ) : null}
-      {/* Bento grid. Card order follows the brief's content-rules table. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <MetricCard
-          eyebrow="Today’s consultations"
-          value={padCount(appointments.today)}
-          accent="primary"
-          context={
-            appointments.next
+
+      {/* Bento: two columns from sm, four from xl (2+1+1 over 1+2+1); one column on a phone. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Tile title="Today’s consultations" value={padCount(appointments.today)} to="/bookings" className="xl:col-span-2">
+          <p className={SUB}>
+            {appointments.next
               ? `Next up: ${appointments.next.name}, ${relative(appointments.next.starts_at).toLowerCase()}.`
-              : 'Nothing booked ahead.'
-          }
-          bottom={
-            <Link to="/bookings" className="text-link">
-              Open calendar
-            </Link>
-          }
-        />
+              : 'Nothing booked ahead.'}
+          </p>
+          <p className="text-sm text-ink-muted">
+            {data.appointments_chart.at(-1)?.value ?? 0} this month · {versus(data.appointments_chart, String)}
+          </p>
+          <Spark data={data.appointments_chart} format={(n) => plural(n, 'consultation')} to="/bookings" />
+        </Tile>
 
-        <MetricCard
-          eyebrow="Active projects"
-          value={padCount(projects.active)}
-          accent="primary"
-          context={`${projects.active - projects.awaiting_decision} on track; ${projects.awaiting_decision} need a client decision.`}
-          bottom={
-            <Link to="/projects" className="text-link">
-              View projects
-            </Link>
-          }
-        />
+        <Tile title="New enquiries" value={padCount(enquiries.new)} to="/enquiries?view=New">
+          <p className={SUB}>{enquiries.since_yesterday} received since yesterday.</p>
+        </Tile>
 
-        <MetricCard
-          eyebrow="Outstanding invoices"
+        <Tile
+          title="Outstanding invoices"
           value={moneyCompact(invoices.outstanding_total)}
-          accent={invoices.overdue_count > 0 ? 'danger' : 'warning'}
-          context={`${moneyCompact(invoices.due_this_week_total)} due this week.`}
-          bottom={
-            invoices.overdue_count > 0 ? (
+          to="/invoices?view=sent"
+          tone={invoices.overdue_count > 0 ? 'danger' : 'warning'}
+        >
+          <p className={SUB}>{moneyCompact(invoices.due_this_week_total)} due this week.</p>
+          {invoices.overdue_count > 0 ? (
+            <Link to="/invoices?view=overdue" className="relative z-10 mt-3 w-fit">
               <StatusTag tone="danger">{invoices.overdue_count} overdue</StatusTag>
-            ) : (
-              <Link to="/invoices" className="text-link">
-                View invoices
-              </Link>
-            )
-          }
-        />
-
-        <MetricCard
-          eyebrow="Paid this month"
-          value={moneyCompact(invoices.paid_this_month)}
-          accent="success"
-          context={`${moneyCompact(invoices.paid_total)} received in all.`}
-          bottom={
-            <Link to="/invoices?view=paid" className="text-link">
-              View paid
             </Link>
-          }
-        />
+          ) : null}
+        </Tile>
 
-        <MetricCard
-          eyebrow="New enquiries"
-          value={padCount(enquiries.new)}
-          accent="primary"
-          context={`${enquiries.since_yesterday} received since yesterday.`}
-          bottom={
-            <Link to="/enquiries?view=New" className="text-link">
-              Open inbox
-            </Link>
-          }
-        />
+        <Tile title="Awaiting client decision" value={padCount(decisions)} to={decisions && !projects.awaiting_decision ? '/quotes?view=Sent' : stageLink(approvals)} tone={decisions ? 'warning' : 'primary'}>
+          <p className={clsx(SUB, 'relative z-10')}>
+            <Link to={stageLink(approvals)} className="text-link">
+              {plural(projects.awaiting_decision, 'project')}
+            </Link>{' '}
+            at approval ·{' '}
+            <Link to="/quotes?view=Sent" className="text-link">
+              {plural(quotes.sent, 'quote')}
+            </Link>{' '}
+            sent
+          </p>
+        </Tile>
 
-        <MetricCard
-          eyebrow="Active clients"
-          value={padCount(clients.active)}
-          accent="primary"
-          context={`${clients.total} client${clients.total === 1 ? '' : 's'} on the books.`}
-          bottom={
-            <Link to="/clients" className="text-link">
-              View clients
-            </Link>
-          }
-        />
+        <Pipeline projects={projects} className="xl:col-span-2" />
+
+        <Tile title="Paid this month" value={moneyCompact(invoices.paid_this_month)} to="/invoices?view=paid" tone="success">
+          <p className={SUB}>{versus(data.revenue_chart, moneyCompact)}</p>
+          <Spark data={data.revenue_chart} format={money} to="/invoices?view=paid" />
+        </Tile>
       </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="flex flex-col xl:col-span-2">
-          <p className="label-eyebrow">Consultations by month</p>
-          <p className="mt-1 text-ink-muted">Consultations over the last 12 months.</p>
-          <div className="mt-4 flex-1">
-            <BarChart data={data.appointments_chart} />
-          </div>
-        </Card>
-        <Pipeline projects={projects} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="flex flex-col xl:col-span-2">
-          <p className="label-eyebrow">Revenue by month</p>
-          <p className="mt-1 text-ink-muted">Invoices marked paid over the last 12 months.</p>
-          <div className="mt-4 flex-1">
-            <BarChart data={data.revenue_chart} formatValue={moneyCompact} />
-          </div>
-        </Card>
-
-        <Card accent="primary" className="flex flex-col">
-          <p className="label-eyebrow">Next consultation</p>
-          {appointments.next ? (
-            <>
-              <p className="mt-2 text-base font-semibold text-ink">{appointments.next.name}</p>
-              <p className="mt-0.5 text-ink-muted">{appointments.next.service_label}</p>
-              <p className="mt-0.5 text-ink-muted">
-                {dateTime(appointments.next.starts_at)} ({relative(appointments.next.starts_at)})
-              </p>
-              <p className="mt-auto pt-3 text-xs text-ink-muted">
-                {appointments.upcoming} upcoming in all ·{' '}
-                <Link to="/bookings" className="text-link">
-                  Open calendar
-                </Link>
-              </p>
-            </>
-          ) : (
-            <p className="mt-2 text-ink-muted">No consultations are booked.</p>
-          )}
-        </Card>
-      </div>
-
-      <AwaitingDecision />
     </>
   );
 }
 
 function DesignerView() {
   const { data, loading, error, refetch } = useQuery<DesignerDashboard>('/dashboard/designer');
-  const { stages } = useStages();
+  const { stages, approvals } = useStages();
 
   if (error) return <ErrorState message={error} onRetry={refetch} />;
   if (loading || !data) {
     return (
-      <Card className="p-0">
-        <TableSkeleton rows={6} columns={3} />
-      </Card>
+      <>
+        <Heading actions={<Shortcuts />} />
+        <Card className="p-0">
+          <TableSkeleton rows={6} columns={3} />
+        </Card>
+      </>
     );
   }
 
   const { projects, tasks } = data;
+  const beforeDone = projects.stages.at(-2) ?? 'work';
 
   return (
     <>
+      <Heading
+        line={`${plural(projects.active, 'active project')}, ${projects.awaiting_decision} with the client.`}
+        actions={<Shortcuts />}
+      />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <MetricCard
-          eyebrow="Your active projects"
-          value={padCount(projects.active)}
-          accent="primary"
-          context={`${projects.completed} completed.`}
-          bottom={
-            <Link to="/projects" className="text-link">
-              View projects
-            </Link>
-          }
-        />
-        <MetricCard
-          eyebrow="With the client"
+        <Tile title="Your active projects" value={padCount(projects.active)} to="/projects?view=list">
+          <p className={SUB}>{projects.completed} completed.</p>
+        </Tile>
+        <Tile
+          title="With the client"
           value={padCount(projects.awaiting_decision)}
-          accent={projects.awaiting_decision > 0 ? 'warning' : 'primary'}
-          context="Designs waiting for a client decision."
-        />
-        <MetricCard
-          eyebrow={`At ${projects.stages.at(-2) ?? 'work'}`}
-          value={padCount(projects.by_stage[projects.stages.at(-2) ?? ''] ?? 0)}
-          accent="primary"
-          context="The last stage before done."
-        />
+          to={stageLink(approvals)}
+          tone={projects.awaiting_decision > 0 ? 'warning' : 'primary'}
+        >
+          <p className={SUB}>Designs waiting for a client decision.</p>
+        </Tile>
+        <Tile title={`At ${beforeDone}`} value={padCount(projects.by_stage[beforeDone] ?? 0)} to={stageLink([beforeDone])}>
+          <p className={SUB}>The last stage before done.</p>
+        </Tile>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
@@ -378,15 +372,7 @@ function DesignerView() {
 
 /** The landing page for Admin (everything) and Designers (their own projects). Editors never reach it. */
 export function DashboardPage() {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
 
-  return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <PageHeader
-        title={`Good day, ${user?.name.split(' ')[0] ?? 'there'}`}
-        description={isAdmin ? 'Everything that needs you today, in one place.' : 'Where your projects are up to.'}
-      />
-      {isAdmin ? <AdminView /> : <DesignerView />}
-    </div>
-  );
+  return <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">{isAdmin ? <AdminView /> : <DesignerView />}</div>;
 }

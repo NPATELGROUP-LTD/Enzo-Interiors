@@ -482,7 +482,10 @@ export function ProjectsPage() {
     if (project) void moveProject(project, stage);
   };
 
-  const rows = projects.data ?? [];
+  // ?stage=Design,Approval narrows the list (the dashboard's pipeline links here).
+  const stageFilter = (params.get('stage') ?? '').split(',').filter((name) => stages.includes(name));
+  const all = projects.data ?? [];
+  const rows = stageFilter.length ? all.filter((project) => stageFilter.includes(project.status)) : all;
   const { rows: sortedRows, header } = useSort(rows, {
     name: (project) => project.name,
     client: (project) => project.client_name,
@@ -512,7 +515,7 @@ export function ProjectsPage() {
         <ErrorState message={projects.error} onRetry={projects.refetch} />
       ) : projects.loading ? (
         <TableSkeleton rows={6} columns={5} />
-      ) : rows.length === 0 ? (
+      ) : all.length === 0 ? (
         <EmptyState
           title="No projects yet"
           message={
@@ -561,6 +564,15 @@ export function ProjectsPage() {
           )}
         </DndContext>
       ) : (
+        <>
+        {stageFilter.length ? (
+          <p className="mb-3 text-sm text-ink-muted">
+            Showing {stageFilter.join(' and ')} ({rows.length}).{' '}
+            <button type="button" className="text-link" onClick={() => update({ stage: null })}>
+              Show all
+            </button>
+          </p>
+        ) : null}
         <TableWrap className="max-sm:min-w-0">
           <thead>
             <tr>
@@ -611,6 +623,7 @@ export function ProjectsPage() {
             ))}
           </tbody>
         </TableWrap>
+        </>
       )}
 
       <NewProjectDialog

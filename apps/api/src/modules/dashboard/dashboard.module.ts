@@ -72,7 +72,7 @@ export class DashboardService {
       projects, nextAppointment, appointmentsToday, appointmentsUpcoming, appointmentRows,
       enquiriesTotal, enquiriesNew, enquiriesRecent,
       outstanding, dueThisWeek, overdue, paid, paidThisMonth, paidRows,
-      clientsTotal, clientsActive,
+      clientsTotal, clientsActive, quotesSent,
     ] = await Promise.all([
       this.projectCounts({}),
       this.db.appointments.findFirstWhere(upcoming, { starts_at: 'asc' }),
@@ -93,6 +93,7 @@ export class DashboardService {
       store.receipts(new Date(since)),
       this.db.clients.countWhere({}),
       this.db.clients.countWhere({ status: 'Active' }),
+      this.db.projectQuotes.countWhere({ status: 'Sent' }), // with the client, not yet answered
     ]);
 
     const appointments_chart = lastMonths(today.slice(0, 7), 12);
@@ -129,6 +130,7 @@ export class DashboardService {
         paid_this_month: paidThisMonth.toNumber(),
       },
       clients: { total: clientsTotal, active: clientsActive },
+      quotes: { sent: quotesSent },
       appointments_chart,
       revenue_chart,
     };

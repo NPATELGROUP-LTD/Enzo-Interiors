@@ -27,6 +27,7 @@ interface Admin {
   enquiries: { new: number };
   invoices: { outstanding_total: number; paid_total: number; overdue_count: number };
   clients: { total: number };
+  quotes: { sent: number };
   appointments_chart: unknown[];
   revenue_chart: unknown[];
 }
@@ -99,6 +100,13 @@ before(async () => {
     ],
   });
   await prisma.contactSubmission.create({ data: { id: `sub_x_${run}`, name: 'Lead', email: 'lead@test.enzo.local', message: 'hello', status: 'New' } });
+  const quote = { client_id: MINE.id, project_id: P.shared, amount: 10, vat_rate: 20 };
+  await prisma.projectQuote.createMany({
+    data: [
+      { ...quote, id: `qte_xs_${run}`, number: `X-QS-${run}`, status: 'Sent' },
+      { ...quote, id: `qte_xd_${run}`, number: `X-QD-${run}`, status: 'Draft' },
+    ],
+  });
 
   tokens.editor = await signIn('/auth/admin/login', EDITOR.email, PASSWORD);
   tokens.designer = await signIn('/auth/admin/login', DESIGNER.email, PASSWORD);
@@ -108,6 +116,7 @@ before(async () => {
 
 after(async () => {
   const clients = { in: [MINE.id, OTHER.id] };
+  await prisma.projectQuote.deleteMany({ where: { client_id: clients } });
   await prisma.documentRecord.deleteMany({ where: { client_id: clients } });
   await prisma.invoice.deleteMany({ where: { client_id: clients } });
   await prisma.project.deleteMany({ where: { client_id: clients } });
@@ -132,6 +141,7 @@ test('an Admin sees the money, the leads, the consultations and every project', 
   assert.equal(now.projects.by_stage.Design! - baseline.projects.by_stage.Design!, 2);
   assert.equal(now.projects.by_stage.Approval! - baseline.projects.by_stage.Approval!, 1);
   assert.equal(now.clients.total - baseline.clients.total, 2);
+  assert.equal(now.quotes.sent - baseline.quotes.sent, 1, 'only a Sent quote waits on the client');
   assert.equal(now.appointments_chart.length, 12);
   assert.equal(now.revenue_chart.length, 12);
 });

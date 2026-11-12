@@ -524,6 +524,8 @@ export interface AdminDashboard {
     paid_this_month: number;
   };
   clients: { total: number; active: number };
+  /** Quotes sent and not yet answered. */
+  quotes: { sent: number };
   appointments_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
 }
