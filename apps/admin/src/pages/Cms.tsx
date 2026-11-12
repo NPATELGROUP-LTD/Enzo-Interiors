@@ -4,7 +4,9 @@ import {
   ArrowSquareOut,
   CaretRight,
   ChatCircleText,
+  Check,
   CheckCircle,
+  DotsThree,
   EyeSlash,
   FileText,
   Image as ImageIcon,
@@ -34,7 +36,6 @@ import { SECTIONS, useCmsShell } from '@/components/layout/AdminLayout';
 import {
   Button,
   ConfirmDialog,
-  Crumbs,
   EmptyState,
   ErrorState,
   Input,
@@ -43,8 +44,6 @@ import {
   PageHeader,
   Select,
   Textarea,
-  Toggle,
-  type Crumb,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -205,16 +204,37 @@ function EntryCard({
 
 /** Fills whatever width the window has, rather than a fixed column count. */
 const GRID = 'grid grid-cols-[repeat(auto-fill,minmax(16.5rem,1fr))] gap-4';
-const PANE = 'px-5 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-6 sm:px-8 lg:pt-8';
-const GROUP_HEADING = 'mb-3 text-[13px] font-semibold uppercase leading-none tracking-[0.08em] text-ink-muted';
+const PANE = 'px-5 pb-[calc(env(safe-area-inset-bottom)+2.5rem)] pt-4 sm:px-8';
+const PANEL = 'rounded-card bg-surface p-2 shadow-soft';
+const GROUP_HEADING = 'mb-1 px-3 pt-2 text-[13px] font-semibold uppercase leading-none tracking-[0.08em] text-ink-muted';
 const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40';
 
-/** One row of the overview's lists: icon, name, a line saying what it is, and where it goes. */
+/** A link out to the live site, for the heading row's buttons. */
+function SiteLink({ href, label }: { href: string; label: string }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener"
+      className="flex min-h-9 items-center gap-1.5 rounded-control border border-border bg-surface px-3 text-sm font-semibold text-ink shadow-card hover:bg-secondary-hover pointer-coarse:min-h-11"
+    >
+      <ArrowSquareOut size={15} aria-hidden="true" />
+      {label}
+    </a>
+  );
+}
+
+/**
+ * One row of the overview's lists: icon, name, and where it goes. What it is
+ * and where it shows up appear on hover (`hint`); `line` is for a note that has
+ * to be read, such as a review request.
+ */
 function OverviewRow({
   to,
   Icon,
   name,
   meta,
+  hint,
   line,
   status,
   tone = 'green',
@@ -223,14 +243,16 @@ function OverviewRow({
   Icon: PhosphorIcon;
   name: string;
   meta?: ReactNode;
-  line: ReactNode;
+  hint?: string;
+  line?: ReactNode;
   status?: ReactNode;
   tone?: 'green' | 'warning';
 }) {
   return (
     <Link
       to={to}
-      className={clsx('group flex h-full items-start gap-3 rounded-[10px] px-3 py-3 transition-colors hover:bg-ink/[0.025]', FOCUS)}
+      title={hint}
+      className={clsx('group flex h-full items-center gap-3 rounded-[10px] px-3 py-2.5 transition-colors hover:bg-ink/[0.04]', FOCUS)}
     >
       <span
         className={clsx(
@@ -245,13 +267,13 @@ function OverviewRow({
           <span className="font-semibold text-ink">{name}</span>
           {meta ? <span className="tabular truncate text-xs text-ink-muted">{meta}</span> : null}
         </span>
-        <span className="mt-0.5 block text-[13px] leading-snug text-ink-muted">{line}</span>
-        {status ? <span className="mt-1.5 block">{status}</span> : null}
+        {line ? <span className="mt-0.5 block text-[13px] leading-snug text-ink-muted">{line}</span> : null}
+        {status ? <span className="mt-1 block">{status}</span> : null}
       </span>
       <CaretRight
         size={14}
         aria-hidden="true"
-        className="mt-1 shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5"
+        className="shrink-0 text-ink-muted transition-transform group-hover:translate-x-0.5"
       />
     </Link>
   );
@@ -282,28 +304,15 @@ export function CmsHome() {
 
   return (
     <div className={PANE}>
-      <PageHeader
-        title="CMS"
-        actions={
-          <a
-            href={WEB_URL}
-            target="_blank"
-            rel="noopener"
-            className="flex min-h-9 items-center gap-1.5 rounded-control border border-border bg-surface px-3 text-sm font-semibold text-ink shadow-card hover:bg-secondary-hover pointer-coarse:min-h-11"
-          >
-            <ArrowSquareOut size={15} aria-hidden="true" />
-            View website
-          </a>
-        }
-      />
-      <div className="grid items-start gap-x-10 gap-y-10 xl:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="flex min-w-0 flex-col gap-10">
+      <PageHeader title="CMS" actions={<SiteLink href={WEB_URL} label="View website" />} />
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="flex min-w-0 flex-col gap-4">
           {reviews.length ? (
-            <section aria-labelledby="cms-reviews">
+            <section aria-labelledby="cms-reviews" className={PANEL}>
               <h2 id="cms-reviews" className={GROUP_HEADING}>
                 Waiting for review
               </h2>
-              <ul className="rounded-card bg-surface p-1.5 shadow-soft">
+              <ul>
                 {reviews.map((item) => (
                   <li key={`${item.collection}/${item.slug}`}>
                     <OverviewRow
@@ -320,7 +329,7 @@ export function CmsHome() {
             </section>
           ) : null}
 
-          <section aria-labelledby="cms-pages">
+          <section aria-labelledby="cms-pages" className={PANEL}>
             <h2 id="cms-pages" className={GROUP_HEADING}>
               Pages
             </h2>
@@ -329,17 +338,17 @@ export function CmsHome() {
             ) : !pages.data ? (
               <LoadingState label="Loading pages…" />
             ) : (
-              <ol className="grid rounded-card bg-surface p-1.5 shadow-soft lg:grid-cols-2">
+              <ol className="grid lg:grid-cols-2">
                 {rows.map((row) => {
                   const guide = PAGES[row.slug];
+                  const where = guide ? (guide.path ?? 'Every page') : row.slug;
                   return (
                     <li key={row.id}>
                       <OverviewRow
                         to={`/pages/${row.slug}`}
                         Icon={guide?.path === null ? Stack : FileText}
                         name={guide?.name ?? row.title}
-                        meta={guide ? (guide.path ?? 'Every page') : row.slug}
-                        line={guide?.summary ?? ''}
+                        hint={guide?.summary ? `${guide.summary} (${where})` : where}
                         status={row.isNew || row.isDirty ? <Status isNew={row.isNew} isDirty={row.isDirty} /> : null}
                       />
                     </li>
@@ -350,11 +359,15 @@ export function CmsHome() {
           </section>
         </div>
 
-        <section aria-labelledby="cms-shared">
-          <h2 id="cms-shared" className={GROUP_HEADING}>
+        <section aria-labelledby="cms-shared" className={PANEL}>
+          <h2
+            id="cms-shared"
+            className={GROUP_HEADING}
+            title="Each is edited once, here, and changes everywhere it appears."
+          >
             Shared content
           </h2>
-          <ul className="rounded-card bg-surface p-1.5 shadow-soft">
+          <ul>
             {shared.map(({ to, label, collection, Icon }) => {
               const schema = overview.schemas.find((row) => row.collection === collection);
               const count = overview.counts[collection];
@@ -365,16 +378,13 @@ export function CmsHome() {
                     Icon={Icon}
                     name={label}
                     meta={schema && !schema.fixed && count ? count.total : undefined}
-                    line={USED_ON[collection]}
+                    hint={USED_ON[collection]}
                     status={(count?.dirty ?? 0) > 0 ? <Status isNew={false} isDirty /> : null}
                   />
                 </li>
               );
             })}
           </ul>
-          <p className="mt-3 px-1 text-[13px] text-ink-muted">
-            Each is edited once, here, and changes everywhere it appears.
-          </p>
         </section>
       </div>
     </div>
@@ -456,11 +466,14 @@ export function CollectionPage({
       <PageHeader
         title={schema.label}
         actions={
-          isAdmin && !schema.fixed ? (
-            <Button variant="primary" onClick={() => setCreating(true)} icon={<Plus size={16} />}>
-              New {schema.singular}
-            </Button>
-          ) : null
+          <>
+            <SiteLink href={WEB_URL} label="View website" />
+            {isAdmin && !schema.fixed ? (
+              <Button variant="primary" onClick={() => setCreating(true)} icon={<Plus size={16} />}>
+                New {schema.singular}
+              </Button>
+            ) : null}
+          </>
         }
       />
 
@@ -692,6 +705,51 @@ function Siblings({
         ))}
       </ul>
     </nav>
+  );
+}
+
+const MENU_ITEM =
+  'flex min-h-9 w-full items-center gap-2 rounded-[7px] px-2 text-left text-[13px] text-ink hover:bg-green-900 hover:text-on-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
+
+/** The "…" button and its small menu; closes on a click elsewhere or Escape. */
+function MoreMenu({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const away = (event: MouseEvent) => {
+      if (!box.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const esc = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', esc);
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', esc);
+    };
+  }, [open]);
+  return (
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        aria-label="More"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((on) => !on)}
+        className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:h-11 pointer-coarse:w-11"
+      >
+        <DotsThree size={22} weight="bold" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          onClick={() => setOpen(false)}
+          className="absolute right-0 top-full z-30 mt-1.5 w-56 rounded-[10px] border border-border bg-surface p-1.5 shadow-overlay"
+        >
+          {children}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -996,20 +1054,8 @@ export function EntryPage({
     }
   };
 
-  const technicalToggle = (
-    <Toggle
-      label="Show technical fields"
-      description="Ids, screen-reader labels and 3D camera settings. Rarely needed."
-      checked={showTechnical}
-      onChange={setShowTechnical}
-    />
-  );
-
   /* ---- Pages step through their sections; everything else is one form ---- */
   let navigation: ReactNode = null;
-  let crumbs: Crumb[] = schema.fixed
-    ? [{ label: 'CMS', to: '/cms' }, { label: schema.label }]
-    : [{ label: 'CMS', to: '/cms' }, { label: schema.label, to: basePath }, { label: title }];
   let content: ReactNode;
   if (collection === 'pages') {
     const { scalars, sections } = splitSections(
@@ -1041,7 +1087,9 @@ export function EntryPage({
     const current = items[at];
     const select = (id: string) => {
       setSection(id);
+      // Wide screens scroll the content card, narrow ones the page.
       paneRef.current?.scrollTo({ top: 0 });
+      paneRef.current?.closest('main')?.scrollTo({ top: 0 });
     };
     // The lists and groups inside the open section, for the outline.
     const value = current ? body[current.id] : null;
@@ -1056,11 +1104,6 @@ export function EntryPage({
         : [];
 
     if (current) {
-      crumbs = [
-        { label: 'CMS', to: '/cms' },
-        { label: title, onClick: () => select(items[0]!.id) },
-        { label: current.name },
-      ];
       navigation = (
         <Outline
           items={items}
@@ -1177,100 +1220,117 @@ export function EntryPage({
       </>
     );
   }
-
   return (
-    // Two panes, each scrolling on its own: the source list, and the document.
-    <div className="flex h-full min-h-0">
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
-        <div className="min-h-0 flex-1 overflow-y-auto px-2.5 pb-5 pt-5">{navigation}</div>
-        <div className="px-4 pb-4 pt-2">{technicalToggle}</div>
-      </aside>
+    // Three floating cards: the section list, the content, and the Saved/Publish strip.
+    // From lg up the page stays put and the list and the content scroll; below it the page scrolls.
+    <div
+      className={clsx(
+        'flex flex-col gap-3 px-5 pb-[calc(env(safe-area-inset-bottom)+1.5rem)] pt-3 sm:px-8',
+        'lg:grid lg:h-full lg:min-h-0 lg:grid-rows-[auto_minmax(0,1fr)] lg:pb-5',
+        navigation ? 'lg:grid-cols-[15rem_minmax(0,1fr)]' : 'lg:grid-cols-1',
+      )}
+    >
+      <PageHeader
+        title={title}
+        actions={
+          path ? (
+            <SiteLink href={`${WEB_URL}${path}`} label="View page" />
+          ) : (
+            <SiteLink href={WEB_URL} label="View website" />
+          )
+        }
+      />
 
-      <div className="flex min-w-0 flex-1 flex-col bg-surface">
-        <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border px-5 py-2.5 sm:px-8">
-          <Crumbs items={crumbs} className="flex-1" />
-          <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
-          <div className="flex flex-wrap items-center gap-2">
-            {path ? (
-              <a
-                href={`${WEB_URL}${path}`}
-                target="_blank"
-                rel="noopener"
-                title="Open this page on the website"
-                aria-label="Open this page on the website"
-                className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink pointer-coarse:h-11 pointer-coarse:w-11"
-              >
-                <ArrowSquareOut size={17} aria-hidden="true" />
-              </a>
-            ) : null}
+      {navigation ? (
+        <aside className="hidden overflow-y-auto rounded-card bg-surface p-2.5 shadow-soft lg:row-span-2 lg:block">
+          {navigation}
+        </aside>
+      ) : null}
+
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-2 shadow-soft lg:static">
+        <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
+        <div className="flex items-center gap-2">
+          {isAdmin ? (
+            <Button variant="primary" onClick={publish} loading={publishing} disabled={!notLive}>
+              Publish
+            </Button>
+          ) : review ? (
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setNote(review.note ?? '');
+                setNoteFor('review');
+              }}
+            >
+              Update note
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon={<PaperPlaneTilt size={15} />}
+              disabled={!notLive}
+              title={notLive ? undefined : 'Nothing has changed since it was published.'}
+              onClick={() => setNoteFor('review')}
+            >
+              Send for review
+            </Button>
+          )}
+          <MoreMenu>
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={showTechnical}
+              onClick={() => setShowTechnical((on) => !on)}
+              className={MENU_ITEM}
+              title="Ids, screen-reader labels and 3D camera settings. Rarely needed."
+            >
+              <span className="flex h-4 w-4 items-center justify-center">
+                {showTechnical ? <Check size={14} weight="bold" aria-hidden="true" /> : null}
+              </span>
+              Show technical fields
+            </button>
             {published !== null && notLive ? (
-              <Button variant="ghost" onClick={() => setConfirmRevert(true)}>
+              <button type="button" role="menuitem" onClick={() => setConfirmRevert(true)} className={MENU_ITEM}>
+                <span className="w-4" />
                 Discard changes
-              </Button>
+              </button>
             ) : null}
-            {isAdmin ? (
-              <Button variant="primary" onClick={publish} loading={publishing} disabled={!notLive}>
-                Publish
-              </Button>
-            ) : review ? (
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setNote(review.note ?? '');
-                  setNoteFor('review');
-                }}
-              >
-                Update note
-              </Button>
-            ) : (
-              <Button
-                variant="primary"
-                icon={<PaperPlaneTilt size={15} />}
-                disabled={!notLive}
-                title={notLive ? undefined : 'Nothing has changed since it was published.'}
-                onClick={() => setNoteFor('review')}
-              >
-                Send for review
-              </Button>
-            )}
-          </div>
+          </MoreMenu>
         </div>
+      </div>
 
-        <div ref={paneRef} className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-[46rem] px-5 pb-[calc(env(safe-area-inset-bottom)+3rem)] pt-8 sm:px-8 lg:pt-10">
-            {review ? (
-              <div role="status" className="mb-9 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
-                <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
-                <p className="min-w-0 flex-1">
-                  {isAdmin ? (
-                    <>
-                      <span className="font-semibold">{review.by}</span> sent this for review {relative(review.at).toLowerCase()}.
-                      Publish it, or send it back with a note.
-                    </>
-                  ) : (
-                    <>Sent for review {relative(review.at).toLowerCase()}. An Admin will publish it or send it back.</>
-                  )}
-                  {review.note ? <span className="mt-1 block italic text-ink-muted">“{review.note}”</span> : null}
-                </p>
+      <div ref={paneRef} className={clsx('rounded-card bg-surface shadow-soft lg:overflow-y-auto', !navigation && 'lg:col-start-1')}>
+        <div className="mx-auto w-full max-w-[46rem] px-5 py-6 sm:px-8 lg:py-8">
+          {review ? (
+            <div role="status" className="mb-9 flex flex-wrap items-start gap-x-3 gap-y-2 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
+              <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
+              <p className="min-w-0 flex-1">
                 {isAdmin ? (
-                  <Button variant="secondary" onClick={() => setNoteFor('send-back')}>
-                    Send back…
-                  </Button>
-                ) : null}
-              </div>
-            ) : entry.data.review_feedback ? (
-              <div role="status" className="mb-9 flex items-start gap-3 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
-                <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
-                <p className="min-w-0 flex-1">
-                  <span className="font-semibold">Sent back by an Admin.</span> Make the changes, then send it for review again.
-                  <span className="mt-1 block whitespace-pre-wrap italic text-ink-muted">“{entry.data.review_feedback}”</span>
-                </p>
-              </div>
-            ) : null}
-            {content}
-            {/* No sidebar below lg: the switch follows the form instead. */}
-            <div className="mt-14 lg:hidden">{technicalToggle}</div>
-          </div>
+                  <>
+                    <span className="font-semibold">{review.by}</span> sent this for review {relative(review.at).toLowerCase()}.
+                    Publish it, or send it back with a note.
+                  </>
+                ) : (
+                  <>Sent for review {relative(review.at).toLowerCase()}. An Admin will publish it or send it back.</>
+                )}
+                {review.note ? <span className="mt-1 block italic text-ink-muted">“{review.note}”</span> : null}
+              </p>
+              {isAdmin ? (
+                <Button variant="secondary" onClick={() => setNoteFor('send-back')}>
+                  Send back…
+                </Button>
+              ) : null}
+            </div>
+          ) : entry.data.review_feedback ? (
+            <div role="status" className="mb-9 flex items-start gap-3 rounded-[10px] bg-warning-bg px-4 py-3 text-sm text-ink">
+              <ChatCircleText size={18} aria-hidden="true" className="mt-px shrink-0 text-warning" />
+              <p className="min-w-0 flex-1">
+                <span className="font-semibold">Sent back by an Admin.</span> Make the changes, then send it for review again.
+                <span className="mt-1 block whitespace-pre-wrap italic text-ink-muted">“{entry.data.review_feedback}”</span>
+              </p>
+            </div>
+          ) : null}
+          {content}
         </div>
       </div>
 
