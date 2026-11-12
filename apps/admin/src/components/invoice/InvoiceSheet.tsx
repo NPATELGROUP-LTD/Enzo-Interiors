@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { date, money } from '@/lib/format';
@@ -28,7 +28,8 @@ const qty = (value: number) => String(Number(value));
 /** Display only: the API's figures (subtotal, VAT, amount) are the ones that count. */
 const lineTotal = (item: Pick<InvoiceItem, 'quantity' | 'unit_price'>) => Math.round(item.quantity * item.unit_price * 100) / 100;
 
-export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
+/** `editBody`: the item rows (`<tr>`s) in place of the invoice's own, so staff can edit the lines on the sheet itself. Unused in the portal. */
+export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody?: ReactNode }) {
   const issuer = invoice.issuer ?? DEFAULT_ISSUER;
   const items = invoice.items ?? [];
   const schedule = invoice.payment_schedule ?? [];
@@ -121,8 +122,10 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
             </th>
           </tr>
         </thead>
-        <tbody>
-          {items.length === 0 ? (
+        <tbody className={editBody ? 'inv-edit' : undefined}>
+          {editBody ? (
+            editBody
+          ) : items.length === 0 ? (
             <tr>
               <td colSpan={3}>{invoice.project_name ?? 'Work as agreed'}</td>
               <td className="inv-right inv-num">{money(subtotal)}</td>
@@ -256,22 +259,23 @@ export function InvoiceSheet({ invoice }: { invoice: Invoice }) {
 }
 
 /** One sheet on screen, scaled down to fit its column (never up). */
-export function InvoicePreview({ invoice }: { invoice: Invoice }) {
+export function InvoicePreview({ invoice, editBody }: { invoice: Invoice; editBody?: ReactNode }) {
   const frame = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
     const element = frame.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
-      if (entry) setZoom(Math.min(1, entry.contentRect.width / SHEET_PX));
+      // Editing on a phone keeps the sheet at full size (it scrolls sideways) so the fields stay readable.
+      if (entry) setZoom(editBody && entry.contentRect.width < 600 ? 1 : Math.min(1, entry.contentRect.width / SHEET_PX));
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, []);
+  }, [editBody !== undefined]);
   return (
-    <div ref={frame} className="inv-frame">
+    <div ref={frame} className="inv-frame" data-editing={editBody ? '' : undefined}>
       <div style={{ zoom }}>
-        <InvoiceSheet invoice={invoice} />
+        <InvoiceSheet invoice={invoice} editBody={editBody} />
       </div>
     </div>
   );
@@ -283,7 +287,7 @@ export function InvoicePreview({ invoice }: { invoice: Invoice }) {
  */
 export function InvoicePrint({ invoices }: { invoices: Invoice[] }) {
   return createPortal(
-    <div className="inv-print">
+    <div className={invoices.length === 1 ? 'inv-print inv-one' : 'inv-print'}>
       {invoices.map((invoice) => (
         <InvoiceSheet key={invoice.id} invoice={invoice} />
       ))}
