@@ -120,6 +120,10 @@ export interface Client {
   joined_date: string;
   /** Admin only: a Designer's copy of a client has no money in it. */
   total_spent?: number;
+  /** In the client list only: projects in your scope not yet completed. */
+  active_projects?: number;
+  /** In the client list, Admin only: invoices still to be paid. */
+  outstanding?: number;
   notes: string | null;
   /** A portal password is stored (an invitation was sent, or they set their own). */
   has_portal_access: boolean;

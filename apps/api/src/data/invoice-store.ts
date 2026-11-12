@@ -99,6 +99,12 @@ export class InvoiceStore {
     return [...staged, ...plain].map((r) => ({ paid_at: r.paid_at!.toISOString(), amount: Number(r.amount) }));
   }
 
+  /** Per client, SUM(amount) of the invoices still to be paid: the client page's Outstanding, in one query. */
+  async outstandingByClient(): Promise<Map<string, number>> {
+    const rows = await this.prisma.invoice.groupBy({ by: ['client_id'], where: { status: { in: PAYABLE } }, _sum: { amount: true } });
+    return new Map(rows.map((row) => [row.client_id, new Prisma.Decimal(row._sum.amount ?? 0).toNumber()]));
+  }
+
   /** What is still owed over `where`: SUM(amount) less the stages already paid, exact. */
   async balance(where: Where<Invoice>): Promise<Prisma.Decimal> {
     const paid = await this.prisma.invoiceStage.aggregate({
