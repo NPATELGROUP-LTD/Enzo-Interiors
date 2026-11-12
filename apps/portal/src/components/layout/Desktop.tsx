@@ -252,7 +252,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
             </Link>
           ) : null}
           {/* <PageHeader> puts the page's own heading here; until it does, the section's name shows. */}
-          <div id="page-title" className="min-w-0 [&:not(:empty)+h1]:hidden" />
+          <div id="page-title" className="min-w-0 empty:hidden [&:not(:empty)+h1]:hidden" />
           <h1 className={PAGE_TITLE}>{current?.label ?? appName}</h1>
         </div>
         <div id="page-actions" className="flex flex-wrap items-center justify-end gap-2" />

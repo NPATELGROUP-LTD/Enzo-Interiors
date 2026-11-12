@@ -13,7 +13,7 @@ import { useQuery } from '@/hooks/useApi';
 import { useStages } from '@/hooks/useStages';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, money, padCount, relative } from '@/lib/format';
-import { invoiceLabel, invoiceTone, projectTone } from '@/lib/status';
+import { projectTone } from '@/lib/status';
 import type { PortalDashboard } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
@@ -38,7 +38,7 @@ export function DashboardPage() {
     <>
       <PageHeader
         title={`Hello, ${firstName}`}
-        description="Where your project is up to, and anything that needs you."
+        description="Where your project is up to."
       />
 
       {loading || !data ? (
@@ -49,7 +49,7 @@ export function DashboardPage() {
         <>
           {/* The decision awaiting the client, above everything else. */}
           {data.projects.awaiting_your_approval.length > 0 ? (
-            <Card accent="warning" className="mb-4 pl-5">
+            <Card accent="warning" className="mb-4">
               <p className="label-eyebrow">Waiting for you</p>
               <p className="mt-2 text-base font-semibold text-ink">
                 {data.projects.awaiting_your_approval.length === 1
@@ -72,19 +72,33 @@ export function DashboardPage() {
             </Card>
           ) : null}
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <MetricCard
               eyebrow="Next appointment"
-              value={
-                data.next_appointment
-                  ? relative(data.next_appointment.starts_at)
-                  : 'None booked'
-              }
+              value={data.next_appointment ? relative(data.next_appointment.starts_at) : 'None booked'}
               accent="primary"
               context={
                 data.next_appointment
                   ? `${data.next_appointment.service_label} · ${dateTime(data.next_appointment.starts_at)}`
                   : 'Get in touch to arrange your next visit.'
+              }
+            />
+
+            <MetricCard
+              eyebrow="Amount due"
+              value={money(data.invoices.outstanding_total)}
+              accent={data.invoices.next_due?.is_overdue ? 'danger' : data.invoices.outstanding_total > 0 ? 'warning' : 'success'}
+              context={
+                data.invoices.next_due
+                  ? `${data.invoices.next_due.number} due ${date(data.invoices.next_due.due_date)}${
+                      data.invoices.next_due.is_overdue ? ` · ${data.invoices.next_due.days_overdue} days overdue` : ''
+                    }`
+                  : 'Nothing outstanding. Thank you.'
+              }
+              bottom={
+                <Link to="/invoices" className="text-link">
+                  View invoices
+                </Link>
               }
             />
 
@@ -96,41 +110,6 @@ export function DashboardPage() {
               bottom={
                 <Link to="/documents" className="text-link">
                   View documents
-                </Link>
-              }
-            />
-
-            <MetricCard
-              eyebrow="Amount due"
-              value={money(data.invoices.outstanding_total)}
-              accent={data.invoices.outstanding_total > 0 ? 'warning' : 'success'}
-              context={
-                data.invoices.next_due
-                  ? `${data.invoices.next_due.number} due ${date(data.invoices.next_due.due_date)}.`
-                  : 'Nothing outstanding — thank you.'
-              }
-              bottom={
-                <Link to="/invoices" className="text-link">
-                  View invoices
-                </Link>
-              }
-            />
-
-            <MetricCard
-              eyebrow="Paid to date"
-              value={money(data.invoices.paid_total)}
-              accent="success"
-              context="Payments we have received and recorded."
-            />
-
-            <MetricCard
-              eyebrow="Your projects"
-              value={padCount(data.projects.active)}
-              accent="primary"
-              context={`${data.projects.total} project${data.projects.total === 1 ? '' : 's'} with Enzo in total.`}
-              bottom={
-                <Link to="/projects" className="text-link">
-                  View projects
                 </Link>
               }
             />
@@ -169,32 +148,6 @@ export function DashboardPage() {
             )}
           </Card>
 
-          {data.invoices.next_due ? (
-            <Card className="mt-4" accent={data.invoices.next_due.is_overdue ? 'danger' : 'warning'}>
-              <p className="label-eyebrow">Next invoice due</p>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-base font-semibold text-ink">
-                    {data.invoices.next_due.number} · {money(data.invoices.next_due.amount)}
-                  </p>
-                  <p className="text-ink-muted">
-                    Due {date(data.invoices.next_due.due_date)}
-                    {data.invoices.next_due.is_overdue
-                      ? ` · ${data.invoices.next_due.days_overdue} days overdue`
-                      : ''}
-                  </p>
-                </div>
-                <StatusTag
-                  tone={invoiceTone(data.invoices.next_due.status, data.invoices.next_due.is_overdue)}
-                >
-                  {invoiceLabel(data.invoices.next_due.status, data.invoices.next_due.is_overdue)}
-                </StatusTag>
-              </div>
-              <p className="mt-3 text-xs text-ink-muted">
-                Payment is arranged directly with Enzo Interiors — there is no online payment here.
-              </p>
-            </Card>
-          ) : null}
         </>
       )}
     </>
