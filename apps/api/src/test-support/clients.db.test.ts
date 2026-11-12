@@ -118,6 +118,28 @@ test('an Admin creates, reads, updates and deletes a client; no password goes in
   assert.equal(await prisma.invoice.count({ where: { client_id: id } }), 0);
 });
 
+test('the list carries active projects, and what is outstanding for an Admin only', async () => {
+  const invoice = { client_id: MINE.id, vat_rate: 0, due_date: new Date() };
+  await prisma.invoice.create({ data: { ...invoice, id: `inv_a_${run}`, number: `INV-A-${run}`, amount: 100.1, status: 'Sent' } });
+  await prisma.invoice.create({ data: { ...invoice, id: `inv_b_${run}`, number: `INV-B-${run}`, amount: 20.2, status: 'Overdue' } });
+  await prisma.invoice.create({ data: { ...invoice, id: `inv_c_${run}`, number: `INV-C-${run}`, amount: 500, status: 'Paid' } });
+  try {
+    type Row = { id: string; active_projects?: number; outstanding?: number; total_spent?: number };
+    const rowOf = async (token: string) =>
+      ((await (await call('GET', '/clients', token)).json()) as Row[]).find((c) => c.id === MINE.id)!;
+
+    const admin = await rowOf(tokens.admin);
+    assert.equal(admin.active_projects, 2, 'both projects are still running');
+    assert.equal(admin.outstanding, 120.3, 'Sent + Overdue, not Paid');
+    // The Designer counts only the project assigned to them, and gets no money at all.
+    const designer = await rowOf(tokens.designer);
+    assert.equal(designer.active_projects, 1);
+    assert.ok(!('outstanding' in designer) && !('total_spent' in designer));
+  } finally {
+    await prisma.invoice.deleteMany({ where: { id: { in: [`inv_a_${run}`, `inv_b_${run}`, `inv_c_${run}`] } } });
+  }
+});
+
 test('an Editor is refused on every /clients route', async () => {
   const routes: Array<[string, string, unknown?]> = [
     ['GET', '/clients'],

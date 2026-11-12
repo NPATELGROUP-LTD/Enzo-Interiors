@@ -54,7 +54,7 @@ import { InventoryStore } from './inventory-store';
 import { QuoteMakerStore } from './quote-maker-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
 import { QUOTE_FIELDS, QUOTE_ITEM_FIELDS, QuoteStore } from './quote-store';
-import { PrismaRepository } from './prisma-repository';
+import { PrismaRepository, Where } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 import { TeamStore } from './team-store';
 
@@ -300,6 +300,16 @@ export class DatabaseService {
       await tx.project.delete({ where: { id } });
       return { documents: documents.count, invoices: invoices.count };
     });
+  }
+
+  /** Projects not yet in the last stage, counted per client in SQL, within `where` (the caller's project scope). */
+  async activeProjectsByClient(done: string, where: Where<Project>): Promise<Map<string, number>> {
+    const rows = await this.prisma.project.groupBy({
+      by: ['client_id'],
+      where: { ...(where as Prisma.ProjectWhereInput), status: { not: done } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((row) => [row.client_id, row._count._all]));
   }
 
   /**
