@@ -69,7 +69,7 @@ async function json<T>(res: Response, status = 200): Promise<T> {
   return (await res.json()) as T;
 }
 
-type Quote = { id: string; number: string; status: string; amount: number; invoice_id: string | null; expired: boolean; items: unknown[] };
+type Quote = { id: string; number: string; status: string; amount: number; invoice_id: string | null; expired: boolean; items: unknown[]; issuer: { name: string; address: string[] }; client_email: string | null };
 const NEW = {
   client_id: CLIENT.id,
   project_id: PROJECT,
@@ -92,6 +92,9 @@ test('only an Admin can write a quote, and it must be for a project of that clie
   assert.match(quote.number, /^Q-\d{4}-\d{4}$/);
   assert.equal(quote.amount, 1320, '(1200 - 100) + 20% VAT');
   assert.equal(quote.items.length, 2);
+  // The letterhead sheet: the company, and the client's contact for the "Submitted to" block.
+  assert.ok(quote.issuer.name && quote.issuer.address.length > 0);
+  assert.equal(quote.client_email, CLIENT.email);
 });
 
 test('a line with a cost and a margin is priced by the API, not the browser', async () => {

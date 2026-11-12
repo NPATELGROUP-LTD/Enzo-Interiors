@@ -1,7 +1,7 @@
 import { Plus } from '@phosphor-icons/react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import { Button, EmptyState, ErrorState, LoadingState, StatusTag, TableWrap, Tabs, Td, Th } from '@/components/ui';
+import { Button, EmptyState, ErrorState, LoadingState, StatusTag, TableWrap, Td, Th } from '@/components/ui';
 import { DesignEditor } from '@/components/quote-maker/DesignEditor';
 import { PricingPane } from '@/components/quote-maker/PricingPane';
 import { UnitLibrary } from '@/components/quote-maker/UnitLibrary';
@@ -10,28 +10,17 @@ import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
 import { date, money } from '@/lib/format';
 
-/* Quote maker (Admin), apps/api modules/quote-maker. Remove with components/quote-maker and its route and menu lines. */
-export const QUOTE_MAKER_VIEWS = [
-  { id: 'designs', label: 'Designs' },
-  { id: 'library', label: 'Unit library' },
-  { id: 'pricing', label: 'Pricing' },
-];
+/* Quote maker (Admin), apps/api modules/quote-maker. Its lists live as tabs on the Quotes page (pages/Quotes.tsx); this file keeps the design editor route. */
 const range = (low: number | null, high: number | null) => (low === null || high === null ? 'Not priced' : `${money(low)} – ${money(high)}`);
 const roomName = (id: string) => [...ROOM_TYPES, CUSTOM_ROOM].find((r) => r.id === id)?.name ?? id;
 
-/** `/quote-maker` (designs), `?view=library|pricing`; `/quote-maker/new` and `/quote-maker/:id` open the editor. */
+/** `/quote-maker/new` and `/quote-maker/:id` open the editor; the bare address (an old link) goes to the Quotes page. */
 export function QuoteMakerPage() {
   const { id } = useParams();
-  const [params, setParams] = useSearchParams();
-  const view = QUOTE_MAKER_VIEWS.some((v) => v.id === params.get('view')) ? params.get('view')! : 'designs';
+  const [params] = useSearchParams();
   if (id) return <EditorRoute id={id} />;
-
-  return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <Tabs tabs={QUOTE_MAKER_VIEWS} active={view} onChange={(next) => setParams(next === 'designs' ? {} : { view: next })} />
-      {view === 'library' ? <LibraryView /> : view === 'pricing' ? <PricingView /> : <DesignsView />}
-    </div>
-  );
+  const view = params.get('view');
+  return <Navigate to={view === 'library' || view === 'pricing' ? `/quotes?tab=${view}` : '/quotes'} replace />;
 }
 
 function EditorRoute({ id }: { id: string }) {
@@ -51,7 +40,7 @@ function EditorRoute({ id }: { id: string }) {
   );
 }
 
-function DesignsView() {
+export function DesignsView() {
   const navigate = useNavigate();
   const designs = useQuery<DesignSummary[]>('/quote-maker/designs');
   const { rows, header } = useSort(designs.data ?? [], {
@@ -119,7 +108,7 @@ function DesignsView() {
   );
 }
 
-function LibraryView() {
+export function LibraryView() {
   const templates = useQuery<UnitTemplate[]>('/quote-maker/templates');
   const items = useQuery<StockItem[]>('/inventory/items');
   if ((templates.error && !templates.data) || (items.error && !items.data))
@@ -128,7 +117,7 @@ function LibraryView() {
   return <UnitLibrary templates={templates.data} items={items.data} onChanged={templates.refetch} />;
 }
 
-function PricingView() {
+export function PricingView() {
   const pricing = useQuery<Pricing>('/quote-maker/pricing');
   const items = useQuery<StockItem[]>('/inventory/items');
   if ((pricing.error && !pricing.data) || (items.error && !items.data))

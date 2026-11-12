@@ -1,34 +1,17 @@
-import { closestCenter, DndContext, MouseSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
-import { DotsSixVertical, PaperPlaneRight, Plus, Receipt, Trash } from '@phosphor-icons/react';
-import clsx from 'clsx';
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowDown, ArrowLeft, ArrowUp, PaperPlaneRight, Plus, Printer, Receipt, TextHOne, Trash } from '@phosphor-icons/react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
-import {
-  Button,
-  Card,
-  ConfirmDialog,
-  EmptyState,
-  ErrorState,
-  FIELD_BASE,
-  Input,
-  LoadingState,
-  Modal,
-  Select,
-  StatusTag,
-  TableWrap,
-  Tabs,
-  Td,
-  Textarea,
-  Th,
-  type StatusTone,
-} from '@/components/ui';
+import { InvoicePreview, InvoicePrint, printWhenReady, quoteSheet } from '@/components/invoice/InvoiceSheet';
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
-import type { Client, Project, Quote, QuoteStatus } from '@/types/api';
+import type { Quote, QuoteItem, QuoteStatus } from '@/types/api';
+
+import { DesignsView, LibraryView, PricingView } from './QuoteMaker';
 
 const TONE: Record<QuoteStatus, StatusTone> = { Draft: 'neutral', Sent: 'info', Accepted: 'success', Declined: 'danger' };
 const FILTERS = [
@@ -38,45 +21,41 @@ const FILTERS = [
   { id: 'Accepted', label: 'Accepted' },
   { id: 'Declined', label: 'Declined' },
 ];
+const TABS = [
+  { id: 'designs', label: 'Designs' },
+  { id: 'quotes', label: 'Quotes' },
+  { id: 'library', label: 'Unit library' },
+  { id: 'pricing', label: 'Pricing' },
+];
 
-/* The form works in strings so a half-typed price is allowed; the sums are a PREVIEW in whole pennies,
- * and the API's figures replace them once the quote is saved. A line is a cost plus a margin (a % on top
- * of the cost); what the client pays each is worked out from the two, and the API repeats the sum. */
-interface Row {
-  key: number;
-  description: string;
-  quantity: string;
-  cost: string;
-  margin: string;
-}
-let rowKey = 0;
-const blank = (margin = ''): Row => ({ key: ++rowKey, description: '', quantity: '1', cost: '', margin });
-const pennies = (value: number) => Math.round(value * 100) || 0;
-/** The price each, in pennies, the client pays for a line. */
-const sellPence = (row: Row) => Math.round((pennies(Number(row.cost) || 0) * (100 + (Number(row.margin) || 0))) / 100);
+/** Draft, or Declined (the API takes the edit as a fresh draft). */
+const editable = (quote: Quote) => quote.status === 'Draft' || quote.status === 'Declined';
 
-function preview(rows: Row[], vatRate: number, discount: number) {
-  const subtotal = rows.reduce((total, row) => total + (Number(row.quantity) || 0) * sellPence(row), 0);
-  const net = subtotal - pennies(discount);
-  const vat = Math.round((net * vatRate) / 100);
-  return { subtotal: subtotal / 100, net: net / 100, vat: vat / 100, gross: (net + vat) / 100 };
-}
-
-/** Every quote, and one open at a time (`/quotes/:id`); `?new=1&project=` starts one for a project. Admin only. */
+/** `/quotes`: Designs, Quotes, Unit library, Pricing. `?view=` filters the quotes; `/quotes/:id` opens one. Admin only. */
 export function QuotesPage() {
-  const toast = useToast();
+  const { id } = useParams();
+  return id ? <QuoteDetail id={id} /> : <QuotesHome />;
+}
+
+function QuotesHome() {
+  const [params, setParams] = useSearchParams();
+  // A status filter in the address (the dashboard links to ?view=Sent) means the quotes themselves.
+  const tab = TABS.some((entry) => entry.id === params.get('tab')) ? params.get('tab')! : params.get('view') ? 'quotes' : 'designs';
+  return (
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+      <div className="mb-4">
+        <Tabs tabs={TABS} active={tab} onChange={(next) => setParams(next === 'designs' ? {} : { tab: next })} />
+      </div>
+      {tab === 'quotes' ? <QuoteList /> : tab === 'library' ? <LibraryView /> : tab === 'pricing' ? <PricingView /> : <DesignsView />}
+    </div>
+  );
+}
+
+function QuoteList() {
   const navigate = useNavigate();
-  const { id: openId } = useParams();
   const [params, setParams] = useSearchParams();
   const quotes = useQuery<Quote[]>('/quotes');
-  const clients = useQuery<Client[]>('/clients');
-  const projects = useQuery<Project[]>('/projects');
   const filter = params.get('view') ?? 'all';
-  const creating = params.get('new') === '1';
-  const [editing, setEditing] = useState<Quote | null>(null);
-  const [deleting, setDeleting] = useState<Quote | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-
   const shown = useMemo(() => (quotes.data ?? []).filter((quote) => filter === 'all' || quote.status === filter), [quotes.data, filter]);
   const { rows, header } = useSort(shown, {
     number: (q) => q.number,
@@ -86,35 +65,16 @@ export function QuotesPage() {
     valid: (q) => q.valid_until ?? '',
     total: (q) => q.amount,
   });
-  const opened = openId ? (quotes.data ?? []).find((quote) => quote.id === openId) : undefined;
-
-  const run = async (key: string, request: () => Promise<unknown>, done: string) => {
-    setBusy(key);
-    try {
-      await request();
-      toast.success(done);
-      await quotes.refetch();
-    } catch (caught) {
-      toast.error(caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   if (quotes.error && !quotes.data) return <ErrorState message={quotes.error} onRetry={() => void quotes.refetch()} />;
   if (!quotes.data) return <LoadingState label="Loading quotes…" />;
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? {} : { view: id })} />
-        <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setParams({ new: '1' })}>
-          New quote
-        </Button>
+    <>
+      <div className="mb-4">
+        <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: id })} />
       </div>
-
       {shown.length === 0 ? (
-        <EmptyState title="No quotes" message="Write a quote for a project and send it to the client. They accept or decline in the portal." />
+        <EmptyState title="No quotes" message="A quote is made from a design: open a design and choose Make quote. It lands here, ready to check and send." />
       ) : (
         <TableWrap>
           <thead>
@@ -143,352 +103,404 @@ export function QuotesPage() {
           </tbody>
         </TableWrap>
       )}
-
-      {creating || editing ? (
-        <QuoteEditor
-          quote={editing}
-          clients={clients.data ?? []}
-          projects={projects.data ?? []}
-          presetProject={params.get('project')}
-          onClose={() => {
-            setEditing(null);
-            if (creating) setParams({});
-          }}
-          onSaved={async (saved) => {
-            setEditing(null);
-            setParams({});
-            await quotes.refetch();
-            navigate(`/quotes/${saved.id}`);
-          }}
-        />
-      ) : null}
-
-      <Modal
-        open={Boolean(opened) && !editing}
-        onClose={() => navigate('/quotes')}
-        title={opened ? `${opened.number}${opened.title ? ` · ${opened.title}` : ''}` : ''}
-        description={opened ? `${opened.client_name} · ${opened.project_name ?? 'Project'}` : undefined}
-        width="lg"
-        footer={
-          opened ? (
-            <>
-              {opened.status === 'Draft' || opened.status === 'Declined' ? (
-                <>
-                  <Button variant="ghost" icon={<Trash size={15} aria-hidden="true" />} onClick={() => setDeleting(opened)}>
-                    Delete
-                  </Button>
-                  <Button variant="secondary" onClick={() => setEditing(opened)}>
-                    Edit
-                  </Button>
-                </>
-              ) : null}
-              {opened.status === 'Draft' ? (
-                <Button
-                  variant="primary"
-                  icon={<PaperPlaneRight size={15} aria-hidden="true" />}
-                  loading={busy === 'send'}
-                  onClick={() => void run('send', () => api.post(`/quotes/${opened.id}/send`, {}), `Sent to ${opened.client_name}.`)}
-                >
-                  Send to client
-                </Button>
-              ) : null}
-              {opened.status === 'Sent' ? (
-                <Button variant="secondary" loading={busy === 'withdraw'} onClick={() => void run('withdraw', () => api.post(`/quotes/${opened.id}/withdraw`, {}), 'Withdrawn. It is a draft again.')}>
-                  Withdraw
-                </Button>
-              ) : null}
-              {opened.status === 'Accepted' && !opened.invoice_id ? (
-                <Button variant="primary" icon={<Receipt size={15} aria-hidden="true" />} loading={busy === 'invoice'} onClick={() => void run('invoice', () => api.post(`/quotes/${opened.id}/invoice`, {}), 'A draft invoice has been made. Find it under Invoices.')}>
-                  Create invoice
-                </Button>
-              ) : null}
-            </>
-          ) : null
-        }
-      >
-        {opened ? <QuoteBody quote={opened} /> : null}
-      </Modal>
-
-      <ConfirmDialog
-        open={deleting !== null}
-        title={`Delete ${deleting?.number ?? 'quote'}?`}
-        message="It is removed for good."
-        confirmLabel="Delete"
-        pending={busy === 'delete'}
-        onConfirm={async () => {
-          if (!deleting) return;
-          await run('delete', () => api.delete(`/quotes/${deleting.id}`), 'Deleted.');
-          setDeleting(null);
-          navigate('/quotes');
-        }}
-        onCancel={() => setDeleting(null)}
-      />
-    </div>
+    </>
   );
 }
 
-/** One quote: the studio's own figures, and a tab showing exactly what the client is sent. */
-function QuoteBody({ quote }: { quote: Quote }) {
-  const [tab, setTab] = useState('studio');
-  return (
-    <div className="flex flex-col gap-4">
-      <Tabs tabs={[{ id: 'studio', label: 'Studio view' }, { id: 'client', label: 'Client view' }]} active={tab} onChange={setTab} />
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusTag tone={quote.expired ? 'warning' : TONE[quote.status]}>{quote.expired ? 'Expired' : quote.status}</StatusTag>
-        {quote.valid_until ? <span className="text-sm text-ink-muted">Valid until {date(quote.valid_until)}</span> : null}
-        {quote.responded_at ? <span className="text-sm text-ink-muted">Answered {date(quote.responded_at)}</span> : null}
-        {quote.invoice_id ? <span className="text-sm text-ink-muted">Invoice made</span> : null}
-      </div>
-      {quote.response_comment ? <p className="rounded-control bg-surface-muted px-3 py-2 text-sm text-ink">“{quote.response_comment}”</p> : null}
-      {tab === 'client' ? (
-        <ClientQuoteView subtotal={quote.subtotal_amount} discount={quote.discount} vatRate={quote.vat_rate} vat={quote.vat_amount} total={quote.amount} notes={quote.notes} />
-      ) : (
-        <>
-          <QuoteLines quote={quote} />
-          {quote.notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{quote.notes}</p> : null}
-        </>
-      )}
-    </div>
-  );
+/* ---------------------------------------------------------------------------
+ * The form works in strings (a half-typed price is allowed) and the sums are a
+ * PREVIEW in whole pennies; the API's figures replace them on save. A line is a
+ * cost plus a margin (%): the price each is worked out from the two, and the API
+ * repeats the sum. Same on-sheet editing as an invoice (InvoiceSheet `editBody`).
+ * ------------------------------------------------------------------------- */
+
+type Row =
+  | { key: number; kind: 'heading'; text: string }
+  | { key: number; kind: 'line'; description: string; detail: string; quantity: string; cost: string; margin: string };
+type LineRow = Extract<Row, { kind: 'line' }>;
+
+let rowKey = 0;
+const blankLine = (margin = ''): LineRow => ({ key: ++rowKey, kind: 'line', description: '', detail: '', quantity: '1', cost: '', margin });
+const blankHeading = (): Row => ({ key: ++rowKey, kind: 'heading', text: '' });
+const pennies = (value: number) => Math.round(value * 100) || 0;
+/** The price each, in pennies, the client pays for a line. */
+const sellPence = (row: LineRow) => Math.round((pennies(Number(row.cost) || 0) * (100 + (Number(row.margin) || 0))) / 100);
+
+/** Stored lines -> editor rows: a heading wherever the section changes. Lines from before margins existed count as sold at cost. */
+function toRows(items: QuoteItem[]): Row[] {
+  const rows: Row[] = [];
+  items.forEach((item, index) => {
+    if (item.section && item.section !== items[index - 1]?.section) rows.push({ key: ++rowKey, kind: 'heading', text: item.section });
+    rows.push({
+      key: ++rowKey,
+      kind: 'line',
+      description: item.description,
+      detail: item.detail ?? '',
+      quantity: String(item.quantity),
+      cost: String(item.cost_price ?? item.unit_price),
+      margin: String(item.margin_pct ?? 0),
+    });
+  });
+  return rows;
 }
 
-/** What the client's portal shows: the installation charges and the totals. Never the lines, costs or margins. Keep in step with apps/portal Quotes.tsx. */
-function ClientQuoteView({ subtotal, discount, vatRate, vat, total, notes }: { subtotal: number; discount: number; vatRate: number; vat: number; total: number; notes?: string | null }) {
-  return (
-    <div className="flex flex-col gap-3 rounded-control border border-dashed border-border p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-muted">What the client sees</p>
-      <div className="flex items-baseline justify-between text-sm font-semibold text-ink"><span>Installation charges</span><span className="tabular">{money(subtotal)}</span></div>
-      <dl className="flex flex-col gap-1 border-t border-border pt-3 text-sm">
-        <div className="flex justify-between"><dt className="text-ink-muted">Subtotal</dt><dd className="tabular">{money(subtotal)}</dd></div>
-        {discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(discount)}</dd></div> : null}
-        <div className="flex justify-between"><dt className="text-ink-muted">VAT ({vatRate}%)</dt><dd className="tabular">{money(vat)}</dd></div>
-        <div className="flex justify-between text-base font-semibold text-ink"><dt>Total</dt><dd className="tabular">{money(total)}</dd></div>
-      </dl>
-      {notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{notes}</p> : null}
-    </div>
-  );
+/** Editor rows -> lines as the API takes them: each line carries the heading above it. */
+function toItems(rows: Row[]) {
+  let section: string | null = null;
+  const items: Array<{ section: string | null; description: string; detail: string | null; quantity: number; unit_price: number; cost_price: number; margin_pct: number }> = [];
+  for (const row of rows) {
+    if (row.kind === 'heading') section = row.text.trim() || null;
+    else {
+      items.push({
+        section,
+        description: row.description.trim(),
+        detail: row.detail.trim() || null,
+        quantity: Number(row.quantity),
+        unit_price: sellPence(row) / 100,
+        cost_price: Number(row.cost) || 0,
+        margin_pct: Number(row.margin) || 0,
+      });
+    }
+  }
+  return items;
 }
 
-function QuoteLines({ quote }: { quote: Quote }) {
-  // Lines made before margins existed have no cost: they count as sold at cost.
-  const cost = quote.items.reduce((total, item) => total + item.quantity * (item.cost_price ?? item.unit_price), 0);
-  return (
-    <div>
-      <ul className="divide-y divide-border/60 text-sm">
-        {quote.items.map((item) => (
-          <li key={item.id} className="flex items-baseline justify-between gap-4 py-2">
-            <span className="min-w-0 text-ink">
-              {item.description}
-              <span className="block text-xs text-ink-muted">
-                {item.cost_price !== null ? `Cost ${money(item.cost_price)} + ${item.margin_pct ?? 0}% margin` : item.detail}
-              </span>
-            </span>
-            <span className="tabular shrink-0 text-ink-muted">
-              {item.quantity} × {money(item.unit_price)} = <span className="font-semibold text-ink">{money(item.quantity * item.unit_price)}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-      <dl className="mt-3 flex flex-col gap-1 border-t border-border pt-3 text-sm">
-        <div className="flex justify-between"><dt className="text-ink-muted">Subtotal</dt><dd className="tabular">{money(quote.subtotal_amount)}</dd></div>
-        {quote.discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(quote.discount)}</dd></div> : null}
-        <div className="flex justify-between"><dt className="text-ink-muted">VAT ({quote.vat_rate}%)</dt><dd className="tabular">{money(quote.vat_amount)}</dd></div>
-        <div className="flex justify-between text-base font-semibold text-ink"><dt>Total</dt><dd className="tabular">{money(quote.amount)}</dd></div>
-        <div className="flex justify-between border-t border-border pt-2 text-ink-muted"><dt>Profit after discount, before VAT</dt><dd className="tabular font-semibold text-ink">{money(quote.net_amount - cost)}</dd></div>
-      </dl>
-    </div>
-  );
+function totalsOf(items: Array<{ quantity: number; unit_price: number }>, vatRate: number, discount: number) {
+  const subtotal = items.reduce((total, item) => total + pennies(item.quantity * item.unit_price), 0);
+  const net = subtotal - pennies(discount);
+  const vat = Math.round((net * vatRate) / 100);
+  return { subtotal: subtotal / 100, net: net / 100, vat: vat / 100, gross: (net + vat) / 100 };
 }
 
-/** One draggable, droppable line: the grip (or the up and down keys on it) reorders; every field is labelled. */
 /** Inventory items offered on a line's name; picking one fills its name and its average cost (still editable). */
 type StockOption = { sku: string; name: string; avg_cost: number; active: boolean };
 const stockLabel = (item: StockOption) => `${item.sku} · ${item.name}`;
 
-function LineRow({ row, index, count, stock, onChange, onRemove, onShift }: { row: Row; index: number; count: number; stock: StockOption[]; onChange: (patch: Partial<Row>) => void; onRemove: () => void; onShift: (by: -1 | 1) => void }) {
-  const drag = useDraggable({ id: row.key });
-  const drop = useDroppable({ id: row.key });
-  const field = (label: string, input: ReactNode) => (
-    <label className="flex flex-col gap-1 text-xs text-ink-muted">
-      {label}
-      {input}
-    </label>
-  );
-  return (
-    <div
-      ref={(node) => {
-        drag.setNodeRef(node);
-        drop.setNodeRef(node);
-      }}
-      style={{ transform: drag.transform ? `translate3d(0, ${drag.transform.y}px, 0)` : undefined }}
-      className={clsx('relative flex flex-col gap-2 rounded-control border bg-surface p-2', drag.isDragging ? 'z-10 border-green-900 shadow-overlay' : drop.isOver ? 'border-green-900' : 'border-border')}
-    >
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          {...drag.listeners}
-          {...drag.attributes}
-          onKeyDown={(event) => {
-            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-              event.preventDefault();
-              onShift(event.key === 'ArrowUp' ? -1 : 1);
-            }
-          }}
-          aria-label={`Move line ${index + 1} of ${count}: drag, or press the up and down arrow keys`}
-          className="flex min-h-11 w-8 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-ink-muted hover:text-ink active:cursor-grabbing"
-        >
-          <DotsSixVertical size={18} aria-hidden="true" />
-        </button>
-        <input
-          value={row.description}
-          list={stock.length ? 'quote-stock-items' : undefined}
-          onChange={(event) => {
-            const picked = stock.find((item) => stockLabel(item) === event.target.value);
-            onChange(picked ? { description: picked.name, cost: picked.avg_cost.toFixed(2) } : { description: event.target.value });
-          }}
-          aria-label={`Line ${index + 1} item`}
-          placeholder={stock.length ? 'Item, or pick from stock' : 'Item'}
-          maxLength={300}
-          className={FIELD_BASE}
-        />
-        <button type="button" disabled={count === 1} onClick={onRemove} aria-label={`Remove line ${index + 1}`} className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted hover:text-danger disabled:opacity-30">
-          <Trash size={16} aria-hidden="true" />
-        </button>
-      </div>
-      <div className="grid grid-cols-2 gap-2 pl-10 sm:grid-cols-4">
-        {field('Qty', <input type="number" inputMode="numeric" min={1} step={1} value={row.quantity} onChange={(event) => onChange({ quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })} className={clsx(FIELD_BASE, 'tabular')} />)}
-        {field('Cost each (£)', <input type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} onChange={(event) => onChange({ cost: event.target.value })} placeholder="0.00" className={clsx(FIELD_BASE, 'tabular')} />)}
-        {field('Margin (%)', <input type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} onChange={(event) => onChange({ margin: event.target.value })} placeholder="0" className={clsx(FIELD_BASE, 'tabular')} />)}
-        {field('Price each (£)', <output className="tabular flex min-h-11 items-center text-sm font-semibold text-ink">{money(sellPence(row) / 100)}</output>)}
-      </div>
-    </div>
-  );
+function QuoteDetail({ id }: { id: string }) {
+  const quote = useQuery<Quote>(`/quotes/${encodeURIComponent(id)}`);
+  if (quote.error && !quote.data) return <ErrorState message={quote.error} onRetry={() => void quote.refetch()} />;
+  if (!quote.data) return <LoadingState label="Opening quote…" />;
+  // A status change (sent, withdrawn, answered) starts the form again from what the API now holds.
+  return <QuoteEditor key={`${quote.data.id}:${quote.data.status}`} quote={quote.data} onChange={(next) => quote.setData(next)} />;
 }
 
-function QuoteEditor({
-  quote,
-  clients,
-  projects,
-  presetProject,
-  onClose,
-  onSaved,
-}: {
-  quote: Quote | null;
-  clients: Client[];
-  projects: Project[];
-  presetProject: string | null;
-  onClose: () => void;
-  onSaved: (saved: Quote) => void | Promise<void>;
-}) {
-  const preset = projects.find((project) => project.id === presetProject);
-  const [clientId, setClientId] = useState(quote?.client_id ?? preset?.client_id ?? '');
-  const [projectId, setProjectId] = useState(quote?.project_id ?? preset?.id ?? '');
-  const [title, setTitle] = useState(quote?.title ?? '');
-  const [validUntil, setValidUntil] = useState(quote?.valid_until?.slice(0, 10) ?? '');
-  const [vatRate, setVatRate] = useState(quote ? String(quote.vat_rate) : '');
-  // A new one starts at Settings › VAT; a saved one keeps its own rate.
-  const defaultVat = useQuery<{ vat_rate: number }>(quote ? null : '/settings/vat').data?.vat_rate;
-  useEffect(() => {
-    if (defaultVat !== undefined) setVatRate((current) => (current === '' ? String(defaultVat) : current));
-  }, [defaultVat]);
-  const [discount, setDiscount] = useState(quote?.discount ? String(quote.discount) : '');
-  const [notes, setNotes] = useState(quote?.notes ?? '');
-  // No inventory (switched off or removed) = a 404 here and plain text lines.
+function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote) => void }) {
+  const toast = useToast();
+  const navigate = useNavigate();
+  const canEdit = editable(quote);
   const stock = (useQuery<StockOption[]>('/inventory/items').data ?? []).filter((item) => item.active);
-  const [rows, setRows] = useState<Row[]>(() =>
-    quote?.items.length
-      ? quote.items.map((item) => ({ key: ++rowKey, description: item.description, quantity: String(item.quantity), cost: String(item.cost_price ?? item.unit_price), margin: String(item.margin_pct ?? 0) }))
-      : [blank()],
-  );
+
+  const [title, setTitle] = useState(quote.title ?? '');
+  const [validUntil, setValidUntil] = useState(quote.valid_until?.slice(0, 10) ?? '');
+  const [vatRate, setVatRate] = useState(String(quote.vat_rate));
+  const [discount, setDiscount] = useState(quote.discount ? String(quote.discount) : '');
+  const [notes, setNotes] = useState(quote.notes ?? '');
+  const [rows, setRows] = useState<Row[]>(() => (quote.items.length ? toRows(quote.items) : [blankLine()]));
+  const [view, setView] = useState('studio');
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState('edit');
-  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }));
+  const [busy, setBusy] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  // A project on the way in (from its page) fills the client once the lists have loaded.
-  useEffect(() => {
-    if (preset && !clientId) {
-      setClientId(preset.client_id);
-      setProjectId(preset.id);
-    }
-  }, [preset, clientId]);
+  const items = toItems(rows);
+  const rate = Number(vatRate) || 0;
+  const off = Number(discount) || 0;
+  const preview = totalsOf(items, rate, off);
+  const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, vat_rate: rate, discount: off, items };
+  const dirty = canEdit && JSON.stringify(body) !== JSON.stringify({ title: quote.title, notes: quote.notes, valid_until: quote.valid_until?.slice(0, 10) ?? null, vat_rate: quote.vat_rate, discount: quote.discount, items: toItems(toRows(quote.items)) });
+  const cost = rows.reduce((total, row) => (row.kind === 'line' ? total + (Number(row.quantity) || 0) * pennies(Number(row.cost) || 0) : total), 0) / 100;
 
-  const own = projects.filter((project) => project.client_id === clientId);
-  const totals = preview(rows, Number(vatRate) || 0, Number(discount) || 0);
-  const set = (key: number, patch: Partial<Row>) => setRows((current) => current.map((row) => (row.key === key ? { ...row, ...patch } : row)));
-  /** Moves a line to another place in the list (dragged, or by the arrow keys). */
-  const moveRow = (from: number, to: number) =>
+  // What the sheet shows: the saved quote with this form's edits laid over it; the client's copy has no lines.
+  const live: Quote = canEdit
+    ? {
+        ...quote,
+        title: body.title,
+        notes: body.notes,
+        valid_until: body.valid_until,
+        vat_rate: rate,
+        discount: off,
+        subtotal_amount: preview.subtotal,
+        net_amount: preview.net,
+        vat_amount: preview.vat,
+        amount: preview.gross,
+        items: items.map((item, position) => ({ ...item, id: String(position), quote_id: quote.id, position })),
+      }
+    : quote;
+  const studioSheet = quoteSheet(live);
+  const clientSheet = quoteSheet({ ...live, items: [] });
+
+  const setRow = (key: number, change: Partial<LineRow> | { text: string }) =>
+    setRows((current) => current.map((row) => (row.key === key ? ({ ...row, ...change } as Row) : row)));
+  const removeRow = (key: number) => setRows((current) => current.filter((row) => row.key !== key));
+  const shift = (from: number, by: -1 | 1) =>
     setRows((current) => {
+      const to = from + by;
       if (to < 0 || to >= current.length) return current;
       const next = [...current];
       next.splice(to, 0, next.splice(from, 1)[0]!);
       return next;
     });
-  const onDragEnd = ({ active, over }: DragEndEvent) => {
-    if (over && active.id !== over.id) moveRow(rows.findIndex((r) => r.key === active.id), rows.findIndex((r) => r.key === over.id));
+  /** A new line at the end of the section that `headingKey` starts. */
+  const addLineTo = (headingKey: number) =>
+    setRows((current) => {
+      const start = current.findIndex((row) => row.key === headingKey);
+      const nextHeading = current.findIndex((row, index) => index > start && row.kind === 'heading');
+      const at = nextHeading === -1 ? current.length : nextHeading;
+      const above = current.slice(0, at).reverse().find((row): row is LineRow => row.kind === 'line');
+      return [...current.slice(0, at), blankLine(above?.margin ?? ''), ...current.slice(at)];
+    });
+
+  /** The item rows as fields on the A4 sheet itself (screen only; the printed sheet is the client's copy). */
+  const linesOnSheet = canEdit ? (
+    <>
+      {rows.map((row, index) => {
+        const up = (
+          <button type="button" className="inv-edit-btn" disabled={index === 0} onClick={() => shift(index, -1)} aria-label={`Move row ${index + 1} up`}>
+            <ArrowUp size={13} aria-hidden="true" />
+          </button>
+        );
+        const down = (
+          <button type="button" className="inv-edit-btn" disabled={index === rows.length - 1} onClick={() => shift(index, 1)} aria-label={`Move row ${index + 1} down`}>
+            <ArrowDown size={13} aria-hidden="true" />
+          </button>
+        );
+        return row.kind === 'heading' ? (
+          <tr key={row.key} className="inv-section">
+            <th colSpan={4} scope="rowgroup">
+              <div className="inv-edit-cell">
+                <input value={row.text} onChange={(event) => setRow(row.key, { text: event.target.value })} aria-label={`Section heading ${index + 1}`} placeholder="Section heading, e.g. Materials" maxLength={120} />
+                <button type="button" className="inv-edit-btn" onClick={() => addLineTo(row.key)} aria-label={`Add a line under ${row.text || 'this heading'}`} title="Add a line to this section">
+                  <Plus size={14} aria-hidden="true" />
+                </button>
+                <button type="button" className="inv-edit-btn" onClick={() => removeRow(row.key)} aria-label={`Remove heading ${row.text || index + 1}`}>
+                  <Trash size={14} aria-hidden="true" />
+                </button>
+                {up}
+                {down}
+              </div>
+            </th>
+          </tr>
+        ) : (
+          <tr key={row.key}>
+            <td>
+              <input
+                value={row.description}
+                list={stock.length ? 'quote-stock-items' : undefined}
+                onChange={(event) => {
+                  const picked = stock.find((item) => stockLabel(item) === event.target.value);
+                  setRow(row.key, picked ? { description: picked.name, cost: picked.avg_cost.toFixed(2) } : { description: event.target.value });
+                }}
+                aria-label={`Line ${index + 1} item`}
+                placeholder={stock.length ? 'Item, or pick from stock' : 'Item'}
+                maxLength={300}
+              />
+            </td>
+            <td>
+              <input value={row.detail} onChange={(event) => setRow(row.key, { detail: event.target.value })} aria-label={`Line ${index + 1} description`} placeholder="Description" maxLength={300} />
+            </td>
+            <td className="inv-right">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={row.quantity}
+                // Whole numbers only: the arrows step by 1 and a pasted 2.5 becomes 2.
+                onChange={(event) => setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })}
+                aria-label={`Line ${index + 1} quantity`}
+                placeholder="Qty"
+                className="inv-num"
+              />
+            </td>
+            <td>
+              <div className="inv-edit-cell">
+                <div className="inv-edit-stack">
+                  <input type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} onChange={(event) => setRow(row.key, { cost: event.target.value })} aria-label={`Line ${index + 1} cost each, in pounds`} placeholder="£ cost" className="inv-num" />
+                  <input type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} onChange={(event) => setRow(row.key, { margin: event.target.value })} aria-label={`Line ${index + 1} margin, in percent`} placeholder="% margin" className="inv-num" />
+                  <span className="inv-num inv-edit-sum">{money(((Number(row.quantity) || 0) * sellPence(row)) / 100)}</span>
+                </div>
+                <div className="inv-edit-stack inv-edit-tools">
+                  {up}
+                  <button type="button" className="inv-edit-btn" onClick={() => removeRow(row.key)} aria-label={`Remove line ${index + 1}`}>
+                    <Trash size={14} aria-hidden="true" />
+                  </button>
+                  {down}
+                </div>
+              </div>
+            </td>
+          </tr>
+        );
+      })}
+      <tr className="inv-edit-add">
+        <td colSpan={4}>
+          <button type="button" className="inv-edit-btn" disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankLine(items.at(-1)?.margin_pct ? String(items.at(-1)!.margin_pct) : '')])}>
+            <Plus size={14} aria-hidden="true" />
+            &nbsp;Add line
+          </button>
+          <button type="button" className="inv-edit-btn" disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankHeading(), blankLine()])}>
+            <TextHOne size={14} aria-hidden="true" />
+            &nbsp;Add section
+          </button>
+        </td>
+      </tr>
+    </>
+  ) : undefined;
+
+  const failure = (caught: unknown) => (caught instanceof ApiError ? caught.fieldMessages[0] ?? caught.message : 'That did not work. Please try again.');
+
+  /** Checks the form, then saves it. Returns the saved quote, or null with the reason shown. */
+  const save = async (): Promise<Quote | null> => {
+    setError(null);
+    const lines = rows.filter((row): row is LineRow => row.kind === 'line');
+    const fail = (message: string) => {
+      setError(message);
+      return null;
+    };
+    if (lines.length === 0) return fail('Add at least one line.');
+    if (lines.some((line) => !line.description.trim())) return fail('Name each line’s item, or remove the empty ones.');
+    if (lines.some((line) => !Number.isInteger(Number(line.quantity)) || Number(line.quantity) < 1)) return fail('Each quantity must be a whole number, 1 or more.');
+    if (lines.some((line) => !(Number(line.cost || 0) >= 0))) return fail('Costs cannot be negative.');
+    if (!(off >= 0)) return fail('The discount cannot be negative.');
+    if (preview.net < 0) return fail('The discount cannot be more than the lines add up to.');
+    setBusy('save');
+    try {
+      const saved = await api.put<Quote>(`/quotes/${quote.id}`, body);
+      toast.success(`${saved.number} saved.`);
+      onChange(saved);
+      return saved;
+    } catch (caught) {
+      setError(failure(caught));
+      return null;
+    } finally {
+      setBusy(null);
+    }
   };
 
-  const save = async (event: FormEvent) => {
+  const submit = (event: FormEvent) => {
     event.preventDefault();
-    setError(null);
-    if (!clientId || !projectId) return setError('Choose the client and the project this quote is for.');
-    const items = rows
-      .filter((row) => row.description.trim())
-      .map((row) => ({ description: row.description.trim(), quantity: Number(row.quantity), unit_price: sellPence(row) / 100, cost_price: Number(row.cost) || 0, margin_pct: Number(row.margin) || 0 }));
-    if (items.length === 0) return setError('Add at least one line.');
-    // Blank VAT = the setting had not loaded: the API then applies Settings › VAT itself.
-    const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, ...(vatRate.trim() === '' ? {} : { vat_rate: Number(vatRate) || 0 }), discount: Number(discount) || 0, items };
-    setSaving(true);
+    void save();
+  };
+
+  const act = async (key: string, path: string, done: string) => {
+    setBusy(key);
     try {
-      const saved = quote ? await api.put<Quote>(`/quotes/${quote.id}`, body) : await api.post<Quote>('/quotes', { ...body, client_id: clientId, project_id: projectId });
-      await onSaved(saved);
+      onChange(await api.post<Quote>(`/quotes/${quote.id}/${path}`, {}));
+      toast.success(done);
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.fieldMessages[0] ?? caught.message : 'Could not save the quote.');
-      setSaving(false);
+      toast.error(failure(caught));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const remove = async () => {
+    setBusy('delete');
+    try {
+      await api.delete(`/quotes/${quote.id}`);
+      toast.success('Deleted.');
+      navigate('/quotes?tab=quotes');
+    } catch (caught) {
+      toast.error(failure(caught));
+      setBusy(null);
+      setDeleting(false);
     }
   };
 
   return (
-    <Modal open onClose={onClose} title={quote ? `Edit ${quote.number}` : 'New quote'} width="lg">
-      <form onSubmit={save} className="flex flex-col gap-4" noValidate>
-        <Tabs tabs={[{ id: 'edit', label: 'Edit' }, { id: 'preview', label: 'Client preview' }]} active={tab} onChange={setTab} />
-        {tab === 'preview' ? (
-          <ClientQuoteView subtotal={totals.subtotal} discount={Number(discount) || 0} vatRate={Number(vatRate) || 0} vat={totals.vat} total={totals.gross} notes={notes.trim() || null} />
-        ) : null}
-        <div className={clsx('flex flex-col gap-4', tab === 'preview' && 'hidden')}>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Select label="Client" value={clientId} disabled={Boolean(quote)} onChange={(event) => { setClientId(event.target.value); setProjectId(''); }}>
-            <option value="">Choose a client…</option>
-            {clients.map((client) => (
-              <option key={client.id} value={client.id}>{client.name}</option>
-            ))}
-          </Select>
-          <Select label="Project" value={projectId} disabled={Boolean(quote) || !clientId} onChange={(event) => setProjectId(event.target.value)}>
-            <option value="">{clientId ? (own.length ? 'Choose a project…' : 'This client has no project') : 'Choose a client first'}</option>
-            {own.map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
-            ))}
-          </Select>
-          <Input label="Title" value={title} maxLength={200} placeholder="e.g. Kitchen and utility" onChange={(event) => setTitle(event.target.value)} />
-          <Input label="Valid until" type="date" value={validUntil} min={new Date().toISOString().slice(0, 10)} hint="The last day the client can accept." onChange={(event) => setValidUntil(event.target.value)} />
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <Link to="/quotes?tab=quotes" className="text-link inline-flex min-h-11 items-center gap-1.5 text-sm pointer-fine:min-h-0">
+            <ArrowLeft size={14} aria-hidden="true" />
+            All quotes
+          </Link>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-xl font-bold tracking-tight text-ink">{quote.number}</h2>
+            <StatusTag tone={quote.expired ? 'warning' : TONE[quote.status]}>{quote.expired ? 'Expired' : quote.status}</StatusTag>
+            <span className="text-sm text-ink-muted">{quote.client_name}</span>
+            {quote.responded_at ? <span className="text-sm text-ink-muted">Answered {date(quote.responded_at)}</span> : null}
+            {quote.invoice_id ? <span className="text-sm text-ink-muted">Invoice made</span> : null}
+          </div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
+            Print / Save as PDF
+          </Button>
+          {canEdit ? (
+            <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+              Delete
+            </Button>
+          ) : null}
+          {quote.status === 'Sent' ? (
+            <Button variant="secondary" loading={busy === 'withdraw'} onClick={() => void act('withdraw', 'withdraw', 'Withdrawn. It is a draft again.')}>
+              Withdraw
+            </Button>
+          ) : null}
+          {quote.status === 'Accepted' && !quote.invoice_id ? (
+            <Button variant="primary" icon={<Receipt size={16} aria-hidden="true" />} loading={busy === 'invoice'} onClick={() => void act('invoice', 'invoice', 'A draft invoice has been made. Find it under Invoices.')}>
+              Create invoice
+            </Button>
+          ) : null}
+          {canEdit ? (
+            <Button type="submit" form="quote-form" variant={quote.status === 'Draft' ? 'secondary' : 'primary'} loading={busy === 'save'}>
+              Save changes
+            </Button>
+          ) : null}
+          {quote.status === 'Draft' ? (
+            <Button
+              variant="primary"
+              icon={<PaperPlaneRight size={16} aria-hidden="true" />}
+              loading={busy === 'send'}
+              onClick={() => (dirty ? toast.error('Save your changes before sending, so the client gets what you see.') : void act('send', 'send', `Sent to ${quote.client_name}.`))}
+            >
+              Send to client
+            </Button>
+          ) : null}
+        </div>
+      </div>
 
-        <Card className="flex flex-col gap-2">
-          <p className="text-sm font-semibold text-ink">Lines <span className="font-normal text-ink-muted">(cost and price are before VAT; price = cost + margin)</span></p>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-            {rows.map((row, index) => (
-              <LineRow
-                key={row.key}
-                row={row}
-                index={index}
-                count={rows.length}
-                stock={stock}
-                onChange={(patch) => set(row.key, patch)}
-                onRemove={() => setRows((current) => current.filter((r) => r.key !== row.key))}
-                onShift={(by) => moveRow(index, index + by)}
-              />
-            ))}
-          </DndContext>
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
+          {!canEdit ? (
+            <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+              {quote.status === 'Sent' ? 'This quote is with the client. Withdraw it to edit it.' : 'An accepted quote is final. Create the invoice from it.'}
+            </p>
+          ) : null}
+          {quote.response_comment ? <p className="rounded-control bg-surface-muted px-3 py-2 text-sm text-ink">“{quote.response_comment}”</p> : null}
+
+          <Card className="flex flex-col gap-4">
+            <h2 className="text-lg font-semibold text-ink">Quote</h2>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="Client" value={quote.client_name} disabled readOnly />
+              <Input label="Project" value={quote.project_name ?? ''} disabled readOnly />
+            </div>
+            <Input label="Title" value={title} maxLength={200} disabled={!canEdit} placeholder="e.g. Kitchen and utility" onChange={(event) => setTitle(event.target.value)} />
+            <Input label="Valid until" type="date" value={validUntil} disabled={!canEdit} min={new Date().toISOString().slice(0, 10)} hint="The last day the client can accept." onChange={(event) => setValidUntil(event.target.value)} />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Input label="VAT %" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={vatRate} disabled={!canEdit} onChange={(event) => setVatRate(event.target.value)} />
+              <Input label="Discount (£)" type="number" inputMode="decimal" min="0" step="0.01" value={discount} disabled={!canEdit} hint="Taken off before VAT." onChange={(event) => setDiscount(event.target.value)} />
+            </div>
+            <Textarea label="Notes for the client" rows={3} maxLength={4000} value={notes} disabled={!canEdit} onChange={(event) => setNotes(event.target.value)} />
+          </Card>
+
+          <Card className="flex flex-col gap-2">
+            <h2 className="text-lg font-semibold text-ink">Studio only</h2>
+            <dl className="flex flex-col gap-1 text-sm">
+              <div className="flex justify-between"><dt className="text-ink-muted">Cost of the lines</dt><dd className="tabular">{money(cost)}</dd></div>
+              <div className="flex justify-between"><dt className="text-ink-muted">Profit after discount, before VAT</dt><dd className="tabular font-semibold text-ink">{money(live.net_amount - cost)}</dd></div>
+            </dl>
+            <p className="text-sm text-ink-muted">Cost and margin are never shown to the client, and neither are the lines: they see the installation charges and the totals.</p>
+          </Card>
+
+          {error ? (
+            <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
+              {error}
+            </p>
+          ) : null}
+        </form>
+
+        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-4">
+          <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
+          {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} editBody={linesOnSheet} kind="quote" />}
           {stock.length ? (
             <datalist id="quote-stock-items">
               {stock.map((item) => (
@@ -496,29 +508,20 @@ function QuoteEditor({
               ))}
             </datalist>
           ) : null}
-          <div>
-            <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={rows.length >= 50} onClick={() => setRows((current) => [...current, blank(current.at(-1)?.margin ?? '')])}>
-              Add line
-            </Button>
-          </div>
-        </Card>
+        </section>
+      </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Input label="VAT %" type="number" inputMode="decimal" min="0" max="100" step="0.01" value={vatRate} onChange={(event) => setVatRate(event.target.value)} />
-          <Input label="Discount (£)" type="number" inputMode="decimal" min="0" step="0.01" value={discount} hint="Taken off before VAT." onChange={(event) => setDiscount(event.target.value)} />
-        </div>
-        <Textarea label="Notes for the client" rows={3} maxLength={4000} value={notes} onChange={(event) => setNotes(event.target.value)} />
-        </div>
+      <InvoicePrint invoices={[clientSheet]} kind="quote" />
 
-        <p className="tabular text-right text-sm text-ink-muted">
-          Subtotal {money(totals.subtotal)} · VAT {money(totals.vat)} · <span className="text-base font-semibold text-ink">Total {money(totals.gross)}</span>
-        </p>
-        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button type="submit" variant="primary" loading={saving}>Save quote</Button>
-        </div>
-      </form>
-    </Modal>
+      <ConfirmDialog
+        open={deleting}
+        title={`Delete ${quote.number}?`}
+        message="It is removed for good."
+        confirmLabel="Delete"
+        pending={busy === 'delete'}
+        onConfirm={() => void remove()}
+        onCancel={() => setDeleting(false)}
+      />
+    </div>
   );
 }

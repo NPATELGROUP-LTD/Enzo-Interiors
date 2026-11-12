@@ -224,7 +224,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
       await api.delete(`/quote-maker/designs/${design.id}`);
       setDirty(false);
       toast.success(`${design.ref} deleted.`);
-      navigate('/quote-maker');
+      navigate('/quotes');
     } catch (caught) {
       toast.error(failed(caught));
       setDeleting(false);

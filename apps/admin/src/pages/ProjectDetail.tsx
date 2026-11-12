@@ -153,9 +153,9 @@ export function ProjectDetailPage() {
                 variant="secondary"
                 className={ICON_ONLY}
                 icon={<Plus size={16} aria-hidden="true" />}
-                onClick={() => navigate(`/quotes?new=1&project=${project.id}`)}
+                onClick={() => navigate('/quotes')}
               >
-                <span className="max-sm:sr-only">New quote</span>
+                <span className="max-sm:sr-only">Quote from a design</span>
               </Button>
               <Button
                 variant="destructive"
@@ -431,7 +431,7 @@ export function ProjectDetailPage() {
                   <Card className="p-0">
                     <EmptyState
                       title="No quotes"
-                      message="Write a quote for this project with New quote."
+                      message="Make one from a design: open Quotes, choose a design and Make quote."
                     />
                   </Card>
                 ) : (
