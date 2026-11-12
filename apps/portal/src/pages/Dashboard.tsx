@@ -37,7 +37,6 @@ export function DashboardPage() {
   return (
     <>
       <PageHeader
-        prominent
         title={`Hello, ${firstName}`}
         description="Where your project is up to, and anything that needs you."
       />

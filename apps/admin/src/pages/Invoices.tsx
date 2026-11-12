@@ -940,7 +940,7 @@ function InvoiceEditor({
             All invoices
           </button>
           <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-ink">{invoice ? invoice.number : 'New invoice'}</h1>
+            <h2 className="text-xl font-bold tracking-tight text-ink">{invoice ? invoice.number : 'New invoice'}</h2>
             {invoice ? (
               <>
                 <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>{invoice.status}</StatusTag>

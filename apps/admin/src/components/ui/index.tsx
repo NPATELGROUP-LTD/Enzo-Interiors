@@ -33,10 +33,13 @@ import { Link, useNavigate } from 'react-router-dom';
  * The admin design system.
  *
  * Built directly from docs/Enzo_Interiors_UI_UX_Brief_v6.md, which calls itself
- * a strict implementation contract, restyled for the macOS-style desktop shell
- * (see styles/theme.css). The rules it enforces here:
+ * a strict implementation contract, restyled for the app shell (a glass menu
+ * bar, a heading row, then the page straight on the canvas with its cards
+ * floating on soft shadows; a bottom bar of icons on phones: layout/Desktop.tsx
+ * and styles/theme.css). The rules it enforces here:
  *   - 44px minimum touch target; mouse users get compact 36px macOS controls
- *   - 8px corners on controls, 12px on cards/tiles, 14px on windows/sheets
+ *   - 8px corners on controls, 12px on cards/tiles, 14px on sheets
+ *   - One heading per page, top left, with its buttons top right (<PageHeader>)
  *   - No pill buttons; switches, tags and segmented controls are capsules
  *   - Status tags are written labels only — no dots or bullet markers
  *   - Text links never gain a background, box, shadow or movement on hover
@@ -844,38 +847,45 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /* Layout helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
+/** The page heading's type, shared with the shell's own heading (layout/Desktop.tsx). */
+export const PAGE_TITLE = 'truncate text-xl font-bold tracking-tight text-ink sm:text-2xl';
+
+/** One of the shell's heading-row slots, once it is in the page. */
+function useSlot(id: string) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById(id)), [id]);
+  return slot;
+}
+
 /**
- * A page's heading. Only the Dashboard shows it (`prominent`); everywhere else
- * the window's title bar already names the page, so the heading is kept for
- * screen readers alone and only the actions show.
+ * A page's heading and its buttons. Both are drawn in the shell's heading row
+ * above the page (heading top left, buttons top right), in place of the
+ * section name the shell shows by default.
  */
 export function PageHeader({
   title,
   description,
   actions,
-  prominent = false,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
-  prominent?: boolean;
 }) {
-  if (!prominent) {
-    return (
-      <>
-        <h1 className="sr-only">{title}</h1>
-        {actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
-      </>
-    );
-  }
+  const heading = useSlot('page-title');
+  const buttons = useSlot('page-actions');
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-      <div className="min-w-0 [overflow-wrap:anywhere]">
-        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px] sm:leading-tight">{title}</h1>
-        {description ? <p className="mt-1 max-w-2xl text-ink-muted">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </div>
+    <>
+      {heading
+        ? createPortal(
+            <>
+              <h1 className={PAGE_TITLE}>{title}</h1>
+              {description ? <p className="truncate text-sm text-ink-muted">{description}</p> : null}
+            </>,
+            heading,
+          )
+        : null}
+      {buttons && actions ? createPortal(actions, buttons) : null}
+    </>
   );
 }
 
