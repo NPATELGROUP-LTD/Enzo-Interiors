@@ -6,7 +6,7 @@ import {
   Plus,
   Trash,
 } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
 import {
@@ -33,6 +33,7 @@ import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
+import { ClientChat } from '@/components/ClientChat';
 import { ClientFormDialog } from '@/components/ClientFormDialog';
 import { DocumentsTable } from '@/components/DocumentsTable';
 
@@ -59,6 +60,15 @@ export function ClientDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
   const designers = useDesigners(isAdmin);
+
+  // Only mounted where it has its own column, so a hidden chat never opens a thread.
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1536px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1536px)');
+    const onChange = () => setWide(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
 
   if (loading) return <LoadingState label="Loading client…" />;
   if (error) return <ErrorState message={error} onRetry={refetch} />;
@@ -117,6 +127,7 @@ export function ClientDetailPage() {
     }
   };
 
+  const chat = client.status === 'Active' && client.has_portal_access;
   const portalStatus =
     client.has_portal_access && !onEmailedPassword
       ? 'Signed up'
@@ -183,7 +194,7 @@ export function ClientDetailPage() {
 
       {/* From xl up the page is one screen: details left, sections right (each scrolls in its own box). Below that it stacks and the page scrolls. */}
       <div
-        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)]`}
+        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)] ${chat ? '2xl:grid-cols-[19rem_minmax(0,1fr)_24rem]' : ''}`}
       >
         <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
         <Card className="shrink-0">
@@ -394,7 +405,7 @@ export function ClientDetailPage() {
               <section aria-label="Invoices" className="flex min-h-0 flex-col">
                 <h2 className="label-eyebrow mb-2 shrink-0">Invoices ({invoices.length})</h2>
                 {invoices.length === 0 ? (
-                  <Card>
+                  <Card className="max-h-80 lg:max-h-none lg:min-h-0 lg:flex-1">
                     <p className="py-4 text-center text-ink-muted">
                       Nothing has been invoiced to this client.
                     </p>
@@ -495,6 +506,8 @@ export function ClientDetailPage() {
             </section>
           </div>
         </div>
+
+        {chat && wide ? <ClientChat clientId={client.id} clientName={client.name} className="lg:min-h-0" /> : null}
       </div>
 
       <NewProjectDialog
