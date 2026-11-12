@@ -1,28 +1,33 @@
 import clsx from 'clsx';
-import { Paperclip } from '@phosphor-icons/react';
+import { Paperclip, X } from '@phosphor-icons/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { Composer, MessageText } from '@/components/chat';
+import { Composer, MessageText, UploadButton } from '@/components/chat';
 import { Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { date, time } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
-import type { Conversation, Message } from '@/types/api';
+import type { Conversation, Message, MessageAttachment } from '@/types/api';
 
 /**
  * The client's thread, on the client page. Same endpoints and live events as
- * Messages; files and saved replies stay there (the link in the header).
- * Only mounted for a client who can read it (Active, with portal access).
+ * Messages; files are uploaded onto one of the client's shared projects, saved
+ * replies stay in Messages. Only mounted for a client who can read it (Active,
+ * with portal access).
  */
 export function ClientChat({
   clientId,
   clientName,
+  projects,
   className,
 }: {
   clientId: string;
   clientName: string;
+  /** The client's projects a file can go on (shared with the client). */
+  projects: Array<{ id: string; name: string }>;
   className?: string;
 }) {
+  const [attachments, setAttachments] = useState<MessageAttachment[]>([]);
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -93,17 +98,19 @@ export function ClientChat({
   }, [messages, loading]);
 
   const send = async () => {
-    if (!conversationId || sending || !draft.trim()) return;
+    if (!conversationId || sending || (!draft.trim() && attachments.length === 0)) return;
     setSending(true);
     try {
       const message = await api.post<Message>(`/conversations/${conversationId}/messages`, {
         body: draft.trim(),
+        ...(attachments.length ? { document_ids: attachments.map((a) => a.document_id) } : {}),
       });
       atBottom.current = true;
       setMessages((current) =>
         current.some((m) => m.id === message.id) ? current : [...current, message],
       );
       setDraft('');
+      setAttachments([]);
     } catch (caught) {
       setError(caught instanceof ApiError ? caught.message : 'Could not send that message.');
     } finally {
@@ -177,8 +184,40 @@ export function ClientChat({
           onChange={setDraft}
           onSend={() => void send()}
           sending={sending}
-          canSend={Boolean(draft.trim()) && Boolean(conversationId)}
+          canSend={(Boolean(draft.trim()) || attachments.length > 0) && Boolean(conversationId)}
           placeholder="Message"
+          above={
+            attachments.length ? (
+              <ul className="mb-2 flex flex-wrap gap-1.5">
+                {attachments.map((file) => (
+                  <li
+                    key={file.document_id}
+                    className="flex items-center gap-1.5 rounded-control bg-surface-muted py-1 pl-2 text-xs text-ink"
+                  >
+                    <Paperclip size={12} aria-hidden="true" />
+                    <span className="max-w-40 truncate">{file.name}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAttachments((c) => c.filter((a) => a.document_id !== file.document_id))
+                      }
+                      aria-label={`Remove ${file.name}`}
+                      className="flex h-6 w-7 items-center justify-center text-ink-muted hover:text-danger"
+                    >
+                      <X size={12} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null
+          }
+          tools={
+            <UploadButton
+              clientId={clientId}
+              projects={projects}
+              onUploaded={(file) => setAttachments((current) => [...current, file].slice(0, 10))}
+            />
+          }
         />
       </div>
     </Card>

@@ -18,9 +18,6 @@ import {
   PageHeader,
   Progress,
   StatusTag,
-  TableWrap,
-  Td,
-  Th,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -204,7 +201,7 @@ export function ClientDetailPage() {
             </div>
           ) : null}
           <p className="label-eyebrow">Contact</p>
-          <dl className="mt-3 flex flex-col gap-4">
+          <dl className="mt-3 flex flex-col gap-3.5 [&_dt]:text-[11px] [&_dt]:font-semibold [&_dt]:uppercase [&_dt]:tracking-wide [&_dt]:text-ink-muted [&_dd]:mt-0.5 [&_dd]:text-sm [&_dd]:font-medium [&_dd]:leading-snug [&_dd]:text-ink [&_dd]:[overflow-wrap:anywhere]">
             <div>
               <dt className="text-xs text-ink-muted">Phone</dt>
               <dd className="text-sm font-medium text-ink">
@@ -239,7 +236,11 @@ export function ClientDetailPage() {
 
           <div className="mt-4 border-t border-border pt-4">
             <p className="label-eyebrow">Portal</p>
-            <p className="mt-2 text-sm font-medium text-ink">{portalStatus}</p>
+            <p className="mt-2">
+              <StatusTag tone={client.has_portal_access && !onEmailedPassword ? 'success' : 'neutral'}>
+                {portalStatus}
+              </StatusTag>
+            </p>
             {isAdmin &&
             client.email &&
             client.status === 'Active' &&
@@ -262,7 +263,7 @@ export function ClientDetailPage() {
           </div>
 
           <div className="mt-4 border-t border-border pt-4">
-            <dl className="flex flex-col gap-3">
+            <dl className="flex flex-col gap-2.5 text-sm [&>div]:flex [&>div]:items-center [&>div]:justify-between [&>div]:gap-3 [&_dt]:text-ink-muted [&_dd]:text-right [&_dd]:font-medium [&_dd]:text-ink">
               <div>
                 <dt className="text-xs text-ink-muted">Looked after by</dt>
                 <dd className="font-medium">
@@ -276,7 +277,7 @@ export function ClientDetailPage() {
               {client.has_portal_access ? (
                 <div>
                   <dt className="text-xs text-ink-muted">Portal terms</dt>
-                  <dd className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <dd className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
                     <StatusTag tone={client.terms_accepted ? 'success' : 'warning'}>
                       {client.terms_accepted ? 'Accepted' : 'Not accepted yet'}
                     </StatusTag>
@@ -289,7 +290,7 @@ export function ClientDetailPage() {
             </dl>
             {isAdmin && client.has_portal_access ? (
               <Button
-                className="mt-3"
+                className="mt-3 w-full"
                 variant="secondary"
                 icon={<ArrowsClockwise size={16} aria-hidden="true" />}
                 loading={asking}
@@ -414,53 +415,33 @@ export function ClientDetailPage() {
                     </p>
                   </Card>
                 ) : (
-                  <TableWrap
-                    className="!min-w-0"
-                    wrapClassName="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none"
-                  >
-                    <thead>
-                      <tr>
-                        <Th>Number</Th>
-                        <Th>Status</Th>
-                        <Th className="max-sm:hidden">Due</Th>
-                        <Th className="text-right">Amount</Th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Card className="max-h-80 overflow-y-auto lg:min-h-0 lg:max-h-none lg:flex-1">
+                    <ul className="rows">
                       {invoices.map((invoice) => (
-                        <tr
-                          key={invoice.id}
-                          onClick={(event) => {
-                            if (!(event.target as HTMLElement).closest('a, button'))
-                              navigate(`/invoices?open=${invoice.id}`);
-                          }}
-                          className="cursor-pointer hover:bg-surface-muted/40"
-                        >
-                          <Td className="font-medium text-ink">
+                        <li key={invoice.id} className="py-3 first:pt-0 last:pb-0">
+                          <div className="flex items-baseline justify-between gap-3">
                             <Link
                               to={`/invoices?open=${invoice.id}`}
-                              className="underline-offset-2 hover:text-green-900 hover:underline"
+                              className="text-link min-w-0 truncate font-medium"
                             >
                               {invoice.number}
                             </Link>
-                          </Td>
-                          <Td>
+                            <span className="tabular shrink-0 font-semibold text-ink">
+                              {money(invoice.amount)}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
                             <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
                               {invoice.is_overdue && invoice.status !== 'Overdue'
                                 ? `${invoice.status} · overdue`
                                 : invoice.status}
                             </StatusTag>
-                          </Td>
-                          <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
-                            {date(invoice.due_date)}
-                          </Td>
-                          <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
-                            {money(invoice.amount)}
-                          </Td>
-                        </tr>
+                            <span>Due {date(invoice.due_date)}</span>
+                          </div>
+                        </li>
                       ))}
-                    </tbody>
-                  </TableWrap>
+                    </ul>
+                  </Card>
                 )}
               </section>
             ) : null}
@@ -510,7 +491,14 @@ export function ClientDetailPage() {
           </div>
         </div>
 
-        {chat && wide ? <ClientChat clientId={client.id} clientName={client.name} className="lg:min-h-0" /> : null}
+        {chat && wide ? (
+          <ClientChat
+            clientId={client.id}
+            clientName={client.name}
+            projects={projects.filter((p) => p.client_visible).map((p) => ({ id: p.id, name: p.name }))}
+            className="lg:min-h-0"
+          />
+        ) : null}
       </div>
 
       <NewProjectDialog
