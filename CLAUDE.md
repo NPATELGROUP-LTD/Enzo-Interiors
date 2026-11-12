@@ -262,7 +262,7 @@ consultations from `appointments`, projects by stage, 12-month charts),
 `/dashboard/designer` (Designer/Installer: only their projects and open work, no
 money, enquiries or consultations), `/dashboard/portal` (Client: own, shared
 projects, files on shared projects, non-Draft invoices, a consultation booked
-with their email). Editor 403 on all. A client sees a document only if it AND
+with their email). Editor 403 on all. The admin page (`pages/Dashboard.tsx`) greets by time of day with one line about today, has the role's "New …" shortcuts and a bento of cards that each open their filtered list: today's consultations and paid this month carry a this-month-vs-last figure and a 12-month mini line (hover or drag reads a month), then new enquiries, outstanding invoices, "awaiting client decision" (`projects.awaiting_decision` + `quotes.sent`, the Sent `project_quotes`) and the pipeline (each stage opens `/projects?view=list&stage=…`). No active-clients card. A client sees a document only if it AND
 its project are shared (`AccessService.documentScope`); invoices reach them
 whatever their project's visibility. A client changes their password at
 `PUT /account/password` (bumps `token_version`, returns a fresh session) and
