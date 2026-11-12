@@ -1012,12 +1012,12 @@ export function Tabs({
   // A macOS segmented control. The outer box scrolls if the segments outgrow a
   // phone screen, so the page itself never scrolls sideways.
   return (
-    <div className={clsx('mb-4 max-w-full overflow-x-auto', vertical && 'lg:mb-0')}>
+    <div className={clsx('mb-4 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', vertical && 'lg:mb-0')}>
       <div
         role="tablist"
         aria-orientation={vertical ? 'vertical' : undefined}
         className={clsx(
-          'inline-flex flex-wrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
+          'inline-flex flex-nowrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
           vertical && 'lg:flex lg:flex-col lg:gap-1 lg:rounded-card lg:bg-surface lg:p-2 lg:shadow-soft',
         )}
       >

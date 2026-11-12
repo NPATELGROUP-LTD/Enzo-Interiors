@@ -2,7 +2,6 @@ import {
   DndContext,
   DragOverlay,
   MouseSensor,
-  TouchSensor,
   useDraggable,
   useDroppable,
   useSensor,
@@ -11,8 +10,8 @@ import {
 } from '@dnd-kit/core';
 import { createPortal } from 'react-dom';
 import clsx from 'clsx';
-import { Eye, EyeSlash, Plus } from '@phosphor-icons/react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { DotsThree, MagnifyingGlass, Plus } from '@phosphor-icons/react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 
 import { PROJECT_VIEWS } from '@/components/layout/AdminLayout';
@@ -21,8 +20,8 @@ import {
   EmptyState,
   ErrorState,
   Input,
-  Listbox,
   Modal,
+  PageHeader,
   Progress,
   Select,
   StatusTag,
@@ -38,21 +37,23 @@ import { useSort } from '@/hooks/useSort';
 import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { dateTime, refNo } from '@/lib/format';
+import { dateTime, initials, refNo } from '@/lib/format';
 import { projectTone } from '@/lib/status';
 import type { Client, Project, ProjectStage, ServiceType } from '@/types/api';
 import { SERVICE_LABELS, SERVICE_TYPES } from '@/types/api';
 
 type View = (typeof PROJECT_VIEWS)[number]['id'];
 
-/** Who works on a project, as the card and the list show it. */
+/** The people on a project as the card and the list show them: the designer, then the installer. */
+function crewNames(project: Project): string[] {
+  return [project.assigned_designer_name, project.assigned_installer_name].filter(
+    (name, index, all): name is string => Boolean(name) && all.indexOf(name) === index,
+  );
+}
+
+/** Who works on a project, in words (the list). */
 function crew(project: Project): string {
-  const names = [
-    project.assigned_designer_name,
-    project.assigned_installer_name && project.assigned_installer_name !== project.assigned_designer_name
-      ? `${project.assigned_installer_name} (installer)`
-      : null,
-  ].filter(Boolean);
+  const names = crewNames(project);
   return names.length > 0 ? names.join(', ') : 'Unassigned';
 }
 
@@ -60,107 +61,209 @@ function crew(project: Project): string {
 /* Kanban card                                                                */
 /* -------------------------------------------------------------------------- */
 
+/** Overlapping initials; the names are the label for a screen reader and the hover. */
+function Crew({ project }: { project: Project }) {
+  const names = crewNames(project);
+  if (names.length === 0) return <span className="text-[11px] text-ink-muted">Unassigned</span>;
+  return (
+    <span role="img" aria-label={`Team: ${names.join(', ')}`} title={names.join(', ')} className="flex -space-x-1.5">
+      {names.map((name) => (
+        <span
+          key={name}
+          aria-hidden="true"
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-green-100 text-[10px] font-bold text-green-900 ring-2 ring-surface"
+        >
+          {initials(name)}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+/** Title, client, service tag, team initials and a thin progress line. */
+function CardBody({ project }: { project: Project }) {
+  return (
+    <>
+      <p className="pr-7 font-semibold leading-snug text-ink pointer-coarse:pr-10">
+        <Link to={`/projects/${project.id}`} className="hover:underline">
+          {project.name}
+        </Link>
+      </p>
+      <p className="mt-0.5 truncate text-xs text-ink-muted">{project.client_name}</p>
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <span className="rounded-full bg-ink/[0.06] px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+          {SERVICE_LABELS[project.type]}
+        </span>
+        <Crew project={project} />
+      </div>
+      <div
+        role="progressbar"
+        aria-valuenow={project.progress_pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${project.name} progress`}
+        className="mt-3 h-0.5 overflow-hidden rounded-full bg-ink/10"
+      >
+        <div className="h-full bg-green-900" style={{ width: `${project.progress_pct}%` }} />
+      </div>
+    </>
+  );
+}
+
+/**
+ * The card's ⋯ menu: open the project, or (Admin, Designer) "Move to…" a stage.
+ * That is how a phone moves a card, since nothing is dragged there. The list is
+ * drawn above the page, so the board's scroll box cannot clip it.
+ */
+function CardMenu({
+  project,
+  stages,
+  onMove,
+}: {
+  project: Project;
+  stages: ProjectStage[];
+  onMove?: (project: Project, stage: ProjectStage) => void;
+}) {
+  const navigate = useNavigate();
+  const [at, setAt] = useState<{ top: number; left: number } | null>(null);
+  const [moving, setMoving] = useState(false);
+
+  useEffect(() => {
+    if (!at) return;
+    const close = () => {
+      setAt(null);
+      setMoving(false);
+    };
+    const away = (event: PointerEvent) => {
+      if (!(event.target as Element).closest('[data-card-menu]')) close();
+    };
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && close();
+    document.addEventListener('pointerdown', away);
+    document.addEventListener('keydown', escape);
+    window.addEventListener('resize', close);
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('pointerdown', away);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [at]);
+
+  const item =
+    'flex min-h-11 w-full items-center rounded-[8px] px-3 text-left text-sm text-ink hover:bg-ink/[0.06] pointer-fine:min-h-8';
+
+  return (
+    <>
+      <button
+        type="button"
+        data-card-menu
+        aria-label={`Actions for ${project.name}`}
+        aria-haspopup="menu"
+        aria-expanded={at !== null}
+        // Not the start of a drag, and not a click on the card.
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          if (at) return setAt(null);
+          const box = event.currentTarget.getBoundingClientRect();
+          setAt({ top: box.bottom + 4, left: Math.max(8, Math.min(box.right - 208, window.innerWidth - 216)) });
+        }}
+        className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-control text-ink-muted hover:bg-ink/[0.07] hover:text-ink pointer-coarse:h-10 pointer-coarse:w-10"
+      >
+        <DotsThree size={20} weight="bold" aria-hidden="true" />
+      </button>
+      {at
+        ? createPortal(
+            <div
+              data-card-menu
+              role="menu"
+              style={{ top: at.top, left: at.left }}
+              onMouseDown={(event) => event.stopPropagation()}
+              className="fixed z-50 max-h-[70vh] w-52 overflow-y-auto rounded-card bg-surface p-1.5 shadow-overlay ring-1 ring-border"
+            >
+              {moving ? (
+                <>
+                  <p className="label-eyebrow px-3 pb-1 pt-1.5">Move to…</p>
+                  {stages.map((stage) => (
+                    <button
+                      key={stage}
+                      type="button"
+                      role="menuitem"
+                      disabled={stage === project.status}
+                      onClick={() => {
+                        setAt(null);
+                        setMoving(false);
+                        onMove?.(project, stage);
+                      }}
+                      className={clsx(item, 'disabled:font-semibold disabled:text-ink-muted disabled:hover:bg-transparent')}
+                    >
+                      {stage}
+                      {stage === project.status ? <span className="ml-auto text-xs font-normal">now</span> : null}
+                    </button>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <button type="button" role="menuitem" className={item} onClick={() => navigate(`/projects/${project.id}`)}>
+                    Open project
+                  </button>
+                  {onMove ? (
+                    <button type="button" role="menuitem" className={item} onClick={() => setMoving(true)}>
+                      Move to…
+                    </button>
+                  ) : null}
+                </>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
+    </>
+  );
+}
+
 function ProjectCard({
   project,
   stages,
   onMove,
-  onToggleVisible,
 }: {
   project: Project;
   stages: ProjectStage[];
   /** Admin and Designer; absent for an Installer, who asks on the project page. */
   onMove?: (project: Project, stage: ProjectStage) => void;
-  /** Admin only; absent for Designers. */
-  onToggleVisible?: (project: Project) => void;
 }) {
+  const navigate = useNavigate();
   // The card itself never moves: DragOverlay draws the moving copy above the
   // page, so the board's scroll box cannot clip it. This one stays as the slot.
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: project.id, disabled: !onMove });
+  const { listeners, setNodeRef, isDragging } = useDraggable({ id: project.id, disabled: !onMove });
+  const dragged = useRef(false);
+  useEffect(() => {
+    if (isDragging) dragged.current = true;
+  }, [isDragging]);
 
   return (
     <div
       ref={setNodeRef}
-      className={clsx('rounded-[12px] bg-surface p-3 shadow-soft', isDragging && 'opacity-40')}
+      {...listeners}
+      // A drag starts anywhere on the card (after 6px, so a click still opens it).
+      onMouseDown={(event) => {
+        dragged.current = false;
+        listeners?.onMouseDown?.(event);
+      }}
+      onClick={(event) => {
+        if (dragged.current) return void (dragged.current = false);
+        if (!(event.target as HTMLElement).closest('a, button')) navigate(`/projects/${project.id}`);
+      }}
+      className={clsx(
+        'relative rounded-[12px] bg-surface p-3 shadow-soft transition-shadow hover:shadow-md',
+        onMove ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer',
+        isDragging && 'opacity-40',
+      )}
     >
-      {/*
-        Only this handle starts a drag. Making the whole card draggable would
-        swallow clicks on the links and the Move-to select inside it.
-      */}
-      <div
-        {...listeners}
-        {...attributes}
-        role="button"
-        tabIndex={-1}
-        aria-label={`Drag ${project.name}`}
-        className={clsx(onMove && 'cursor-grab touch-manipulation active:cursor-grabbing')}
-      >
-        <CardTitle project={project} />
-      </div>
-
-      <div className="mt-3">
-        <Progress value={project.progress_pct} label={`${project.name} progress`} />
-      </div>
-
-      <p className="mt-2 text-xs text-ink-muted">{crew(project)}</p>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        {/*
-          The brief requires a "Move to…" control alongside drag-and-drop, so
-          the board is operable by keyboard and by anyone who cannot drag.
-        */}
-        {onMove ? (
-          <Listbox
-            value={project.status}
-            onChange={(event) => onMove(project, event.target.value as ProjectStage)}
-            aria-label={`Move ${project.name} to another stage`}
-            className="min-w-28 flex-1 text-xs max-sm:basis-full"
-          >
-            {stages.map((stage) => (
-              <option key={stage} value={stage}>
-                {stage === project.status ? stage : `Move to ${stage}`}
-              </option>
-            ))}
-          </Listbox>
-        ) : null}
-        {onToggleVisible ? (
-          <button
-            type="button"
-            onClick={() => onToggleVisible(project)}
-            aria-label={
-              project.client_visible
-                ? `Visible: hide ${project.name} from the client portal`
-                : `Hidden: show ${project.name} in the client portal`
-            }
-            className={clsx(
-              'flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-control bg-ink/[0.05] px-3 text-xs font-medium transition-colors hover:bg-ink/[0.09]',
-              project.client_visible ? 'text-success' : 'text-ink-muted',
-            )}
-          >
-            {project.client_visible ? (
-              <Eye size={14} aria-hidden="true" />
-            ) : (
-              <EyeSlash size={14} aria-hidden="true" />
-            )}
-            {project.client_visible ? 'Visible' : 'Hidden'}
-          </button>
-        ) : null}
-      </div>
-
-      <Link to={`/projects/${project.id}`} className="text-link mt-2 inline-block text-xs">
-        Open project
-      </Link>
+      <CardBody project={project} />
+      <CardMenu project={project} stages={stages} onMove={onMove} />
     </div>
-  );
-}
-
-function CardTitle({ project }: { project: Project }) {
-  return (
-    <>
-      <p className="font-semibold leading-snug text-ink">{project.name}</p>
-      <p className="mt-0.5 text-xs text-ink-muted">
-        {project.client_name} · {SERVICE_LABELS[project.type]}
-      </p>
-    </>
   );
 }
 
@@ -169,13 +272,11 @@ function Column({
   stages,
   projects,
   onMove,
-  onToggleVisible,
 }: {
   stage: ProjectStage;
   stages: ProjectStage[];
   projects: Project[];
   onMove?: (project: Project, stage: ProjectStage) => void;
-  onToggleVisible?: (project: Project) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
 
@@ -183,29 +284,19 @@ function Column({
     <div
       ref={setNodeRef}
       className={clsx(
-        'flex min-w-64 flex-1 flex-col rounded-card p-2 transition-colors',
+        'flex min-h-0 w-72 shrink-0 flex-col rounded-card p-2 transition-colors sm:w-auto sm:min-w-56 sm:flex-1',
         isOver ? 'bg-green-100' : 'bg-ink/[0.035]',
       )}
     >
-      <div className="mb-2 flex items-center justify-between px-1">
+      <div className="mb-2 flex shrink-0 items-center justify-between px-1">
         <h2 className="label-eyebrow">{stage}</h2>
         <span className="tabular text-xs font-semibold text-ink-muted">{projects.length}</span>
       </div>
-      <div className="flex flex-col gap-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {projects.length === 0 ? (
-          <p className="rounded-[12px] px-3 py-6 text-center text-xs text-ink-muted">
-            Nothing at this stage
-          </p>
+          <p className="rounded-[12px] px-3 py-6 text-center text-xs text-ink-muted">Nothing at this stage</p>
         ) : (
-          projects.map((project) => (
-            <ProjectCard
-              key={project.id}
-              project={project}
-              stages={stages}
-              onMove={onMove}
-              onToggleVisible={onToggleVisible}
-            />
-          ))
+          projects.map((project) => <ProjectCard key={project.id} project={project} stages={stages} onMove={onMove} />)
         )}
       </div>
     </div>
@@ -380,14 +471,16 @@ export function useDesigners(enabled: boolean): StaffOption[] {
   return useMemo(() => (staff.data ?? []).filter((member) => member.role === 'Designer' || member.role === 'Installer'), [staff.data]);
 }
 
+
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
 /**
- * The five-stage board. An Admin sees every project, creates them and sends
- * them to the client; a Designer sees the projects they design or install and
- * moves them between stages (the API enforces both).
+ * The board of stages, and the same projects as a list. An Admin sees every
+ * project, creates them and sends them to the client; a Designer sees the
+ * projects they design or install and moves them between stages (the API
+ * enforces both).
  */
 export function ProjectsPage() {
   const toast = useToast();
@@ -418,21 +511,33 @@ export function ProjectsPage() {
       { replace },
     );
   const openCreate = () => update({ new: '1' });
+  const [search, setSearch] = useState('');
 
-  // A mouse must travel 6px before a drag begins, so a click on the card's
-  // links and selects is not misread as the start of a drag. On touch a drag
-  // needs a short press, so a swipe still scrolls the board.
-  const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 6 } }),
-  );
+  // A mouse must travel 6px before a drag begins, so a click on a card still
+  // opens it. Touch has no drag: a card's menu has "Move to…" for phones.
+  const sensors = useSensors(useSensor(MouseSensor, { activationConstraint: { distance: 6 } }));
   const [dragging, setDragging] = useState<Project | null>(null);
 
-  const byStage = useMemo(() => {
+  // ?stage=Design,Approval narrows the projects (the dashboard's pipeline links here).
+  const stageFilter = (params.get('stage') ?? '').split(',').filter((name) => stages.includes(name));
+  const all = projects.data ?? [];
+  const rows = (() => {
+    const term = search.trim().toLowerCase();
+    return (projects.data ?? []).filter((project) => {
+      if (stageFilter.length && !stageFilter.includes(project.status)) return false;
+      if (!term) return true;
+      return [project.name, project.client_name ?? '', refNo('PRJ', project.ref_no), SERVICE_LABELS[project.type], crew(project)]
+        .join(' ')
+        .toLowerCase()
+        .includes(term);
+    });
+  })();
+
+  const byStage = (() => {
     const grouped: Record<ProjectStage, Project[]> = Object.fromEntries(stages.map((stage) => [stage, []]));
-    for (const project of projects.data ?? []) grouped[project.status]?.push(project);
+    for (const project of rows) grouped[project.status]?.push(project);
     return grouped;
-  }, [projects.data, stages]);
+  })();
 
   const moveProject = async (project: Project, stage: ProjectStage) => {
     if (project.status === stage) return;
@@ -453,27 +558,6 @@ export function ProjectsPage() {
     }
   };
 
-  const toggleVisible = async (project: Project) => {
-    const next = !project.client_visible;
-    const previous = projects.data ?? [];
-    projects.setData(
-      previous.map((entry) =>
-        entry.id === project.id ? { ...entry, client_visible: next } : entry,
-      ),
-    );
-    try {
-      await api.put<Project>(`/projects/${project.id}`, { client_visible: next });
-      toast.success(
-        next
-          ? `${project.name} is now visible in the client portal.`
-          : `${project.name} is hidden from the client portal.`,
-      );
-    } catch (caught) {
-      projects.setData(previous);
-      toast.error(caught instanceof ApiError ? caught.message : 'Could not change visibility.');
-    }
-  };
-
   const onDragEnd = (event: DragEndEvent) => {
     setDragging(null);
     const stage = event.over?.id as ProjectStage | undefined;
@@ -482,10 +566,6 @@ export function ProjectsPage() {
     if (project) void moveProject(project, stage);
   };
 
-  // ?stage=Design,Approval narrows the list (the dashboard's pipeline links here).
-  const stageFilter = (params.get('stage') ?? '').split(',').filter((name) => stages.includes(name));
-  const all = projects.data ?? [];
-  const rows = stageFilter.length ? all.filter((project) => stageFilter.includes(project.status)) : all;
   const { rows: sortedRows, header } = useSort(rows, {
     name: (project) => project.name,
     client: (project) => project.client_name,
@@ -494,22 +574,58 @@ export function ProjectsPage() {
     updated: (project) => project.updated_at,
   });
 
+  const tall = 'pointer-coarse:min-h-12';
+
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          tabs={PROJECT_VIEWS.map(({ id, label }) => ({ id, label }))}
-          active={view}
-          onChange={(id) => update({ view: id })}
-        />
-        {isAdmin ? (
-          <div className="mb-4">
-            <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={openCreate}>
-              New project
-            </Button>
+    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+      {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
+      <PageHeader title="" />
+
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
+        <div className="[&>div]:mb-0">
+          <Tabs
+            tabs={PROJECT_VIEWS.map(({ id, label }) => ({ id, label }))}
+            active={view}
+            onChange={(id) => update({ view: id })}
+          />
+        </div>
+        <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-0">
+          <div className="relative mx-auto w-full sm:max-w-sm">
+            <MagnifyingGlass
+              size={16}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search projects"
+              aria-label="Search projects"
+              className={`min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900 pointer-fine:min-h-9 ${tall}`}
+            />
           </div>
+        </div>
+        {isAdmin ? (
+          <Button
+            variant="primary"
+            className={clsx(tall, 'max-sm:w-full')}
+            icon={<Plus size={16} aria-hidden="true" />}
+            onClick={openCreate}
+          >
+            New project
+          </Button>
         ) : null}
       </div>
+
+      {stageFilter.length ? (
+        <p className="mb-3 shrink-0 text-sm text-ink-muted">
+          Showing {stageFilter.join(' and ')} ({rows.length}).{' '}
+          <button type="button" className="text-link" onClick={() => update({ stage: null })}>
+            Show all
+          </button>
+        </p>
+      ) : null}
 
       {projects.error ? (
         <ErrorState message={projects.error} onRetry={projects.refetch} />
@@ -531,6 +647,22 @@ export function ProjectsPage() {
             ) : null
           }
         />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          title="No matching projects"
+          message="Try a different search."
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setSearch('');
+                update({ stage: null });
+              }}
+            >
+              Show all projects
+            </Button>
+          }
+        />
       ) : view === 'board' ? (
         <DndContext
           sensors={sensors}
@@ -538,9 +670,9 @@ export function ProjectsPage() {
           onDragEnd={onDragEnd}
           onDragCancel={() => setDragging(null)}
         >
-          {/* The board scrolls horizontally inside its own container so the
-              page body never scrolls sideways on narrow screens. */}
-          <div className="flex gap-3 overflow-x-auto pb-2">
+          {/* The board scrolls sideways inside its own box, and each column scrolls on its own,
+              so the page body never moves on narrow screens. */}
+          <div className="flex min-h-0 flex-1 gap-3 overflow-x-auto pb-1">
             {stages.map((stage) => (
               <Column
                 key={stage}
@@ -548,15 +680,14 @@ export function ProjectsPage() {
                 stages={stages}
                 projects={byStage[stage] ?? []}
                 onMove={can('Admin', 'Designer') ? moveProject : undefined}
-                onToggleVisible={isAdmin ? toggleVisible : undefined}
               />
             ))}
           </div>
           {createPortal(
             <DragOverlay>
               {dragging ? (
-                <div className="cursor-grabbing rounded-[12px] bg-surface p-3 shadow-overlay">
-                  <CardTitle project={dragging} />
+                <div className="relative w-60 cursor-grabbing rounded-[12px] bg-surface p-3 shadow-overlay">
+                  <CardBody project={dragging} />
                 </div>
               ) : null}
             </DragOverlay>,
@@ -564,16 +695,7 @@ export function ProjectsPage() {
           )}
         </DndContext>
       ) : (
-        <>
-        {stageFilter.length ? (
-          <p className="mb-3 text-sm text-ink-muted">
-            Showing {stageFilter.join(' and ')} ({rows.length}).{' '}
-            <button type="button" className="text-link" onClick={() => update({ stage: null })}>
-              Show all
-            </button>
-          </p>
-        ) : null}
-        <TableWrap className="max-sm:min-w-0">
+        <TableWrap className="max-sm:min-w-0" wrapClassName="min-h-0 overflow-y-auto">
           <thead>
             <tr>
               <Th sort={header('name')}>Project</Th>
@@ -623,7 +745,6 @@ export function ProjectsPage() {
             ))}
           </tbody>
         </TableWrap>
-        </>
       )}
 
       <NewProjectDialog
