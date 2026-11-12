@@ -180,6 +180,10 @@
 .inv-table tr {
   break-inside: avoid;
 }
+/* A section heading never ends a page on its own. */
+.inv-section {
+  break-after: avoid;
+}
 .inv-section th {
   padding-top: 1.6mm;
   background: var(--inv-wash);
@@ -197,6 +201,7 @@
 }
 
 .inv-totals {
+  break-inside: avoid;
   width: 82mm;
   margin: 3mm 0 0 auto;
   border-collapse: collapse;
@@ -289,6 +294,57 @@
   font-size: 8pt;
 }
 
+/* Screen only: the item rows as fields, so the lines are edited on the sheet itself. */
+.inv-edit input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.6mm 1mm;
+  border: 0.25mm dashed #b9c0b4;
+  border-radius: 0.8mm;
+  background: #fbfcf9;
+  color: inherit;
+  font: inherit;
+}
+.inv-edit input:focus {
+  outline: 0.5mm solid var(--inv-forest);
+  outline-offset: 0;
+  background: #fff;
+}
+.inv-edit .inv-section input {
+  font-weight: 650;
+}
+.inv-edit-cell {
+  display: flex;
+  align-items: center;
+  gap: 1mm;
+}
+.inv-edit-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  min-width: 6mm;
+  height: 6mm;
+  padding: 0 1.5mm;
+  border: 0;
+  border-radius: 1mm;
+  background: transparent;
+  color: var(--inv-muted);
+  font: inherit;
+  cursor: pointer;
+}
+.inv-edit-btn:hover:not(:disabled) {
+  color: var(--inv-forest);
+  background: var(--inv-wash);
+}
+.inv-edit-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.inv-edit-add td {
+  border-bottom: 0;
+}
+
 /* Screen: a scaled sheet on the desk. */
 .inv-frame {
   width: 100%;
@@ -300,14 +356,30 @@
   width: 210mm;
   margin: 0 auto;
 }
+/* Editing on a narrow screen: the sheet keeps its size and scrolls sideways. */
+.inv-frame[data-editing] {
+  overflow-x: auto;
+}
 
 /* Print: only the sheets, one per page. */
 .inv-print {
   display: none;
 }
+/* Top and bottom margins on every page; the sheet's own 15mm sides, the band still bleeds to the edge. */
 @page invoice {
   size: A4;
-  margin: 0;
+  margin: 12mm 0 14mm;
+}
+/* One invoice printed: "Page 1 of 2". Several in one go would count across all of them, so no number. */
+@page invoice-one {
+  size: A4;
+  margin: 12mm 0 14mm;
+  @bottom-right {
+    content: 'Page ' counter(page) ' of ' counter(pages);
+    margin-right: 15mm;
+    color: #687066;
+    font: 8pt -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+  }
 }
 @media print {
   body:has(> .inv-print) > :not(.inv-print) {
@@ -322,10 +394,15 @@
   }
   .inv-print .inv-sheet {
     page: invoice;
-    /* A hair under the page, so rounding never pushes the footer onto a blank second page. */
-    min-height: 296mm;
+    /* The page area (297mm less both margins), a hair under so rounding never adds a blank page. */
+    min-height: 270mm;
+    padding-top: 0;
+    padding-bottom: 0;
     box-shadow: none;
     break-after: page;
+  }
+  .inv-print.inv-one .inv-sheet {
+    page: invoice-one;
   }
   .inv-print .inv-sheet:last-child {
     break-after: auto;
