@@ -141,6 +141,7 @@ export function ClientDetailPage() {
             {/* A client who cannot sign in to the portal would never see a message. */}
             <Button
               variant="secondary"
+              className="max-sm:w-11 max-sm:gap-0 max-sm:px-0"
               icon={<ChatsCircle size={16} aria-hidden="true" />}
               disabled={client.status !== 'Active' || !client.has_portal_access}
               title={
@@ -152,35 +153,40 @@ export function ClientDetailPage() {
               }
               onClick={() => navigate(`/messages?client=${encodeURIComponent(client.id)}`)}
             >
-              {client.status === 'Active' && !client.has_portal_access
-                ? 'Message (invite first)'
-                : 'Message'}
+              <span className="max-sm:sr-only">
+                {client.status === 'Active' && !client.has_portal_access
+                  ? 'Message (invite first)'
+                  : 'Message'}
+              </span>
             </Button>
             {isAdmin ? (
               <Button
                 variant="secondary"
+                className="max-sm:w-11 max-sm:gap-0 max-sm:px-0"
                 icon={<Plus size={16} aria-hidden="true" />}
                 onClick={() => setCreatingProject(true)}
               >
-                New project
+                <span className="max-sm:sr-only">New project</span>
               </Button>
             ) : null}
             {canEdit ? (
               <Button
                 variant="secondary"
+                className="max-sm:w-11 max-sm:gap-0 max-sm:px-0"
                 icon={<PencilSimple size={16} aria-hidden="true" />}
                 onClick={() => setEditing(true)}
               >
-                Edit
+                <span className="max-sm:sr-only">Edit</span>
               </Button>
             ) : null}
             {isAdmin ? (
               <Button
                 variant="destructive"
+                className="max-sm:w-11 max-sm:gap-0 max-sm:px-0"
                 icon={<Trash size={16} aria-hidden="true" />}
                 onClick={() => setDeleting(true)}
               >
-                Delete
+                <span className="max-sm:sr-only">Delete</span>
               </Button>
             ) : null}
           </>
@@ -191,7 +197,7 @@ export function ClientDetailPage() {
 
       {/* From xl up the page is one screen: details left, sections right (each scrolls in its own box). Below that it stacks and the page scrolls. */}
       <div
-        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)] ${chat ? '2xl:grid-cols-[19rem_minmax(0,1fr)_24rem]' : ''}`}
+        className={`mx-auto mt-3 grid w-full grid-cols-1 max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)] ${chat ? '2xl:grid-cols-[19rem_minmax(0,1fr)_24rem]' : ''}`}
       >
         <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
         <Card className="shrink-0">
@@ -362,10 +368,10 @@ export function ClientDetailPage() {
             </dl>
           </Card>
 
-          <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:auto-rows-[minmax(0,1fr)] lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 lg:min-h-0 lg:flex-1 lg:auto-rows-[minmax(0,1fr)] lg:grid-cols-2">
             <section
               aria-label="Projects"
-              className={`flex min-h-0 flex-col ${isAdmin ? '' : 'lg:col-span-2'}`}
+              className={`flex min-h-0 min-w-0 flex-col ${isAdmin ? '' : 'lg:col-span-2'}`}
             >
               <h2 className="label-eyebrow mb-2 shrink-0">Projects ({projects.length})</h2>
               <Card className="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none">
@@ -419,7 +425,7 @@ export function ClientDetailPage() {
             </section>
 
             {isAdmin ? (
-              <section aria-label="Invoices" className="flex min-h-0 flex-col">
+              <section aria-label="Invoices" className="flex min-h-0 min-w-0 flex-col">
                 <h2 className="label-eyebrow mb-2 shrink-0">Invoices ({invoices.length})</h2>
                 {invoices.length === 0 ? (
                   <Card className="max-h-80 lg:max-h-none lg:min-h-0 lg:flex-1">
@@ -459,7 +465,7 @@ export function ClientDetailPage() {
               </section>
             ) : null}
 
-            <section aria-label="Documents" className="flex min-h-0 flex-col">
+            <section aria-label="Documents" className="flex min-h-0 min-w-0 flex-col">
               <h2 className="label-eyebrow mb-2 shrink-0">Documents ({documents.length})</h2>
               <DocumentsTable
                 list
@@ -470,7 +476,7 @@ export function ClientDetailPage() {
               />
             </section>
 
-            <section aria-label="Activity log" className="flex min-h-0 flex-col">
+            <section aria-label="Activity log" className="flex min-h-0 min-w-0 flex-col">
               <h2 className="label-eyebrow mb-2 shrink-0">Activity log ({activity.length})</h2>
               <Card className="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none">
                 {activity.length === 0 ? (
