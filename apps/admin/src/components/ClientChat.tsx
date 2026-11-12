@@ -1,8 +1,9 @@
 import clsx from 'clsx';
-import { Paperclip, X } from '@phosphor-icons/react';
+import { Files, Paperclip, X } from '@phosphor-icons/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
-import { Composer, MessageText, UploadButton } from '@/components/chat';
+import { Composer, MessageText, TOOL, UploadButton } from '@/components/chat';
+import { AttachPicker, Attachments } from '@/pages/Messages';
 import { Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
 import { ApiError, api } from '@/lib/api';
 import { date, time } from '@/lib/format';
@@ -34,6 +35,7 @@ export function ClientChat({
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [picking, setPicking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const atBottom = useRef(true);
 
@@ -159,15 +161,7 @@ export function ClientChat({
                       )}
                     >
                       {message.body ? <MessageText text={message.body} /> : null}
-                      {message.attachments?.map((file) => (
-                        <p
-                          key={file.document_id}
-                          className="mt-1 flex items-center gap-1 text-xs text-ink-muted"
-                        >
-                          <Paperclip size={12} aria-hidden="true" />
-                          <span className="truncate">{file.name}</span>
-                        </p>
-                      ))}
+                      <Attachments items={message.attachments} />
                       <p className="mt-1 text-[11px] text-ink-muted">{time(message.created_at)}</p>
                     </div>
                   </div>
@@ -212,13 +206,37 @@ export function ClientChat({
             ) : null
           }
           tools={
-            <UploadButton
-              clientId={clientId}
-              projects={projects}
-              onUploaded={(file) => setAttachments((current) => [...current, file].slice(0, 10))}
-            />
+            <>
+              <UploadButton
+                clientId={clientId}
+                projects={projects}
+                onUploaded={(file) => setAttachments((current) => [...current, file].slice(0, 10))}
+              />
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                disabled={!conversationId}
+                aria-label="Attach a shared file"
+                title="Attach a file shared with this client"
+                className={TOOL}
+              >
+                <Files size={20} aria-hidden="true" />
+              </button>
+            </>
           }
         />
+        {picking && conversationId ? (
+          <AttachPicker
+            conversationId={conversationId}
+            clientName={clientName}
+            chosen={attachments}
+            onClose={() => setPicking(false)}
+            onChoose={(next) => {
+              setAttachments(next);
+              setPicking(false);
+            }}
+          />
+        ) : null}
       </div>
     </Card>
   );

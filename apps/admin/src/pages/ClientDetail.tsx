@@ -229,18 +229,44 @@ export function ClientDetailPage() {
             <div>
               <dt className="text-xs text-ink-muted">Address</dt>
               <dd className="text-sm font-medium leading-snug text-ink [overflow-wrap:anywhere]">
-                {client.address ?? '—'}
+                {client.address
+                  ? client.address
+                      .split(',')
+                      .map((part) => part.trim())
+                      .filter(Boolean)
+                      .map((part, i) => (
+                        <span key={i} className="block">
+                          {part}
+                        </span>
+                      ))
+                  : '—'}
               </dd>
             </div>
           </dl>
 
           <div className="mt-4 border-t border-border pt-4">
             <p className="label-eyebrow">Portal</p>
-            <p className="mt-2">
-              <StatusTag tone={client.has_portal_access && !onEmailedPassword ? 'success' : 'neutral'}>
-                {portalStatus}
-              </StatusTag>
-            </p>
+            <dl className="mt-3 flex flex-col gap-2.5 text-sm [&>div]:flex [&>div]:items-start [&>div]:justify-between [&>div]:gap-3 [&_dt]:shrink-0 [&_dt]:text-xs [&_dt]:text-ink-muted [&_dd]:text-right [&_dd]:font-medium">
+              <div>
+                <dt>Status</dt>
+                <dd className={client.has_portal_access && !onEmailedPassword ? 'text-success' : 'text-ink'}>
+                  {portalStatus}
+                </dd>
+              </div>
+              {client.has_portal_access ? (
+                <div>
+                  <dt>Terms</dt>
+                  <dd className={client.terms_accepted ? 'text-success' : 'text-warning'}>
+                    {client.terms_accepted ? 'Accepted' : 'Not accepted yet'}
+                    {client.terms_accepted && client.terms_accepted_at ? (
+                      <span className="block text-xs font-normal text-ink-muted">
+                        {dateTime(client.terms_accepted_at)}
+                      </span>
+                    ) : null}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
             {isAdmin &&
             client.email &&
             client.status === 'Active' &&
@@ -260,6 +286,18 @@ export function ClientDetailPage() {
                 {invited ? 'Resend invite' : 'Invite to portal'}
               </Button>
             ) : null}
+            {isAdmin && client.has_portal_access ? (
+              <Button
+                className="mt-3 w-full"
+                variant="secondary"
+                icon={<ArrowsClockwise size={16} aria-hidden="true" />}
+                loading={asking}
+                onClick={askTerms}
+                title="Shows them the terms window again on their next open, for example after testing"
+              >
+                {client.terms_accepted ? 'Ask to accept terms again' : 'Ask to accept terms'}
+              </Button>
+            ) : null}
           </div>
 
           <div className="mt-4 border-t border-border pt-4">
@@ -274,32 +312,7 @@ export function ClientDetailPage() {
                 <dt className="text-xs text-ink-muted">Client since</dt>
                 <dd className="font-medium">{date(client.joined_date)}</dd>
               </div>
-              {client.has_portal_access ? (
-                <div>
-                  <dt className="text-xs text-ink-muted">Portal terms</dt>
-                  <dd className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
-                    <StatusTag tone={client.terms_accepted ? 'success' : 'warning'}>
-                      {client.terms_accepted ? 'Accepted' : 'Not accepted yet'}
-                    </StatusTag>
-                    {client.terms_accepted && client.terms_accepted_at ? (
-                      <span className="text-xs text-ink-muted">{dateTime(client.terms_accepted_at)}</span>
-                    ) : null}
-                  </dd>
-                </div>
-              ) : null}
             </dl>
-            {isAdmin && client.has_portal_access ? (
-              <Button
-                className="mt-3 w-full"
-                variant="secondary"
-                icon={<ArrowsClockwise size={16} aria-hidden="true" />}
-                loading={asking}
-                onClick={askTerms}
-                title="Shows them the terms window again on their next open, for example after testing"
-              >
-                {client.terms_accepted ? 'Ask to accept terms again' : 'Ask to accept terms'}
-              </Button>
-            ) : null}
           </div>
         </Card>
 
@@ -419,24 +432,24 @@ export function ClientDetailPage() {
                     <ul className="rows">
                       {invoices.map((invoice) => (
                         <li key={invoice.id} className="py-3 first:pt-0 last:pb-0">
-                          <div className="flex items-baseline justify-between gap-3">
-                            <Link
-                              to={`/invoices?open=${invoice.id}`}
-                              className="text-link min-w-0 truncate font-medium"
-                            >
-                              {invoice.number}
-                            </Link>
-                            <span className="tabular shrink-0 font-semibold text-ink">
-                              {money(invoice.amount)}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-                            <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-                              {invoice.is_overdue && invoice.status !== 'Overdue'
-                                ? `${invoice.status} · overdue`
-                                : invoice.status}
-                            </StatusTag>
-                            <span>Due {date(invoice.due_date)}</span>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <Link
+                                to={`/invoices?open=${invoice.id}`}
+                                className="block truncate font-medium text-green-900 no-underline hover:underline"
+                              >
+                                {invoice.number}
+                              </Link>
+                              <p className="mt-0.5 text-xs text-ink-muted">Due {date(invoice.due_date)}</p>
+                            </div>
+                            <div className="flex shrink-0 flex-col items-end gap-1">
+                              <span className="tabular font-semibold text-ink">{money(invoice.amount)}</span>
+                              <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                                {invoice.is_overdue && invoice.status !== 'Overdue'
+                                  ? `${invoice.status} · overdue`
+                                  : invoice.status}
+                              </StatusTag>
+                            </div>
                           </div>
                         </li>
                       ))}
