@@ -109,11 +109,12 @@ export function ClientsPage() {
   const tall = 'pointer-coarse:min-h-12';
 
   return (
-    <div className="px-5 pb-16 pt-2 sm:px-8">
+    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
       {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
       <PageHeader title="" />
 
-      <div className="mb-4 flex flex-wrap items-center gap-3">
+      {/* Stays on top; only the table below scrolls (inside its own rounded box). */}
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
         <div className="[&>div]:mb-0">
           <Tabs
             tabs={CLIENT_VIEWS.map(({ id, label }) => ({
@@ -194,7 +195,7 @@ export function ClientsPage() {
           }
         />
       ) : (
-        <TableWrap className="max-md:min-w-0">
+        <TableWrap className="max-md:min-w-0" wrapClassName="min-h-0 overflow-y-auto">
           <thead>
             <tr>
               <Th sort={header('name')}>Name</Th>

@@ -44,10 +44,12 @@ export function DocumentsTable({
   documents,
   onChanged,
   emptyMessage,
+  wrapClassName,
 }: {
   documents: Row[];
   onChanged: () => Promise<unknown> | void;
   emptyMessage: string;
+  wrapClassName?: string;
 }) {
   const toast = useToast();
   const { isAdmin } = useAuth();
@@ -120,7 +122,7 @@ export function DocumentsTable({
             </Select>
           </div>
         ) : null}
-        <TableWrap>
+        <TableWrap wrapClassName={wrapClassName}>
           <thead>
             <tr>
               <Th sort={header('name')}>Name</Th>

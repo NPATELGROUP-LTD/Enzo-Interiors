@@ -938,9 +938,18 @@ export function Crumbs({ items, className }: { items: Crumb[]; className?: strin
  * Wide tables scroll inside their own box so the page body never scrolls
  * sideways, which is what keeps the 375px breakpoint usable.
  */
-export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
+export function TableWrap({
+  children,
+  className,
+  wrapClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** For a table that scrolls inside its own box (the box keeps its rounded corners). */
+  wrapClassName?: string;
+}) {
   return (
-    <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
+    <div className={clsx('overflow-x-auto rounded-card bg-surface p-2 shadow-soft', wrapClassName)}>
       <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
         {children}
       </table>

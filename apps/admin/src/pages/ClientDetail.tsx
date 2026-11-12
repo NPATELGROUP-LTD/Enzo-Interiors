@@ -1,6 +1,5 @@
 import {
   ArrowsClockwise,
-  CaretDown,
   ChatsCircle,
   EnvelopeSimple,
   PencilSimple,
@@ -14,7 +13,6 @@ import {
   Button,
   Card,
   ConfirmDialog,
-  EmptyState,
   ErrorState,
   LoadingState,
   PageHeader,
@@ -131,7 +129,7 @@ export function ClientDetailPage() {
         : 'Not invited';
 
   return (
-    <div className="px-5 pb-16 pt-2 sm:px-8">
+    <div className="flex flex-col px-5 pb-5 pt-3 sm:px-8 xl:h-full">
       <PageHeader
         title={client.name}
         actions={
@@ -187,11 +185,12 @@ export function ClientDetailPage() {
 
       <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
-      {/* The left bar and the chat stay put while the middle scrolls (the shell's <main> is the scroller). */}
+      {/* From xl up the page is one screen: details left, sections in the middle (each scrolls in its own box), chat right. Below that it stacks and the page scrolls. */}
       <div
-        className={`mt-3 grid items-start gap-5 lg:grid-cols-[20rem_minmax(0,1fr)] ${chat ? 'xl:grid-cols-[20rem_minmax(0,1fr)_24rem]' : ''}`}
+        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 xl:min-h-0 xl:flex-1 xl:grid-rows-1 ${chat ? 'xl:grid-cols-[19rem_minmax(0,1fr)_23rem]' : 'xl:grid-cols-[19rem_minmax(0,1fr)]'}`}
       >
-        <Card className="lg:sticky lg:top-2 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto">
+        <div className="flex min-w-0 flex-col gap-5 xl:min-h-0">
+        <Card className="shrink-0">
           {client.status === 'Inactive' ? (
             <div className="mb-3">
               <StatusTag tone="neutral">Inactive</StatusTag>
@@ -255,16 +254,8 @@ export function ClientDetailPage() {
             ) : null}
           </div>
 
-          <details className="group mt-4 border-t border-border pt-4">
-            <summary className="label-eyebrow flex min-h-6 cursor-pointer list-none items-center justify-between">
-              More
-              <CaretDown
-                size={14}
-                aria-hidden="true"
-                className="transition-transform group-open:rotate-180"
-              />
-            </summary>
-            <dl className="mt-3 flex flex-col gap-3">
+          <div className="mt-4 border-t border-border pt-4">
+            <dl className="flex flex-col gap-3">
               <div>
                 <dt className="text-xs text-ink-muted">Looked after by</dt>
                 <dd className="font-medium">
@@ -298,12 +289,24 @@ export function ClientDetailPage() {
                 Ask to accept terms again
               </Button>
             ) : null}
-          </details>
+          </div>
         </Card>
 
-        <div className="flex min-w-0 flex-col gap-5">
+        <Card className="min-h-40 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+          <p className="label-eyebrow">Internal notes</p>
+          {client.notes ? (
+            <p className="mt-3 whitespace-pre-wrap leading-relaxed text-ink">{client.notes}</p>
+          ) : (
+            <p className="py-4 text-center text-ink-muted">
+              No notes yet.{canEdit ? ' Add some with Edit.' : ''}
+            </p>
+          )}
+        </Card>
+        </div>
+
+        <div className="flex min-w-0 flex-col gap-5 xl:min-h-0">
           {/* One slim strip. Money is the Admin's: a Designer sees the project count only. */}
-          <Card className="!p-0">
+          <Card className="!p-0 shrink-0">
             <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] divide-border max-sm:divide-y sm:divide-x">
               {isAdmin ? (
                 <>
@@ -335,183 +338,172 @@ export function ClientDetailPage() {
             </dl>
           </Card>
 
-          <section aria-label="Projects">
-            <h2 className="label-eyebrow mb-2">Projects ({projects.length})</h2>
-            {projects.length === 0 ? (
-              <Card className="p-0">
-                <EmptyState
-                  title="No projects"
-                  message="This client has no projects yet."
-                  action={
-                    isAdmin ? (
+          <div className="grid gap-5 xl:min-h-0 xl:flex-1 xl:auto-rows-[minmax(0,1fr)] 2xl:grid-cols-2">
+            <section
+              aria-label="Projects"
+              className={`flex min-h-0 flex-col ${isAdmin ? '' : '2xl:col-span-2'}`}
+            >
+              <h2 className="label-eyebrow mb-2 shrink-0">Projects ({projects.length})</h2>
+              <Card className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+                {projects.length === 0 ? (
+                  <div className="flex flex-col items-center gap-3 py-4 text-center">
+                    <p className="text-ink-muted">This client has no projects yet.</p>
+                    {isAdmin ? (
                       <Button variant="primary" onClick={() => setCreatingProject(true)}>
                         New project
                       </Button>
-                    ) : null
-                  }
-                />
-              </Card>
-            ) : (
-              <div className="grid gap-3">
-                {projects.map((project) => (
-                  <Card key={project.id}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <Link
-                          to={`/projects/${project.id}`}
-                          className="text-link block truncate font-medium"
-                        >
-                          {project.name}
-                        </Link>
-                        <p className="mt-0.5 text-xs text-ink-muted">
-                          {SERVICE_LABELS[project.type]}
-                          {project.assigned_designer_name
-                            ? ` · ${project.assigned_designer_name}`
-                            : ''}
-                        </p>
-                      </div>
-                      <StatusTag tone={projectTone(project.status, stages)}>
-                        {project.status}
-                      </StatusTag>
-                    </div>
-                    <div className="mt-3">
-                      <Progress value={project.progress_pct} label={`${project.name} progress`} />
-                    </div>
-                    {project.current_stage ? (
-                      <p className="mt-2 text-xs text-ink-muted">{project.current_stage}</p>
                     ) : null}
-                    {!project.client_visible ? (
-                      <p className="mt-2 text-xs text-warning">Hidden from the client portal</p>
-                    ) : null}
-                  </Card>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {isAdmin ? (
-            <section aria-label="Invoices">
-              <h2 className="label-eyebrow mb-2">Invoices ({invoices.length})</h2>
-              {invoices.length === 0 ? (
-                <Card className="p-0">
-                  <EmptyState
-                    title="No invoices"
-                    message="Nothing has been invoiced to this client."
-                  />
-                </Card>
-              ) : (
-                <TableWrap className="max-sm:min-w-0">
-                  <thead>
-                    <tr>
-                      <Th>Number</Th>
-                      <Th>Status</Th>
-                      <Th className="max-sm:hidden">Due</Th>
-                      <Th className="text-right">Amount</Th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invoices.map((invoice) => (
-                      <tr
-                        key={invoice.id}
-                        onClick={(event) => {
-                          if (!(event.target as HTMLElement).closest('a, button'))
-                            navigate(`/invoices?open=${invoice.id}`);
-                        }}
-                        className="cursor-pointer hover:bg-surface-muted/40"
-                      >
-                        <Td className="font-medium text-ink">
-                          <Link
-                            to={`/invoices?open=${invoice.id}`}
-                            className="underline-offset-2 hover:text-green-900 hover:underline"
-                          >
-                            {invoice.number}
-                          </Link>
-                        </Td>
-                        <Td>
-                          <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-                            {invoice.is_overdue && invoice.status !== 'Overdue'
-                              ? `${invoice.status} · overdue`
-                              : invoice.status}
+                  </div>
+                ) : (
+                  <ul className="rows">
+                    {projects.map((project) => (
+                      <li key={project.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <Link
+                              to={`/projects/${project.id}`}
+                              className="text-link block truncate font-medium"
+                            >
+                              {project.name}
+                            </Link>
+                            <p className="mt-0.5 text-xs text-ink-muted">
+                              {SERVICE_LABELS[project.type]}
+                              {project.assigned_designer_name
+                                ? ` · ${project.assigned_designer_name}`
+                                : ''}
+                              {project.current_stage ? ` · ${project.current_stage}` : ''}
+                            </p>
+                          </div>
+                          <StatusTag tone={projectTone(project.status, stages)}>
+                            {project.status}
                           </StatusTag>
-                        </Td>
-                        <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
-                          {date(invoice.due_date)}
-                        </Td>
-                        <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
-                          {money(invoice.amount)}
-                        </Td>
-                      </tr>
+                        </div>
+                        <div className="mt-2">
+                          <Progress
+                            value={project.progress_pct}
+                            label={`${project.name} progress`}
+                          />
+                        </div>
+                        {!project.client_visible ? (
+                          <p className="mt-1 text-xs text-warning">Hidden from the client portal</p>
+                        ) : null}
+                      </li>
                     ))}
-                  </tbody>
-                </TableWrap>
-              )}
+                  </ul>
+                )}
+              </Card>
             </section>
-          ) : null}
 
-          <section aria-label="Documents">
-            <h2 className="label-eyebrow mb-2">Documents ({documents.length})</h2>
-            <DocumentsTable
-              documents={documents}
-              onChanged={refetch}
-              emptyMessage="Nothing has been uploaded for this client. Upload files from one of their projects."
-            />
-          </section>
+            {isAdmin ? (
+              <section aria-label="Invoices" className="flex min-h-0 flex-col">
+                <h2 className="label-eyebrow mb-2 shrink-0">Invoices ({invoices.length})</h2>
+                {invoices.length === 0 ? (
+                  <Card>
+                    <p className="py-4 text-center text-ink-muted">
+                      Nothing has been invoiced to this client.
+                    </p>
+                  </Card>
+                ) : (
+                  <TableWrap
+                    className="!min-w-0"
+                    wrapClassName="xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+                  >
+                    <thead>
+                      <tr>
+                        <Th>Number</Th>
+                        <Th>Status</Th>
+                        <Th className="max-sm:hidden">Due</Th>
+                        <Th className="text-right">Amount</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr
+                          key={invoice.id}
+                          onClick={(event) => {
+                            if (!(event.target as HTMLElement).closest('a, button'))
+                              navigate(`/invoices?open=${invoice.id}`);
+                          }}
+                          className="cursor-pointer hover:bg-surface-muted/40"
+                        >
+                          <Td className="font-medium text-ink">
+                            <Link
+                              to={`/invoices?open=${invoice.id}`}
+                              className="underline-offset-2 hover:text-green-900 hover:underline"
+                            >
+                              {invoice.number}
+                            </Link>
+                          </Td>
+                          <Td>
+                            <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                              {invoice.is_overdue && invoice.status !== 'Overdue'
+                                ? `${invoice.status} · overdue`
+                                : invoice.status}
+                            </StatusTag>
+                          </Td>
+                          <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
+                            {date(invoice.due_date)}
+                          </Td>
+                          <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                            {money(invoice.amount)}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableWrap>
+                )}
+              </section>
+            ) : null}
 
-          <section aria-label="Notes">
-            <h2 className="label-eyebrow mb-2">Notes</h2>
-            <Card>
-              <p className="label-eyebrow">Internal notes</p>
-              {client.notes ? (
-                <p className="mt-3 whitespace-pre-wrap leading-relaxed text-ink">{client.notes}</p>
-              ) : (
-                <p className="py-6 text-center text-ink-muted">
-                  No notes yet.{canEdit ? ' Add some with Edit.' : ''}
-                </p>
-              )}
-            </Card>
-          </section>
+            <section aria-label="Documents" className="flex min-h-0 flex-col">
+              <h2 className="label-eyebrow mb-2 shrink-0">Documents ({documents.length})</h2>
+              <DocumentsTable
+                documents={documents}
+                onChanged={refetch}
+                emptyMessage="Nothing has been uploaded for this client. Upload files from one of their projects."
+                wrapClassName="xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+              />
+            </section>
 
-          <section aria-label="Activity log">
-            <h2 className="label-eyebrow mb-2">Activity log ({activity.length})</h2>
-            {activity.length === 0 ? (
-              <Card className="p-0">
-                <EmptyState
-                  title="No activity yet"
-                  message="Changes to this client will be recorded here."
-                />
-              </Card>
-            ) : (
-              <Card className="max-h-96 overflow-y-auto">
-                <ul className="rows">
-                  {activity.map((entry) => (
-                    <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <p className="font-medium text-ink">{humanise(entry.action)}</p>
-                        <p className="text-xs text-ink-muted">{dateTime(entry.created_at)}</p>
-                      </div>
-                      <p className="mt-0.5 text-xs text-ink-muted">
-                        by {entry.actor_name} ({entry.actor_type})
-                      </p>
-                      {entry.details ? (
-                        <p className="mt-1 text-xs text-ink-muted">
-                          {Object.entries(entry.details)
-                            .map(([key, value]) => `${humanise(key)}: ${String(value)}`)
-                            .join(' · ')}
+            <section aria-label="Activity log" className="flex min-h-0 flex-col">
+              <h2 className="label-eyebrow mb-2 shrink-0">Activity log ({activity.length})</h2>
+              <Card className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+                {activity.length === 0 ? (
+                  <p className="py-4 text-center text-ink-muted">
+                    Changes to this client will be recorded here.
+                  </p>
+                ) : (
+                  <ul className="rows">
+                    {activity.map((entry) => (
+                      <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="font-medium text-ink">{humanise(entry.action)}</p>
+                          <p className="text-xs text-ink-muted">{dateTime(entry.created_at)}</p>
+                        </div>
+                        <p className="mt-0.5 text-xs text-ink-muted">
+                          by {entry.actor_name} ({entry.actor_type})
                         </p>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
+                        {entry.details ? (
+                          <p className="mt-1 text-xs text-ink-muted">
+                            {Object.entries(entry.details)
+                              .map(([key, value]) => `${humanise(key)}: ${String(value)}`)
+                              .join(' · ')}
+                          </p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </Card>
-            )}
-          </section>
+            </section>
+          </div>
         </div>
 
         {chat ? (
           <ClientChat
             clientId={client.id}
             clientName={client.name}
-            className="h-[34rem] lg:col-span-2 xl:sticky xl:top-2 xl:col-span-1 xl:h-[calc(100dvh-9rem)]"
+            className="h-[34rem] xl:h-full"
           />
         ) : null}
       </div>
