@@ -1,7 +1,6 @@
 import clsx from 'clsx';
 import { Paperclip } from '@phosphor-icons/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
 
 import { Composer, MessageText } from '@/components/chat';
 import { Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
@@ -114,11 +113,8 @@ export function ClientChat({
 
   return (
     <Card className={clsx('flex min-h-0 flex-col !p-0', className)}>
-      <div className="flex items-center justify-between gap-2 px-4 pt-4">
-        <p className="label-eyebrow">Chat with {clientName}</p>
-        <Link to={`/messages?client=${encodeURIComponent(clientId)}`} className="text-link text-xs">
-          Open in Messages
-        </Link>
+      <div className="shrink-0 border-b border-border px-4 py-3.5">
+        <p className="label-eyebrow truncate">Chat with {clientName}</p>
       </div>
       <div
         ref={scroller}

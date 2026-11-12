@@ -140,12 +140,10 @@ export function DocumentsTable({
                       >
                         {row.name}
                       </button>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-                        <StatusTag tone="info">{label(row.category)}</StatusTag>
-                        <span>
-                          {date(row.upload_date)} · <span className="tabular">{fileSize(row.size_bytes)}</span>
-                        </span>
-                      </div>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        <span className="font-medium text-ink">{label(row.category)}</span> · {date(row.upload_date)} ·{' '}
+                        <span className="tabular">{fileSize(row.size_bytes)}</span>
+                      </p>
                     </div>
                     <div className="-mr-1 -mt-1 flex shrink-0">
                       {row.preview ? (

@@ -40,7 +40,7 @@ import { DocumentsTable } from '@/components/DocumentsTable';
 import { NewProjectDialog, useDesigners } from './Projects';
 
 /** The client page: contact and portal in a floating bar on the left; every section as a card beside it. */
-const LINK = 'text-link [overflow-wrap:anywhere]';
+const LINK = 'text-green-900 hover:text-green-700 [overflow-wrap:anywhere]';
 
 export function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -204,10 +204,10 @@ export function ClientDetailPage() {
             </div>
           ) : null}
           <p className="label-eyebrow">Contact</p>
-          <dl className="mt-3 flex flex-col gap-3">
+          <dl className="mt-3 flex flex-col gap-4">
             <div>
               <dt className="text-xs text-ink-muted">Phone</dt>
-              <dd className="font-medium">
+              <dd className="text-sm font-medium text-ink">
                 {client.phone ? (
                   <a href={`tel:${client.phone.replace(/[^\d+]/g, '')}`} className={LINK}>
                     {client.phone}
@@ -219,7 +219,7 @@ export function ClientDetailPage() {
             </div>
             <div>
               <dt className="text-xs text-ink-muted">Email</dt>
-              <dd className="font-medium">
+              <dd className="text-sm font-medium text-ink">
                 {client.email ? (
                   <a href={`mailto:${client.email}`} className={LINK}>
                     {client.email}
@@ -231,7 +231,7 @@ export function ClientDetailPage() {
             </div>
             <div>
               <dt className="text-xs text-ink-muted">Address</dt>
-              <dd className="font-medium text-ink [overflow-wrap:anywhere]">
+              <dd className="text-sm font-medium leading-snug text-ink [overflow-wrap:anywhere]">
                 {client.address ?? '—'}
               </dd>
             </div>
@@ -239,7 +239,7 @@ export function ClientDetailPage() {
 
           <div className="mt-4 border-t border-border pt-4">
             <p className="label-eyebrow">Portal</p>
-            <p className="mt-2 font-medium text-ink">{portalStatus}</p>
+            <p className="mt-2 text-sm font-medium text-ink">{portalStatus}</p>
             {isAdmin &&
             client.email &&
             client.status === 'Active' &&
@@ -287,7 +287,7 @@ export function ClientDetailPage() {
                 </div>
               ) : null}
             </dl>
-            {isAdmin && client.has_portal_access && client.terms_accepted ? (
+            {isAdmin && client.has_portal_access ? (
               <Button
                 className="mt-3"
                 variant="secondary"
@@ -296,7 +296,7 @@ export function ClientDetailPage() {
                 onClick={askTerms}
                 title="Shows them the terms window again on their next open, for example after testing"
               >
-                Ask to accept terms again
+                {client.terms_accepted ? 'Ask to accept terms again' : 'Ask to accept terms'}
               </Button>
             ) : null}
           </div>
