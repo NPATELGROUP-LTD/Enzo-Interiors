@@ -129,39 +129,25 @@ export function DocumentsTable({
           <Card className={wrapClassName}>
             <ul className="rows">
               {sortedShown.map((row) => (
-                <li key={row.id} className="py-3 first:pt-0 last:pb-0">
-                  <button
-                    type="button"
-                    onClick={() => void files.show(row)}
-                    className="block max-w-full truncate text-left font-medium text-ink hover:text-green-900 hover:underline hover:underline-offset-2"
-                  >
-                    {row.name}
-                  </button>
-                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
-                    <StatusTag tone="info">{label(row.category)}</StatusTag>
-                    <span>{date(row.upload_date)}</span>
-                    <span className="tabular">{fileSize(row.size_bytes)}</span>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
-                    {isAdmin ? (
-                      <>
-                        <Toggle
-                          label="Client sees"
-                          checked={row.client_visible}
-                          onChange={(next) => void setVisible(row, next)}
-                        />
-                        <Toggle
-                          label="Can download"
-                          checked={row.client_can_download}
-                          onChange={(next) => void setDownload(row, next)}
-                        />
-                      </>
-                    ) : (
-                      <StatusTag tone={row.client_visible ? 'success' : 'neutral'}>
-                        {row.client_visible ? 'Visible' : 'Internal only'}
-                      </StatusTag>
-                    )}
-                    <div className="ml-auto flex gap-1">
+                <li key={row.id} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => void files.show(row)}
+                        title={row.name}
+                        className="line-clamp-2 text-left font-semibold leading-snug text-ink [overflow-wrap:anywhere] hover:text-green-900 hover:underline hover:underline-offset-2"
+                      >
+                        {row.name}
+                      </button>
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+                        <StatusTag tone="info">{label(row.category)}</StatusTag>
+                        <span>
+                          {date(row.upload_date)} · <span className="tabular">{fileSize(row.size_bytes)}</span>
+                        </span>
+                      </div>
+                    </div>
+                    <div className="-mr-1 -mt-1 flex shrink-0">
                       {row.preview ? (
                         <Button
                           variant="ghost"
@@ -185,6 +171,26 @@ export function DocumentsTable({
                         onClick={() => setDeleting(row)}
                       />
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-x-6 border-t border-border pt-2 sm:grid-cols-2">
+                    {isAdmin ? (
+                      <>
+                        <Toggle
+                          label="Client sees"
+                          checked={row.client_visible}
+                          onChange={(next) => void setVisible(row, next)}
+                        />
+                        <Toggle
+                          label="Can download"
+                          checked={row.client_can_download}
+                          onChange={(next) => void setDownload(row, next)}
+                        />
+                      </>
+                    ) : (
+                      <StatusTag tone={row.client_visible ? 'success' : 'neutral'}>
+                        {row.client_visible ? 'Visible to client' : 'Internal only'}
+                      </StatusTag>
+                    )}
                   </div>
                 </li>
               ))}

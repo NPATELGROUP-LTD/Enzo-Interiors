@@ -276,10 +276,13 @@ export function ClientDetailPage() {
               {client.has_portal_access ? (
                 <div>
                   <dt className="text-xs text-ink-muted">Portal terms</dt>
-                  <dd className="font-medium">
-                    {client.terms_accepted
-                      ? `Accepted ${client.terms_accepted_at ? dateTime(client.terms_accepted_at) : ''}`.trim()
-                      : 'Not accepted yet; asked on their next open'}
+                  <dd className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <StatusTag tone={client.terms_accepted ? 'success' : 'warning'}>
+                      {client.terms_accepted ? 'Accepted' : 'Not accepted yet'}
+                    </StatusTag>
+                    {client.terms_accepted && client.terms_accepted_at ? (
+                      <span className="text-xs text-ink-muted">{dateTime(client.terms_accepted_at)}</span>
+                    ) : null}
                   </dd>
                 </div>
               ) : null}
