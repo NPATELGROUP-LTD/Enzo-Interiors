@@ -45,11 +45,14 @@ export function DocumentsTable({
   onChanged,
   emptyMessage,
   wrapClassName,
+  list,
 }: {
   documents: Row[];
   onChanged: () => Promise<unknown> | void;
   emptyMessage: string;
   wrapClassName?: string;
+  /** Cards instead of a table, for a narrow box. */
+  list?: boolean;
 }) {
   const toast = useToast();
   const { isAdmin } = useAuth();
@@ -122,6 +125,72 @@ export function DocumentsTable({
             </Select>
           </div>
         ) : null}
+        {list ? (
+          <Card className={wrapClassName}>
+            <ul className="rows">
+              {sortedShown.map((row) => (
+                <li key={row.id} className="py-3 first:pt-0 last:pb-0">
+                  <button
+                    type="button"
+                    onClick={() => void files.show(row)}
+                    className="block max-w-full truncate text-left font-medium text-ink hover:text-green-900 hover:underline hover:underline-offset-2"
+                  >
+                    {row.name}
+                  </button>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-muted">
+                    <StatusTag tone="info">{label(row.category)}</StatusTag>
+                    <span>{date(row.upload_date)}</span>
+                    <span className="tabular">{fileSize(row.size_bytes)}</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+                    {isAdmin ? (
+                      <>
+                        <Toggle
+                          label="Client sees"
+                          checked={row.client_visible}
+                          onChange={(next) => void setVisible(row, next)}
+                        />
+                        <Toggle
+                          label="Can download"
+                          checked={row.client_can_download}
+                          onChange={(next) => void setDownload(row, next)}
+                        />
+                      </>
+                    ) : (
+                      <StatusTag tone={row.client_visible ? 'success' : 'neutral'}>
+                        {row.client_visible ? 'Visible' : 'Internal only'}
+                      </StatusTag>
+                    )}
+                    <div className="ml-auto flex gap-1">
+                      {row.preview ? (
+                        <Button
+                          variant="ghost"
+                          icon={<Eye size={15} aria-hidden="true" />}
+                          loading={files.opening === row.id}
+                          onClick={() => void files.show(row)}
+                          aria-label={`View ${row.name}`}
+                        />
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        icon={<DownloadSimple size={15} aria-hidden="true" />}
+                        onClick={() => void files.download(row.id)}
+                        aria-label={`Download ${row.name}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        className="text-danger"
+                        aria-label={`Delete ${row.name}`}
+                        icon={<Trash size={15} aria-hidden="true" />}
+                        onClick={() => setDeleting(row)}
+                      />
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : (
         <TableWrap wrapClassName={wrapClassName}>
           <thead>
             <tr>
@@ -212,6 +281,7 @@ export function DocumentsTable({
             ))}
           </tbody>
         </TableWrap>
+        )}
         </>
       )}
 

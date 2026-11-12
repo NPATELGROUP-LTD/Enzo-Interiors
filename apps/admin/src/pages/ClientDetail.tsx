@@ -33,13 +33,12 @@ import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
-import { ClientChat } from '@/components/ClientChat';
 import { ClientFormDialog } from '@/components/ClientFormDialog';
 import { DocumentsTable } from '@/components/DocumentsTable';
 
 import { NewProjectDialog, useDesigners } from './Projects';
 
-/** The client page: contact and portal in a floating bar on the left; every section as a card in the middle; the chat on the right. */
+/** The client page: contact and portal in a floating bar on the left; every section as a card beside it. */
 const LINK = 'text-link [overflow-wrap:anywhere]';
 
 export function ClientDetailPage() {
@@ -118,9 +117,6 @@ export function ClientDetailPage() {
     }
   };
 
-  // A client who cannot sign in to the portal would never read a message.
-  const chat = client.status === 'Active' && client.has_portal_access;
-
   const portalStatus =
     client.has_portal_access && !onEmailedPassword
       ? 'Signed up'
@@ -129,7 +125,7 @@ export function ClientDetailPage() {
         : 'Not invited';
 
   return (
-    <div className="flex flex-col px-5 pb-5 pt-3 sm:px-8 xl:h-full">
+    <div className="flex h-full flex-col overflow-y-auto px-5 pb-5 pt-3 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] sm:px-8 lg:overflow-visible lg:[mask-image:none]">
       <PageHeader
         title={client.name}
         actions={
@@ -185,11 +181,11 @@ export function ClientDetailPage() {
 
       <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
-      {/* From xl up the page is one screen: details left, sections in the middle (each scrolls in its own box), chat right. Below that it stacks and the page scrolls. */}
+      {/* From xl up the page is one screen: details left, sections right (each scrolls in its own box). Below that it stacks and the page scrolls. */}
       <div
-        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 xl:min-h-0 xl:flex-1 xl:grid-rows-1 ${chat ? 'xl:grid-cols-[19rem_minmax(0,1fr)_23rem]' : 'xl:grid-cols-[19rem_minmax(0,1fr)]'}`}
+        className={`mx-auto mt-3 grid w-full max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)]`}
       >
-        <div className="flex min-w-0 flex-col gap-5 xl:min-h-0">
+        <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
         <Card className="shrink-0">
           {client.status === 'Inactive' ? (
             <div className="mb-3">
@@ -292,7 +288,7 @@ export function ClientDetailPage() {
           </div>
         </Card>
 
-        <Card className="min-h-40 xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+        <Card className="min-h-40 lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none">
           <p className="label-eyebrow">Internal notes</p>
           {client.notes ? (
             <p className="mt-3 whitespace-pre-wrap leading-relaxed text-ink">{client.notes}</p>
@@ -304,7 +300,7 @@ export function ClientDetailPage() {
         </Card>
         </div>
 
-        <div className="flex min-w-0 flex-col gap-5 xl:min-h-0">
+        <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
           {/* One slim strip. Money is the Admin's: a Designer sees the project count only. */}
           <Card className="!p-0 shrink-0">
             <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] divide-border max-sm:divide-y sm:divide-x">
@@ -338,13 +334,13 @@ export function ClientDetailPage() {
             </dl>
           </Card>
 
-          <div className="grid gap-5 xl:min-h-0 xl:flex-1 xl:auto-rows-[minmax(0,1fr)] 2xl:grid-cols-2">
+          <div className="grid gap-5 lg:min-h-0 lg:flex-1 lg:auto-rows-[minmax(0,1fr)] lg:grid-cols-2">
             <section
               aria-label="Projects"
-              className={`flex min-h-0 flex-col ${isAdmin ? '' : '2xl:col-span-2'}`}
+              className={`flex min-h-0 flex-col ${isAdmin ? '' : 'lg:col-span-2'}`}
             >
               <h2 className="label-eyebrow mb-2 shrink-0">Projects ({projects.length})</h2>
-              <Card className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+              <Card className="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none">
                 {projects.length === 0 ? (
                   <div className="flex flex-col items-center gap-3 py-4 text-center">
                     <p className="text-ink-muted">This client has no projects yet.</p>
@@ -406,7 +402,7 @@ export function ClientDetailPage() {
                 ) : (
                   <TableWrap
                     className="!min-w-0"
-                    wrapClassName="xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+                    wrapClassName="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none"
                   >
                     <thead>
                       <tr>
@@ -458,16 +454,17 @@ export function ClientDetailPage() {
             <section aria-label="Documents" className="flex min-h-0 flex-col">
               <h2 className="label-eyebrow mb-2 shrink-0">Documents ({documents.length})</h2>
               <DocumentsTable
+                list
                 documents={documents}
                 onChanged={refetch}
                 emptyMessage="Nothing has been uploaded for this client. Upload files from one of their projects."
-                wrapClassName="xl:min-h-0 xl:flex-1 xl:overflow-y-auto"
+                wrapClassName="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none"
               />
             </section>
 
             <section aria-label="Activity log" className="flex min-h-0 flex-col">
               <h2 className="label-eyebrow mb-2 shrink-0">Activity log ({activity.length})</h2>
-              <Card className="xl:min-h-0 xl:flex-1 xl:overflow-y-auto">
+              <Card className="lg:min-h-0 lg:flex-1 max-h-80 overflow-y-auto lg:max-h-none">
                 {activity.length === 0 ? (
                   <p className="py-4 text-center text-ink-muted">
                     Changes to this client will be recorded here.
@@ -498,14 +495,6 @@ export function ClientDetailPage() {
             </section>
           </div>
         </div>
-
-        {chat ? (
-          <ClientChat
-            clientId={client.id}
-            clientName={client.name}
-            className="h-[34rem] xl:h-full"
-          />
-        ) : null}
       </div>
 
       <NewProjectDialog
