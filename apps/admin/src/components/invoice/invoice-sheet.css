@@ -199,6 +199,10 @@
 .inv-col-total {
   width: 28mm;
 }
+/* A quote's lines are edited as cost and margin, which need the room. */
+.inv-col-wide {
+  width: 48mm;
+}
 
 .inv-totals {
   break-inside: avoid;
@@ -317,6 +321,21 @@
   display: flex;
   align-items: center;
   gap: 1mm;
+}
+.inv-edit-stack {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.6mm;
+  min-width: 0;
+}
+.inv-edit-tools {
+  flex: none;
+  width: 6mm;
+}
+.inv-edit-sum {
+  text-align: right;
+  font-weight: 650;
 }
 .inv-edit-btn {
   display: inline-flex;

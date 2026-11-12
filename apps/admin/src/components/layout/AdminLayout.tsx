@@ -8,7 +8,6 @@ import {
   Check,
   CloudCheck,
   Envelope,
-  Ruler,
   GearSix,
   ImagesSquare,
   Kanban,
@@ -442,7 +441,6 @@ const TITLES: Record<string, string> = {
   '/clients': 'Clients',
   '/projects': 'Projects',
   '/quotes': 'Quotes',
-  '/quote-maker': 'Quote maker',
   '/invoices': 'Invoices',
   '/inventory': 'Inventory',
   '/enquiries': 'Enquiries',
@@ -467,7 +465,7 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
   if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
   if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: { to: '/quotes', label: 'Quotes' } };
   if (pathname.startsWith('/quote-maker/'))
-    return { title: pathname.endsWith('/new') ? 'New design' : 'Design', back: { to: '/quote-maker', label: 'Quote maker' } };
+    return { title: pathname.endsWith('/new') ? 'New design' : 'Design', back: { to: '/quotes', label: 'Quotes' } };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: 'Enzo Interiors', back: null };
   const isEntry = pathname !== section.to && section.collection !== 'pages';
@@ -547,7 +545,7 @@ export function AdminLayout() {
   const work = [
     ...(canSeeClients ? [page('/clients', 'Clients', User), page('/projects', 'Projects', Kanban)] : []),
     ...(isAdmin
-      ? [page('/quotes', 'Quotes', FileText), page('/quote-maker', 'Quote maker', Ruler), page('/invoices', 'Invoices', Receipt)]
+      ? [page('/quotes', 'Quotes', FileText), page('/invoices', 'Invoices', Receipt)]
       : []),
     ...(isAdmin || isEditor ? [page('/inventory', 'Inventory', Package)] : []),
   ];

@@ -382,4 +382,9 @@ export interface Quote {
   invoice_id: string | null;
   created_at: string;
   items: QuoteItem[];
+  /** For the letterhead sheet. */
+  issuer: InvoiceIssuer;
+  client_email: string | null;
+  client_phone: string | null;
+  job_address: string | null;
 }

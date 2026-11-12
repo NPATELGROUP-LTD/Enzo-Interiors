@@ -2,7 +2,7 @@ import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { date, money } from '@/lib/format';
-import type { Invoice, InvoiceIssuer, InvoiceItem } from '@/types/api';
+import type { Invoice, InvoiceIssuer, InvoiceItem, Quote } from '@/types/api';
 
 import './invoice-sheet.css';
 
@@ -10,8 +10,45 @@ import './invoice-sheet.css';
  * The invoice as the client gets it: one A4 sheet, the same layout as the
  * business's paper invoice (letterhead, green band, who and what, job notes,
  * itemised list in sections, totals, payment schedule). Copied as is in
- * apps/admin and apps/portal; keep the two in step.
+ * apps/admin and apps/portal; keep the two in step. A quote is the same sheet
+ * (`kind="quote"`, from `quoteSheet`): same letterhead, no bank details or stages.
  */
+
+export type SheetKind = 'invoice' | 'quote';
+
+/** A quote as the sheet's record. A client's quote has no lines, so it prints "Installation charges" and the totals. */
+export function quoteSheet(quote: Quote): Invoice {
+  return {
+    id: quote.id,
+    number: quote.number,
+    client_id: quote.client_id,
+    project_id: quote.project_id,
+    amount: quote.amount,
+    vat_rate: quote.vat_rate,
+    status: quote.status as unknown as Invoice['status'],
+    due_date: quote.valid_until ?? '',
+    paid_at: null,
+    created_at: quote.created_at,
+    items: quote.items.map(({ id, description, section, detail, quantity, unit_price, position }) => ({ id, description, section, detail, quantity, unit_price, position })),
+    client_name: quote.client_name,
+    project_name: quote.project_name,
+    subtotal_amount: quote.subtotal_amount,
+    discount: quote.discount,
+    net_amount: quote.net_amount,
+    vat_amount: quote.vat_amount,
+    is_overdue: false,
+    days_overdue: 0,
+    job_name: quote.title,
+    job_address: quote.job_address,
+    job_notes: quote.notes,
+    payment_schedule: [],
+    client_email: quote.client_email,
+    client_phone: quote.client_phone,
+    issuer: quote.issuer,
+    stages: [],
+    bank_details: null,
+  };
+}
 
 /** Used until an invoice from the API brings the CMS company details. */
 export const DEFAULT_ISSUER: InvoiceIssuer = {
@@ -29,7 +66,9 @@ const qty = (value: number) => String(Number(value));
 const lineTotal = (item: Pick<InvoiceItem, 'quantity' | 'unit_price'>) => Math.round(item.quantity * item.unit_price * 100) / 100;
 
 /** `editBody`: the item rows (`<tr>`s) in place of the invoice's own, so staff can edit the lines on the sheet itself. Unused in the portal. */
-export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody?: ReactNode }) {
+export function InvoiceSheet({ invoice, editBody, kind = 'invoice' }: { invoice: Invoice; editBody?: ReactNode; kind?: SheetKind }) {
+  const quote = kind === 'quote';
+  const stamp = (quote ? ['Draft', 'Accepted', 'Declined'] : ['Draft', 'Paid']).includes(invoice.status) ? invoice.status : null;
   const issuer = invoice.issuer ?? DEFAULT_ISSUER;
   const items = invoice.items ?? [];
   const schedule = invoice.payment_schedule ?? [];
@@ -39,7 +78,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
   const subtotal = invoice.subtotal_amount ?? invoice.net_amount;
 
   return (
-    <article className="inv-sheet" aria-label={`Invoice ${invoice.number}`}>
+    <article className="inv-sheet" aria-label={`${quote ? 'Quote' : 'Invoice'} ${invoice.number}`}>
       <header className="inv-head">
         <img className="inv-logo" src="/invoice-logo.png" alt="Enzo Interiors" />
         <address className="inv-issuer">
@@ -58,9 +97,8 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
 
       <div className="inv-band">
         <h1 className="inv-serif">
-          Invoice
-          {invoice.status === 'Draft' ? <span className="inv-stamp">Draft</span> : null}
-          {invoice.status === 'Paid' ? <span className="inv-stamp">Paid</span> : null}
+          {quote ? 'Quote' : 'Invoice'}
+          {stamp ? <span className="inv-stamp">{stamp}</span> : null}
         </h1>
         <dl>
           <div>
@@ -71,10 +109,12 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
             <dt>Issued</dt>
             <dd>{date(invoice.created_at)}</dd>
           </div>
-          <div>
-            <dt>{invoice.paid_at ? 'Paid' : 'Due'}</dt>
-            <dd>{date(invoice.paid_at ?? invoice.due_date)}</dd>
-          </div>
+          {quote && !invoice.due_date ? null : (
+            <div>
+              <dt>{quote ? 'Valid until' : invoice.paid_at ? 'Paid' : 'Due'}</dt>
+              <dd>{date(invoice.paid_at ?? invoice.due_date)}</dd>
+            </div>
+          )}
         </dl>
       </div>
 
@@ -103,7 +143,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
 
       {invoice.job_notes ? (
         <section className="inv-notes">
-          <p className="inv-kicker">Job notes</p>
+          <p className="inv-kicker">{quote ? 'Notes' : 'Job notes'}</p>
           <p>{invoice.job_notes}</p>
         </section>
       ) : null}
@@ -117,7 +157,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
             <th scope="col" className="inv-right inv-col-qty">
               Qty
             </th>
-            <th scope="col" className="inv-right inv-col-total">
+            <th scope="col" className={editBody && quote ? 'inv-right inv-col-wide' : 'inv-right inv-col-total'}>
               Total
             </th>
           </tr>
@@ -127,7 +167,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
             editBody
           ) : items.length === 0 ? (
             <tr>
-              <td colSpan={3}>{invoice.project_name ?? 'Work as agreed'}</td>
+              <td colSpan={3}>{quote ? 'Installation charges' : (invoice.project_name ?? 'Work as agreed')}</td>
               <td className="inv-right inv-num">{money(subtotal)}</td>
             </tr>
           ) : (
@@ -171,7 +211,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
             </tr>
           ) : null}
           <tr className="inv-payable">
-            <th scope="row">{discount > 0 && invoice.vat_rate <= 0 ? 'After discount' : 'Total payable'}</th>
+            <th scope="row">{discount > 0 && invoice.vat_rate <= 0 ? 'After discount' : quote ? 'Total' : 'Total payable'}</th>
             <td className="inv-num">{money(invoice.amount)}</td>
           </tr>
         </tbody>
@@ -251,7 +291,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
       ) : null}
 
       <footer className="inv-foot">
-        <span>Please quote {invoice.number} with your payment.</span>
+        <span>{quote ? `Please quote ${invoice.number} when you reply.` : `Please quote ${invoice.number} with your payment.`}</span>
         <span>Thank you for choosing {issuer.name.replace(/\s*(LTD|Ltd|Limited)\.?$/, '')}.</span>
       </footer>
     </article>
@@ -259,7 +299,7 @@ export function InvoiceSheet({ invoice, editBody }: { invoice: Invoice; editBody
 }
 
 /** One sheet on screen, scaled down to fit its column (never up). */
-export function InvoicePreview({ invoice, editBody }: { invoice: Invoice; editBody?: ReactNode }) {
+export function InvoicePreview({ invoice, editBody, kind }: { invoice: Invoice; editBody?: ReactNode; kind?: SheetKind }) {
   const frame = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState(1);
   useEffect(() => {
@@ -275,7 +315,7 @@ export function InvoicePreview({ invoice, editBody }: { invoice: Invoice; editBo
   return (
     <div ref={frame} className="inv-frame" data-editing={editBody ? '' : undefined}>
       <div style={{ zoom }}>
-        <InvoiceSheet invoice={invoice} editBody={editBody} />
+        <InvoiceSheet invoice={invoice} editBody={editBody} kind={kind} />
       </div>
     </div>
   );
@@ -285,11 +325,11 @@ export function InvoicePreview({ invoice, editBody }: { invoice: Invoice; editBo
  * What the printer gets while this is mounted: every invoice on its own A4
  * page, and nothing else from the app (invoice-sheet.css, @media print).
  */
-export function InvoicePrint({ invoices }: { invoices: Invoice[] }) {
+export function InvoicePrint({ invoices, kind }: { invoices: Invoice[]; kind?: SheetKind }) {
   return createPortal(
     <div className={invoices.length === 1 ? 'inv-print inv-one' : 'inv-print'}>
       {invoices.map((invoice) => (
-        <InvoiceSheet key={invoice.id} invoice={invoice} />
+        <InvoiceSheet key={invoice.id} invoice={invoice} kind={kind} />
       ))}
     </div>,
     document.body,
