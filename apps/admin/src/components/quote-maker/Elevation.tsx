@@ -6,6 +6,14 @@ import { bottomOf, clampX, overlaps, type PlanWall, type UnitTemplate } from './
 const WORKTOP_MM = 38;
 const PAD = 160; // mm of room around the wall, for the dimension line
 
+/** A dark hex swatch takes light text; anything else keeps the theme ink. */
+const darkFill = (fill: string | null) => {
+  const m = /^#([0-9a-f]{6})$/i.exec(fill ?? '');
+  if (!m) return false;
+  const n = parseInt(m[1]!, 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) < 140;
+};
+
 export interface ElevationProps {
   label: string;
   wall: PlanWall;
@@ -139,7 +147,7 @@ export function Elevation({ label, wall, ceiling_mm, templates, colourOf, select
                   return <line key={`r${i}`} x1={x + 3} x2={x + w - 3} y1={y(top - each * (i + 1))} y2={y(top - each * (i + 1))} className="stroke-ink/50" strokeWidth={4} />;
                 })}
               {clash.has(unit.id) ? <rect x={x + 3} y={y(top)} width={w - 6} height={h} className="fill-danger/15 stroke-danger" strokeWidth={10} /> : null}
-              <text x={x + w / 2} y={y(bottom + h / 2)} textAnchor="middle" dominantBaseline="middle" fontSize={text} className="pointer-events-none fill-ink font-semibold">
+              <text x={x + w / 2} y={y(bottom + h / 2)} textAnchor="middle" dominantBaseline="middle" fontSize={text} className={clsx('pointer-events-none font-semibold', !gap && darkFill(colour) ? 'fill-[#FAFAF7]' : 'fill-ink')}>
                 {w}
               </text>
             </g>

@@ -6,6 +6,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
 
 import { DatabaseService } from '../data/database.service';
+import { QuoteDesignsService } from '../modules/quote-maker/designs';
 import { STARTER_BY, importStarterLibrary } from '../modules/quote-maker/starter';
 import { ADMIN, startTestApp } from './app';
 
@@ -63,6 +64,7 @@ after(async () => {
   await prisma.projectMaterial.deleteMany({ where: { project_id: PROJECT } });
   await prisma.projectQuote.deleteMany({ where: { client_id: CLIENT } });
   await prisma.quoteDesign.deleteMany({ where: { title: { startsWith: `QM ${run}` } } });
+  await prisma.contactSubmission.deleteMany({ where: { email: `qm-visitor-${run}@test.enzo.local` } }); // its designs cascade
   await prisma.project.deleteMany({ where: { id: PROJECT } });
   await prisma.client.deleteMany({ where: { id: CLIENT } });
   await prisma.unitTemplate.deleteMany({ where: { slug: { startsWith: `qm-${run}` } } });
@@ -382,4 +384,73 @@ test('Make quote writes a Draft for the project, identical units on one line; th
   await json(await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin));
   assert.equal((await prisma.projectQuote.findUnique({ where: { id: quote.id } }))!.design_id, null);
   assert.equal((await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin)).status, 404);
+});
+
+/* ------------------------------------------------------------ the website (PR 4) */
+
+const VISITOR = `qm-visitor-${run}@test.enzo.local`;
+const contact = { name: 'Quote Visitor', email: VISITOR, phone: '07700 900000', message: 'Grey handles please' };
+const kitchen = { room_type: 'kitchen', layout: 'single', walls: [2400], height_mm: 2400, upper: false };
+
+test('start and submit are shut with the page; a visitor starts only from what the website offers', async () => {
+  await setPage(false);
+  assert.equal((await call('POST', '/quote-maker/start', undefined, kitchen)).status, 403);
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(unitAt('a', 0)) }], ...contact })).status, 403);
+  await setPage(true);
+
+  const offered = new Set((await json<Catalogue>(await call('GET', '/quote-maker/catalogue'))).templates.map((t) => t.id));
+  const plan = await json<PlanBody>(await call('POST', '/quote-maker/start', undefined, { ...kitchen, finishes: { front: ids.green } }));
+  const units = plan.walls[0]!.units;
+  assert.ok(units.length > 0);
+  assert.ok(units.every((u) => offered.has(u.template_id)), 'only catalogue units');
+  assert.ok(units.some((u) => u.finishes?.front === ids.green));
+  // A finish not ticked "show on website" is refused, even though staff may use it.
+  assert.equal((await call('POST', '/quote-maker/start', undefined, { ...kitchen, finishes: { front: ids.hidden } })).status, 400);
+});
+
+test('a visitor sends a design: priced on the server, stored as a Quote enquiry with the design on it', async () => {
+  // Honeypot: a quiet 204 and nothing stored.
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(unitAt('a', 0)) }], ...contact, website: 'x' })).status, 204);
+  assert.equal(await prisma.contactSubmission.count({ where: { email: VISITOR } }), 0);
+  // An empty design or a hidden finish is refused before anything is stored.
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single() }], ...contact })).status, 400);
+  const hidden = { ...unitAt('a', 0), finishes: { front: ids.hidden } };
+  assert.equal((await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(hidden) }], ...contact })).status, 400);
+  assert.equal(await prisma.contactSubmission.count({ where: { email: VISITOR } }), 0);
+
+  const units = [unitAt('a', 0), { ...unitAt('b', 600), finishes: { front: ids.green } }];
+  const quoted = await json<Estimate>(await call('POST', '/quote-maker/estimate', undefined, { units: units.map(({ template_id, variant_id, finishes }) => ({ template_id, variant_id, finishes })) }));
+  const sent = await json<{ priced: boolean; low: number; high: number }>(
+    await call('POST', '/quote-maker/submit', undefined, { rooms: [{ room_type: 'kitchen', design: single(...units), answers: kitchen }], ...contact }), 201);
+  assert.deepEqual(sent, { priced: true, low: quoted.low, high: quoted.high }, 'the same range the visitor was shown');
+
+  const enquiry = await prisma.contactSubmission.findFirstOrThrow({ where: { email: VISITOR } });
+  assert.deepEqual([enquiry.kind, enquiry.source, enquiry.status, enquiry.service_interest], ['quote', 'Quote', 'New', 'Kitchen']);
+  assert.match(String((enquiry.details as Record<string, string>).Estimate), /^£[\d,]+ to £[\d,]+$/);
+  const design = await prisma.quoteDesign.findFirstOrThrow({ where: { enquiry_id: enquiry.id } });
+  assert.deepEqual([design.source, design.created_by, Number(design.estimate_low), Number(design.estimate_high)], ['web', null, sent.low, sent.high]);
+
+  // The enquiry page finds its design; only the Admin may ask.
+  const found = await json<Design[]>(await call('GET', `/quote-maker/designs?enquiry_id=${enquiry.id}`, tokens.admin));
+  assert.deepEqual(found.map((d) => d.id), [design.id]);
+  assert.equal((await call('GET', `/quote-maker/designs?enquiry_id=${enquiry.id}`, tokens.designer)).status, 403);
+  assert.equal((await call('GET', `/quote-maker/designs?enquiry_id=${enquiry.id}`)).status, 401);
+});
+
+test('website designs that came to nothing go after 12 months; staff designs and live leads stay', async () => {
+  const old = new Date(Date.now() - 400 * 86_400_000);
+  const plan = single(unitAt('a', 0)) as unknown as Prisma.InputJsonValue;
+  const lead = (status: string) =>
+    prisma.contactSubmission.create({ data: { id: `enq_qm_${status}_${run}`, kind: 'quote', name: 'Old lead', email: VISITOR, message: '', status, created_at: old } });
+  const make = (key: string, source: string, enquiry_id: string | null, created_at = old) =>
+    prisma.quoteDesign.create({ data: { id: `qd_${key}_${run}`, source, title: `QM ${run} ${key}`, room_type: 'kitchen', design: plan, enquiry_id, created_at } });
+  const lapsed = await make('lapsed', 'web', (await lead('Archived')).id);
+  const converted = await make('converted', 'web', (await lead('Converted')).id);
+  const staff = await make('staff', 'staff', null);
+  const recent = await make('recent', 'web', null, new Date());
+
+  assert.ok((await app.nest.get(QuoteDesignsService).purge()) >= 1);
+  const left = new Set((await prisma.quoteDesign.findMany({ where: { id: { in: [lapsed.id, converted.id, staff.id, recent.id] } } })).map((d) => d.id));
+  assert.deepEqual([...left].sort(), [converted.id, recent.id, staff.id].sort());
+  assert.equal(await prisma.contactSubmission.count({ where: { id: `enq_qm_Archived_${run}` } }), 1, 'the enquiry itself stays');
 });

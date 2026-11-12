@@ -265,7 +265,7 @@ ${button(forgotUrl, 'Reset my password')}`,
         `<p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${SAGE}">${escapeHtml(label)}</p>
 <h1 style="margin:0 0 20px;font:600 22px/1.3 Georgia,serif;color:${FOREST}">${escapeHtml(input.name)}</h1>
 <table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:0 0 20px">${table}</table>
-<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap">${escapeHtml(input.message)}</div>
+${input.message.trim() ? `<div style="padding:16px 18px;background:${CREAM};border-radius:8px;white-space:pre-wrap">${escapeHtml(input.message)}</div>` : ''}
 <p style="margin:20px 0 0;color:#6B6B6B;font-size:14px">Reply to this email to answer ${escapeHtml(input.name)} directly.</p>`,
       ),
       text: `${label}\n\n${rows.map(([k, v]) => `${k}: ${v}`).join('\n')}\n\n${input.message}\n\nReply to this email to answer directly.`,
@@ -276,17 +276,22 @@ ${button(forgotUrl, 'Reset my password')}`,
    * To whoever sent the contact form. Generic on purpose: it never repeats what they typed,
    * so the form cannot be used to mail someone else a message of the sender's choosing.
    */
-  enquiryReceived(contact: string): Rendered {
+  /** `estimate`: a quote maker design's range, already worded ("£2,800 to £3,100"). */
+  enquiryReceived(contact: string, estimate: string | null = null): Rendered {
     const subject = 'We have your enquiry';
+    const range = estimate
+      ? `Your design's estimate is ${estimate}. We will check it and send you a full quote.`
+      : null;
     return {
       subject,
       html: layout(
         subject,
         `${heading('Enquiry received', 'Thank you')}
+${range ? para(range) : ''}
 ${para('We read every enquiry ourselves. You will hear from us the same working day.')}
 ${para(`If it is urgent, reply to this email or ${contact}.`)}`,
       ),
-      text: `Thank you.\n\nWe read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
+      text: `Thank you.\n\n${range ? `${range}\n\n` : ''}We read every enquiry ourselves. You will hear from us the same working day.\n\nIf it is urgent, reply to this email or ${contact}.`,
     };
   },
 

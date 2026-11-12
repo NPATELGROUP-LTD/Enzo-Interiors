@@ -57,7 +57,7 @@ interface SiteSettings {
   updated_by: string | null;
 }
 
-type PageKey = 'about' | 'services' | 'portfolio' | 'booking' | 'contact' | 'privacy' | 'terms' | 'cookies';
+type PageKey = 'about' | 'services' | 'portfolio' | 'booking' | 'quote' | 'contact' | 'privacy' | 'terms' | 'cookies';
 
 /** Settings › Pages, in the order the site's menu has them. */
 const PAGES: Array<[PageKey, string]> = [
@@ -65,6 +65,7 @@ const PAGES: Array<[PageKey, string]> = [
   ['services', 'Services'],
   ['portfolio', 'Portfolio'],
   ['booking', 'Booking'],
+  ['quote', 'Design & price (quote maker)'],
   ['contact', 'Contact'],
   ['privacy', 'Privacy policy'],
   ['terms', 'Terms'],

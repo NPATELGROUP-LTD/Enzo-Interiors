@@ -216,8 +216,10 @@ test('fill: covers the most wall with the fewest units, widest first', () => {
 test('fill: a kitchen run with wall units above and a dishwasher gap first', () => {
   const plan = fillPlan(answers({ upper: true, gaps: ['gap-dishwasher'], finishes: { front: 'oak', worktop: 'quartz' } }), starter, ids());
   const [wall] = plan.walls;
-  const floor = wall!.units.filter((u) => u.template_id !== 'kitchen-wall');
-  assert.equal(floor[0]!.template_id, 'gap-dishwasher');
+  const floor = wall!.units.filter((u) => u.template_id !== 'kitchen-wall').sort((a, b) => a.x_mm - b.x_mm);
+  // A larder at the free end, the dishwasher next to it, then the base units; wall units only over those.
+  assert.deepEqual(floor.slice(0, 2).map((u) => u.template_id), ['kitchen-larder', 'gap-dishwasher']);
+  assert.ok(wall!.units.filter((u) => u.template_id === 'kitchen-wall').every((u) => u.x_mm >= widthOf(floor[0]!)));
   assert.equal(floor.reduce((sum, u) => sum + widthOf(u), 0), 3000);
   assert.ok(wall!.units.some((u) => u.template_id === 'kitchen-wall'));
   // Finishes land only on the slots a unit has: the wall unit has no worktop.
@@ -240,6 +242,16 @@ test('fill: bedrooms are lined with wardrobes and top boxes; alcove shelving nev
   assert.deepEqual([...used].sort(), ['wardrobe-hinged', 'wardrobe-top-box']);
   const alcove = fillPlan(answers({ room_type: 'alcove', walls: [1000], upper: true }), starter, ids());
   assert.deepEqual(alcove.walls[0]!.units.map((u) => u.template_id), ['alcove-cupboard', 'alcove-shelving']);
+});
+
+test('fill: a media wall has a column each side and low units between; a short wall is not framed', () => {
+  const [wall] = fillPlan(answers({ room_type: 'media-wall', walls: [3600] }), starter, ids()).walls;
+  const columns = wall!.units.filter((u) => u.template_id === 'media-column');
+  assert.deepEqual(columns.map((u) => u.x_mm + (u.x_mm ? widthOf(u) : 0)), [0, 3600]);
+  assert.ok(wall!.units.some((u) => u.template_id === 'media-base'));
+  assert.deepEqual(unitsOffWall({ layout: 'single', height_mm: 2400, walls: [wall!], island: null }, wall!.units.map(widthOf)), []);
+  const short = fillPlan(answers({ room_type: 'media-wall', walls: [1200] }), starter, ids()).walls[0]!;
+  assert.ok(short.units.every((u) => u.template_id !== 'media-column'));
 });
 
 test('plans: shape problems are caught before anything is looked up', () => {

@@ -5,7 +5,7 @@ import { Button, EmptyState, ErrorState, LoadingState, StatusTag, TableWrap, Tab
 import { DesignEditor } from '@/components/quote-maker/DesignEditor';
 import { PricingPane } from '@/components/quote-maker/PricingPane';
 import { UnitLibrary } from '@/components/quote-maker/UnitLibrary';
-import { ROOM_TYPES, type Design, type DesignSummary, type Pricing, type StockItem, type UnitTemplate } from '@/components/quote-maker/plan';
+import { CUSTOM_ROOM, ROOM_TYPES, type Design, type DesignSummary, type Pricing, type StockItem, type UnitTemplate } from '@/components/quote-maker/plan';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
 import { date, money } from '@/lib/format';
@@ -17,7 +17,7 @@ export const QUOTE_MAKER_VIEWS = [
   { id: 'pricing', label: 'Pricing' },
 ];
 const range = (low: number | null, high: number | null) => (low === null || high === null ? 'Not priced' : `${money(low)} – ${money(high)}`);
-const roomName = (id: string) => ROOM_TYPES.find((r) => r.id === id)?.name ?? id;
+const roomName = (id: string) => [...ROOM_TYPES, CUSTOM_ROOM].find((r) => r.id === id)?.name ?? id;
 
 /** `/quote-maker` (designs), `?view=library|pricing`; `/quote-maker/new` and `/quote-maker/:id` open the editor. */
 export function QuoteMakerPage() {

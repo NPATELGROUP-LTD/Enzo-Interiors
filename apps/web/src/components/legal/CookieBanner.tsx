@@ -98,6 +98,7 @@ export function CookieBanner({ content }: { content: SiteContent["cookieBanner"]
       ref={panelRef}
       tabIndex={-1}
       role="region"
+      data-cookie-banner
       aria-label={content.regionLabel}
       className="fixed inset-x-0 bottom-0 z-[110] p-3 focus:outline-none sm:p-5 md:p-6"
     >

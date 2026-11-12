@@ -12,6 +12,7 @@ import type { Project } from '@/types/api';
 import { BreakdownPanel } from './BreakdownPanel';
 import { Elevation } from './Elevation';
 import {
+  CUSTOM_ROOM,
   LAYOUTS,
   LIMITS,
   MOUNT_LABEL,
@@ -73,7 +74,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
 
   const byId = useMemo(() => new Map((templates.data ?? []).map((t) => [t.id, t])), [templates.data]);
   const items = useMemo(() => new Map((stock.data ?? []).map((i) => [i.id, i])), [stock.data]);
-  const forRoom = useMemo(() => (templates.data ?? []).filter((t) => t.active && t.room_types.includes(room)), [templates.data, room]);
+  const forRoom = useMemo(() => (templates.data ?? []).filter((t) => t.active && (room === CUSTOM_ROOM.id || t.room_types.includes(room))), [templates.data, room]);
   const boards = (roles: BoardRole[]) => (stock.data ?? []).filter((i) => i.active && i.type === 'Sheet' && i.board_role && roles.includes(i.board_role));
 
   const change = (next: Plan | ((p: Plan) => Plan)) => {
@@ -295,7 +296,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
             <h2 id="qm-room" className="mb-3 text-base font-semibold text-ink">Room</h2>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Select label="Room type" value={room} onChange={(e) => (setRoom(e.target.value), setDirty(true))}>
-                {ROOM_TYPES.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                {[...ROOM_TYPES, CUSTOM_ROOM].map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
               </Select>
               <Select label="Layout" value={plan.layout} onChange={(e) => (change((p) => withLayout(p, e.target.value as Layout)), setRun(0))}>
                 {LAYOUTS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}

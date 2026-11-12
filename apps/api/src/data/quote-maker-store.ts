@@ -140,6 +140,22 @@ export class QuoteMakerStore {
     return this.designs.create(data as Omit<QuoteDesign, 'id'>);
   }
 
+  /**
+   * Website designs older than `before` that came to nothing: no quote made from them and their
+   * enquiry not Converted. Staff designs are never removed here. The enquiry itself stays.
+   */
+  async purgeWebDesigns(before: Date): Promise<number> {
+    const { count } = await this.prisma.quoteDesign.deleteMany({
+      where: {
+        source: 'web',
+        created_at: { lt: before },
+        quotes: { none: {} },
+        OR: [{ enquiry_id: null }, { enquiry: { status: { not: 'Converted' } } }],
+      },
+    });
+    return count;
+  }
+
   /** What was saved, unchecked: the service merges it over the defaults. */
   async pricing(): Promise<Record<string, unknown>> {
     const row = await this.prisma.quoteMakerSetting.findUnique({ where: { id: SETTINGS_ID } });
