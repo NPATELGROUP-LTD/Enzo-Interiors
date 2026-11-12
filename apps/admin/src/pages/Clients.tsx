@@ -92,7 +92,9 @@ export function ClientsPage() {
     setAskAllPending(true);
     try {
       const { asked } = await api.post<{ asked: number }>('/clients/terms/reset');
-      toast.success(asked === 1 ? '1 client will be asked again.' : `${asked} clients will be asked again.`);
+      toast.success(
+        asked === 1 ? '1 client will be asked again.' : `${asked} clients will be asked again.`,
+      );
       setAskingAll(false);
       await clients.refetch();
     } catch (caught) {
@@ -108,51 +110,54 @@ export function ClientsPage() {
 
   return (
     <div className="px-5 pb-16 pt-2 sm:px-8">
-      <PageHeader
-        title="Clients"
-        actions={
-          <>
-            {isAdmin ? (
-              <Button variant="secondary" className={tall} onClick={() => setAskingAll(true)}>
-                Ask all to accept terms
-              </Button>
-            ) : null}
-            {canAdd ? (
-              <Button
-                variant="primary"
-                className={tall}
-                icon={<Plus size={16} aria-hidden="true" />}
-                onClick={() => update({ new: '1' })}
-              >
-                Add client
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+      {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
+      <PageHeader title="" />
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="[&>div]:mb-0">
           <Tabs
-            tabs={CLIENT_VIEWS.map(({ id, label }) => ({ id, label, count: clients.data ? counts[id] : undefined }))}
+            tabs={CLIENT_VIEWS.map(({ id, label }) => ({
+              id,
+              label,
+              count: clients.data ? counts[id] : undefined,
+            }))}
             active={view}
             onChange={(id) => update({ view: id === 'all' ? null : id })}
           />
         </div>
-        <div className="relative min-w-0 basis-full sm:max-w-sm sm:flex-1 sm:basis-0">
-          <MagnifyingGlass
-            size={16}
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
-          />
-          <input
-            type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search clients"
-            aria-label="Search clients"
-            className={`min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900 pointer-fine:min-h-9 ${tall}`}
-          />
+        <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-0">
+          <div className="relative mx-auto w-full sm:max-w-sm">
+            <MagnifyingGlass
+              size={16}
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted"
+            />
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search clients"
+              aria-label="Search clients"
+              className={`min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900 pointer-fine:min-h-9 ${tall}`}
+            />
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+          {isAdmin ? (
+            <Button variant="secondary" className={tall} onClick={() => setAskingAll(true)}>
+              Ask all to accept terms
+            </Button>
+          ) : null}
+          {canAdd ? (
+            <Button
+              variant="primary"
+              className={tall}
+              icon={<Plus size={16} aria-hidden="true" />}
+              onClick={() => update({ new: '1' })}
+            >
+              Add client
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -217,7 +222,8 @@ export function ClientsPage() {
                 key={client.id}
                 className="cursor-pointer hover:bg-surface-muted/40"
                 onClick={(event) => {
-                  if (!(event.target as HTMLElement).closest('a, button')) navigate(`/clients/${client.id}`);
+                  if (!(event.target as HTMLElement).closest('a, button'))
+                    navigate(`/clients/${client.id}`);
                 }}
               >
                 <Td>
@@ -229,10 +235,16 @@ export function ClientsPage() {
                       <StatusTag tone="neutral">Inactive</StatusTag>
                     </span>
                   ) : null}
-                  {client.phone ? <p className="mt-0.5 text-xs text-ink-muted md:hidden">{client.phone}</p> : null}
+                  {client.phone ? (
+                    <p className="mt-0.5 text-xs text-ink-muted md:hidden">{client.phone}</p>
+                  ) : null}
                 </Td>
-                <Td className="whitespace-nowrap text-ink-muted max-md:hidden">{client.phone ?? '—'}</Td>
-                <Td className="max-w-64 text-ink-muted [overflow-wrap:anywhere] max-lg:hidden">{client.email || '—'}</Td>
+                <Td className="whitespace-nowrap text-ink-muted max-md:hidden">
+                  {client.phone ?? '—'}
+                </Td>
+                <Td className="max-w-64 text-ink-muted [overflow-wrap:anywhere] max-lg:hidden">
+                  {client.email || '—'}
+                </Td>
                 <Td className="tabular text-right text-ink">{client.active_projects ?? 0}</Td>
                 {isAdmin ? (
                   <Td

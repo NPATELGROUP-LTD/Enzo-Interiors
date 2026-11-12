@@ -21,7 +21,6 @@ import {
   Progress,
   StatusTag,
   TableWrap,
-  Tabs,
   Td,
   Th,
 } from '@/components/ui';
@@ -36,20 +35,13 @@ import type { ClientDetail as ClientDetailPayload } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
+import { ClientChat } from '@/components/ClientChat';
 import { ClientFormDialog } from '@/components/ClientFormDialog';
 import { DocumentsTable } from '@/components/DocumentsTable';
 
 import { NewProjectDialog, useDesigners } from './Projects';
 
-/** The client page: contact and portal on the left; projects, invoices, files, notes and activity on the right. */
-const TABS = [
-  { id: 'projects', label: 'Projects' },
-  { id: 'invoices', label: 'Invoices' },
-  { id: 'documents', label: 'Documents' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'activity', label: 'Activity log' },
-];
-
+/** The client page: contact and portal in a floating bar on the left; every section as a card in the middle; the chat on the right. */
 const LINK = 'text-link [overflow-wrap:anywhere]';
 
 export function ClientDetailPage() {
@@ -59,7 +51,6 @@ export function ClientDetailPage() {
   const { data, loading, error, refetch } = useQuery<ClientDetailPayload>(
     id ? `/clients/${id}/detail` : null,
   );
-  const [tab, setTab] = useState('projects');
   const { isAdmin, can } = useAuth();
   // A Designer's edit is a request an Admin approves; an Installer only reads.
   const canEdit = can('Admin', 'Designer');
@@ -86,8 +77,12 @@ export function ClientDetailPage() {
     setInviting(true);
     try {
       const { emailed } = await api.post<{ emailed: boolean }>(`/clients/${client.id}/invite`);
-      if (emailed) toast.success(`Invitation sent to ${client.email} with a new password. ${THEIR_SPAM_HINT}`);
-      else toast.error('The invitation could not be emailed. Check Settings › Emails, then send it again.');
+      if (emailed)
+        toast.success(`Invitation sent to ${client.email} with a new password. ${THEIR_SPAM_HINT}`);
+      else
+        toast.error(
+          'The invitation could not be emailed. Check Settings › Emails, then send it again.',
+        );
       await refetch();
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not send the invitation.');
@@ -101,7 +96,9 @@ export function ClientDetailPage() {
     setAsking(true);
     try {
       await api.post(`/clients/${client.id}/terms/reset`);
-      toast.success(`${client.name} will be asked to accept the terms again the next time they open the portal.`);
+      toast.success(
+        `${client.name} will be asked to accept the terms again the next time they open the portal.`,
+      );
       await refetch();
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not ask for the terms.');
@@ -123,19 +120,8 @@ export function ClientDetailPage() {
     }
   };
 
-  const tabsWithCounts = TABS.filter((entry) => isAdmin || entry.id !== 'invoices').map((entry) => ({
-    ...entry,
-    count:
-      entry.id === 'projects'
-        ? projects.length
-        : entry.id === 'invoices'
-          ? invoices.length
-          : entry.id === 'documents'
-            ? documents.length
-            : entry.id === 'activity'
-              ? activity.length
-              : undefined,
-  }));
+  // A client who cannot sign in to the portal would never read a message.
+  const chat = client.status === 'Active' && client.has_portal_access;
 
   const portalStatus =
     client.has_portal_access && !onEmailedPassword
@@ -164,20 +150,34 @@ export function ClientDetailPage() {
               }
               onClick={() => navigate(`/messages?client=${encodeURIComponent(client.id)}`)}
             >
-              {client.status === 'Active' && !client.has_portal_access ? 'Message (invite first)' : 'Message'}
+              {client.status === 'Active' && !client.has_portal_access
+                ? 'Message (invite first)'
+                : 'Message'}
             </Button>
             {isAdmin ? (
-              <Button variant="secondary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setCreatingProject(true)}>
+              <Button
+                variant="secondary"
+                icon={<Plus size={16} aria-hidden="true" />}
+                onClick={() => setCreatingProject(true)}
+              >
                 New project
               </Button>
             ) : null}
             {canEdit ? (
-              <Button variant="secondary" icon={<PencilSimple size={16} aria-hidden="true" />} onClick={() => setEditing(true)}>
+              <Button
+                variant="secondary"
+                icon={<PencilSimple size={16} aria-hidden="true" />}
+                onClick={() => setEditing(true)}
+              >
                 Edit
               </Button>
             ) : null}
             {isAdmin ? (
-              <Button variant="destructive" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+              <Button
+                variant="destructive"
+                icon={<Trash size={16} aria-hidden="true" />}
+                onClick={() => setDeleting(true)}
+              >
                 Delete
               </Button>
             ) : null}
@@ -187,8 +187,11 @@ export function ClientDetailPage() {
 
       <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
-      <div className="grid items-start gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
-        <Card>
+      {/* The left bar and the chat stay put while the middle scrolls (the shell's <main> is the scroller). */}
+      <div
+        className={`mt-3 grid items-start gap-5 lg:grid-cols-[20rem_minmax(0,1fr)] ${chat ? 'xl:grid-cols-[20rem_minmax(0,1fr)_24rem]' : ''}`}
+      >
+        <Card className="lg:sticky lg:top-2 lg:max-h-[calc(100dvh-9rem)] lg:overflow-y-auto">
           {client.status === 'Inactive' ? (
             <div className="mb-3">
               <StatusTag tone="neutral">Inactive</StatusTag>
@@ -222,21 +225,30 @@ export function ClientDetailPage() {
             </div>
             <div>
               <dt className="text-xs text-ink-muted">Address</dt>
-              <dd className="font-medium text-ink [overflow-wrap:anywhere]">{client.address ?? '—'}</dd>
+              <dd className="font-medium text-ink [overflow-wrap:anywhere]">
+                {client.address ?? '—'}
+              </dd>
             </div>
           </dl>
 
           <div className="mt-4 border-t border-border pt-4">
             <p className="label-eyebrow">Portal</p>
             <p className="mt-2 font-medium text-ink">{portalStatus}</p>
-            {isAdmin && client.email && client.status === 'Active' && (!client.has_portal_access || onEmailedPassword) ? (
+            {isAdmin &&
+            client.email &&
+            client.status === 'Active' &&
+            (!client.has_portal_access || onEmailedPassword) ? (
               <Button
                 className="mt-3"
                 variant={invited ? 'secondary' : 'primary'}
                 icon={<EnvelopeSimple size={16} aria-hidden="true" />}
                 loading={inviting}
                 onClick={invite}
-                title={onEmailedPassword ? 'Emails a new password; the one they have stops working' : undefined}
+                title={
+                  onEmailedPassword
+                    ? 'Emails a new password; the one they have stops working'
+                    : undefined
+                }
               >
                 {invited ? 'Resend invite' : 'Invite to portal'}
               </Button>
@@ -246,12 +258,18 @@ export function ClientDetailPage() {
           <details className="group mt-4 border-t border-border pt-4">
             <summary className="label-eyebrow flex min-h-6 cursor-pointer list-none items-center justify-between">
               More
-              <CaretDown size={14} aria-hidden="true" className="transition-transform group-open:rotate-180" />
+              <CaretDown
+                size={14}
+                aria-hidden="true"
+                className="transition-transform group-open:rotate-180"
+              />
             </summary>
             <dl className="mt-3 flex flex-col gap-3">
               <div>
                 <dt className="text-xs text-ink-muted">Looked after by</dt>
-                <dd className="font-medium">{assigned_staff ? assigned_staff.name : 'Nobody in particular'}</dd>
+                <dd className="font-medium">
+                  {assigned_staff ? assigned_staff.name : 'Nobody in particular'}
+                </dd>
               </div>
               <div>
                 <dt className="text-xs text-ink-muted">Client since</dt>
@@ -283,19 +301,23 @@ export function ClientDetailPage() {
           </details>
         </Card>
 
-        <div className="min-w-0">
+        <div className="flex min-w-0 flex-col gap-5">
           {/* One slim strip. Money is the Admin's: a Designer sees the project count only. */}
-          <Card className="mb-4 !p-0">
+          <Card className="!p-0">
             <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] divide-border max-sm:divide-y sm:divide-x">
               {isAdmin ? (
                 <>
                   <div className="px-4 py-3">
                     <dt className="text-xs text-ink-muted">Lifetime value</dt>
-                    <dd className="tabular text-lg font-bold text-green-900">{money(stats.lifetime_value ?? 0)}</dd>
+                    <dd className="tabular text-lg font-bold text-green-900">
+                      {money(stats.lifetime_value ?? 0)}
+                    </dd>
                   </div>
                   <div className="px-4 py-3">
                     <dt className="text-xs text-ink-muted">Outstanding</dt>
-                    <dd className={`tabular text-lg font-bold ${(stats.outstanding ?? 0) > 0 ? 'text-warning' : 'text-green-900'}`}>
+                    <dd
+                      className={`tabular text-lg font-bold ${(stats.outstanding ?? 0) > 0 ? 'text-warning' : 'text-green-900'}`}
+                    >
                       {money(stats.outstanding ?? 0)}
                     </dd>
                   </div>
@@ -304,16 +326,18 @@ export function ClientDetailPage() {
               <div className="px-4 py-3">
                 <dt className="text-xs text-ink-muted">Active projects</dt>
                 <dd className="tabular text-lg font-bold text-green-900">
-                  {stats.active_projects} <span className="text-sm font-normal text-ink-muted">of {stats.total_projects}</span>
+                  {stats.active_projects}{' '}
+                  <span className="text-sm font-normal text-ink-muted">
+                    of {stats.total_projects}
+                  </span>
                 </dd>
               </div>
             </dl>
           </Card>
 
-          <Tabs tabs={tabsWithCounts} active={tab} onChange={setTab} />
-
-          {tab === 'projects' ? (
-            projects.length === 0 ? (
+          <section aria-label="Projects">
+            <h2 className="label-eyebrow mb-2">Projects ({projects.length})</h2>
+            {projects.length === 0 ? (
               <Card className="p-0">
                 <EmptyState
                   title="No projects"
@@ -328,20 +352,27 @@ export function ClientDetailPage() {
                 />
               </Card>
             ) : (
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-3">
                 {projects.map((project) => (
                   <Card key={project.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <Link to={`/projects/${project.id}`} className="text-link block truncate font-medium">
+                        <Link
+                          to={`/projects/${project.id}`}
+                          className="text-link block truncate font-medium"
+                        >
                           {project.name}
                         </Link>
                         <p className="mt-0.5 text-xs text-ink-muted">
                           {SERVICE_LABELS[project.type]}
-                          {project.assigned_designer_name ? ` · ${project.assigned_designer_name}` : ''}
+                          {project.assigned_designer_name
+                            ? ` · ${project.assigned_designer_name}`
+                            : ''}
                         </p>
                       </div>
-                      <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
+                      <StatusTag tone={projectTone(project.status, stages)}>
+                        {project.status}
+                      </StatusTag>
                     </div>
                     <div className="mt-3">
                       <Progress value={project.progress_pct} label={`${project.name} progress`} />
@@ -355,65 +386,79 @@ export function ClientDetailPage() {
                   </Card>
                 ))}
               </div>
-            )
-          ) : null}
+            )}
+          </section>
 
-          {tab === 'invoices' && isAdmin ? (
-            invoices.length === 0 ? (
-              <Card className="p-0">
-                <EmptyState title="No invoices" message="Nothing has been invoiced to this client." />
-              </Card>
-            ) : (
-              <TableWrap className="max-sm:min-w-0">
-                <thead>
-                  <tr>
-                    <Th>Number</Th>
-                    <Th>Status</Th>
-                    <Th className="max-sm:hidden">Due</Th>
-                    <Th className="text-right">Amount</Th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoices.map((invoice) => (
-                    <tr
-                      key={invoice.id}
-                      onClick={(event) => {
-                        if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices?open=${invoice.id}`);
-                      }}
-                      className="cursor-pointer hover:bg-surface-muted/40"
-                    >
-                      <Td className="font-medium text-ink">
-                        <Link to={`/invoices?open=${invoice.id}`} className="underline-offset-2 hover:text-green-900 hover:underline">
-                          {invoice.number}
-                        </Link>
-                      </Td>
-                      <Td>
-                        <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-                          {invoice.is_overdue && invoice.status !== 'Overdue'
-                            ? `${invoice.status} · overdue`
-                            : invoice.status}
-                        </StatusTag>
-                      </Td>
-                      <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
-                      <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
-                        {money(invoice.amount)}
-                      </Td>
+          {isAdmin ? (
+            <section aria-label="Invoices">
+              <h2 className="label-eyebrow mb-2">Invoices ({invoices.length})</h2>
+              {invoices.length === 0 ? (
+                <Card className="p-0">
+                  <EmptyState
+                    title="No invoices"
+                    message="Nothing has been invoiced to this client."
+                  />
+                </Card>
+              ) : (
+                <TableWrap className="max-sm:min-w-0">
+                  <thead>
+                    <tr>
+                      <Th>Number</Th>
+                      <Th>Status</Th>
+                      <Th className="max-sm:hidden">Due</Th>
+                      <Th className="text-right">Amount</Th>
                     </tr>
-                  ))}
-                </tbody>
-              </TableWrap>
-            )
+                  </thead>
+                  <tbody>
+                    {invoices.map((invoice) => (
+                      <tr
+                        key={invoice.id}
+                        onClick={(event) => {
+                          if (!(event.target as HTMLElement).closest('a, button'))
+                            navigate(`/invoices?open=${invoice.id}`);
+                        }}
+                        className="cursor-pointer hover:bg-surface-muted/40"
+                      >
+                        <Td className="font-medium text-ink">
+                          <Link
+                            to={`/invoices?open=${invoice.id}`}
+                            className="underline-offset-2 hover:text-green-900 hover:underline"
+                          >
+                            {invoice.number}
+                          </Link>
+                        </Td>
+                        <Td>
+                          <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                            {invoice.is_overdue && invoice.status !== 'Overdue'
+                              ? `${invoice.status} · overdue`
+                              : invoice.status}
+                          </StatusTag>
+                        </Td>
+                        <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
+                          {date(invoice.due_date)}
+                        </Td>
+                        <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                          {money(invoice.amount)}
+                        </Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </TableWrap>
+              )}
+            </section>
           ) : null}
 
-          {tab === 'documents' ? (
+          <section aria-label="Documents">
+            <h2 className="label-eyebrow mb-2">Documents ({documents.length})</h2>
             <DocumentsTable
               documents={documents}
               onChanged={refetch}
               emptyMessage="Nothing has been uploaded for this client. Upload files from one of their projects."
             />
-          ) : null}
+          </section>
 
-          {tab === 'notes' ? (
+          <section aria-label="Notes">
+            <h2 className="label-eyebrow mb-2">Notes</h2>
             <Card>
               <p className="label-eyebrow">Internal notes</p>
               {client.notes ? (
@@ -424,10 +469,11 @@ export function ClientDetailPage() {
                 </p>
               )}
             </Card>
-          ) : null}
+          </section>
 
-          {tab === 'activity' ? (
-            activity.length === 0 ? (
+          <section aria-label="Activity log">
+            <h2 className="label-eyebrow mb-2">Activity log ({activity.length})</h2>
+            {activity.length === 0 ? (
               <Card className="p-0">
                 <EmptyState
                   title="No activity yet"
@@ -435,7 +481,7 @@ export function ClientDetailPage() {
                 />
               </Card>
             ) : (
-              <Card>
+              <Card className="max-h-96 overflow-y-auto">
                 <ul className="rows">
                   {activity.map((entry) => (
                     <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
@@ -457,9 +503,17 @@ export function ClientDetailPage() {
                   ))}
                 </ul>
               </Card>
-            )
-          ) : null}
+            )}
+          </section>
         </div>
+
+        {chat ? (
+          <ClientChat
+            clientId={client.id}
+            clientName={client.name}
+            className="h-[34rem] lg:col-span-2 xl:sticky xl:top-2 xl:col-span-1 xl:h-[calc(100dvh-9rem)]"
+          />
+        ) : null}
       </div>
 
       <NewProjectDialog
@@ -485,10 +539,13 @@ export function ClientDetailPage() {
         message={
           <>
             <p>
-              This permanently deletes the client and everything that belongs to them: their projects, invoices
-              (paid ones too), documents and messages. Their portal sign-in stops working.
+              This permanently deletes the client and everything that belongs to them: their
+              projects, invoices (paid ones too), documents and messages. Their portal sign-in stops
+              working.
             </p>
-            <p className="mt-2 text-ink-muted">It cannot be undone. To keep their history, set them to Inactive instead.</p>
+            <p className="mt-2 text-ink-muted">
+              It cannot be undone. To keep their history, set them to Inactive instead.
+            </p>
           </>
         }
         confirmLabel="Delete client"
