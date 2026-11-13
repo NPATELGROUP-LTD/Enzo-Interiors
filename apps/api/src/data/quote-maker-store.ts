@@ -95,12 +95,25 @@ export interface PlanWall {
   units: PlacedUnit[];
 }
 
+/** Work that is not a unit (a delivery, a bespoke piece): a cost, a quantity and a margin. Staff designs only. */
+export interface ExtraLine {
+  id: string;
+  name: string;
+  quantity: number;
+  /** £ each, net. */
+  cost: number;
+  /** Null = the Pricing settings' margin. */
+  margin_pct: number | null;
+}
+
 /** What a design draws and prices: the walls, an optional free-standing island, the ceiling. */
 export interface Plan {
   layout: Layout;
   height_mm: number;
   walls: PlanWall[];
   island: PlanWall | null;
+  /** Custom lines; absent on older designs. Added to the price and carried into Make quote. */
+  extras?: ExtraLine[];
 }
 
 export interface QuoteDesign extends BaseRecord {

@@ -1,5 +1,6 @@
 import type {
   BoardRole,
+  ExtraLine,
   Layout,
   PlacedUnit,
   Plan,
@@ -322,6 +323,8 @@ export interface Breakdown {
   labour: { hours: number; cost: number };
   /** One per unit; their prices add back up to `net` (to within a penny a unit). */
   lines: Array<{ key: string; template_id: string; name: string; width_mm: number; cost: number; price: number }>;
+  /** The design's custom lines: `cost` and `price` are the line totals (quantity × each). */
+  extras: Array<{ id: string; name: string; quantity: number; cost: number; price: number }>;
   cost: number;
   margin: number;
   net: number;
@@ -337,7 +340,13 @@ export interface Breakdown {
 export const pieceCount = (units: ResolvedUnit[]) =>
   units.reduce((sum, unit) => sum + unit.variant.panels.reduce((n, panel) => n + panel.qty, 0), 0);
 
-export function priceDesign(units: ResolvedUnit[], items: Map<string, PriceItem>, pricing: QuotePricing, vatRate: number): Breakdown {
+export function priceDesign(
+  units: ResolvedUnit[],
+  items: Map<string, PriceItem>,
+  pricing: QuotePricing,
+  vatRate: number,
+  customLines: ExtraLine[] = [],
+): Breakdown {
   const warnings = new Set<string>();
   const unpriced = new Set<string>();
   const pieces = new Map<string, Piece[]>();
@@ -388,8 +397,14 @@ export function priceDesign(units: ResolvedUnit[], items: Map<string, PriceItem>
 
   const markup = 1 + pricing.margin_pct / 100;
   const boardsPence = boards.reduce((sum, b) => sum + b.cost, 0);
-  const costPence = boardsPence + hardwarePence + labourPence;
-  const netPence = Math.round(costPence * markup);
+  // A custom line is priced as a quote line is: each = cost + its margin to the penny, times the quantity.
+  const custom = customLines.map((line) => {
+    const each = pence(line.cost);
+    return { line, cost: each * line.quantity, price: Math.round(each * (1 + (line.margin_pct ?? pricing.margin_pct) / 100)) * line.quantity };
+  });
+  const customCost = custom.reduce((sum, e) => sum + e.cost, 0);
+  const costPence = boardsPence + hardwarePence + labourPence + customCost;
+  const netPence = Math.round((costPence - customCost) * markup) + custom.reduce((sum, e) => sum + e.price, 0);
   const vatPence = Math.round((netPence * vatRate) / 100);
   const grossPence = netPence + vatPence;
   const step = Math.max(1, pricing.round_to) * 100;
@@ -406,6 +421,7 @@ export function priceDesign(units: ResolvedUnit[], items: Map<string, PriceItem>
       const cost = (boardShare.get(unit.key) ?? 0) + (extras.get(unit.key) ?? 0);
       return { key: unit.key, template_id: unit.template.id, name: unit.template.name, width_mm: unit.variant.width_mm, cost: pounds(cost), price: pounds(cost * markup) };
     }),
+    extras: custom.map(({ line, cost, price }) => ({ id: line.id, name: line.name, quantity: line.quantity, cost: pounds(cost), price: pounds(price) })),
     cost: pounds(costPence),
     margin: pounds(netPence - costPence),
     net: pounds(netPence),
@@ -425,7 +441,7 @@ export const LAYOUTS = ['single', 'galley', 'L', 'U'] as const satisfies readonl
 export const WALL_COUNT: Record<Layout, number> = { single: 1, galley: 2, L: 2, U: 3 };
 
 /** Bounds a posted plan is held to before anything is looked up. */
-export const PLAN_LIMITS = { wall_min: 300, wall_max: 12_000, island_min: 600, island_max: 6_000, height_min: 1_800, height_max: 4_000 };
+export const PLAN_LIMITS = { wall_min: 300, wall_max: 12_000, island_min: 600, island_max: 6_000, height_min: 1_800, height_max: 4_000, extras_max: 10 };
 
 /** Every unit of a plan, walls first then the island, in the order prices and lines refer to them (by index). */
 export const planUnits = (plan: Plan): Array<PlacedUnit & { wall: number }> => [
@@ -448,6 +464,9 @@ export function planShapeProblem(plan: Plan, maxUnits: number): string | null {
   const units = planUnits(plan);
   if (units.length > maxUnits) return `A design can have at most ${maxUnits} units.`;
   if (new Set(units.map((u) => u.id)).size !== units.length) return 'Two units in this design have the same id.';
+  const extras = plan.extras ?? [];
+  if (extras.length > L.extras_max) return `A design can have at most ${L.extras_max} custom lines.`;
+  if (new Set(extras.map((e) => e.id)).size !== extras.length) return 'Two custom lines have the same id.';
   return null;
 }
 

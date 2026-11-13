@@ -61,7 +61,7 @@ import {
   unitsOffWall,
   wallLabel,
 } from './engine';
-import { ID, QuoteMakerModule, QuoteMakerService, cleanFinishes } from './quote-maker.module';
+import { ExtraLineDto, ID, QuoteMakerModule, QuoteMakerService, cleanExtras, cleanFinishes } from './quote-maker.module';
 
 const L = PLAN_LIMITS;
 const MAX_UNITS = 80;
@@ -99,6 +99,8 @@ export class PlanDto {
   @IsInt() @Min(L.height_min) @Max(L.height_max) height_mm!: number;
   @IsArray() @ArrayMinSize(1) @ArrayMaxSize(3) @ValidateNested({ each: true }) @Type(() => PlanWallDto) walls!: PlanWallDto[];
   @IsOptional() @ValidateNested() @Type(() => PlanWallDto) island?: PlanWallDto | null;
+  /** Custom lines (staff designs); a visitor's are dropped on submit. */
+  @IsOptional() @IsArray() @ArrayMaxSize(L.extras_max) @ValidateNested({ each: true }) @Type(() => ExtraLineDto) extras?: ExtraLineDto[];
 }
 
 export class FillDto {
@@ -245,7 +247,7 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
     const vat = (await this.db.settings()).vat_rate;
     const rooms: Array<{ room_type: string; design: Plan; answers?: FillDto | null; units: number; low: number | null; high: number | null }> = [];
     for (const room of dto.rooms) {
-      const design = await this.clean(room.design);
+      const design = await this.clean(room.design, false);
       const units = planUnits(design);
       if (!units.length) {
         throw new BadRequestException(dto.rooms.length > 1 ? 'Add at least one unit to every room, or remove the empty room.' : 'Add at least one unit to your design first.');
@@ -307,9 +309,10 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
   /**
    * The plan as it will be stored: the right number of walls, every unit's template and size real,
    * every unit inside its wall, finishes in shape. Pricing problems (no default board, a switched-off
-   * finish) are not refused: the design saves and shows them, unpriced.
+   * finish) are not refused: the design saves and shows them, unpriced. A visitor's design never
+   * carries custom lines (`staff` false drops them).
    */
-  private async clean(dto: PlanDto): Promise<Plan> {
+  private async clean(dto: PlanDto, staff = true): Promise<Plan> {
     const run = (wall: PlanWallDto): PlanWall => ({
       length_mm: wall.length_mm,
       units: wall.units.map(({ id, template_id, variant_id, x_mm, finishes }) => {
@@ -317,7 +320,14 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
         return { id, template_id, variant_id, x_mm, ...(clean && Object.keys(clean).length ? { finishes: clean } : {}) };
       }),
     });
-    const plan: Plan = { layout: dto.layout, height_mm: dto.height_mm, walls: dto.walls.map(run), island: dto.island ? run(dto.island) : null };
+    const extras = staff ? cleanExtras(dto.extras) : [];
+    const plan: Plan = {
+      layout: dto.layout,
+      height_mm: dto.height_mm,
+      walls: dto.walls.map(run),
+      island: dto.island ? run(dto.island) : null,
+      ...(extras.length ? { extras } : {}),
+    };
     const shape = planShapeProblem(plan, MAX_UNITS);
     if (shape) throw new BadRequestException(shape);
 
@@ -345,8 +355,8 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
     if (!planUnits(plan).length) return none;
     try {
       const { units, items, pricing } = await this.quoteMaker.resolve({ units: planUnits(plan) }, false);
-      const result = priceDesign(units, items, pricing, (await this.db.settings()).vat_rate);
-      return result.unpriced.length ? none : { estimate_low: result.low, estimate_high: result.high };
+      const result = priceDesign(units, items, pricing, (await this.db.settings()).vat_rate, plan.extras);
+      return result.unpriced.length ? none :{ estimate_low: result.low, estimate_high: result.high };
     } catch (error) {
       if (error instanceof BadRequestException) return none;
       throw error;
@@ -445,7 +455,7 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
     const units = planUnits(row.design);
     if (!units.length) throw new BadRequestException('Add units to the design first.');
     const resolved = await this.quoteMaker.resolve({ units }, false);
-    const breakdown = priceDesign(resolved.units, resolved.items, resolved.pricing, (await this.db.settings()).vat_rate);
+    const breakdown = priceDesign(resolved.units, resolved.items, resolved.pricing, (await this.db.settings()).vat_rate, row.design.extras);
     if (breakdown.unpriced.length)
       throw new BadRequestException(`Give these a quote cost in Inventory first: ${breakdown.unpriced.join(', ')}.`);
     return { units, resolved, breakdown };
@@ -479,7 +489,9 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
       if (line) line.quantity += 1;
       else lines.set(key, { description: `${template.name}, ${variant.width_mm} mm`, section, detail, quantity: 1, cost });
     });
-    if (lines.size > MAX_LINES) throw new BadRequestException(`This design needs ${lines.size} lines; a quote takes ${MAX_LINES}. Split it into two designs.`);
+    const extras = row.design.extras ?? [];
+    if (lines.size + extras.length > MAX_LINES)
+      throw new BadRequestException(`This design needs ${lines.size + extras.length} lines; a quote takes ${MAX_LINES}. Split it into two designs.`);
     const room = roomName(row.room_type);
     return this.quotes.create(
       principal,
@@ -495,7 +507,18 @@ export class QuoteDesignsService implements OnApplicationBootstrap, OnApplicatio
           unit_price: 0, // worked out from cost + margin by QuotesService
           cost_price: line.cost,
           margin_pct: resolved.pricing.margin_pct,
-        })),
+        })).concat(
+          // Custom lines: cost + margin like any other; QuotesService works out the price to the penny.
+          extras.map((extra) => ({
+            description: extra.name,
+            section: runs > 1 ? 'Other work' : null,
+            detail: null,
+            quantity: extra.quantity,
+            unit_price: 0,
+            cost_price: extra.cost,
+            margin_pct: extra.margin_pct ?? resolved.pricing.margin_pct,
+          })),
+        ),
       },
       row.id,
     );

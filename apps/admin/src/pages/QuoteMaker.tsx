@@ -63,8 +63,7 @@ export function DesignsView() {
         <EmptyState title="No designs yet" message="Draw a room from the front, or fill one from a few questions, and it is priced from Inventory as you go." />
       ) : (
         <TableWrap>
-          <table className="w-full text-sm">
-            <thead>
+          <thead>
               <tr>
                 <Th sort={header('ref')}>Ref</Th>
                 <Th sort={header('title')}>Design</Th>
@@ -101,7 +100,6 @@ export function DesignsView() {
                 </tr>
               ))}
             </tbody>
-          </table>
         </TableWrap>
       )}
     </>

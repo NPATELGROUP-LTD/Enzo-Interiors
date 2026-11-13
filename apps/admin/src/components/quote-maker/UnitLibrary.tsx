@@ -17,6 +17,7 @@ import {
   type TemplateVariant,
   type UnitTemplate,
 } from './plan';
+import { UnitPreview } from './UnitPreview';
 
 const failed = (caught: unknown) => (caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
 type Body = Omit<UnitTemplate, 'id' | 'problems' | 'updated_by' | 'variants' | 'position'> & { variants: TemplateVariant[] };
@@ -81,8 +82,7 @@ export function UnitLibrary({ templates, items, onChanged }: { templates: UnitTe
         <EmptyState title="No units" message="The starter library arrives with the next content import; or add your own." />
       ) : (
         <TableWrap>
-          <table className="w-full text-sm">
-            <thead>
+          <thead>
               <tr>
                 <Th sort={header('name')}>Unit</Th>
                 <Th sort={header('mount')}>Kind</Th>
@@ -124,7 +124,6 @@ export function UnitLibrary({ templates, items, onChanged }: { templates: UnitTe
                 </tr>
               ))}
             </tbody>
-          </table>
         </TableWrap>
       )}
       {editing ? (
@@ -199,7 +198,7 @@ function TemplateEditor({ template, items, onClose, onSaved }: { template: UnitT
   return (
     <Modal
       open
-      width="lg"
+      width="xl"
       onClose={onClose}
       title={template ? template.name : 'New unit'}
       description="Each size has its own cut list. Prices come from the boards and fittings in Inventory, never typed here."
@@ -213,7 +212,14 @@ function TemplateEditor({ template, items, onClose, onSaved }: { template: UnitT
         </>
       }
     >
-      <div className="flex flex-col gap-6">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
+      <aside aria-label="Preview" className="lg:order-2">
+        <div className="lg:sticky lg:top-0">
+          <h3 className="mb-2 text-sm font-semibold text-ink">Preview</h3>
+          <UnitPreview unit={body} items={items} />
+        </div>
+      </aside>
+      <div className="flex min-w-0 flex-col gap-6 lg:order-1">
         <Group title="About">
           <div className="grid gap-3 sm:grid-cols-2">
             <Input
@@ -430,6 +436,7 @@ function TemplateEditor({ template, items, onClose, onSaved }: { template: UnitT
             ))}
           </Group>
         )}
+      </div>
       </div>
     </Modal>
   );

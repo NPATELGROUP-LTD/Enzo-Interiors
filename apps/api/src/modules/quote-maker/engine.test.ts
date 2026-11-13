@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 
-import type { QuotePricing, UnitTemplate } from '../../data/quote-maker-store';
+import type { Plan, QuotePricing, UnitTemplate } from '../../data/quote-maker-store';
 import {
   type FillAnswers,
   type PriceItem,
@@ -121,6 +121,31 @@ test('pricing: one cabinet is a whole sheet of each board, plus hardware and lab
   assert.ok(result.low < result.gross && result.high > result.gross);
   assert.deepEqual(result.labour, { hours: 1.5, cost: 45 });
   assert.deepEqual(result.hardware, [{ item_id: 'hinge', name: 'hinge', qty: 2, cost: 9 }]);
+});
+
+test('pricing: a custom line is cost + margin to the penny, times the quantity, and moves cost, net and the range', () => {
+  const plain = priceDesign([resolve()], ITEMS, PRICING, 20);
+  // £10.01 each at 70% (the pricing margin) = £17.017 -> £17.02 each; 3 of them; and one with its own 0% margin.
+  const result = priceDesign([resolve()], ITEMS, PRICING, 20, [
+    { id: 'x', name: 'Delivery', quantity: 3, cost: 10.01, margin_pct: null },
+    { id: 'y', name: 'Bespoke', quantity: 1, cost: 100, margin_pct: 0 },
+  ]);
+  assert.deepEqual(result.extras, [
+    { id: 'x', name: 'Delivery', quantity: 3, cost: 30.03, price: 51.06 },
+    { id: 'y', name: 'Bespoke', quantity: 1, cost: 100, price: 100 },
+  ]);
+  assert.equal(result.cost, Math.round((plain.cost + 130.03) * 100) / 100);
+  assert.equal(result.net, Math.round((plain.net + 151.06) * 100) / 100);
+  assert.ok(result.high > plain.high);
+  assert.deepEqual(priceDesign([resolve()], ITEMS, PRICING, 20, []), plain);
+});
+
+test('plan shape: custom lines are capped and their ids are unique', () => {
+  const plan: Plan = { layout: 'single', height_mm: 2400, walls: [{ length_mm: 3000, units: [] }], island: null };
+  const line = (id: string) => ({ id, name: 'x', quantity: 1, cost: 1, margin_pct: null });
+  assert.equal(planShapeProblem({ ...plan, extras: [line('a'), line('b')] }, 80), null);
+  assert.match(planShapeProblem({ ...plan, extras: [line('a'), line('a')] }, 80)!, /same id/);
+  assert.match(planShapeProblem({ ...plan, extras: Array.from({ length: 11 }, (_, i) => line(`e${i}`)) }, 80)!, /at most 10 custom/);
 });
 
 test('pricing: units of the same board share sheets', () => {

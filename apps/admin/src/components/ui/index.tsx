@@ -620,7 +620,7 @@ export function Modal({
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  width?: 'sm' | 'md' | 'lg';
+  width?: 'sm' | 'md' | 'lg' | 'xl';
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -669,6 +669,7 @@ export function Modal({
           width === 'sm' && 'sm:max-w-md',
           width === 'md' && 'sm:max-w-2xl',
           width === 'lg' && 'sm:max-w-4xl',
+          width === 'xl' && 'sm:max-w-7xl',
         )}
       >
         <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">

@@ -27,7 +27,7 @@ export const LAYOUTS: Array<{ id: Layout; name: string; walls: number }> = [
 ];
 export const MOUNT_LABEL: Record<Mount, string> = { floor: 'Floor unit', wall: 'Wall unit', tall: 'Tall unit', gap: 'Appliance gap' };
 export const ROLE_LABEL: Record<BoardRole, string> = { carcass: 'Carcass', front: 'Fronts', worktop: 'Worktop', back: 'Backs' };
-export const LIMITS = { wall_min: 300, wall_max: 12_000, island_min: 600, island_max: 6_000, height_min: 1_800, height_max: 4_000 };
+export const LIMITS = { wall_min: 300, wall_max: 12_000, island_min: 600, island_max: 6_000, height_min: 1_800, height_max: 4_000, extras_max: 10 };
 
 export interface TemplatePanel {
   id?: string;
@@ -117,11 +117,20 @@ export interface PlanWall {
   length_mm: number;
   units: PlacedUnit[];
 }
+/** Work that is not a unit: priced as cost + margin (null margin = Pricing's), carried into Make quote. */
+export interface ExtraLine {
+  id: string;
+  name: string;
+  quantity: number;
+  cost: number;
+  margin_pct: number | null;
+}
 export interface Plan {
   layout: Layout;
   height_mm: number;
   walls: PlanWall[];
   island: PlanWall | null;
+  extras?: ExtraLine[];
 }
 export interface DesignSummary {
   id: string;
@@ -160,6 +169,7 @@ export interface Breakdown {
   hardware: Array<{ item_id: string; name: string; qty: number; cost: number }>;
   labour: { hours: number; cost: number };
   lines: Array<{ key: string; template_id: string; name: string; width_mm: number; cost: number; price: number }>;
+  extras: Array<{ id: string; name: string; quantity: number; cost: number; price: number }>;
   cost: number;
   margin: number;
   net: number;
@@ -184,6 +194,7 @@ export const runs = (plan: Plan): PlanWall[] => [...plan.walls, ...(plan.island 
 export const planUnits = (plan: Plan) => runs(plan).flatMap((wall) => wall.units);
 
 export const newUnitId = () => `u-${crypto.randomUUID().slice(0, 12)}`;
+export const newExtraId = () => `x-${crypto.randomUUID().slice(0, 12)}`;
 
 /** The plan for a new layout: walls kept where they still exist, new ones 3 m and empty. */
 export function withLayout(plan: Plan, layout: Layout): Plan {

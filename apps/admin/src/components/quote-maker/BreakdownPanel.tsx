@@ -42,6 +42,12 @@ export function BreakdownPanel({ breakdown, error, items }: { breakdown: Breakdo
         <dd className="text-right">{money(b.hardware.reduce((s, x) => s + x.cost, 0))}</dd>
         <dt className="text-ink-muted">Labour, {b.labour.hours} h</dt>
         <dd className="text-right">{money(b.labour.cost)}</dd>
+        {b.extras?.length ? (
+          <>
+            <dt className="text-ink-muted">Other work</dt>
+            <dd className="text-right">{money(b.extras.reduce((s, x) => s + x.cost, 0))}</dd>
+          </>
+        ) : null}
         <dt className="border-t border-border pt-1.5 font-semibold">Cost</dt>
         <dd className="border-t border-border pt-1.5 text-right font-semibold">{money(b.cost)}</dd>
         <dt className="text-ink-muted">Margin {pct(b.margin_pct)}</dt>

@@ -155,9 +155,40 @@ export class DesignUnitDto {
   @IsOptional() @IsObject() finishes?: Record<string, string>;
 }
 
+/** A custom line on a staff design: not a unit, priced as cost + margin. */
+export class ExtraLineDto {
+  @Matches(ID) id!: string;
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @MinLength(1) @MaxLength(120) name!: string;
+  @IsInt() @Min(1) @Max(999) quantity!: number;
+  @IsNumber(money) @Min(0) @Max(99_999.99) cost!: number;
+  /** Null or absent = the Pricing settings' margin. */
+  @IsOptional() @IsNumber(money) @Min(0) @Max(1000) margin_pct?: number | null;
+}
+
 export class DesignDto {
   @IsArray() @ArrayMaxSize(80) @ValidateNested({ each: true }) @Type(() => DesignUnitDto) units!: DesignUnitDto[];
 }
+
+/** Pricing settings tried out before they are saved: numbers only (the default boards come from what is saved). */
+export class PricingPreviewDto {
+  @IsOptional() @IsNumber(money) @Min(0) @Max(500) margin_pct?: number;
+  @IsOptional() @IsNumber(money) @Min(0) @Max(50) range_low_pct?: number;
+  @IsOptional() @IsNumber(money) @Min(0) @Max(100) range_high_pct?: number;
+  @IsOptional() @IsNumber(money) @Min(0) @Max(20) kerf_mm?: number;
+  @IsOptional() @IsNumber(money) @Min(0) @Max(100) edge_trim_mm?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(1_000) round_to?: number;
+  @IsOptional() @IsNumber(money) @Min(0) @Max(1_000) hourly_rate?: number;
+}
+
+/** The Admin's working: the public estimate's units plus custom lines and, optionally, unsaved Pricing numbers. */
+export class BreakdownDto extends DesignDto {
+  @IsOptional() @IsArray() @ArrayMaxSize(10) @ValidateNested({ each: true }) @Type(() => ExtraLineDto) extras?: ExtraLineDto[];
+  @IsOptional() @ValidateNested() @Type(() => PricingPreviewDto) preview?: PricingPreviewDto;
+}
+
+/** Custom lines as stored: defined fields only, margin explicit (null = Pricing's). */
+export const cleanExtras = (extras: ExtraLineDto[] | undefined) =>
+  (extras ?? []).map(({ id, name, quantity, cost, margin_pct }) => ({ id, name, quantity, cost, margin_pct: margin_pct ?? null }));
 
 /* ---------------------------------------------------------------- service */
 
@@ -467,10 +498,11 @@ export class QuoteMakerService {
   }
 
   /** The Admin's full working: sheets and their cutting layouts, hardware, labour, cost, margin, VAT. */
-  async breakdown(dto: DesignDto): Promise<Breakdown & { vat_rate: number; margin_pct: number }> {
-    const { units, items, pricing } = await this.resolve(dto, false);
+  async breakdown(dto: BreakdownDto): Promise<Breakdown & { vat_rate: number; margin_pct: number }> {
+    const resolved = await this.resolve(dto, false);
+    const pricing: QuotePricing = { ...resolved.pricing, ...dto.preview };
     const { vat_rate } = await this.db.settings();
-    return { ...priceDesign(units, items, pricing, vat_rate), vat_rate, margin_pct: pricing.margin_pct };
+    return { ...priceDesign(resolved.units, resolved.items, pricing, vat_rate, cleanExtras(dto.extras)), vat_rate, margin_pct: pricing.margin_pct };
   }
 }
 
@@ -496,7 +528,7 @@ export class QuoteMakerController {
     return generatePanels(dto.structure, dto, dto.slots.map((key) => ({ key })), 'new').map(({ id: _id, ...panel }) => panel);
   }
 
-  @Post('breakdown') @HttpCode(200) breakdown(@Body() dto: DesignDto) {
+  @Post('breakdown') @HttpCode(200) breakdown(@Body() dto: BreakdownDto) {
     return this.quoteMaker.breakdown(dto);
   }
 

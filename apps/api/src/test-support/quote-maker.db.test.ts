@@ -290,7 +290,7 @@ test('switching off a default board takes its units off the website, never price
 /* ------------------------------------------------------------ saved designs (PR 3) */
 
 type Placed = { id: string; template_id: string; variant_id: string; x_mm: number; finishes?: Record<string, string> };
-type PlanBody = { layout: string; height_mm: number; walls: Array<{ length_mm: number; units: Placed[] }>; island: { length_mm: number; units: Placed[] } | null };
+type PlanBody = { layout: string; height_mm: number; walls: Array<{ length_mm: number; units: Placed[] }>; island: { length_mm: number; units: Placed[] } | null; extras?: unknown[] };
 type Design = {
   id: string; ref: string; title: string | null; source: string; units: number;
   estimate_low: number | null; estimate_high: number | null; design: PlanBody;
@@ -384,6 +384,67 @@ test('Make quote writes a Draft for the project, identical units on one line; th
   await json(await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin));
   assert.equal((await prisma.projectQuote.findUnique({ where: { id: quote.id } }))!.design_id, null);
   assert.equal((await call('DELETE', `/quote-maker/designs/${designId}`, tokens.admin)).status, 404);
+});
+
+test('a custom line prices with the design, is kept on save, flows into Make quote, and the quote lines stay editable', async () => {
+  const line = (id: string, over: Record<string, unknown> = {}) => ({ id, name: 'Bespoke bench', quantity: 2, cost: 100.1, margin_pct: 50, ...over });
+  const withExtras = (extras: unknown[]) => ({ ...save(single(unitAt('a', 0))), design: { ...single(unitAt('a', 0)), extras } });
+  const refuse = async (body: unknown, pattern: RegExp) => {
+    const res = await call('POST', '/quote-maker/designs', tokens.admin, body);
+    const text = await res.text();
+    assert.equal(res.status, 400, text);
+    assert.match(text, pattern);
+  };
+  await refuse(withExtras([line('e1'), line('e1')]), /same id/);
+  await refuse(withExtras([line('e1', { name: '' })]), /name/);
+  await refuse(withExtras([line('e1', { quantity: 0 })]), /quantity/);
+  await refuse(withExtras([line('e1', { cost: 1.234 })]), /cost/);
+  await refuse(withExtras(Array.from({ length: 11 }, (_, i) => line(`e${i}`))), /extras/);
+
+  const plain = await json<Design>(await call('POST', '/quote-maker/designs', tokens.admin, save(single(unitAt('a', 0)))), 201);
+  const made = await json<Design>(
+    await call('POST', '/quote-maker/designs', tokens.admin, withExtras([line('e1'), line('e2', { name: 'Delivery', quantity: 1, cost: 40, margin_pct: null })])), 201);
+  assert.equal(made.design.extras?.length, 2);
+  assert.ok(made.estimate_high! > plain.estimate_high!, 'custom lines are in the range');
+  assert.equal((await json<Design>(await call('GET', `/quote-maker/designs/${made.id}`, tokens.admin))).design.extras?.length, 2);
+
+  // The Admin's breakdown prices them: £100.10 + 50% = £150.15 each, x2; £40 + the pricing margin (70%) = £68, x1.
+  const unit = { template_id: baseId, variant_id: 'kitchen-base-600' };
+  const breakdown = await json<{ extras: Array<{ id: string; cost: number; price: number }> }>(
+    await call('POST', '/quote-maker/breakdown', tokens.admin, { units: [unit], extras: [line('e1'), line('e2', { name: 'Delivery', quantity: 1, cost: 40, margin_pct: null })] }));
+  assert.deepEqual(breakdown.extras.map((e) => [e.id, e.cost, e.price]), [['e1', 200.2, 300.3], ['e2', 40, 68]]);
+
+  // Unsaved Pricing numbers can be tried out (Admin only, nothing stored): at 0% margin the delivery is sold at cost.
+  const tried = await json<{ margin_pct: number; extras: Array<{ price: number }> }>(
+    await call('POST', '/quote-maker/breakdown', tokens.admin, { units: [unit], extras: [line('e2', { name: 'Delivery', quantity: 1, cost: 40, margin_pct: null })], preview: { margin_pct: 0 } }));
+  assert.deepEqual([tried.margin_pct, tried.extras[0]!.price], [0, 40]);
+  assert.equal((await call('POST', '/quote-maker/estimate', undefined, { units: [unit], preview: { margin_pct: 0 } })).status, 400, 'the public estimate takes no preview');
+
+  const quote = await json<{ id: string; items: Array<{ description: string; quantity: number; cost_price: number; margin_pct: number; unit_price: number }> }>(
+    await call('POST', `/quote-maker/designs/${made.id}/quote`, tokens.admin, { project_id: PROJECT }), 201);
+  assert.equal(quote.items.length, 3, 'one unit line and two custom lines');
+  const bench = quote.items.find((i) => i.description === 'Bespoke bench')!;
+  assert.deepEqual([bench.quantity, Number(bench.cost_price), Number(bench.margin_pct), Number(bench.unit_price)], [2, 100.1, 50, 150.15]);
+  const delivery = quote.items.find((i) => i.description === 'Delivery')!;
+  assert.deepEqual([Number(delivery.margin_pct), Number(delivery.unit_price)], [70, 68]);
+
+  // Still the Admin's to change on the sheet: edit a line's cost and the price follows.
+  const items = quote.items.map((i) => ({ description: i.description, quantity: i.quantity, unit_price: 0, cost_price: i.description === 'Delivery' ? 50 : Number(i.cost_price), margin_pct: Number(i.margin_pct) }));
+  const edited = await json<{ items: Array<{ description: string; unit_price: number }> }>(await call('PUT', `/quotes/${quote.id}`, tokens.admin, { items }));
+  assert.equal(Number(edited.items.find((i) => i.description === 'Delivery')!.unit_price), 85);
+
+  // A visitor's design never carries custom lines: submit drops them rather than pricing them.
+  // (The service directly: the public route is limited to 5 a quarter-hour and the visitor test below uses it.)
+  await setPage(true);
+  const sent = await app.nest.get(QuoteDesignsService).submit({
+    rooms: [{ room_type: 'kitchen', design: { ...single(unitAt('a', 0)), extras: [line('e1')] } }], ...contact,
+  } as never);
+  const stored = await prisma.quoteDesign.findFirstOrThrow({ where: { enquiry_id: (await prisma.contactSubmission.findFirstOrThrow({ where: { email: VISITOR }, orderBy: { created_at: 'desc' } })).id } });
+  assert.equal((stored.design as { extras?: unknown }).extras, undefined);
+  const quoted = await json<Estimate>(await call('POST', '/quote-maker/estimate', undefined, { units: [unit] }));
+  assert.deepEqual([sent.low, sent.high], [quoted.low, quoted.high]);
+  await prisma.quoteDesign.delete({ where: { id: stored.id } });
+  await prisma.contactSubmission.deleteMany({ where: { email: VISITOR } });
 });
 
 /* ------------------------------------------------------------ the website (PR 4) */

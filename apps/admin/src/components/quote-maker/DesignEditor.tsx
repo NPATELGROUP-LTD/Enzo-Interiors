@@ -1,12 +1,14 @@
-import { Copy, Cube, FloppyDisk, Package, Plus, Receipt, Sparkle, Trash } from '@phosphor-icons/react';
+import { ArrowLeft, Copy, FloppyDisk, Package, Plus, Receipt, Sparkle, Trash } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate } from 'react-router-dom';
 
 import { Button, Checkbox, ConfirmDialog, Input, Modal, Select, Tabs, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
+import { money } from '@/lib/format';
 import type { Project } from '@/types/api';
 
 import { BreakdownPanel } from './BreakdownPanel';
@@ -21,6 +23,7 @@ import {
   ROOM_TYPES,
   bottomOf,
   firstFree,
+  newExtraId,
   newUnitId,
   planUnits,
   runs,
@@ -29,6 +32,7 @@ import {
   type Breakdown,
   type BoardRole,
   type Design,
+  type ExtraLine,
   type Layout,
   type Plan,
   type PlanWall,
@@ -39,6 +43,7 @@ import {
 
 const Preview3D = lazy(() => import('./Preview3D'));
 const failed = (caught: unknown) => (caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
+const CELL = 'tabular min-h-9 w-full rounded-[6px] border border-border bg-surface px-2 text-sm text-ink focus:border-green-900 focus-visible:outline-none focus:ring-[3px] focus:ring-focus-ring/35';
 const BLANK: Plan = { layout: 'single', height_mm: 2400, walls: [{ length_mm: 3000, units: [] }], island: null };
 
 interface Questions {
@@ -67,7 +72,6 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
   const [dirty, setDirty] = useState(design === null);
   const [saving, setSaving] = useState(false);
   const [filling, setFilling] = useState(false);
-  const [show3d, setShow3d] = useState(false);
   const [breakdown, setBreakdown] = useState<{ data: Breakdown | null; error: string | null }>({ data: null, error: null });
   const [project, setProject] = useState<'quote' | 'materials' | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -90,17 +94,34 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
     return () => window.removeEventListener('beforeunload', stop);
   }, [dirty]);
 
+  // Full screen like the website's: the page behind is inert and does not scroll while this is open.
+  useEffect(() => {
+    const behind = document.getElementById('root');
+    behind?.setAttribute('inert', '');
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      behind?.removeAttribute('inert');
+      document.body.style.overflow = overflow;
+    };
+  }, []);
+
+  const extras = plan.extras ?? [];
+  const badExtras = extras.some((e) => !e.name.trim() || !(e.quantity >= 1));
+  const setExtras = (next: ExtraLine[]) => change((p) => ({ ...p, extras: next }));
+
   // The API prices every change, a moment after the last one.
   useEffect(() => {
     const units = planUnits(plan).map(({ template_id, variant_id, finishes }) => ({ template_id, variant_id, ...(finishes ? { finishes } : {}) }));
-    if (!units.length) {
+    const lines = (plan.extras ?? []).filter((e) => e.name.trim() && e.quantity >= 1);
+    if (!units.length && !lines.length) {
       setBreakdown({ data: null, error: null });
       return;
     }
     let live = true;
     const timer = window.setTimeout(() => {
       api
-        .post<Breakdown>('/quote-maker/breakdown', { units })
+        .post<Breakdown>('/quote-maker/breakdown', { units, extras: lines })
         .then((data) => live && setBreakdown({ data, error: null }))
         .catch((caught) => live && setBreakdown({ data: null, error: failed(caught) }));
     }, 350);
@@ -185,7 +206,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
         finishes: slotFinishes(finishes),
         gaps: questions.gaps,
       });
-      change(filled);
+      change({ ...filled, extras: plan.extras });
       setSelected(null);
       toast.success(`Filled with ${planUnits(filled).length} units. Move, resize or remove any of them.`);
     } catch (caught) {
@@ -238,11 +259,28 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
   const gapsForRoom = forRoom.filter((t) => t.mount === 'gap');
   const selectedTemplate = located ? byId.get(located.unit.template_id) : undefined;
 
-  return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0 flex-1 sm:max-w-md">
+  const total = breakdown.data;
+  const marginDefault = pricing.data.margin_pct;
+  const goBack = (event: MouseEvent) => {
+    if (dirty && !window.confirm('Leave without saving this design?')) event.preventDefault();
+  };
+
+  return createPortal(
+    <section aria-label="Design editor" data-testid="design-editor" className="fixed inset-0 z-[45] flex flex-col bg-canvas text-ink">
+      <header className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border bg-surface px-3 py-2.5 sm:px-5">
+        <Link to="/quotes" onClick={goBack} className="inline-flex min-h-9 items-center gap-1.5 rounded-control px-2 text-sm font-semibold text-ink-muted hover:text-ink">
+          <ArrowLeft size={16} aria-hidden="true" /> <span className="max-sm:sr-only">Quotes</span>
+        </Link>
+        <div className="min-w-0 flex-1 basis-48 sm:max-w-sm">
           <Input label="Design name" value={title} maxLength={120} placeholder={design?.ref ?? 'e.g. Smith kitchen, option A'} onChange={(e) => (setTitle(e.target.value), setDirty(true))} />
+        </div>
+        <div className="ml-auto flex items-center gap-2 rounded-card bg-green-900 px-3.5 py-1.5 text-on-primary" aria-live="polite">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-on-primary/70">Website range</p>
+            <p className="tabular text-base font-semibold leading-tight">
+              {!total ? '–' : total.unpriced.length ? 'Not priced' : `${money(total.low)} – ${money(total.high)}`}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {design ? (
@@ -251,239 +289,282 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
                 Make quote
               </Button>
               <Button icon={<Package size={16} aria-hidden="true" />} disabled={dirty} title={dirty ? 'Save first' : undefined} onClick={() => setProject('materials')}>
-                Add to project stock
+                <span className="max-sm:sr-only">Add to project stock</span>
               </Button>
               <Button variant="ghost" icon={<Trash size={16} aria-hidden="true" />} aria-label="Delete design" onClick={() => setDeleting(true)} />
             </>
           ) : null}
-          <Button variant="primary" loading={saving} disabled={offWall.length > 0} icon={<FloppyDisk size={16} aria-hidden="true" />} onClick={() => void save()}>
+          <Button variant="primary" loading={saving} disabled={offWall.length > 0 || badExtras} icon={<FloppyDisk size={16} aria-hidden="true" />} onClick={() => void save()}>
             {dirty ? 'Save' : 'Saved'}
           </Button>
         </div>
       </header>
 
-      {design?.enquiry || design?.quotes.length ? (
-        <div className="mb-5 flex flex-wrap gap-x-6 gap-y-1 rounded-card bg-surface p-3 text-sm shadow-soft">
-          {design.enquiry ? (
-            <span>
-              From the website: <strong>{design.enquiry.name}</strong> ({design.enquiry.email}),{' '}
-              <Link className="font-semibold text-green-900 underline" to={`/enquiries?id=${design.enquiry.id}`}>
-                enquiry
-              </Link>
-            </span>
-          ) : null}
-          {design.quotes.length ? (
-            <span>
-              Quotes:{' '}
-              {design.quotes.map((q, i) => (
-                <span key={q.id}>
-                  {i ? ', ' : ''}
-                  <Link className="font-semibold text-green-900 underline" to={`/quotes/${q.id}`}>
-                    {q.number}
-                  </Link>{' '}
-                  ({q.status})
-                </span>
-              ))}
-            </span>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-        <div className="flex min-w-0 flex-col gap-6">
-          {/* The room, and the questions that fill it */}
-          <section aria-labelledby="qm-room" className="rounded-card bg-surface p-4 shadow-soft">
-            <h2 id="qm-room" className="mb-3 text-base font-semibold text-ink">Room</h2>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Select label="Room type" value={room} onChange={(e) => (setRoom(e.target.value), setDirty(true))}>
-                {[...ROOM_TYPES, CUSTOM_ROOM].map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
-              </Select>
-              <Select label="Layout" value={plan.layout} onChange={(e) => (change((p) => withLayout(p, e.target.value as Layout)), setRun(0))}>
-                {LAYOUTS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
-              </Select>
-              <Input
-                label="Ceiling (mm)"
-                type="number"
-                inputMode="numeric"
-                min={LIMITS.height_min}
-                max={LIMITS.height_max}
-                value={plan.height_mm}
-                onChange={(e) => change((p) => ({ ...p, height_mm: Number(e.target.value) || 0 }))}
-              />
-              {plan.walls.map((w, i) => (
-                <Input
-                  key={i}
-                  label={`${wallLabel(plan, i)} length (mm)`}
-                  type="number"
-                  inputMode="numeric"
-                  min={LIMITS.wall_min}
-                  max={LIMITS.wall_max}
-                  value={w.length_mm}
-                  onChange={(e) => setRunAt(i, (wall) => ({ ...wall, length_mm: Number(e.target.value) || 0 }))}
-                />
-              ))}
-              <div className="flex flex-col justify-end gap-1.5">
-                <Toggle
-                  label="Island"
-                  checked={plan.island !== null}
-                  onChange={(on) => change((p) => ({ ...p, island: on ? { length_mm: 1800, units: [] } : null }))}
-                />
-              </div>
-              {plan.island ? (
-                <Input
-                  label="Island length (mm)"
-                  type="number"
-                  inputMode="numeric"
-                  min={LIMITS.island_min}
-                  max={LIMITS.island_max}
-                  value={plan.island.length_mm}
-                  onChange={(e) => setRunAt(plan.walls.length, (w) => ({ ...w, length_mm: Number(e.target.value) || 0 }))}
-                />
-              ) : null}
-            </div>
-
-            <details className="mt-4 rounded-control border border-border p-3 [&[open]>summary]:mb-3">
-              <summary className="cursor-pointer text-sm font-semibold text-ink">Fill from questions</summary>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {(['front', 'carcass', 'worktop'] as const).map((role) => (
-                  <Select
-                    key={role}
-                    label={ROLE_LABEL[role]}
-                    value={questions.finishes[role] ?? ''}
-                    onChange={(e) => setQuestions((q) => ({ ...q, finishes: { ...q.finishes, [role]: e.target.value } }))}
-                  >
-                    <option value="">Default</option>
-                    {boards([role]).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                  </Select>
-                ))}
-                <div className="flex flex-col justify-end">
-                  <Toggle label="Wall units above" checked={questions.upper} onChange={(upper) => setQuestions((q) => ({ ...q, upper }))} />
-                </div>
-                {gapsForRoom.length ? (
-                  <fieldset className="sm:col-span-2">
-                    <legend className="text-sm font-semibold text-ink">Spaces to leave on {wallLabel(plan, 0)}</legend>
-                    <div className="flex flex-wrap gap-x-4">
-                      {gapsForRoom.map((g) => (
-                        <Checkbox
-                          key={g.id}
-                          label={g.name}
-                          checked={questions.gaps.includes(g.id)}
-                          onChange={(on) => setQuestions((q) => ({ ...q, gaps: on ? [...q.gaps, g.id].slice(0, 6) : q.gaps.filter((id) => id !== g.id) }))}
-                        />
-                      ))}
-                    </div>
-                  </fieldset>
-                ) : null}
-              </div>
-              <Button className="mt-3" loading={filling} icon={<Sparkle size={16} aria-hidden="true" />} onClick={() => void fill()}>
-                Fill the room
-              </Button>
-            </details>
-          </section>
-
-          {/* The runs, from the front */}
-          <section aria-labelledby="qm-runs" className="flex flex-col gap-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 id="qm-runs" className="text-base font-semibold text-ink">Front view</h2>
-              {all.length > 1 ? (
-                <Tabs tabs={all.map((w, i) => ({ id: String(i), label: wallLabel(plan, i), count: w.units.length }))} active={String(active)} onChange={(id) => setRun(Number(id))} />
-              ) : null}
-            </div>
-            {offWall.length ? (
-              <p role="alert" className="rounded-card bg-danger-bg p-3 text-sm text-danger">
-                Past the end of its wall: {offWall.join(', ')}. Move or remove it, or lengthen the wall, to save.
-              </p>
-            ) : null}
-            <Elevation
-              label={wallLabel(plan, active)}
-              wall={wall}
-              ceiling_mm={plan.height_mm}
-              templates={byId}
-              colourOf={colourOf}
-              selectedId={selected}
-              onSelect={setSelected}
-              onMove={(id, x_mm) => setRunAt(active, (w) => ({ ...w, units: w.units.map((u) => (u.id === id ? { ...u, x_mm } : u)) }))}
-              onRemove={removeUnit}
-            />
-            <p className="text-xs text-ink-muted">Drag a unit along the wall, or select it and use the arrow keys (Shift for 100 mm). Delete removes it.</p>
-
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div className="rounded-card bg-surface p-4 shadow-soft">
-                <h3 className="mb-2 text-sm font-semibold text-ink">Add to {wallLabel(plan, active)}</h3>
-                {forRoom.length === 0 ? (
-                  <p className="text-sm text-ink-muted">No active units for this room type. Add some in the Unit library.</p>
-                ) : (
-                  MOUNTS.map((mount) => {
-                    const list = forRoom.filter((t) => t.mount === mount);
-                    return list.length ? (
-                      <div key={mount} className="mb-2">
-                        <p className="mb-1 text-xs font-semibold text-ink-muted">{MOUNT_LABEL[mount]}s</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {list.map((t) => (
-                            <Button
-                              key={t.id}
-                              className={clsx('min-h-9 px-2.5 text-[13px]', t.problems.length && 'border-warning/60')}
-                              title={t.problems.join(' ') || undefined}
-                              icon={<Plus size={14} aria-hidden="true" />}
-                              onClick={() => add(t)}
-                            >
-                              {t.name}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                    ) : null;
-                  })
-                )}
-              </div>
-
-              <div className="rounded-card bg-surface p-4 shadow-soft">
-                {located && selectedTemplate ? (
-                  <UnitInspector
-                    key={located.unit.id}
-                    unit={located.unit}
-                    template={selectedTemplate}
-                    wallLength={all[located.index]!.length_mm}
-                    boards={boards}
-                    defaults={pricing.data.defaults}
-                    items={items}
-                    onChange={(patch) => updateUnit(located.unit.id, patch)}
-                    onRemove={() => removeUnit(located.unit.id)}
-                    onDuplicate={() => {
-                      const width = selectedTemplate.variants.find((v) => v.id === located.unit.variant_id)?.width_mm ?? 0;
-                      const copy = { ...located.unit, id: newUnitId(), x_mm: located.unit.x_mm + width };
-                      if (copy.x_mm + width > all[located.index]!.length_mm) return toast.error('No room to the right of it.');
-                      setRunAt(located.index, (w) => ({ ...w, units: [...w.units, copy] }));
-                      setSelected(copy.id);
-                    }}
-                  />
-                ) : (
-                  <p className="text-sm text-ink-muted">Select a unit to change its size, position or finishes.</p>
-                )}
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <aside className="flex flex-col gap-4 xl:sticky xl:top-4 xl:self-start">
-          <div className="rounded-card bg-surface p-4 shadow-soft">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-ink">3D view</h2>
-              <Button variant="ghost" className="min-h-8 px-2 text-[13px]" icon={<Cube size={16} aria-hidden="true" />} aria-pressed={show3d} onClick={() => setShow3d((v) => !v)}>
-                {show3d ? 'Hide' : 'Show'}
-              </Button>
-            </div>
-            {show3d ? (
-              <Suspense fallback={<div className="aspect-[4/3] animate-pulse rounded-card bg-surface-muted" />}>
+      <div className="min-h-0 flex-1 overflow-y-auto lg:overflow-hidden">
+        <div className="grid gap-4 p-3 sm:p-5 lg:h-full lg:grid-cols-[minmax(0,1fr)_25rem] lg:grid-rows-[minmax(0,1fr)]">
+          {/* `contents` below lg: the 3D view then pins against the whole page, not just this column */}
+          <div className="contents lg:flex lg:min-h-0 lg:min-w-0 lg:flex-col lg:gap-4">
+            {/* The room in 3D: always in view (pinned while the tools scroll on a phone) */}
+            <div className="sticky top-0 z-10 h-[36vh] min-h-[13rem] shrink-0 overflow-hidden rounded-card bg-surface-muted shadow-soft lg:static lg:h-auto lg:min-h-[16rem] lg:flex-[6_1_0]">
+              <Suspense fallback={<div className="h-full w-full animate-pulse bg-surface-muted" />}>
                 <Preview3D plan={plan} templates={byId} colourOf={colourOf} />
               </Suspense>
+            </div>
+
+            <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-[5_1_0] lg:overflow-y-auto lg:pr-1">
+              <section aria-labelledby="qm-runs" className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 id="qm-runs" className="text-base font-semibold text-ink">Front view</h2>
+                  {all.length > 1 ? (
+                    <Tabs tabs={all.map((w, i) => ({ id: String(i), label: wallLabel(plan, i), count: w.units.length }))} active={String(active)} onChange={(id) => setRun(Number(id))} />
+                  ) : null}
+                </div>
+                {offWall.length ? (
+                  <p role="alert" className="rounded-card bg-danger-bg p-3 text-sm text-danger">
+                    Past the end of its wall: {offWall.join(', ')}. Move or remove it, or lengthen the wall, to save.
+                  </p>
+                ) : null}
+                <Elevation
+                  label={wallLabel(plan, active)}
+                  wall={wall}
+                  ceiling_mm={plan.height_mm}
+                  templates={byId}
+                  colourOf={colourOf}
+                  selectedId={selected}
+                  onSelect={setSelected}
+                  onMove={(id, x_mm) => setRunAt(active, (w) => ({ ...w, units: w.units.map((u) => (u.id === id ? { ...u, x_mm } : u)) }))}
+                  onRemove={removeUnit}
+                />
+                <p className="text-xs text-ink-muted">Drag a unit along the wall, or select it and use the arrow keys (Shift for 100 mm). Delete removes it.</p>
+              </section>
+
+              <div className="grid gap-4 xl:grid-cols-2">
+                <div className="rounded-card bg-surface p-4 shadow-soft">
+                  <h3 className="mb-2 text-sm font-semibold text-ink">Add to {wallLabel(plan, active)}</h3>
+                  {forRoom.length === 0 ? (
+                    <p className="text-sm text-ink-muted">No active units for this room type. Add some in the Unit library.</p>
+                  ) : (
+                    MOUNTS.map((mount) => {
+                      const list = forRoom.filter((t) => t.mount === mount);
+                      return list.length ? (
+                        <div key={mount} className="mb-2">
+                          <p className="mb-1 text-xs font-semibold text-ink-muted">{MOUNT_LABEL[mount]}s</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {list.map((t) => (
+                              <Button
+                                key={t.id}
+                                className={clsx('min-h-9 px-2.5 text-[13px]', t.problems.length && 'border-warning/60')}
+                                title={t.problems.join(' ') || undefined}
+                                icon={<Plus size={14} aria-hidden="true" />}
+                                onClick={() => add(t)}
+                              >
+                                {t.name}
+                              </Button>
+                            ))}
+                          </div>
+                        </div>
+                      ) : null;
+                    })
+                  )}
+                </div>
+
+                <div className="rounded-card bg-surface p-4 shadow-soft">
+                  {located && selectedTemplate ? (
+                    <UnitInspector
+                      key={located.unit.id}
+                      unit={located.unit}
+                      template={selectedTemplate}
+                      wallLength={all[located.index]!.length_mm}
+                      boards={boards}
+                      defaults={pricing.data.defaults}
+                      items={items}
+                      onChange={(patch) => updateUnit(located.unit.id, patch)}
+                      onRemove={() => removeUnit(located.unit.id)}
+                      onDuplicate={() => {
+                        const width = selectedTemplate.variants.find((v) => v.id === located.unit.variant_id)?.width_mm ?? 0;
+                        const copy = { ...located.unit, id: newUnitId(), x_mm: located.unit.x_mm + width };
+                        if (copy.x_mm + width > all[located.index]!.length_mm) return toast.error('No room to the right of it.');
+                        setRunAt(located.index, (w) => ({ ...w, units: [...w.units, copy] }));
+                        setSelected(copy.id);
+                      }}
+                    />
+                  ) : (
+                    <p className="text-sm text-ink-muted">Select a unit to change its size, position or finishes.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <aside className="flex min-w-0 flex-col gap-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+            {design?.enquiry || design?.quotes.length ? (
+              <div className="flex flex-col gap-1 rounded-card bg-surface p-3 text-sm shadow-soft">
+                {design.enquiry ? (
+                  <span>
+                    From the website: <strong>{design.enquiry.name}</strong> ({design.enquiry.email}),{' '}
+                    <Link className="font-semibold text-green-900 underline" to={`/enquiries?id=${design.enquiry.id}`}>
+                      enquiry
+                    </Link>
+                  </span>
+                ) : null}
+                {design.quotes.length ? (
+                  <span>
+                    Quotes:{' '}
+                    {design.quotes.map((q, i) => (
+                      <span key={q.id}>
+                        {i ? ', ' : ''}
+                        <Link className="font-semibold text-green-900 underline" to={`/quotes/${q.id}`}>
+                          {q.number}
+                        </Link>{' '}
+                        ({q.status})
+                      </span>
+                    ))}
+                  </span>
+                ) : null}
+              </div>
             ) : null}
-          </div>
-          <div className="rounded-card bg-surface p-4 shadow-soft">
-            <h2 className="mb-3 text-base font-semibold text-ink">Price</h2>
-            <BreakdownPanel breakdown={breakdown.data} error={breakdown.error} items={items} />
-          </div>
-        </aside>
+
+            {/* The room, and the questions that fill it */}
+            <section aria-labelledby="qm-room" className="rounded-card bg-surface p-4 shadow-soft">
+              <h2 id="qm-room" className="mb-3 text-base font-semibold text-ink">Room</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <Select label="Room type" value={room} onChange={(e) => (setRoom(e.target.value), setDirty(true))}>
+                  {[...ROOM_TYPES, CUSTOM_ROOM].map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </Select>
+                <Select label="Layout" value={plan.layout} onChange={(e) => (change((p) => withLayout(p, e.target.value as Layout)), setRun(0))}>
+                  {LAYOUTS.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </Select>
+                <Input
+                  label="Ceiling (mm)"
+                  type="number"
+                  inputMode="numeric"
+                  min={LIMITS.height_min}
+                  max={LIMITS.height_max}
+                  value={plan.height_mm}
+                  onChange={(e) => change((p) => ({ ...p, height_mm: Number(e.target.value) || 0 }))}
+                />
+                {plan.walls.map((w, i) => (
+                  <Input
+                    key={i}
+                    label={`${wallLabel(plan, i)} length (mm)`}
+                    type="number"
+                    inputMode="numeric"
+                    min={LIMITS.wall_min}
+                    max={LIMITS.wall_max}
+                    value={w.length_mm}
+                    onChange={(e) => setRunAt(i, (wall) => ({ ...wall, length_mm: Number(e.target.value) || 0 }))}
+                  />
+                ))}
+                <div className="flex flex-col justify-end gap-1.5">
+                  <Toggle
+                    label="Island"
+                    checked={plan.island !== null}
+                    onChange={(on) => change((p) => ({ ...p, island: on ? { length_mm: 1800, units: [] } : null }))}
+                  />
+                </div>
+                {plan.island ? (
+                  <Input
+                    label="Island length (mm)"
+                    type="number"
+                    inputMode="numeric"
+                    min={LIMITS.island_min}
+                    max={LIMITS.island_max}
+                    value={plan.island.length_mm}
+                    onChange={(e) => setRunAt(plan.walls.length, (w) => ({ ...w, length_mm: Number(e.target.value) || 0 }))}
+                  />
+                ) : null}
+              </div>
+
+              <details className="mt-4 rounded-control border border-border p-3 [&[open]>summary]:mb-3">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">Fill from questions</summary>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['front', 'carcass', 'worktop'] as const).map((role) => (
+                    <Select
+                      key={role}
+                      label={ROLE_LABEL[role]}
+                      value={questions.finishes[role] ?? ''}
+                      onChange={(e) => setQuestions((q) => ({ ...q, finishes: { ...q.finishes, [role]: e.target.value } }))}
+                    >
+                      <option value="">Default</option>
+                      {boards([role]).map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
+                    </Select>
+                  ))}
+                  <div className="flex flex-col justify-end">
+                    <Toggle label="Wall units above" checked={questions.upper} onChange={(upper) => setQuestions((q) => ({ ...q, upper }))} />
+                  </div>
+                  {gapsForRoom.length ? (
+                    <fieldset className="col-span-2">
+                      <legend className="text-sm font-semibold text-ink">Spaces to leave on {wallLabel(plan, 0)}</legend>
+                      <div className="flex flex-wrap gap-x-4">
+                        {gapsForRoom.map((g) => (
+                          <Checkbox
+                            key={g.id}
+                            label={g.name}
+                            checked={questions.gaps.includes(g.id)}
+                            onChange={(on) => setQuestions((q) => ({ ...q, gaps: on ? [...q.gaps, g.id].slice(0, 6) : q.gaps.filter((id) => id !== g.id) }))}
+                          />
+                        ))}
+                      </div>
+                    </fieldset>
+                  ) : null}
+                </div>
+                <Button className="mt-3" loading={filling} icon={<Sparkle size={16} aria-hidden="true" />} onClick={() => void fill()}>
+                  Fill the room
+                </Button>
+              </details>
+            </section>
+
+            {/* Work that is not a unit */}
+            <section aria-labelledby="qm-extras" className="rounded-card bg-surface p-4 shadow-soft">
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <h2 id="qm-extras" className="text-base font-semibold text-ink">Other work</h2>
+                <Button
+                  className="min-h-8 px-2.5 text-[13px]"
+                  icon={<Plus size={14} aria-hidden="true" />}
+                  disabled={extras.length >= LIMITS.extras_max}
+                  onClick={() => setExtras([...extras, { id: newExtraId(), name: '', quantity: 1, cost: 0, margin_pct: null }])}
+                >
+                  Line
+                </Button>
+              </div>
+              <p className="mb-2 text-xs text-ink-muted">A delivery, a bespoke piece, anything that is not a unit. It is added to the price and becomes a line on the quote, where you can still change it.</p>
+              {extras.length === 0 ? null : (
+                <ul className="flex flex-col gap-3">
+                  {extras.map((line, i) => {
+                    const set = (patch: Partial<ExtraLine>) => setExtras(extras.map((e, j) => (j === i ? { ...e, ...patch } : e)));
+                    const priced = breakdown.data?.extras?.find((e) => e.id === line.id);
+                    return (
+                      <li key={line.id} className="grid grid-cols-[1fr_auto] gap-x-2 gap-y-1.5 rounded-control border border-border p-2.5">
+                        <input aria-label="What it is" className={CELL} placeholder="e.g. Delivery and skip hire" maxLength={120} value={line.name} onChange={(e) => set({ name: e.target.value })} />
+                        <button type="button" aria-label={`Remove ${line.name || 'line'}`} className="flex h-9 w-9 items-center justify-center rounded-control text-ink-muted hover:bg-surface-muted hover:text-danger" onClick={() => setExtras(extras.filter((_, j) => j !== i))}>
+                          <Trash size={15} aria-hidden="true" />
+                        </button>
+                        <div className="col-span-2 grid grid-cols-3 gap-2">
+                          <label className="text-xs text-ink-muted">Qty
+                            <input aria-label="Quantity" type="number" min={1} max={999} className={CELL} value={line.quantity} onChange={(e) => set({ quantity: Math.max(0, Math.round(Number(e.target.value) || 0)) })} />
+                          </label>
+                          <label className="text-xs text-ink-muted">Cost each (£)
+                            <input aria-label="Cost each" type="number" min={0} step={0.01} className={CELL} value={line.cost} onChange={(e) => set({ cost: Math.max(0, Math.round((Number(e.target.value) || 0) * 100) / 100) })} />
+                          </label>
+                          <label className="text-xs text-ink-muted">Margin (%)
+                            <input aria-label="Margin" type="number" min={0} max={1000} step={0.5} className={CELL} placeholder={String(marginDefault)} value={line.margin_pct ?? ''} onChange={(e) => set({ margin_pct: e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0) })} />
+                          </label>
+                        </div>
+                        <p className="tabular col-span-2 text-xs text-ink-muted">{priced ? `${money(priced.price)} on the quote (cost ${money(priced.cost)})` : line.name.trim() ? 'Pricing…' : 'Give it a name'}</p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              {badExtras ? <p role="alert" className="mt-2 text-xs text-danger">Every line needs a name and a quantity of at least 1 before you can save.</p> : null}
+            </section>
+
+            <div className="rounded-card bg-surface p-4 shadow-soft">
+              <h2 className="mb-3 text-base font-semibold text-ink">Price</h2>
+              <BreakdownPanel breakdown={breakdown.data} error={breakdown.error} items={items} />
+            </div>
+          </aside>
+        </div>
       </div>
 
       {design ? (
@@ -510,7 +591,8 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
         onConfirm={() => void remove()}
         onCancel={() => setDeleting(false)}
       />
-    </div>
+    </section>,
+    document.body,
   );
 }
 
