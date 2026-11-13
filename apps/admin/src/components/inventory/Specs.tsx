@@ -2,7 +2,7 @@ import { MagnifyingGlass, Plus, Trash } from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 
 import { MediaField } from '@/components/cms/MediaPicker';
-import { Button, EmptyState, ErrorState, Input, LoadingState, Modal, Select, StatusTag, TableWrap, Td, Th, Toggle } from '@/components/ui';
+import { Button, EmptyState, ErrorState, Input, LoadingState, Modal, PageHeader, Select, StatusTag, TableWrap, Td, Th, Toggle } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
@@ -253,7 +253,8 @@ export function CataloguePage() {
   if (!items.data) return <LoadingState label="Loading the catalogue…" />;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-[100rem] flex-col gap-4 px-5 pb-16 pt-3 sm:px-8">
+      <PageHeader title="" />
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="max-w-[62ch] text-sm text-ink-muted">
@@ -274,13 +275,13 @@ export function CataloguePage() {
       </header>
 
       {shown.length === 0 ? (
-        <EmptyState title={query ? 'Nothing matches that' : 'No items yet'} message={query ? 'Try a name or SKU.' : 'An Admin adds items in Inventory.'} />
+        <EmptyState title={query ? 'Nothing matches that' : 'No items yet'} message={query ? 'Try a name or code.' : 'An Admin adds items in Inventory.'} />
       ) : (
-        <TableWrap>
+        <TableWrap className="max-md:min-w-0">
           <thead>
             <tr>
               <Th sort={sort.header('name')}>Item</Th>
-              <Th sort={sort.header('sku')} className="hidden md:table-cell">SKU</Th>
+              <Th sort={sort.header('sku')} className="hidden md:table-cell">Code</Th>
               <Th sort={sort.header('type')} className="hidden sm:table-cell">Type</Th>
               <Th className="hidden lg:table-cell">Size</Th>
               <Th sort={sort.header('site')}>Website</Th>
@@ -294,7 +295,7 @@ export function CataloguePage() {
                     <Swatch colour={item.swatch} image={item.image_id ? images.get(item.image_id) : undefined} />
                     <span>
                       <span className="block font-medium text-ink">{item.name}</span>
-                      {!item.active ? <span className="text-xs text-ink-muted">Switched off</span> : null}
+                      {!item.active ? <span className="text-xs text-ink-muted">Archived</span> : null}
                     </span>
                   </button>
                 </Td>
