@@ -2,6 +2,7 @@ import clsx from 'clsx';
 import {
   ArrowSquareOut,
   Bank,
+  CaretRight,
   CalendarBlank,
   Clock,
   EnvelopeSimple,
@@ -21,10 +22,10 @@ import {
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Navigate, useParams } from 'react-router-dom';
+import { Link, Navigate, useParams } from 'react-router-dom';
 
 import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, ErrorState, FIELD_BASE, Input, LoadingState, PaneHeader, SettingsShell, Toggle } from '@/components/ui';
+import { Button, ErrorState, FIELD_BASE, Input, LoadingState, PageHeader, PaneHeader, SettingsShell, Toggle, type SettingsNavGroup } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -72,30 +73,54 @@ const PAGES: Array<[PageKey, string]> = [
   ['cookies', 'Cookie policy'],
 ];
 
-/** The settings panes, in the sidebar's order. */
-export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = [
-  { id: 'health', label: 'Health', detail: 'Storage, database, cache and errors', Icon: Pulse },
-  { id: 'website', label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
-  { id: 'pages', label: 'Pages', detail: 'Switch pages of the website on or off', Icon: Files },
-  { id: 'brand', label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
-  { id: 'hours', label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
-  { id: 'emails', label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
-  { id: 'booking', label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
-  { id: 'stages', label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
-  { id: 'documents', label: 'Document categories', detail: 'What a file can be filed under', Icon: FolderSimple },
-  { id: 'bank', label: 'Bank details', detail: 'Where clients pay, printed on invoices', Icon: Bank },
-  { id: 'vat', label: 'VAT', detail: 'The rate new quotes and invoices start with', Icon: Percent },
-  { id: 'newsletter', label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
-  { id: 'users', label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
-  { id: 'alerts', label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
-  { id: 'security', label: 'Security', detail: 'Who signed in and what changed, from where', Icon: ShieldCheck },
+/** The panes, and the group each belongs to. Their ids are the addresses (/settings/hours), so they stay as they are. */
+const PANES: Record<string, { label: string; detail: string; Icon: PhosphorIcon }> = {
+  website: { label: 'Website', detail: 'Live or coming soon, opening time', Icon: Globe },
+  pages: { label: 'Pages', detail: 'Switch pages of the website on or off', Icon: Files },
+  brand: { label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
+  health: { label: 'Health', detail: 'Storage, database, cache and errors', Icon: Pulse },
+  hours: { label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
+  booking: { label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
+  stages: { label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
+  documents: { label: 'Document categories', detail: 'What a file can be filed under', Icon: FolderSimple },
+  bank: { label: 'Bank details', detail: 'Where clients pay, printed on invoices', Icon: Bank },
+  vat: { label: 'VAT', detail: 'The rate new quotes and invoices start with', Icon: Percent },
+  emails: { label: 'Emails', detail: 'Where enquiries and bookings go', Icon: EnvelopeSimple },
+  newsletter: { label: 'Newsletter', detail: 'Subscribers and newsletters', Icon: Newspaper },
+  alerts: { label: 'Alerts', detail: 'Who is emailed when something breaks', Icon: BellRinging },
+  users: { label: 'Users', detail: 'Invite people and choose their role', Icon: UsersThree },
+  security: { label: 'Security', detail: 'Who signed in and what changed, from where', Icon: ShieldCheck },
+};
+
+const GROUPS: Array<{ id: string; label: string; detail: string; panes: string[] }> = [
+  { id: 'website', label: 'Website', detail: 'What visitors see, and whether the site is open to them.', panes: ['website', 'pages', 'brand', 'health'] },
+  { id: 'bookings', label: 'Bookings', detail: 'When the studio is open and when people can book a consultation.', panes: ['hours', 'booking'] },
+  { id: 'business', label: 'Business', detail: 'How projects, files, quotes and invoices are set up.', panes: ['stages', 'documents', 'bank', 'vat'] },
+  { id: 'communication', label: 'Communication', detail: 'Where enquiries are emailed, and the newsletter you send out.', panes: ['emails', 'newsletter', 'alerts'] },
+  { id: 'people', label: 'People', detail: 'Who can sign in, with which role, and what they have done.', panes: ['users', 'security'] },
 ];
+
+/** The settings panes, flat and in group order. */
+export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: string; Icon: PhosphorIcon }> = GROUPS.flatMap((group) =>
+  group.panes.map((id) => ({ id, ...PANES[id]! })),
+);
 
 /** What an Infra manager can open: the platform's switches and who can sign in. The business's own panes stay the Admin's. */
 const INFRA_SECTIONS = new Set(['health', 'website', 'pages', 'users', 'alerts', 'security']);
+const ADMIN_NEVER = new Set(['health', 'alerts', 'security']);
 
-export const settingsSections = (isInfra: boolean) =>
-  SETTINGS_SECTIONS.filter(({ id }) => (isInfra ? INFRA_SECTIONS.has(id) : id !== 'health' && id !== 'alerts' && id !== 'security'));
+const mayOpen = (id: string, isInfra: boolean) => (isInfra ? INFRA_SECTIONS.has(id) : !ADMIN_NEVER.has(id));
+
+export const settingsSections = (isInfra: boolean) => SETTINGS_SECTIONS.filter(({ id }) => mayOpen(id, isInfra));
+
+/** The groups with only the panes this person may open; a group left empty is dropped. */
+export const settingsGroups = (isInfra: boolean): SettingsNavGroup[] =>
+  GROUPS.map((group) => ({
+    id: group.id,
+    label: group.label,
+    detail: group.detail,
+    sections: group.panes.filter((id) => mayOpen(id, isInfra)).map((id) => ({ id, ...PANES[id]! })),
+  })).filter((group) => group.sections.length > 0);
 
 /** ISO -> the value a datetime-local input shows, in the browser's own zone. */
 function toLocalInput(iso: string | null): string {
@@ -112,14 +137,15 @@ const HELP = 'mt-1 text-sm leading-relaxed text-ink-muted';
 
 /**
  * The website, logo, email and booking settings, and who can sign in. Admin
- * only (the API enforces the same). Laid out like System Settings: the panes
- * down the left, the open one on the right.
+ * only (the API enforces the same). `/settings` lists the groups; a pane opens
+ * beside them.
  */
 export function SiteSettingsPage() {
   const { section = '' } = useParams();
   const { isInfra } = useAuth();
-  const sections = settingsSections(isInfra);
-  if (!sections.some((row) => row.id === section)) return <Navigate to={isInfra ? '/settings/health' : '/settings/website'} replace />;
+  const groups = settingsGroups(isInfra);
+  if (!section) return <SettingsIndex groups={groups} />;
+  if (!settingsSections(isInfra).some((row) => row.id === section)) return <Navigate to="/settings" replace />;
 
   let pane: ReactNode;
   if (section === 'health') pane = <Health />;
@@ -136,9 +162,49 @@ export function SiteSettingsPage() {
   else pane = <GeneralPane section={section as 'website' | 'pages' | 'brand' | 'emails'} />;
 
   return (
-    <SettingsShell label="Settings" sections={sections} active={section} to={(id) => `/settings/${id}`}>
+    <SettingsShell label="Settings" groups={groups} active={section} to={(id) => `/settings/${id}`}>
       {pane}
     </SettingsShell>
+  );
+}
+
+/** `/settings`: every group as a card, each pane a row with its one plain line. */
+function SettingsIndex({ groups }: { groups: SettingsNavGroup[] }) {
+  return (
+    <div className="mx-auto max-w-5xl px-5 pb-16 pt-3 sm:px-8">
+      <PageHeader title="Settings" description="Everything that can be set up, by what it is for." />
+      <div className="grid gap-5 lg:grid-cols-2">
+        {groups.map((group) => (
+          <section key={group.id} aria-labelledby={`settings-${group.id}`} className="rounded-card bg-surface p-2 shadow-soft">
+            <div className="px-3 pb-2 pt-3">
+              <h2 id={`settings-${group.id}`} className="text-base font-semibold tracking-tight text-ink">
+                {group.label}
+              </h2>
+              <p className={HELP}>{group.detail}</p>
+            </div>
+            <ul>
+              {group.sections.map(({ id, label, detail, Icon }) => (
+                <li key={id}>
+                  <Link
+                    to={`/settings/${id}`}
+                    className="flex items-center gap-3 rounded-[10px] px-3 py-2.5 transition-colors hover:bg-ink/[0.04] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 pointer-coarse:min-h-14"
+                  >
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-green-900/[0.08] text-green-900">
+                      <Icon size={18} aria-hidden="true" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-sm font-semibold text-ink">{label}</span>
+                      <span className="block text-[13px] leading-snug text-ink-muted">{detail}</span>
+                    </span>
+                    <CaretRight size={14} aria-hidden="true" className="shrink-0 text-ink-muted" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </div>
   );
 }
 
