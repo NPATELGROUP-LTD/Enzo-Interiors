@@ -435,7 +435,7 @@ emailed link is clicked; only `confirmed` are sent to) and
 `newsletter_campaigns` (HTML body sanitised on save by
 `modules/newsletter/render.ts`, sent in batches with List-Unsubscribe
 headers, resumed after a restart from `cursor`). Sign-up is on the
-coming-soon page and in the footer.
+coming-soon page and in the footer. The admin writes a newsletter from blocks (Heading, Text, Image, Button, Two columns, Divider; two starter templates; no HTML shown): `components/newsletter/blocks.ts` turns them into the email HTML, the API still sanitises it, and `newsletter_campaigns.blocks` (migration 40, nullable) keeps the list so a draft reopens; an older newsletter opens as one kept-as-written block. **Settings** (`/settings` lists five groups: Website, Bookings, Business, Communication, People; `/settings/:section` ids unchanged; Infra still sees only its six panes).
 
 **Rate limits:** `@nestjs/throttler` with counters in Redis (`REDIS_URL`,
 the `redis` compose service, addressed as `enzo-redis`: on the shared coolify

@@ -818,6 +818,7 @@ export type CampaignStatus = 'draft' | 'sending' | 'sent';
 export interface NewsletterCampaign extends BaseRecord {
   subject: string;
   html: string;
+  blocks: unknown[] | null;
   status: CampaignStatus;
   recipients: number;
   sent_count: number;

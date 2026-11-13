@@ -21,7 +21,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsEmail, IsIn, IsOptional, IsString, Matches, MaxLength, MinLength } from 'class-validator';
 import type { Response } from 'express';
 
 import { CurrentUser, Public, Roles } from '../../common/decorators';
@@ -74,6 +74,22 @@ export class CampaignDto {
   @IsString()
   @MaxLength(200_000)
   html!: string;
+
+  /** The editor's blocks. Only kept for re-opening the draft: what is sent is always the sanitised `html`. */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  blocks?: Array<Record<string, unknown>>;
+}
+
+/** The blocks as stored: plain objects, and not so large that they bloat the row. */
+function cleanBlocks(blocks: CampaignDto['blocks']): Array<Record<string, unknown>> | null {
+  if (!blocks) return null;
+  if (blocks.some((block) => !block || typeof block !== 'object' || Array.isArray(block))) {
+    throw new BadRequestException('Those blocks are not valid.');
+  }
+  if (JSON.stringify(blocks).length > 200_000) throw new BadRequestException('That newsletter is too large.');
+  return blocks;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -211,6 +227,7 @@ export class NewsletterService implements OnApplicationBootstrap {
     return this.db.newsletterCampaigns.create({
       subject: dto.subject.trim(),
       html: cleanCampaignHtml(dto.html),
+      blocks: cleanBlocks(dto.blocks),
       status: 'draft',
       recipients: 0,
       sent_count: 0,
@@ -228,6 +245,7 @@ export class NewsletterService implements OnApplicationBootstrap {
     return (await this.db.newsletterCampaigns.update(id, {
       subject: dto.subject.trim(),
       html: cleanCampaignHtml(dto.html),
+      blocks: cleanBlocks(dto.blocks),
       updated_at: new Date().toISOString(),
     }))!;
   }

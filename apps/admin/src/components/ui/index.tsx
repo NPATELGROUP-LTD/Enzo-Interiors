@@ -1162,52 +1162,74 @@ export function Checkbox({
 export interface SettingsSection {
   id: string;
   label: string;
+  /** One plain line on what the pane is for. */
+  detail?: string;
   Icon: PhosphorIcon;
 }
 
+/** Panes that belong together, under a heading and a plain line about them. */
+export interface SettingsNavGroup {
+  id: string;
+  label: string;
+  detail: string;
+  sections: SettingsSection[];
+}
+
 const SIDEBAR_ROW =
-  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
+  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35';
 
 /**
- * Laid out like System Settings: the panes down the left, the open one on the
- * right. Below lg there is no sidebar: a native dropdown takes one line.
+ * Settings, grouped: from lg up the groups' panes stand in a card on the left and the open pane in
+ * a card beside it, both floating on the page. Below lg the card of panes is not drawn: with
+ * `groups` the Settings page lists them and the heading row's back link returns there; with a flat
+ * `sections` list (Account, which has no such page) a native dropdown takes one line instead.
  */
 export function SettingsShell({
   label,
+  groups,
   sections,
   active,
   to,
   children,
 }: {
   label: string;
-  sections: SettingsSection[];
+  groups?: SettingsNavGroup[];
+  sections?: SettingsSection[];
   active: string;
   to: (id: string) => string;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const shown = groups ?? [{ id: 'all', label, detail: '', sections: sections ?? [] }];
   return (
-    <div className="flex h-full min-h-0">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
-        <nav aria-label={label} className="flex flex-col gap-px px-2.5 py-5">
-          {sections.map(({ id, label: name, Icon }) => (
-            <Link
-              key={id}
-              to={to(id)}
-              aria-current={id === active ? 'page' : undefined}
-              className={clsx(SIDEBAR_ROW, id === active ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')}
-            >
-              <Icon size={16} aria-hidden="true" className="shrink-0" />
-              {name}
-            </Link>
+    <div className="mx-auto flex max-w-[84rem] items-start gap-6 px-5 pb-16 pt-3 sm:px-8">
+      <aside className="sticky top-3 hidden max-h-[calc(100vh-7rem)] w-64 shrink-0 overflow-y-auto rounded-card bg-surface p-2.5 shadow-soft lg:block">
+        <nav aria-label={label} className="flex flex-col gap-4">
+          {shown.map((group) => (
+            <div key={group.id}>
+              {groups ? <p className="label-eyebrow px-2.5 pb-1">{group.label}</p> : null}
+              <div className="flex flex-col gap-px">
+                {group.sections.map(({ id, label: name, Icon }) => (
+                  <Link
+                    key={id}
+                    to={to(id)}
+                    aria-current={id === active ? 'page' : undefined}
+                    className={clsx(SIDEBAR_ROW, id === active ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')}
+                  >
+                    <Icon size={16} aria-hidden="true" className="shrink-0" />
+                    {name}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </aside>
 
-      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must scroll in here, not stretch the page. */}
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
-        <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-          <label className="mb-7 block lg:hidden">
+      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must stay in this card, not stretch the page. */}
+      <div className="relative min-w-0 flex-1 rounded-card bg-surface p-5 shadow-soft sm:p-8">
+        {sections ? (
+          <label className="mb-6 block lg:hidden">
             <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">{label}</span>
             <Listbox value={active} onChange={(event) => navigate(to(event.target.value))} className={clsx(FIELD_BASE, 'w-full')}>
               {sections.map((row) => (
@@ -1217,20 +1239,20 @@ export function SettingsShell({
               ))}
             </Listbox>
           </label>
-          {children}
-        </div>
+        ) : null}
+        {children}
       </div>
     </div>
   );
 }
 
-/** A pane's title, what it is for, and an optional action at the right. */
+/** A pane's title (the shell's heading already shows it, so it is read aloud only), what it is for, and an optional action at the right. */
 export function PaneHeader({ title, help, action }: { title: string; help: ReactNode; action?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
-        <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
+        <h2 className="sr-only">{title}</h2>
+        <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
       </div>
       {action}
     </header>
