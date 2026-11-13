@@ -50,8 +50,7 @@ export function DocumentsPage() {
   return (
     <>
       <PageHeader
-        title="Documents"
-      />
+        title="Documents" />
 
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative min-w-56 flex-1">
@@ -149,7 +148,7 @@ export function DocumentsPage() {
             </thead>
             <tbody>
               {sortedVisible.map((document) => (
-                <tr key={document.id} className="hover:bg-surface-muted/40">
+                <tr key={document.id}>
                   <Td className="font-medium text-ink [overflow-wrap:anywhere]">
                     <DocumentName document={document} />
                   </Td>

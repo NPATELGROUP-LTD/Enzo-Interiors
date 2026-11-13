@@ -1,11 +1,11 @@
-import { ArrowLeft, Check, Printer } from '@phosphor-icons/react';
+import { Check, Printer } from '@phosphor-icons/react';
 import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import { InvoiceDownloadButton } from '@/components/InvoiceDownload';
 import { InvoicePreview, InvoicePrint, printWhenReady } from '@/components/invoice/InvoiceSheet';
 import { ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
-import { Button, Card, ErrorState, LoadingState, StatusTag } from '@/components/ui';
+import { Button, Card, ErrorState, LoadingState, PageHeader, StatusTag } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
 import { date, money } from '@/lib/format';
 import { invoiceLabel, invoiceTone } from '@/lib/status';
@@ -42,36 +42,32 @@ export function InvoiceDetailPage() {
 
   return (
     <>
-      <div className="no-print mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <Link to="/invoices" className="text-link inline-flex items-center gap-1.5">
-            <ArrowLeft size={14} aria-hidden="true" />
-            All invoices
-          </Link>
-          <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-            {invoiceLabel(invoice.status, invoice.is_overdue)}
-          </StatusTag>
-        </div>
-        {canSave ? (
-          <div className="flex gap-2">
-            <InvoiceDownloadButton invoice={invoice} />
-            <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
-              Print
-            </Button>
-          </div>
-        ) : (
-          <p className="max-w-md text-xs text-ink-muted">{VIEW_ONLY_NOTE}</p>
-        )}
-      </div>
+      <PageHeader
+        title={`Invoice ${invoice.number}`}
+        description={invoice.project_name ?? invoice.job_name ?? undefined}
+        actions={
+          <>
+            <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+              {invoiceLabel(invoice.status, invoice.is_overdue)}
+            </StatusTag>
+            {canSave ? (
+              <>
+                <InvoiceDownloadButton invoice={invoice} />
+                <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
+                  Print
+                </Button>
+              </>
+            ) : null}
+          </>
+        }
+      />
+      {canSave ? null : <p className="no-print mb-3 text-xs text-ink-muted">{VIEW_ONLY_NOTE}</p>}
 
       {/* The A4 sheet shrinks to unreadable text on a phone; Download and Print still give the sheet. */}
       <Protect on={!canSave}>
       <Card className="no-print sm:hidden">
-        <p className="font-semibold text-ink">Invoice {invoice.number}</p>
-        <p className="text-xs text-ink-muted">
-          {invoice.project_name ?? invoice.job_name ?? ''} · due {date(invoice.due_date)}
-        </p>
-        <ul className="rows mt-3">
+        <p className="text-xs text-ink-muted">Due {date(invoice.due_date)}</p>
+        <ul className="rows mt-2">
           {(invoice.items ?? []).map((item) => (
             <li key={item.id} className="flex justify-between gap-3 py-2 text-sm">
               <span className="min-w-0 text-ink">

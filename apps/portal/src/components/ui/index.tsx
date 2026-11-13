@@ -168,14 +168,15 @@ export function MetricCard({
   accent?: CardProps['accent'];
 }) {
   return (
-    <Card accent={accent} className="flex h-full flex-col p-5">
+    // The card stays plain; tone shows in the figure only, so a row of them reads calmly.
+    <Card className="flex h-full flex-col">
       <p className="label-eyebrow">{eyebrow}</p>
-      <p className={clsx('tabular mt-3 text-[40px] font-bold leading-none tracking-tight', TONE_TEXT[accent])}>
+      <p className={clsx('tabular mt-2 text-2xl font-bold sm:text-[28px] leading-tight tracking-tight', TONE_TEXT[accent])}>
         {value}
       </p>
       {context ? (
         // Max two lines, per the brief's content rules.
-        <p className="mt-2 line-clamp-2 text-ink-muted">{context}</p>
+        <p className="mt-1 line-clamp-2 text-ink-muted">{context}</p>
       ) : null}
       {bottom ? <div className="mt-auto pt-3">{bottom}</div> : null}
     </Card>
@@ -1077,7 +1078,7 @@ export function SettingsGroup({ title, children }: { title?: string; children: R
   return (
     <section className="mt-6">
       {title ? <h3 className="mb-2 px-1 text-[13px] font-semibold text-ink-muted">{title}</h3> : null}
-      <div className="divide-y divide-border/70 rounded-[10px] border border-border bg-surface">{children}</div>
+      <div className="divide-y divide-border/50 rounded-[10px] bg-ink/[0.035]">{children}</div>
     </section>
   );
 }
