@@ -20,8 +20,9 @@ import { AuthPrincipal } from '../types/principal';
  *   Anyone else         nothing (an Editor never reaches the CRM; this is the
  *                       floor if a route forgets its @Roles).
  *
- * Work assignment is the only edge. clients.assigned_staff_id is who looks
- * after the account, an Admin's note; it grants nobody access.
+ * Work assignment is the main edge. clients.assigned_staff_id is who looks
+ * after the account: it lets a Designer see a client they added before any
+ * project exists (a Designer's new client is assigned to them).
  *
  * Every service that returns client-scoped rows funnels through
  * `visibleClientIds`, and every project read through `projectScope` /
@@ -89,7 +90,8 @@ export class AccessService {
     if (!this.isAssignable(principal)) return new Set();
 
     const projects = await this.db.projects.findWhere(this.projectScope(principal));
-    return new Set(projects.map((project) => project.client_id));
+    const looked = await this.db.clients.findWhere({ assigned_staff_id: principal.id });
+    return new Set([...projects.map((project) => project.client_id), ...looked.map((client) => client.id)]);
   }
 
   /** True when the principal may read/write records belonging to `clientId`. */
@@ -97,6 +99,7 @@ export class AccessService {
     if (this.isAdmin(principal)) return true;
     if (this.isClient(principal)) return principal.id === clientId;
     if (!this.isAssignable(principal)) return false;
+    if ((await this.db.clients.countWhere({ id: clientId, assigned_staff_id: principal.id })) > 0) return true;
     return (await this.db.projects.countWhere({ client_id: clientId, ...this.projectScope(principal) })) > 0;
   }
 

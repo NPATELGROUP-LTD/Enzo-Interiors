@@ -1,11 +1,12 @@
-import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, Trash, UserPlus } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, Ruler, Trash, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { useCmsShell } from '@/components/layout/AdminLayout';
 import { Button, ConfirmDialog, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { appendIfOpen } from '@/lib/enquiryThread';
 import { dateTime, refNo, relative } from '@/lib/format';
@@ -37,6 +38,18 @@ const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible
  * CMS overview's rows; the open one shows in a sidebar with its status and a
  * shortcut to add the sender as a client.
  */
+/** The quote maker designs sent with this enquiry (the website files one per room); nothing when it has none. */
+function OpenDesign({ enquiryId }: { enquiryId: string }) {
+  const designs = useQuery<Array<{ id: string; ref: string }>>(`/quote-maker/designs?enquiry_id=${encodeURIComponent(enquiryId)}`);
+  return (designs.data ?? []).map((design) => (
+    <Link key={design.id} to={`/quote-maker/${design.id}`}>
+      <Button variant="secondary" className="w-full whitespace-nowrap" icon={<Ruler size={16} aria-hidden="true" />}>
+        Open design {design.ref}
+      </Button>
+    </Link>
+  ));
+}
+
 export function EnquiriesPage() {
   const toast = useToast();
   const { refreshEnquiries } = useCmsShell();
@@ -266,44 +279,61 @@ export function EnquiriesPage() {
                   <CaretLeft size={16} aria-hidden="true" />
                   All enquiries
                 </button>
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-lg font-semibold text-ink">{open.name}</h2>
-                    <SourceTag row={open} />
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-semibold text-ink">{open.name}</h2>
+                      <SourceTag row={open} />
+                    </div>
+                    <p className="mt-0.5 text-[13px] text-ink-muted">
+                      {KIND[open.kind]} · {dateTime(open.created_at)}
+                    </p>
                   </div>
-                  <p className="mt-0.5 text-[13px] text-ink-muted">
-                    {KIND[open.kind]} · {dateTime(open.created_at)}
-                  </p>
+                  <Button
+                    variant="ghost"
+                    aria-label="Delete this enquiry"
+                    title="Delete…"
+                    className="-mr-2 -mt-1 shrink-0 px-2.5 text-ink-muted hover:text-danger"
+                    icon={<Trash size={18} aria-hidden="true" />}
+                    onClick={() => setDeleting(open)}
+                  />
                 </div>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-                  <div className="col-span-2 min-w-0">
-                    <dt className="text-ink-muted">Email</dt>
-                    <dd>
-                      <a href={`mailto:${open.email}`} className="text-link [overflow-wrap:anywhere]">
-                        {open.email}
-                      </a>
-                    </dd>
-                  </div>
+                {/* One field per line, labels in one column: a mixed two-up grid read as a jumble. */}
+                <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-5 gap-y-1.5 text-[13px]">
+                  <dt className="text-ink-muted">Email</dt>
+                  <dd>
+                    <a href={`mailto:${open.email}`} className="text-link [overflow-wrap:anywhere]">
+                      {open.email}
+                    </a>
+                  </dd>
                   {open.phone ? (
-                    <div>
+                    <>
                       <dt className="text-ink-muted">Phone</dt>
                       <dd>
                         <a href={`tel:${open.phone}`} className="text-link">
                           {open.phone}
                         </a>
                       </dd>
-                    </div>
+                    </>
                   ) : null}
                   {Object.entries(open.details ?? {}).map(([key, value]) => (
-                    <div key={key}>
+                    <Fragment key={key}>
                       <dt className="text-ink-muted">{key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase())}</dt>
-                      <dd className="break-words text-ink">{value}</dd>
-                    </div>
+                      <dd className={clsx('break-words text-ink', key === 'Estimate' && 'font-semibold tabular-nums')}>{value}</dd>
+                    </Fragment>
                   ))}
                 </dl>
                 {open.message ? (
-                  <p className="max-h-28 overflow-y-auto whitespace-pre-wrap break-words text-[14px] leading-relaxed text-ink">{open.message}</p>
+                  <p className="max-h-28 overflow-y-auto whitespace-pre-wrap break-words rounded-[10px] bg-ink/[0.04] p-3 text-[14px] leading-relaxed text-ink">{open.message}</p>
                 ) : null}
+                <div className="flex flex-wrap gap-2 [&>a]:flex-1">
+                  <Link to={addClient(open)}>
+                    <Button variant="primary" className="w-full whitespace-nowrap" icon={<UserPlus size={16} aria-hidden="true" />}>
+                      Add as client
+                    </Button>
+                  </Link>
+                  {open.kind === 'quote' ? <OpenDesign enquiryId={open.id} /> : null}
+                </div>
                 <div>
                   <p className="mb-2 text-[13px] font-semibold text-ink-muted">Status</p>
                   <Tabs
@@ -313,16 +343,6 @@ export function EnquiriesPage() {
                       if (!saving) void setStatus(open, id as SubmissionStatus);
                     }}
                   />
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Link to={addClient(open)}>
-                    <Button variant="primary" icon={<UserPlus size={16} aria-hidden="true" />}>
-                      Add as client
-                    </Button>
-                  </Link>
-                  <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(open)}>
-                    Delete…
-                  </Button>
                 </div>
                 <section aria-label="Replies" className="flex min-h-0 flex-1 flex-col gap-3 border-t border-border pt-4">
                   {thread.length ? (

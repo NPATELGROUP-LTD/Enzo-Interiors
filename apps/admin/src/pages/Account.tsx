@@ -173,7 +173,7 @@ export function AccountPage() {
               {initials(user.name)}
             </span>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-bold tracking-tight text-ink">{user.name}</h1>
+              <h2 className="truncate text-xl font-bold tracking-tight text-ink">{user.name}</h2>
               <p className="truncate text-ink-muted">
                 {user.email} · {role}
               </p>

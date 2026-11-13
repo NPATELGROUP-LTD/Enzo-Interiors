@@ -30,3 +30,7 @@ Thumbs.db
 .kilo/
 .claude/worktrees/
 .claude/settings.local.json
+
+# Pre-prod stack secrets (scripts/preprod-env.mjs)
+.env.preprod
+.env.coolify

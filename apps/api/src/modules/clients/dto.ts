@@ -14,9 +14,11 @@ export class CreateClientDto {
   @MaxLength(120)
   name!: string;
 
+  /** Optional: a client can be added by name and given an address later. */
+  @IsOptional()
   @IsEmail({}, { message: 'Enter a valid email address' })
   @MaxLength(254)
-  email!: string;
+  email?: string;
 
   @IsOptional() @IsString() @MaxLength(30) phone?: string | null;
   @IsOptional() @IsString() @MaxLength(500) address?: string | null;

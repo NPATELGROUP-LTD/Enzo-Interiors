@@ -497,7 +497,7 @@ function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
 }
 
 /** Attachment chips; each opens through Documents' own access check. */
-function Attachments({ items }: { items: MessageAttachment[] | null }) {
+export function Attachments({ items }: { items: MessageAttachment[] | null }) {
   const files = useFileViewer();
   if (!items?.length) return null;
   // PDFs and images open in the page; anything else is saved.
@@ -525,7 +525,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
 }
 
 /** Pick from the files already shared with this client: the client can open everything they are sent. */
-function AttachPicker({
+export function AttachPicker({
   conversationId,
   clientName,
   chosen,

@@ -24,7 +24,8 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
 import { QuoteItemInput } from '../../data/quote-store';
 import { InvoicesModule } from '../invoices/invoices.controller';
-import { InvoiceItemDto, InvoicesService } from '../invoices/invoices.service';
+import { hasEmail } from '../clients/no-email';
+import { InvoiceItemDto, InvoicesService, type Issuer } from '../invoices/invoices.service';
 import { DEFAULT_STAGES } from '../invoices/stages';
 import { MAX_AMOUNT, pennies, totalsOf } from '../invoices/totals';
 import { NotificationsModule, NotificationsService } from '../notifications/notifications.module';
@@ -93,6 +94,11 @@ export interface QuoteView extends ProjectQuote {
   vat_amount: number;
   /** Sent, and past its last day: the client can no longer accept. */
   expired: boolean;
+  /** For the letterhead sheet: the company, the client's contact and where the job is. */
+  issuer: Issuer;
+  client_email: string | null;
+  client_phone: string | null;
+  job_address: string | null;
 }
 
 /** Draft, or Declined (the Admin revises it and sends it again). */
@@ -127,7 +133,8 @@ export class QuotesService {
     return (await this.views([quote], this.access.isClient(principal)))[0]!;
   }
 
-  async create(principal: AuthPrincipal, dto: CreateQuoteDto): Promise<QuoteView> {
+  /** design_id is set only by the quote maker, never from a request body. */
+  async create(principal: AuthPrincipal, dto: CreateQuoteDto, design_id: string | null = null): Promise<QuoteView> {
     const client = await this.db.clients.findById(dto.client_id);
     if (!client) throw new BadRequestException('Client does not exist');
     const project = await this.db.projects.findById(dto.project_id);
@@ -159,6 +166,7 @@ export class QuotesService {
             responded_at: null,
             response_comment: null,
             invoice_id: null,
+            design_id,
             created_by: principal.name,
             created_at: now,
             updated_at: now,
@@ -310,21 +318,28 @@ export class QuotesService {
   private async views(quotes: ProjectQuote[], forClient = false): Promise<QuoteView[]> {
     if (quotes.length === 0) return [];
     const ids = (pick: (q: ProjectQuote) => string) => [...new Set(quotes.map(pick))];
-    const [items, clients, projects] = await Promise.all([
+    const [items, clients, projects, issuer] = await Promise.all([
       this.db.projectQuoteItems.findWhere({ quote_id: { in: ids((q) => q.id) } }, { orderBy: { position: 'asc' } }),
       this.db.clients.findWhere({ id: { in: ids((q) => q.client_id) } }),
       this.db.projects.findWhere({ id: { in: ids((q) => q.project_id) } }),
+      this.invoices.issuer(),
     ]);
-    const clientName = new Map(clients.map((c) => [c.id, c.name]));
-    const projectName = new Map(projects.map((p) => [p.id, p.name]));
+    const clientOf = new Map(clients.map((c) => [c.id, c]));
+    const projectOf = new Map(projects.map((p) => [p.id, p]));
     return quotes.map((quote) => {
       const own = items.filter((item) => item.quote_id === quote.id);
       const split = totalsOf(own, quote.vat_rate, quote.discount);
+      const client = clientOf.get(quote.client_id);
+      const project = projectOf.get(quote.project_id);
       return {
         ...quote,
         items: forClient ? [] : own,
-        client_name: clientName.get(quote.client_id) ?? 'Unknown client',
-        project_name: projectName.get(quote.project_id) ?? null,
+        client_name: client?.name ?? 'Unknown client',
+        project_name: project?.name ?? null,
+        issuer,
+        client_email: client && hasEmail(client.email) ? client.email : null,
+        client_phone: client?.phone ?? null,
+        job_address: project?.site_address ?? client?.address ?? null,
         subtotal_amount: split.subtotal,
         net_amount: split.net,
         vat_amount: split.vat,
@@ -407,5 +422,6 @@ export class QuotesController {
   imports: [NotificationsModule, InvoicesModule],
   controllers: [QuotesController],
   providers: [QuotesService],
+  exports: [QuotesService],
 })
 export class QuotesModule {}

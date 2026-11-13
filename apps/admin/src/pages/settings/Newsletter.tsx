@@ -1,8 +1,10 @@
-import { DownloadSimple, Image as ImageIcon, PaperPlaneTilt, Plus, Trash } from '@phosphor-icons/react';
+import { DownloadSimple, PaperPlaneTilt, Plus, Trash } from '@phosphor-icons/react';
 import clsx from 'clsx';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { MediaPicker } from '@/components/cms/MediaPicker';
+import { BlockEditor } from '@/components/newsletter/BlockEditor';
+import { TEMPLATES, blocksHtml, blocksOf, type Block } from '@/components/newsletter/blocks';
 import {
   Button,
   ConfirmDialog,
@@ -12,6 +14,7 @@ import {
   Input,
   Listbox,
   LoadingState,
+  PaneHeader,
   StatusTag,
   TableWrap,
   Tabs,
@@ -40,6 +43,8 @@ interface Campaign {
   id: string;
   subject: string;
   html: string;
+  /** The editor's blocks; null on a newsletter written before the block editor. */
+  blocks: unknown[] | null;
   status: 'draft' | 'sending' | 'sent';
   recipients: number;
   sent_count: number;
@@ -67,20 +72,17 @@ const CAMPAIGN_TONE: Record<Campaign['status'], [StatusTone, string]> = {
 
 /**
  * Settings › Newsletter: who has signed up (double opt-in, so only confirmed
- * addresses are ever sent to), and the newsletters themselves, written in
- * HTML with a live preview.
+ * addresses are ever sent to), and the newsletters themselves, built from
+ * blocks with a live preview.
  */
 export function Newsletter() {
   const [tab, setTab] = useState<'subscribers' | 'campaigns'>('subscribers');
   return (
     <div className="max-w-5xl">
-      <header>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">Newsletter</h2>
-        <p className={clsx(HELP, 'max-w-[62ch]')}>
-          People sign up on the coming-soon page and in the website footer, then confirm by email. Newsletters go to
-          confirmed subscribers only, each with its own unsubscribe link.
-        </p>
-      </header>
+      <PaneHeader
+        title="Newsletter"
+        help="People sign up on the coming-soon page and in the website footer, then confirm by email. Newsletters go to confirmed subscribers only, each with its own unsubscribe link."
+      />
       <div className="mt-6">
         <Tabs
           tabs={[
@@ -308,7 +310,7 @@ function Campaigns() {
       {list.data.length === 0 ? (
         <EmptyState
           title="No newsletters yet"
-          message="Write the first one in HTML, send yourself a test, then send it to everyone who has confirmed."
+          message="Build the first one from blocks, send yourself a test, then send it to everyone who has confirmed."
           action={
             <Button variant="primary" icon={<Plus size={16} />} onClick={() => setOpen('new')}>
               New newsletter
@@ -345,21 +347,6 @@ function Campaigns() {
   );
 }
 
-/** Ready-made blocks, styled inline the way email needs, dropped in at the cursor. */
-const SNIPPETS: Array<[string, string]> = [
-  ['Heading', '<h2 style="margin:0 0 12px;font:600 24px/1.3 Georgia,serif;color:#102E2D">A heading</h2>\n'],
-  ['Paragraph', '<p style="margin:0 0 16px">Some words.</p>\n'],
-  [
-    'Button',
-    '<p style="margin:24px 0"><a href="https://" style="display:inline-block;background:#102E2D;color:#F2F0EB;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600">Book a consultation</a></p>\n',
-  ],
-  [
-    'Two columns',
-    '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 16px"><tr>\n  <td width="50%" valign="top" style="padding-right:8px">Left</td>\n  <td width="50%" valign="top" style="padding-left:8px">Right</td>\n</tr></table>\n',
-  ],
-  ['Divider', '<hr style="border:0;border-top:1px solid #ECE9E2;margin:24px 0">\n'],
-];
-
 const escapeAttr = (value: string) => value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 /** The preview: the same shell the API wraps each newsletter in (mail.service.ts layout). */
@@ -373,6 +360,7 @@ function previewDocument(subject: string, body: string): string {
 </div></body></html>`;
 }
 
+/** A new newsletter starts from a template or blank; an older one opens as it was saved. */
 function CampaignEditor({
   campaign,
   onBack,
@@ -386,34 +374,25 @@ function CampaignEditor({
 }) {
   const toast = useToast();
   const [subject, setSubject] = useState(campaign?.subject ?? '');
-  const [html, setHtml] = useState(campaign?.html ?? SNIPPETS.slice(0, 3).map(([, code]) => code).join(''));
+  const [blocks, setBlocks] = useState<Block[] | null>(campaign ? blocksOf(campaign.blocks, campaign.html) : null);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [confirmSend, setConfirmSend] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [picking, setPicking] = useState(false);
+  const [pickFor, setPickFor] = useState<string | null>(null);
+  const [side, setSide] = useState<'edit' | 'preview'>('edit');
   const subscribers = useQuery<Subscriber[]>(campaign?.status === 'draft' ? '/newsletter/subscribers' : null);
-  const assets = useQuery<MediaAsset[]>(picking ? '/cms/media' : null);
-  const code = useRef<HTMLTextAreaElement>(null);
-  /** Where the cursor was when the box last lost focus; null = never used, so add at the end. */
-  const caret = useRef<[number, number] | null>(null);
+  const assets = useQuery<MediaAsset[]>(pickFor ? '/cms/media' : null);
 
   const readOnly = !!campaign && campaign.status !== 'draft';
-  const dirty = !campaign || subject !== campaign.subject || html !== campaign.html;
+  const html = useMemo(() => blocksHtml(blocks ?? []), [blocks]);
+  const dirty =
+    !campaign ||
+    subject !== campaign.subject ||
+    JSON.stringify(blocks) !== JSON.stringify(blocksOf(campaign.blocks, campaign.html));
   const confirmed = (subscribers.data ?? []).filter((row) => row.status === 'confirmed').length;
 
-  const insert = (snippet: string) => {
-    const box = code.current;
-    const [at, end] = caret.current ?? [html.length, html.length];
-    setHtml(html.slice(0, at) + snippet + html.slice(end));
-    caret.current = [at + snippet.length, at + snippet.length];
-    requestAnimationFrame(() => {
-      box?.focus();
-      box?.setSelectionRange(at + snippet.length, at + snippet.length);
-    });
-  };
-
-  /** Saves if anything changed; the server's cleaned HTML replaces what is on screen. */
+  /** Saves if anything changed; the blocks are kept beside the HTML they make, so the draft opens again as it is. */
   const save = async (): Promise<Campaign | null> => {
     if (!subject.trim()) {
       toast.error('Give the newsletter a subject first.');
@@ -422,11 +401,10 @@ function CampaignEditor({
     if (campaign && !dirty) return campaign;
     setSaving(true);
     try {
-      const body = { subject, html };
+      const body = { subject, html, blocks };
       const row = campaign
         ? await api.put<Campaign>(`/newsletter/campaigns/${campaign.id}`, body)
         : await api.post<Campaign>('/newsletter/campaigns', body);
-      setHtml(row.html);
       onSaved(row);
       return row;
     } catch (caught) {
@@ -475,120 +453,126 @@ function CampaignEditor({
     }
   };
 
+  const toolbar = (
+    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <Button variant="ghost" onClick={onBack}>
+        ‹ All newsletters
+      </Button>
+      {readOnly ? (
+        <StatusTag tone={CAMPAIGN_TONE[campaign.status][0]}>
+          {campaign.status === 'sending'
+            ? `Sending: ${campaign.sent_count} of ${campaign.recipients}`
+            : `Sent to ${campaign.sent_count} of ${campaign.recipients}${campaign.failed_count ? `, ${campaign.failed_count} failed` : ''}`}
+        </StatusTag>
+      ) : blocks ? (
+        <div className="flex flex-wrap gap-2">
+          {campaign ? (
+            <Button variant="ghost" icon={<Trash size={15} />} onClick={() => setConfirmDelete(true)}>
+              Delete
+            </Button>
+          ) : null}
+          <Button onClick={() => void save()} loading={saving} disabled={!dirty}>
+            Save draft
+          </Button>
+          <Button onClick={() => void test()} loading={testing}>
+            Send me a test
+          </Button>
+          <Button
+            variant="primary"
+            icon={<PaperPlaneTilt size={15} />}
+            disabled={!campaign || !confirmed}
+            title={
+              !campaign
+                ? 'Save it first.'
+                : !confirmed
+                  ? 'Nobody has confirmed their subscription yet.'
+                  : undefined
+            }
+            onClick={() => setConfirmSend(true)}
+          >
+            Send to {confirmed} {confirmed === 1 ? 'subscriber' : 'subscribers'}
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  if (!blocks) {
+    return (
+      <section aria-label="New newsletter">
+        {toolbar}
+        <h3 className="text-base font-semibold text-ink">Start from</h3>
+        <p className={HELP}>Pick a starting point. Everything in it can be changed, moved or removed.</p>
+        <ul className="mt-4 grid gap-3 sm:grid-cols-3">
+          {[...TEMPLATES, { id: 'blank', name: 'Blank', detail: 'An empty page to build up block by block.', blocks: () => [] }].map((template) => (
+            <li key={template.id}>
+              <button
+                type="button"
+                onClick={() => setBlocks(template.blocks())}
+                className="flex h-full w-full flex-col items-start gap-1 rounded-card bg-surface p-4 text-left shadow-soft transition-[box-shadow,transform] hover:-translate-y-0.5 hover:shadow-overlay focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+              >
+                <span className="font-semibold text-ink">{template.name}</span>
+                <span className="text-[13px] leading-relaxed text-ink-muted">{template.detail}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+    );
+  }
+
+  const preview = (
+    // sandbox with no permissions: nothing in the preview can run.
+    <iframe
+      title="Newsletter preview"
+      sandbox=""
+      srcDoc={previewDocument(subject, html)}
+      className="h-[32rem] w-full rounded-card bg-surface shadow-soft xl:sticky xl:top-4 xl:h-[calc(100vh-9rem)]"
+    />
+  );
+
   return (
     <section aria-label={campaign ? campaign.subject : 'New newsletter'}>
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <Button variant="ghost" onClick={onBack}>
-          ‹ All newsletters
-        </Button>
-        {readOnly ? (
-          <StatusTag tone={CAMPAIGN_TONE[campaign.status][0]}>
-            {campaign.status === 'sending'
-              ? `Sending: ${campaign.sent_count} of ${campaign.recipients}`
-              : `Sent to ${campaign.sent_count} of ${campaign.recipients}${campaign.failed_count ? `, ${campaign.failed_count} failed` : ''}`}
-          </StatusTag>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {campaign ? (
-              <Button variant="ghost" icon={<Trash size={15} />} onClick={() => setConfirmDelete(true)}>
-                Delete
-              </Button>
-            ) : null}
-            <Button onClick={() => void save()} loading={saving} disabled={!dirty}>
-              Save draft
-            </Button>
-            <Button onClick={() => void test()} loading={testing}>
-              Send me a test
-            </Button>
-            <Button
-              variant="primary"
-              icon={<PaperPlaneTilt size={15} />}
-              disabled={!campaign || !confirmed}
-              title={!campaign ? 'Save it first.' : !confirmed ? 'Nobody has confirmed their subscription yet.' : undefined}
-              onClick={() => setConfirmSend(true)}
-            >
-              Send to {confirmed} {confirmed === 1 ? 'subscriber' : 'subscribers'}
-            </Button>
-          </div>
-        )}
+      {toolbar}
+
+      <Input label="Subject" value={subject} maxLength={200} readOnly={readOnly} onChange={(event) => setSubject(event.target.value)} />
+
+      <div className="mt-5 xl:hidden">
+        <Tabs
+          tabs={[
+            { id: 'edit', label: 'Write' },
+            { id: 'preview', label: 'Preview' },
+          ]}
+          active={side}
+          onChange={(id) => setSide(id as typeof side)}
+        />
       </div>
 
-      <Input
-        label="Subject"
-        value={subject}
-        maxLength={200}
-        readOnly={readOnly}
-        onChange={(event) => setSubject(event.target.value)}
-      />
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-2">
-        <div className="flex min-w-0 flex-col gap-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="newsletter-html" className="text-sm font-semibold text-ink">
-              Body (HTML)
-            </label>
-            {readOnly ? null : (
-              <div className="flex flex-wrap gap-1">
-                {SNIPPETS.map(([name, snippet]) => (
-                  <Button key={name} variant="ghost" className="min-h-8 px-2 text-[12px]" onClick={() => insert(snippet)}>
-                    {name}
-                  </Button>
-                ))}
-                <Button
-                  variant="ghost"
-                  icon={<ImageIcon size={14} />}
-                  className="min-h-8 px-2 text-[12px]"
-                  onClick={() => setPicking(true)}
-                >
-                  Image
-                </Button>
-              </div>
-            )}
-          </div>
-          <textarea
-            id="newsletter-html"
-            ref={code}
-            value={html}
-            readOnly={readOnly}
-            spellCheck={false}
-            onChange={(event) => setHtml(event.target.value)}
-            onBlur={(event) => {
-              caret.current = [event.target.selectionStart, event.target.selectionEnd];
-            }}
-            // A fixed height, not min-h: FIELD_BASE's pointer-fine:min-h-9 would win over it.
-            className={clsx(FIELD_BASE, 'h-[28rem] resize-y py-2 font-mono text-[12.5px] leading-relaxed')}
-          />
-          <p className="text-xs text-ink-muted">
-            Style with inline <code>style=&quot;…&quot;</code>, as email needs. Scripts, forms and non-web links are
-            removed when you save. The logo, address and unsubscribe link are added around it.
-          </p>
+      <div className="mt-5 grid items-start gap-5 xl:grid-cols-2">
+        <div className={clsx('min-w-0', side === 'preview' && 'max-xl:hidden')}>
+          {readOnly ? (
+            <p className="text-sm text-ink-muted">This newsletter has gone out, so it can no longer be changed.</p>
+          ) : (
+            <BlockEditor blocks={blocks} onChange={setBlocks} onPickImage={setPickFor} />
+          )}
+          <p className="mt-3 text-xs text-ink-muted">The logo, address and unsubscribe link are added around what you write.</p>
         </div>
-        <div className="flex min-w-0 flex-col gap-2">
-          <span className="text-sm font-semibold text-ink">Preview</span>
-          {/* sandbox with no permissions: nothing in the preview can run. */}
-          <iframe
-            title="Newsletter preview"
-            sandbox=""
-            srcDoc={previewDocument(subject, html)}
-            className="min-h-[28rem] w-full flex-1 rounded-card bg-surface shadow-soft"
-          />
-        </div>
+        <div className={clsx('min-w-0', side === 'edit' && 'max-xl:hidden')}>{preview}</div>
       </div>
 
       <MediaPicker
-        open={picking}
-        onClose={() => setPicking(false)}
+        open={pickFor !== null}
+        onClose={() => setPickFor(null)}
         value={[]}
         multiple={false}
         title="Choose an image"
         onUploaded={() => void assets.refetch()}
         onChange={(ids) => {
-          setPicking(false);
+          const target = pickFor;
+          setPickFor(null);
           const asset = (assets.data ?? []).find((row) => row.id === ids[ids.length - 1]);
-          if (asset) {
-            insert(
-              `<img src="${escapeAttr(asset.src_resolved)}" alt="${escapeAttr(asset.alt)}" width="496" style="display:block;width:100%;height:auto;border-radius:8px;margin:0 0 16px">\n`,
-            );
+          if (asset && target) {
+            setBlocks(blocks.map((block) => (block.id === target && block.type === 'image' ? { ...block, src: asset.src_resolved, alt: asset.alt } : block)));
           }
         }}
       />

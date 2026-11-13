@@ -59,8 +59,7 @@ export function InvoicesPage() {
   return (
     <>
       <PageHeader
-        title="Invoices"
-      />
+        title="Invoices" />
 
       {invoices.error ? (
         <ErrorState message={invoices.error} onRetry={invoices.refetch} />
@@ -70,12 +69,12 @@ export function InvoicesPage() {
         </Card>
       ) : (
         <>
-          <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
             <MetricCard
               eyebrow="Paid"
               value={money(totals.paid)}
               accent="success"
-              context="Payments received and recorded by Enzo."
+              context="Received and recorded."
             />
             <MetricCard
               eyebrow="Outstanding"
@@ -83,20 +82,22 @@ export function InvoicesPage() {
               accent={totals.outstanding > 0 ? 'warning' : 'success'}
               context={
                 totals.outstanding > 0
-                  ? 'Payable directly to Enzo Interiors.'
-                  : 'Nothing outstanding — thank you.'
+                  ? 'Payable to Enzo Interiors.'
+                  : 'Nothing outstanding. Thank you.'
               }
             />
-            <MetricCard
-              eyebrow="Next due"
-              value={totals.nextDue ? date(totals.nextDue.due_date) : '—'}
-              accent={totals.nextDue?.is_overdue ? 'danger' : 'primary'}
-              context={
-                totals.nextDue
-                  ? `${totals.nextDue.number} · ${money(totals.nextDue.amount)}`
-                  : 'No invoices are currently due.'
-              }
-            />
+            <div className="col-span-2 sm:col-span-1">
+              <MetricCard
+                eyebrow="Next due"
+                value={totals.nextDue ? date(totals.nextDue.due_date) : '—'}
+                accent={totals.nextDue?.is_overdue ? 'danger' : 'primary'}
+                context={
+                  totals.nextDue
+                    ? `${totals.nextDue.number} · ${money(totals.nextDue.amount)}`
+                    : 'No invoices are currently due.'
+                }
+              />
+            </div>
           </div>
 
           {visible.length === 0 ? (
@@ -162,7 +163,7 @@ export function InvoicesPage() {
                 {sortedVisible.map((invoice) => (
                   <tr
                     key={invoice.id}
-                    className="cursor-pointer hover:bg-surface-muted/40"
+                    className="cursor-pointer"
                     // The number stays the link for keyboards; a click anywhere else on the row opens it too.
                     onClick={(event) => {
                       if (!(event.target as HTMLElement).closest('a, button')) navigate(`/invoices/${invoice.id}`);
@@ -202,17 +203,11 @@ export function InvoicesPage() {
             </>
           )}
 
-          <Card className="mt-4">
-            <p className="label-eyebrow">How to pay</p>
-            <p className="mt-2 text-ink">
-              Payment is arranged directly with Enzo Interiors — by bank transfer or card in the
-              studio. There is no online payment in this portal.
-            </p>
-            <p className="mt-2 text-ink-muted">
-              Once your payment reaches us we will mark the invoice as paid here, usually within a
-              working day. If anything looks wrong, message the team and we will sort it out.
-            </p>
-          </Card>
+          <p className="mt-4 max-w-2xl text-xs text-ink-muted">
+            How to pay: arrange it directly with Enzo Interiors, by bank transfer or card in the studio. There is no
+            online payment in this portal. Once your payment reaches us we mark the invoice as paid here, usually
+            within a working day. If anything looks wrong, message the team.
+          </p>
         </>
       )}
     </>

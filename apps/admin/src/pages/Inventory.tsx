@@ -1,18 +1,20 @@
-import { Plus, Trash } from '@phosphor-icons/react';
+import { MagnifyingGlass, Plus, Trash } from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, Select, StatusTag, TableWrap, Tabs, Td, Textarea, Th } from '@/components/ui';
+import { Button, ConfirmDialog, EmptyState, ErrorState, Input, Listbox, Modal, PageHeader, Select, StatusTag, TableSkeleton, TableWrap, Tabs, Td, Textarea, Th } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { OrdersTable, ShortfallList } from '@/components/inventory/Orders';
+import { SpecsFields, specsBody, specsError, specsForm, type Specs } from '@/components/inventory/Specs';
+import type { MediaAsset } from '@/types/cms';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
 
 /* Inventory (Admin only), apps/api modules/inventory. Its types live here so removing the feature is this file plus its route and menu entries. */
 const TYPES = ['Sheet', 'Hardware', 'Bought-in'] as const;
-interface Item {
+interface Item extends Specs {
   id: string;
   sku: string;
   name: string;
@@ -23,12 +25,14 @@ interface Item {
   supplier_id: string | null;
   supplier_name: string | null;
   on_hand: number;
-  /** Held for projects; available = on_hand - reserved. */
+  /** Reserved for projects; available = on_hand - reserved. */
   reserved: number;
   available: number;
   /** Ordered from a supplier (Sent or Part-received) and not in yet. */
   on_order: number;
   avg_cost: number;
+  /** What the quote maker prices it at; null = avg_cost. */
+  quote_cost: number | null;
   reorder_level: number | null;
   active: boolean;
   low: boolean;
@@ -52,33 +56,43 @@ interface Movement {
   created_at: string;
 }
 
-const VIEWS = [
-  { id: 'all', label: 'Items' },
-  { id: 'low', label: 'Low stock' },
-  { id: 'off', label: 'Switched off' },
+const TABS = [
+  { id: 'items', label: 'Items' },
+  { id: 'to-order', label: 'To order' },
   { id: 'orders', label: 'Orders' },
-  { id: 'shortfall', label: 'Shortfall' },
   { id: 'suppliers', label: 'Suppliers' },
 ];
-const KIND_LABEL = { receive: 'Received', issue: 'Used', return: 'Returned', adjust: 'Adjusted' } as const;
+type Show = 'active' | 'low' | 'archived';
+const KIND_LABEL = { receive: 'Stock in', issue: 'Used on job', return: 'Returned', adjust: 'Count corrected' } as const;
 const failed = (caught: unknown) => (caught instanceof ApiError ? caught.message : 'That did not work. Please try again.');
 /** '' -> null and numbers from text inputs, so the form can stay in strings. */
 const orNull = (value: string) => value.trim() || null;
 const intOrNull = (value: string) => (value.trim() === '' ? null : Number(value));
 
-/** Stock for the whole business: `?view=low|off|orders|shortfall|suppliers`, `?new=1` adds an item (or a supplier / order on that tab). */
+/**
+ * Stock for the whole business: `?view=to-order|orders|suppliers`, `?show=low|archived` on Items,
+ * `?new=1` adds an item (or a supplier / order on that tab). The old `?view=low|off|shortfall`
+ * still work: the low-stock alert links to `?view=low`.
+ */
 export function InventoryPage() {
   const [params, setParams] = useSearchParams();
-  const view = params.get('view') ?? 'all';
+  const raw = params.get('view');
+  const view = raw === 'low' || raw === 'off' ? 'items' : raw === 'shortfall' ? 'to-order' : (TABS.find((tab) => tab.id === raw)?.id ?? 'items');
+  const asked = raw === 'low' ? 'low' : raw === 'off' ? 'archived' : params.get('show');
+  const show: Show = asked === 'low' || asked === 'archived' ? asked : 'active';
   const items = useQuery<Item[]>('/inventory/items');
   const suppliers = useQuery<Supplier[]>('/inventory/suppliers');
   const [openId, setOpenId] = useState<string | null>(null);
   const [editing, setEditing] = useState<Item | Supplier | 'new' | null>(params.get('new') === '1' ? 'new' : null);
+  const [search, setSearch] = useState('');
 
-  const shown = useMemo(
-    () => (items.data ?? []).filter((item) => (view === 'off' ? !item.active : item.active && (view !== 'low' || item.low))),
-    [items.data, view],
-  );
+  const shown = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return (items.data ?? []).filter((item) => {
+      if (show === 'archived' ? item.active : !item.active || (show === 'low' && !item.low)) return false;
+      return !term || [item.name, item.sku, item.category ?? '', item.supplier_name ?? ''].some((value) => value.toLowerCase().includes(term));
+    });
+  }, [items.data, show, search]);
   const { rows, header } = useSort(shown, {
     sku: (i) => i.sku,
     name: (i) => i.name,
@@ -91,82 +105,137 @@ export function InventoryPage() {
   const lowCount = (items.data ?? []).filter((item) => item.active && item.low).length;
   const value = (items.data ?? []).reduce((total, item) => total + item.on_hand * item.avg_cost, 0);
   const opened = items.data?.find((item) => item.id === openId) ?? null;
+  const onItems = view === 'items';
   const onSuppliers = view === 'suppliers';
-  const onOrders = view === 'orders' || view === 'shortfall';
+  const onOrders = view === 'orders' || view === 'to-order';
   const refetch = () => Promise.all([items.refetch(), suppliers.refetch()]);
+  const toView = (id: string) => setParams(id === 'items' ? {} : { view: id });
   const close = () => {
     setEditing(null);
-    if (params.get('new')) setParams(view === 'all' ? {} : { view });
+    if (params.get('new')) toView(view);
   };
 
   const query = onSuppliers ? suppliers : items;
-  if (query.error && !query.data) return <ErrorState message={query.error} onRetry={() => void query.refetch()} />;
-  if (!query.data) return <LoadingState label="Loading inventory…" />;
+  const waiting = !query.data || (view === 'orders' && !suppliers.data);
+  // The search box and buttons stand as tall as the tabs (a touch screen makes the tab pill taller).
+  const tall = 'pointer-coarse:min-h-12';
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          tabs={VIEWS.map((tab) => (tab.id === 'low' ? { ...tab, count: lowCount } : tab))}
-          active={view}
-          onChange={(id) => setParams(id === 'all' ? {} : { view: id })}
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          {onSuppliers || onOrders ? null : <ReserveStage />}
-          {onSuppliers || onOrders ? null : <span className="tabular text-sm text-ink-muted">Stock value {money(value)}</span>}
-          {view === 'shortfall' ? null : (
-            <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => (view === 'orders' ? setParams({ view, new: '1' }) : setEditing('new'))}>
+    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+      {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
+      <PageHeader title="" />
+
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
+        <div className="[&>div]:mb-0">
+          <Tabs tabs={TABS} active={view} onChange={toView} />
+        </div>
+        <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-0">
+          {onItems ? (
+            <div className="relative mx-auto w-full sm:max-w-sm">
+              <MagnifyingGlass size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+              <input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search items"
+                aria-label="Search items"
+                className={`min-h-11 w-full rounded-control border border-border bg-surface pl-9 pr-3 text-ink placeholder:text-ink-muted/70 focus:border-green-900 pointer-fine:min-h-9 ${tall}`}
+              />
+            </div>
+          ) : null}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 max-sm:w-full">
+          {onItems ? (
+            <div className="w-40 max-sm:flex-1"><Listbox aria-label="Show" value={show} onChange={(event) => setParams(event.target.value === 'active' ? {} : { show: event.target.value })}>
+              <option value="active">In use</option>
+              <option value="low">Low stock ({lowCount})</option>
+              <option value="archived">Archived</option>
+            </Listbox></div>
+          ) : null}
+          {view === 'to-order' ? null : (
+            <Button
+              variant="primary"
+              className={tall}
+              icon={<Plus size={16} aria-hidden="true" />}
+              onClick={() => (view === 'orders' ? setParams({ view, new: '1' }) : setEditing('new'))}
+            >
               {onSuppliers ? 'New supplier' : view === 'orders' ? 'New order' : 'New item'}
             </Button>
           )}
         </div>
       </div>
 
-      {view === 'orders' ? (
-        <OrdersTable items={items.data ?? []} suppliers={suppliers.data ?? []} newOrder={params.get('new') === '1'} onNewDone={() => setParams({ view })} />
-      ) : view === 'shortfall' ? (
-        <ShortfallList suppliers={suppliers.data ?? []} onOrdered={() => setParams({ view: 'orders' })} />
-      ) : onSuppliers ? (
-        <SupplierTable suppliers={suppliers.data ?? []} onOpen={setEditing} />
-      ) : shown.length === 0 ? (
-        <EmptyState
-          title={view === 'low' ? 'Nothing is low' : view === 'off' ? 'Nothing switched off' : 'No items yet'}
-          message={view === 'all' ? 'Add the boards, fittings and bought-in items you keep, then book stock in as it arrives.' : 'Items show here when they are.'}
-        />
+      {query.error && !query.data ? (
+        <ErrorState message={query.error} onRetry={() => void query.refetch()} />
+      ) : waiting ? (
+        <TableSkeleton rows={6} columns={4} />
+      ) : onItems ? (
+        shown.length === 0 ? (
+          <EmptyState
+            title={show === 'low' ? 'Nothing is low' : show === 'archived' ? 'Nothing archived' : search ? 'No matching items' : 'No items yet'}
+            message={
+              show === 'active' && !search
+                ? 'Add the boards, fittings and bought-in items you keep, then book stock in as it arrives.'
+                : search
+                  ? 'Try a different name or code.'
+                  : 'Items show here when they are.'
+            }
+          />
+        ) : (
+          <>
+            <TableWrap className="max-md:min-w-0" wrapClassName="min-h-0 overflow-y-auto">
+              <thead>
+                <tr>
+                  <Th sort={header('sku')}>Code</Th>
+                  <Th sort={header('name')}>Name</Th>
+                  <Th className="max-md:hidden" sort={header('type')}>Type</Th>
+                  <Th className="max-lg:hidden" sort={header('supplier')}>Supplier</Th>
+                  <Th className="text-right" sort={header('on_hand')}>In stock</Th>
+                  <Th className="text-right max-sm:hidden" sort={header('cost')}>Avg cost</Th>
+                  <Th className="text-right max-sm:hidden" sort={header('value')}>Value</Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((item) => (
+                  <tr key={item.id} onClick={() => setOpenId(item.id)} className="cursor-pointer hover:bg-surface-muted/40">
+                    <Td className="font-semibold text-ink">{item.sku}</Td>
+                    <Td className="[overflow-wrap:anywhere]">
+                      <button type="button" className="text-link text-left" onClick={(event) => { event.stopPropagation(); setOpenId(item.id); }}>
+                        {item.name}
+                      </button>
+                    </Td>
+                    <Td className="max-md:hidden">{item.type}</Td>
+                    <Td className="max-lg:hidden">{item.supplier_name ?? '—'}</Td>
+                    <Td className="tabular text-right">
+                      <span className="inline-flex items-center gap-2">
+                        {item.low && item.active ? <StatusTag tone="warning">Low</StatusTag> : null}
+                        <span className="font-semibold">{item.on_hand}</span> {item.unit}
+                      </span>
+                      {item.reserved ? <span className="block text-xs text-ink-muted">{item.reserved} reserved · {item.available} free</span> : null}
+                      {item.on_order ? <span className="block text-xs text-ink-muted">{item.on_order} on order</span> : null}
+                    </Td>
+                    <Td className="tabular text-right max-sm:hidden">{money(item.avg_cost)}</Td>
+                    <Td className="tabular text-right max-sm:hidden">{money(item.on_hand * item.avg_cost)}</Td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableWrap>
+            <div className="mt-3 flex shrink-0 flex-wrap items-end justify-between gap-3">
+              <span className="tabular text-sm text-ink-muted">Stock value {money(value)}</span>
+              <ReserveStage />
+            </div>
+          </>
+        )
       ) : (
-        <TableWrap>
-          <thead>
-            <tr>
-              <Th sort={header('sku')}>SKU</Th>
-              <Th sort={header('name')}>Name</Th>
-              <Th className="max-md:hidden" sort={header('type')}>Type</Th>
-              <Th className="max-lg:hidden" sort={header('supplier')}>Supplier</Th>
-              <Th className="text-right" sort={header('on_hand')}>In stock</Th>
-              <Th className="text-right max-sm:hidden" sort={header('cost')}>Avg cost</Th>
-              <Th className="text-right max-sm:hidden" sort={header('value')}>Value</Th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((item) => (
-              <tr key={item.id} onClick={() => setOpenId(item.id)} className="cursor-pointer hover:bg-ink/[0.03]">
-                <Td className="font-semibold text-ink">{item.sku}</Td>
-                <Td>{item.name}</Td>
-                <Td className="max-md:hidden">{item.type}</Td>
-                <Td className="max-lg:hidden">{item.supplier_name ?? '—'}</Td>
-                <Td className="tabular text-right">
-                  <span className="inline-flex items-center gap-2">
-                    {item.low && item.active ? <StatusTag tone="warning">Low</StatusTag> : null}
-                    <span className="font-semibold">{item.on_hand}</span> {item.unit}
-                  </span>
-                  {item.reserved ? <span className="block text-xs text-ink-muted">{item.reserved} held · {item.available} free</span> : null}
-                  {item.on_order ? <span className="block text-xs text-ink-muted">{item.on_order} on order</span> : null}
-                </Td>
-                <Td className="tabular text-right max-sm:hidden">{money(item.avg_cost)}</Td>
-                <Td className="tabular text-right max-sm:hidden">{money(item.on_hand * item.avg_cost)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1 pb-1">
+          {view === 'orders' ? (
+            <OrdersTable items={items.data ?? []} suppliers={suppliers.data ?? []} newOrder={params.get('new') === '1'} onNewDone={() => setParams({ view })} />
+          ) : view === 'to-order' ? (
+            <ShortfallList suppliers={suppliers.data ?? []} onOrdered={() => setParams({ view: 'orders' })} />
+          ) : (
+            <SupplierTable suppliers={suppliers.data ?? []} onOpen={setEditing} />
+          )}
+        </div>
       )}
 
       {opened ? <ItemPanel item={opened} onClose={() => setOpenId(null)} onEdit={() => setEditing(opened)} onChanged={refetch} /> : null}
@@ -181,7 +250,7 @@ export function InventoryPage() {
   );
 }
 
-/** Which project stage holds stock for a project's materials (also by hand on the project). */
+/** Which project stage reserves stock for a project's materials (also by hand on the project). */
 function ReserveStage() {
   const toast = useToast();
   const settings = useQuery<{ reserve_on_stage: string | null; stages: string[] }>('/inventory/settings');
@@ -189,17 +258,17 @@ function ReserveStage() {
   const save = async (value: string) => {
     try {
       settings.setData(await api.put('/inventory/settings', { reserve_on_stage: value || null }));
-      toast.success(value ? `Stock is held when a project reaches ${value}.` : 'Stock is held by hand only.');
+      toast.success(value ? `Stock is reserved when a project reaches ${value}.` : 'Stock is reserved by hand only.');
     } catch (caught) {
       toast.error(failed(caught));
     }
   };
   return (
     <Select label="Project stock" value={settings.data.reserve_on_stage ?? ''} onChange={(event) => void save(event.target.value)}>
-      <option value="">Hold project stock by hand</option>
+      <option value="">Reserve project stock by hand</option>
       {settings.data.stages.slice(0, -1).map((stage) => (
         <option key={stage} value={stage}>
-          Hold at {stage}
+          Reserve at {stage}
         </option>
       ))}
     </Select>
@@ -210,7 +279,7 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
   const { rows, header } = useSort(suppliers, { name: (s) => s.name, lead: (s) => s.lead_days ?? -1 });
   if (!suppliers.length) return <EmptyState title="No suppliers yet" message="Add who you buy from, then pick them on each item." />;
   return (
-    <TableWrap>
+    <TableWrap className="max-md:min-w-0">
       <thead>
         <tr>
           <Th sort={header('name')}>Name</Th>
@@ -222,8 +291,12 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
       </thead>
       <tbody>
         {rows.map((supplier) => (
-          <tr key={supplier.id} onClick={() => onOpen(supplier)} className="cursor-pointer hover:bg-ink/[0.03]">
-            <Td className="font-semibold text-ink">{supplier.name}</Td>
+          <tr key={supplier.id} onClick={() => onOpen(supplier)} className="cursor-pointer hover:bg-surface-muted/40">
+            <Td className="[overflow-wrap:anywhere]">
+              <button type="button" className="text-link text-left" onClick={(event) => { event.stopPropagation(); onOpen(supplier); }}>
+                {supplier.name}
+              </button>
+            </Td>
             <Td className="max-sm:hidden">{supplier.contact_name ?? '—'}</Td>
             <Td className="max-md:hidden">{supplier.email ?? '—'}</Td>
             <Td className="max-md:hidden">{supplier.phone ?? '—'}</Td>
@@ -235,7 +308,7 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
   );
 }
 
-/** One item: book stock in, out or adjust it, and its last 100 movements. */
+/** One item: stock in, used on a job or a corrected count, and its last 100 movements. */
 function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: () => void; onEdit: () => void; onChanged: () => Promise<unknown> }) {
   const toast = useToast();
   const movements = useQuery<Movement[]>(`/inventory/items/${item.id}/movements`);
@@ -303,7 +376,7 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
         <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
           {[
             ['In stock', `${item.on_hand} ${item.unit}`],
-            ['Held for projects', String(item.reserved)],
+            ['Reserved for projects', String(item.reserved)],
             ['Free', String(item.available)],
             ['Avg cost', money(item.avg_cost)],
             ['Reorder at', item.reorder_level === null ? '—' : String(item.reorder_level)],
@@ -329,12 +402,12 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
 
         {item.active ? (
           <form onSubmit={submit} className="grid gap-3 sm:grid-cols-[10rem_7rem_1fr_auto] sm:items-end">
-            <Select label="Book" value={kind} onChange={(event) => setKind(event.target.value as Movement['kind'])}>
-              <option value="receive">Received</option>
-              <option value="issue">Used</option>
-              <option value="adjust">Adjust (±)</option>
+            <Select label="Action" value={kind} onChange={(event) => setKind(event.target.value as Movement['kind'])}>
+              <option value="receive">Stock in</option>
+              <option value="issue">Used on job</option>
+              <option value="adjust">Correct count (±)</option>
             </Select>
-            <Input label="How many" type="number" step={1} min={kind === 'adjust' ? undefined : 1} required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+            <Input label={kind === 'adjust' ? 'Change (+ or −)' : 'How many'} type="number" step={1} min={kind === 'adjust' ? undefined : 1} required value={quantity} onChange={(event) => setQuantity(event.target.value)} />
             {kind === 'receive' ? (
               <Input label="Net cost each (£)" type="number" step="0.01" min={0} required value={cost} onChange={(event) => setCost(event.target.value)} />
             ) : (
@@ -345,7 +418,7 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
             </Button>
           </form>
         ) : (
-          <p className="text-sm text-ink-muted">Switched off. Edit it to switch it back on before booking stock.</p>
+          <p className="text-sm text-ink-muted">Archived. Edit it to bring it back before booking stock.</p>
         )}
 
         {movements.data?.length ? (
@@ -381,7 +454,7 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
       <ConfirmDialog
         open={deleting}
         title={`Delete ${item.name}?`}
-        message="Only an item with no stock history can be deleted. Otherwise switch it off."
+        message="Only an item with no stock history can be deleted. Otherwise archive it."
         confirmLabel="Delete"
         onConfirm={remove}
         onCancel={() => setDeleting(false)}
@@ -420,18 +493,26 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
     size_note: item?.size_note ?? '',
     supplier_id: item?.supplier_id ?? '',
     reorder_level: item?.reorder_level?.toString() ?? '',
+    quote_cost: item?.quote_cost?.toString() ?? '',
     active: item?.active ?? true,
   });
+  const [specs, setSpecs] = useState(() => specsForm(item));
+  const assets = useQuery<MediaAsset[]>('/cms/media');
+  const toast = useToast();
   const set = (key: keyof typeof form) => (event: { target: { value: string } }) => setForm({ ...form, [key]: event.target.value });
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
+    const problem = specsError(specs);
+    if (problem) return toast.error(problem);
     const body = {
       ...form,
+      ...specsBody(specs),
       category: orNull(form.category),
       size_note: orNull(form.size_note),
       supplier_id: form.supplier_id || null,
       reorder_level: intOrNull(form.reorder_level),
+      quote_cost: form.quote_cost.trim() === '' ? null : Number(form.quote_cost),
     };
     void save(() => (item ? api.put(`/inventory/items/${item.id}`, body) : api.post('/inventory/items', body)), item ? 'Saved.' : 'Item added.');
   };
@@ -440,6 +521,7 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
     <Modal
       open
       onClose={onClose}
+      width="lg"
       title={item ? `Edit ${item.name}` : 'New item'}
       footer={
         <Button type="submit" form="inventory-item" variant="primary" loading={busy}>
@@ -448,7 +530,7 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
       }
     >
       <form id="inventory-item" onSubmit={submit} className="grid gap-3 sm:grid-cols-2">
-        <Input label="SKU" required maxLength={40} value={form.sku} onChange={set('sku')} />
+        <Input label="Code" required maxLength={40} value={form.sku} onChange={set('sku')} />
         <Input label="Name" required maxLength={200} value={form.name} onChange={set('name')} />
         <Select label="Type" value={form.type} onChange={set('type')}>
           {TYPES.map((type) => (
@@ -467,10 +549,21 @@ function ItemForm({ item, suppliers, onClose, onSaved }: { item: Item | null; su
           ))}
         </Select>
         <Input label="Reorder at" type="number" min={0} step={1} value={form.reorder_level} onChange={set('reorder_level')} hint="Admins are told when stock falls to this. Empty = never." />
+        <Input
+          label="Quoting cost (£, net)"
+          type="number"
+          inputMode="decimal"
+          min={0}
+          step="0.01"
+          value={form.quote_cost}
+          onChange={set('quote_cost')}
+          hint={`Per ${form.unit || 'unit'}, what quotes price it at. Empty = the average cost${item ? ` (${money(item.avg_cost)})` : ''}.`}
+        />
+        <SpecsFields form={specs} onChange={setSpecs} assets={assets.data ?? []} onAssetsChanged={() => void assets.refetch()} isSheet={form.type === 'Sheet'} />
         {item ? (
           <label className="flex items-center gap-2 text-sm text-ink sm:col-span-2">
             <input type="checkbox" checked={form.active} onChange={(event) => setForm({ ...form, active: event.target.checked })} />
-            In use (switch off to hide it and stop bookings, keeping its history)
+            In use (untick to archive it: hidden, no new bookings, history kept)
           </label>
         ) : null}
       </form>

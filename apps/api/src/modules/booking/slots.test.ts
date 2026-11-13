@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG, availability, daySlots, studioInstant, studioParts, wit
 
 test('a config saved before a field rule existed gets that rule by default, and keeps the ones it chose', () => {
   const { fields } = withDefaults({ fields: { phone: 'off' } } as never);
-  assert.deepEqual(fields, { phone: 'off', address: 'optional', postcode: 'required', notes: 'optional' });
+  assert.deepEqual(fields, { phone: 'off', address: 'required', postcode: 'required', notes: 'optional' });
   assert.deepEqual(withDefaults({}).fields, DEFAULT_CONFIG.fields);
 });
 

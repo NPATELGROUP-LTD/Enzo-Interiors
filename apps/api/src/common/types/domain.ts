@@ -94,7 +94,7 @@ export const SITE_STATUSES = ['live', 'coming_soon'] as const;
 export type SiteStatus = (typeof SITE_STATUSES)[number];
 
 /** Settings › Pages: the public pages that can be switched off. Home is always on. */
-export const PAGE_KEYS = ['about', 'services', 'portfolio', 'booking', 'contact', 'privacy', 'terms', 'cookies'] as const;
+export const PAGE_KEYS = ['about', 'services', 'portfolio', 'booking', 'contact', 'privacy', 'terms', 'cookies', 'quote'] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 
 /* -------------------------------------------------------------------------- */
@@ -343,6 +343,8 @@ export interface ProjectQuote extends BaseRecord {
   responded_at: string | null;
   response_comment: string | null;
   invoice_id: string | null;
+  /** The quote maker design it was made from (quote_designs), if any. */
+  design_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -816,6 +818,7 @@ export type CampaignStatus = 'draft' | 'sending' | 'sent';
 export interface NewsletterCampaign extends BaseRecord {
   subject: string;
   html: string;
+  blocks: unknown[] | null;
   status: CampaignStatus;
   recipients: number;
   sent_count: number;

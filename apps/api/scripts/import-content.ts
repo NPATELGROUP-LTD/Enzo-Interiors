@@ -30,6 +30,7 @@ import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s
 
 import { CmsCollection, CmsEntry } from '../src/common/types/domain';
 import { DatabaseService } from '../src/data/database.service';
+import { importStarterLibrary } from '../src/modules/quote-maker/starter';
 import { PrismaService } from '../src/data/prisma.service';
 
 /** apps/web/src/data, resolved from this file rather than from cwd. */
@@ -401,6 +402,10 @@ async function main(): Promise<void> {
       `\n${kept} entries already existed; edited ones were kept. Re-run with --force to replace them all.`,
     );
   }
+
+  // --force does not touch the unit library: an edited unit is the studio's own work.
+  const units = await importStarterLibrary(db);
+  console.log(`\nUnit library: ${units.added} added, ${units.refreshed} unedited updated, ${units.kept} edited kept.`);
 
   await prisma.$disconnect();
 }

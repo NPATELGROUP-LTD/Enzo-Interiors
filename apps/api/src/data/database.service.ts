@@ -51,9 +51,10 @@ import { AccessStore } from './access-store';
 import { AlertStore } from './alert-store';
 import { InfraStore } from './infra-store';
 import { InventoryStore } from './inventory-store';
+import { QuoteMakerStore } from './quote-maker-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
 import { QUOTE_FIELDS, QUOTE_ITEM_FIELDS, QuoteStore } from './quote-store';
-import { PrismaRepository } from './prisma-repository';
+import { PrismaRepository, Where } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 import { TeamStore } from './team-store';
 
@@ -125,6 +126,7 @@ export class DatabaseService {
   readonly infraStore: InfraStore;
   readonly teamStore: TeamStore;
   readonly inventory: InventoryStore;
+  readonly quoteMaker: QuoteMakerStore;
 
   constructor(private readonly prisma: PrismaService) {
     const stamps = ['created_at', 'updated_at'] as const;
@@ -148,6 +150,7 @@ export class DatabaseService {
     this.projectQuoteItems = new PrismaRepository(prisma.projectQuoteItem, 'project_quote_items', QUOTE_ITEM_FIELDS);
     this.quoteStore = new QuoteStore(prisma);
     this.inventory = new InventoryStore(prisma);
+    this.quoteMaker = new QuoteMakerStore(prisma);
     this.invoiceStages = new PrismaRepository(prisma.invoiceStage, 'invoice_stages', INVOICE_STAGE_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
@@ -299,6 +302,16 @@ export class DatabaseService {
     });
   }
 
+  /** Projects not yet in the last stage, counted per client in SQL, within `where` (the caller's project scope). */
+  async activeProjectsByClient(done: string, where: Where<Project>): Promise<Map<string, number>> {
+    const rows = await this.prisma.project.groupBy({
+      by: ['client_id'],
+      where: { ...(where as Prisma.ProjectWhereInput), status: { not: done } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((row) => [row.client_id, row._count._all]));
+  }
+
   /**
    * Delete a client and everything that is only theirs, in one transaction:
    * projects, invoices (paid too; lines cascade), documents, the conversation,
@@ -345,7 +358,8 @@ export class DatabaseService {
       existing ?? {
         id: 'settings_enzo',
         business_name: 'Enzo Interiors',
-        vat_rate: 20,
+        // Settings › VAT; 0 until the studio is VAT-registered and saves a rate.
+        vat_rate: 0,
         logo_url: null,
         brand_primary_color: '#173C30',
         email_from_address: null,

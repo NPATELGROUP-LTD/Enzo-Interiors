@@ -67,6 +67,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...(on("about") ? [entry("/about", 0.7, ["pages/about", "team/*"])] : []),
     ...(on("contact") ? [entry("/contact", 0.8, ["pages/contact", "company/*"])] : []),
     ...(on("booking") ? [entry("/booking", 0.8, ["pages/booking"])] : []),
+    ...(on("quote") ? [entry("/quote", 0.7, [])] : []),
     ...(on("privacy") ? [entry("/privacy", 0.2, ["pages/legal"])] : []),
     ...(on("terms") ? [entry("/terms", 0.2, ["pages/legal"])] : []),
     ...(on("cookies") ? [entry("/cookies", 0.2, ["pages/legal"])] : []),

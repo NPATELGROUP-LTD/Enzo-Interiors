@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { ArrowLeft, CaretRight } from '@phosphor-icons/react';
+import { CaretRight } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -104,11 +104,6 @@ export function ProjectDetailPage() {
 
   return (
     <>
-      <Link to="/projects" className="text-link mb-4 inline-flex items-center gap-1.5">
-        <ArrowLeft size={14} aria-hidden="true" />
-        My projects
-      </Link>
-
       <PageHeader
         title={project.name}
         actions={<StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>}
@@ -120,12 +115,9 @@ export function ProjectDetailPage() {
         buttons of equal weight, with plain-English consequences spelled out.
       */}
       {awaiting_client_decision ? (
-        <Card accent="warning" className="mb-5 pl-5">
-          <p className="label-eyebrow">Your decision needed</p>
-          <p className="mt-2 text-base font-semibold text-ink">
-            Ready for your decision
-          </p>
-          <p className="mt-1 text-ink-muted">
+        <Card accent="warning" className="mb-4">
+          <p className="label-eyebrow">Ready for your decision</p>
+          <p className="mt-2 text-ink">
             Have a look through the details below. If you are happy, approve it and we will move on
             to {next}. If something is not right, tell us what to change and we will revise it —
             there is no limit on revisions.
@@ -154,7 +146,7 @@ export function ProjectDetailPage() {
         </Card>
       ) : null}
 
-      <Card className="mb-5">
+      <Card className="mb-4">
         <p className="label-eyebrow">Where your project is up to</p>
 
         <ol className="mt-4 flex items-start">
@@ -227,8 +219,6 @@ export function ProjectDetailPage() {
             <dl className="mt-3 rows">
               {[
                 ['Service', SERVICE_LABELS[project.type]],
-                ['Current stage', project.status],
-                ['Progress', `${project.progress_pct}%`],
                 ['Your designer', project.assigned_designer_name ?? 'To be assigned'],
                 ['Started', date(project.created_at)],
                 ['Last update', dateTime(project.updated_at)],

@@ -1,6 +1,5 @@
 import clsx from 'clsx';
 import {
-  CaretDown,
   CaretLeft,
   GearSix,
   Moon,
@@ -20,20 +19,28 @@ import { useTheme } from '@/lib/theme';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { PushPrompt } from '@/components/PushToggle';
+import { BottomBar, type BarPage } from './BottomBar';
 import { LegalLinks } from './LegalLinks';
 import { Notifications } from './Notifications';
+import { PAGE_TITLE } from '@/components/ui';
 import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
- * macOS-style desktop shell: a glass menu bar on top and one window that fills
- * everything below it. The pages sit in the menu bar the way a Mac app's menus
- * do. From xl up they are listed inline; below that the app name opens them as
- * a dropdown menu.
+ * The app shell: a glass menu bar on top, the page's heading under it, and the
+ * page itself straight on the page background (cards float on it; there is no
+ * window around them). From lg up the pages are listed in the menu bar; below
+ * that they move to a bottom bar of icons with the rest under More
+ * (BottomBar.tsx).
  *
- * apps/admin has its own, newer copy of this shell (menus instead of a page
+ * The heading row names the page top left (with a way back from a detail page)
+ * and holds its buttons top right. A page puts its own heading and buttons
+ * there through <PageHeader> (components/ui), which fills the two slots below.
+ * The row does not scroll with the page, so Messages keeps its own layout.
+ *
+ * apps/admin has its own copy of this shell (grouped menus instead of a page
  * list); the two share the look, not the code.
  *
- * Stacking note: the window is deliberately NOT positioned, transformed or
+ * Stacking note: the page area is deliberately NOT positioned, transformed or
  * blurred. Any of those would trap the pages' `fixed` modals inside it. Only
  * the menu bar uses backdrop blur.
  */
@@ -108,7 +115,15 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
   const current = apps.find((app) => pathname === app.to || pathname.startsWith(`${app.to}/`));
   const isDetail = current ? pathname !== current.to : false;
 
-  // A new page starts at the top of the window, and open menus get out of the way.
+  const pages: BarPage[] = apps.map((app) => ({
+    to: app.to,
+    label: app.label,
+    Icon: app.Icon,
+    active: app === current,
+    badge: app.badge ? unread : 0,
+  }));
+
+  // A new page starts at the top, and open menus get out of the way.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 });
     hidePopover('page-menu');
@@ -119,23 +134,12 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
   const menuItem = 'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2 text-left pointer-coarse:min-h-11';
 
   return (
-    <div className="wallpaper flex h-dvh flex-col overflow-hidden text-ink">
+    <div className="app-shell flex h-dvh flex-col overflow-hidden bg-canvas text-ink">
       {/* ---------------------------------------------------------- Menu bar */}
       <header className="glass relative z-40 flex h-10 shrink-0 items-center gap-1 border-b border-glass-border px-2 text-[13px] font-semibold pointer-coarse:h-12">
-        {/* Below xl the app name is the page menu. */}
-        <button
-          type="button"
-          popoverTarget="page-menu"
-          className="flex h-8 items-center gap-1 rounded-[6px] px-2 font-bold hover:bg-ink/10 pointer-coarse:h-10 xl:hidden"
-        >
-          {appName}
-          <span className="hidden font-medium text-ink-muted min-[380px]:inline">· {current?.label}</span>
-          <CaretDown size={12} aria-hidden="true" className="text-ink-muted" />
-          {unread > 0 && current?.badge !== true ? <Badge count={unread} /> : null}
-        </button>
-        <span className="hidden px-2 font-bold xl:inline">{appName}</span>
+        <span className="shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold">{appName}</span>
 
-        <nav aria-label="Pages" className="hidden xl:block">
+        <nav aria-label="Pages" className="hidden lg:block">
           <ul className="flex items-center gap-0.5">
             {apps.map((app) => (
               <li key={app.to}>
@@ -194,36 +198,6 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
         </span>
       </header>
 
-      {/* Page menu (below xl): native popover, so light-dismiss and Escape come free. */}
-      <div
-        id="page-menu"
-        popover="auto"
-        className="glass fixed inset-auto left-2 top-11 m-0 w-64 rounded-[12px] border border-glass-border p-1.5 text-sm text-ink shadow-window pointer-coarse:top-[3.25rem]"
-      >
-        <nav aria-label="Pages">
-          <ul>
-            {apps.map((app) => (
-              <li key={app.to}>
-                <NavLink
-                  to={app.to}
-                  className={({ isActive }) =>
-                    clsx(menuItem, isActive ? 'bg-green-900 font-semibold text-on-primary' : 'hover:bg-ink/[0.08]')
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      <app.Icon size={17} aria-hidden="true" weight={isActive ? 'fill' : 'regular'} />
-                      <span className="flex-1">{app.label}</span>
-                      {app.badge ? <Badge count={unread} inverted={isActive} /> : null}
-                    </>
-                  )}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </div>
-
       {/* Account menu. */}
       <div
         id="user-menu"
@@ -264,35 +238,32 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
         </a>
       </div>
 
-      {/* ------------------------------------------------------------ Window */}
-      <div className="flex min-h-0 flex-1 flex-col px-1.5 pb-[calc(env(safe-area-inset-bottom)+0.375rem)] pt-1.5 sm:px-3 sm:pb-3 sm:pt-2.5">
-        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] bg-canvas shadow-window">
-          <div className="window-titlebar grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-surface px-3">
-            <div className="flex items-center gap-3">
-              <span aria-hidden="true" className="hidden gap-2 sm:flex">
-                <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-                <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-                <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-              </span>
-              {isDetail && current ? (
-                <Link
-                  to={current.to}
-                  className="flex min-h-9 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
-                >
-                  <CaretLeft size={16} aria-hidden="true" />
-                  {current.label}
-                </Link>
-              ) : null}
-            </div>
-            <p className="truncate text-center text-[13px] font-semibold text-ink">{current?.label ?? appName}</p>
-            <span />
-          </div>
-
-          <main ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
-            <RouteBoundary><Outlet /></RouteBoundary>
-          </main>
-        </section>
+      {/* ------------------------------------------------------- Page heading */}
+      <div className="no-print flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 sm:px-5 lg:px-6">
+        <div className="flex min-w-0 items-center gap-2">
+          {isDetail && current ? (
+            <Link
+              to={current.to}
+              aria-label={`Back to ${current.label}`}
+              className="-ml-1.5 flex min-h-9 shrink-0 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+            >
+              <CaretLeft size={16} aria-hidden="true" className="shrink-0" />
+              <span className="hidden sm:inline">{current.label}</span>
+            </Link>
+          ) : null}
+          {/* <PageHeader> puts the page's own heading here; until it does, the section's name shows. */}
+          <div id="page-title" className="min-w-0 empty:hidden [&:not(:empty)+h1]:hidden" />
+          <h1 className={PAGE_TITLE}>{current?.label ?? appName}</h1>
+        </div>
+        <div id="page-actions" className="flex flex-wrap items-center justify-end gap-2" />
       </div>
+
+      {/* --------------------------------------------------------------- Page */}
+      <main ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto p-4 sm:p-5 lg:p-6">
+        <RouteBoundary><Outlet /></RouteBoundary>
+      </main>
+
+      <BottomBar pages={pages} />
       <InstallPrompt appName="Enzo Interiors" />
       <PullToRefresh />
       <PushPrompt detail="Replies from the studio, project updates and new invoices, even when the app is closed." />

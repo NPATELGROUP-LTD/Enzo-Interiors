@@ -17,9 +17,11 @@ const DESIGNER = { id: `stf_inv_${run}`, email: `inv-designer-${run}@test.enzo.l
 const SKU = `INV-${run}`;
 const INSTALLER = { id: `stf_inv_i_${run}`, email: `inv-installer-${run}@test.enzo.local` };
 const OUTSIDER = { id: `stf_inv_o_${run}`, email: `inv-outsider-${run}@test.enzo.local` };
+const EDITOR = { id: `stf_inv_e_${run}`, email: `inv-editor-${run}@test.enzo.local` };
+const IMAGE = `med_inv_${run}`;
 const CLIENT = `cli_inv_${run}`;
 const PROJECT = `prj_inv_${run}`;
-const tokens = { admin: '', designer: '', installer: '', outsider: '' };
+const tokens = { admin: '', designer: '', installer: '', outsider: '', editor: '' };
 let itemId = '';
 
 before(async () => {
@@ -29,11 +31,14 @@ before(async () => {
   await prisma.staffUser.create({ data: { ...DESIGNER, name: 'Inv Designer', role: 'Designer', password_hash } });
   await prisma.staffUser.create({ data: { ...INSTALLER, name: 'Inv Installer', role: 'Installer', password_hash } });
   await prisma.staffUser.create({ data: { ...OUTSIDER, name: 'Inv Outsider', role: 'Installer', password_hash } });
+  await prisma.staffUser.create({ data: { ...EDITOR, name: 'Inv Editor', role: 'Editor', password_hash } });
+  await prisma.mediaAsset.create({ data: { id: IMAGE, storage_key: `test/${run}.jpg`, alt: 'Oak', source: 'upload' } });
   await prisma.client.create({ data: { id: CLIENT, name: 'Inv Client', email: `inv-client-${run}@test.enzo.local`, joined_date: new Date(), status: 'Active', password_hash: '' } });
   tokens.admin = await signIn(ADMIN.email, ADMIN.password);
   tokens.designer = await signIn(DESIGNER.email, PASSWORD);
   tokens.installer = await signIn(INSTALLER.email, PASSWORD);
   tokens.outsider = await signIn(OUTSIDER.email, PASSWORD);
+  tokens.editor = await signIn(EDITOR.email, PASSWORD);
 });
 
 after(async () => {
@@ -43,8 +48,9 @@ after(async () => {
   await prisma.stockMovement.deleteMany({ where: { item: { sku: { startsWith: SKU } } } });
   await prisma.project.deleteMany({ where: { id: PROJECT } });
   await prisma.client.deleteMany({ where: { id: CLIENT } });
-  await prisma.staffUser.deleteMany({ where: { id: { in: [INSTALLER.id, OUTSIDER.id] } } });
+  await prisma.staffUser.deleteMany({ where: { id: { in: [INSTALLER.id, OUTSIDER.id, EDITOR.id] } } });
   await prisma.inventoryItem.deleteMany({ where: { sku: { startsWith: SKU } } });
+  await prisma.mediaAsset.deleteMany({ where: { id: IMAGE } });
   await prisma.inventorySupplier.deleteMany({ where: { name: `Supplier ${run}` } });
   await prisma.notification.deleteMany({ where: { kind: 'stock', title: { contains: run } } });
   await prisma.staffUser.deleteMany({ where: { id: DESIGNER.id } });
@@ -88,6 +94,59 @@ test('an item is created with a supplier; counts are not writable directly', asy
   itemId = item.id;
   assert.equal(item.on_hand, 0);
   assert.equal((await call('POST', '/inventory/items', tokens.admin, body)).status, 409, 'SKU is unique');
+});
+
+test('specs: the Admin sets them with the item; an Editor edits specs and image only and never sees cost or stock', async () => {
+  const specs = {
+    length_mm: 2800, width_mm: 2070, thickness_mm: 18, grain: true, board_role: 'front', swatch: ' #8A6F4E ',
+    image_id: IMAGE, specs: [{ label: ' Finish ', value: 'Matt lacquer' }], show_on_site: true, public_name: 'Natural oak',
+  };
+  const base = { sku: `${SKU}-SPEC`, name: `Oak veneer ${run}`, type: 'Sheet', unit: 'sheet' };
+  for (const bad of [
+    { swatch: 'brown' }, { board_role: 'door' }, { length_mm: 0 }, { thickness_mm: 18.5 }, { image_id: 'med_missing' },
+    { specs: [{ label: '', value: 'x' }] }, { specs: Array.from({ length: 31 }, () => ({ label: 'a', value: 'b' })) }, { quote_cost: -1 },
+  ]) {
+    assert.equal((await call('POST', '/inventory/items', tokens.admin, { ...base, ...specs, ...bad })).status, 400, JSON.stringify(bad));
+  }
+  const item = await json<Record<string, unknown> & { id: string }>(await call('POST', '/inventory/items', tokens.admin, { ...base, ...specs, quote_cost: 64.5 }), 201);
+  assert.equal(item.swatch, '#8a6f4e');
+  assert.deepEqual(item.specs, [{ label: 'Finish', value: 'Matt lacquer' }]);
+  assert.equal(item.quote_cost, 64.5);
+  assert.equal(item.board_role, 'front');
+
+  // The Editor's catalogue: specs, never money, stock, supplier or the reorder level.
+  const catalogue = await json<Array<Record<string, unknown>>>(await call('GET', '/inventory/catalogue', tokens.editor));
+  const mine = catalogue.find((row) => row.id === item.id)!;
+  assert.equal(mine.public_name, 'Natural oak');
+  for (const secret of ['quote_cost', 'avg_cost', 'on_hand', 'supplier_id', 'reorder_level', 'low_notified']) assert.ok(!(secret in mine), secret);
+  assert.equal((await call('GET', '/inventory/items', tokens.editor)).status, 403);
+  assert.equal((await call('PUT', `/inventory/items/${item.id}`, tokens.editor, base)).status, 403);
+  assert.equal((await call('POST', `/inventory/items/${item.id}/movements`, tokens.editor, { kind: 'adjust', quantity: 5, reason: 'x' })).status, 403);
+
+  // An Editor's save replaces the specs; cost fields are refused, not ignored.
+  assert.equal((await call('PUT', `/inventory/items/${item.id}/specs`, tokens.editor, { ...specs, quote_cost: 0 })).status, 400);
+  assert.equal((await call('PUT', `/inventory/items/${item.id}/specs`, tokens.editor, { ...specs, name: 'Renamed' })).status, 400);
+  const edited = await json<Record<string, unknown>>(await call('PUT', `/inventory/items/${item.id}/specs`, tokens.editor, { thickness_mm: 19, image_id: null }));
+  assert.equal(edited.thickness_mm, 19);
+  assert.equal(edited.length_mm, null, 'a save replaces every spec');
+  assert.equal(edited.image_id, null);
+  assert.ok(!('quote_cost' in edited));
+  const row = await prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } });
+  assert.equal(row.quote_cost?.toNumber(), 64.5, 'cost untouched');
+  assert.equal(row.name, `Oak veneer ${run}`);
+  assert.equal((await call('PUT', '/inventory/items/itm_missing/specs', tokens.editor, {})).status, 404);
+
+  for (const token of [tokens.designer, tokens.installer]) {
+    assert.equal((await call('GET', '/inventory/catalogue', token)).status, 403);
+    assert.equal((await call('PUT', `/inventory/items/${item.id}/specs`, token, {})).status, 403);
+  }
+  assert.equal((await call('GET', '/inventory/catalogue')).status, 401);
+
+  // A removed media asset leaves the item without an image (FK set null), never a broken one.
+  await call('PUT', `/inventory/items/${item.id}/specs`, tokens.admin, { image_id: IMAGE });
+  await prisma.mediaAsset.delete({ where: { id: IMAGE } });
+  assert.equal((await prisma.inventoryItem.findUniqueOrThrow({ where: { id: item.id } })).image_id, null);
+  await prisma.mediaAsset.create({ data: { id: IMAGE, storage_key: `test/${run}.jpg`, alt: 'Oak', source: 'upload' } });
 });
 
 test('receipts re-average the cost; issue and adjust need a reason and never go below 0', async () => {
