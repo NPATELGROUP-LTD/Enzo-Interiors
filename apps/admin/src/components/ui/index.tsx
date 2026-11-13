@@ -713,6 +713,7 @@ export function ConfirmDialog({
   onCancel,
   pending,
   password = false,
+  tone = 'destructive',
 }: {
   open: boolean;
   title: string;
@@ -722,6 +723,8 @@ export function ConfirmDialog({
   onCancel: () => void;
   pending?: boolean;
   password?: boolean;
+  /** `primary` for a confirmation that destroys nothing (a move). */
+  tone?: 'destructive' | 'primary';
 }) {
   const [typed, setTyped] = useState('');
   const formId = useId();
@@ -742,7 +745,7 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
-            variant="destructive"
+            variant={tone}
             type={password ? 'submit' : 'button'}
             form={password ? formId : undefined}
             onClick={password ? undefined : () => onConfirm('')}
