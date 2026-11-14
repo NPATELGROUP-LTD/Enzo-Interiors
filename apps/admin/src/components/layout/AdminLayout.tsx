@@ -462,7 +462,8 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
   // A client's and a project's own page carry their way back inside their header card.
   if (pathname.startsWith('/clients/')) return { title: 'Client', back: null };
   if (pathname.startsWith('/projects/')) return { title: 'Project', back: null };
-  if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: { to: '/quotes', label: 'Quotes' } };
+  // A quote's top bar carries its own way back.
+  if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: 'Enzo Interiors', back: null };
   // An editor (a page, an entry, the company record) carries its own way back in its save bar.
