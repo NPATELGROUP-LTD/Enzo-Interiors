@@ -1,0 +1,11 @@
+# Postgres 16 (same major as production) + Patroni. The postgres image already
+# has the PGDG apt repo, which ships patroni.
+FROM postgres:16
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends patroni pgbackrest curl \
+ && rm -rf /var/lib/apt/lists/*
+COPY patroni.yml.tpl /etc/patroni/patroni.yml.tpl
+COPY patroni-start.sh post_bootstrap.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/patroni-start.sh /usr/local/bin/post_bootstrap.sh
+USER postgres
+ENTRYPOINT ["/usr/local/bin/patroni-start.sh"]

@@ -30,3 +30,7 @@ Thumbs.db
 .kilo/
 .claude/worktrees/
 .claude/settings.local.json
+
+# HA pre-prod: generated certificates and per-VM env, never committed
+infra/ha/certs/out/
+infra/ha/data/.env
