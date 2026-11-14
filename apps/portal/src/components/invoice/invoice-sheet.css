@@ -383,6 +383,10 @@
   width: 210mm;
   margin: 0 auto;
 }
+/* Editing on a narrow screen: the sheet keeps its size and scrolls sideways. */
+.inv-frame[data-editing] {
+  overflow-x: auto;
+}
 
 /* Print: only the sheets, one per page. */
 .inv-print {
