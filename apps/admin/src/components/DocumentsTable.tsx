@@ -199,9 +199,9 @@ export function DocumentsTable({
           <thead>
             <tr>
               <Th sort={header('name')}>Name</Th>
-              <Th sort={header('category')}>Category</Th>
-              <Th sort={header('uploaded')}>Uploaded</Th>
-              <Th sort={header('size')}>Size</Th>
+              <Th col="xl" sort={header('category')}>Category</Th>
+              <Th col="md" sort={header('uploaded')}>Uploaded</Th>
+              <Th col="lg" sort={header('size')}>Size</Th>
               <Th>Visible to client</Th>
               {isAdmin ? <Th>Client can download</Th> : null}
               <Th className="text-right">Actions</Th>
@@ -220,11 +220,11 @@ export function DocumentsTable({
                     {row.name}
                   </button>
                 </Td>
-                <Td>
+                <Td col="xl">
                   <StatusTag tone="info">{label(row.category)}</StatusTag>
                 </Td>
-                <Td className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
-                <Td className="tabular whitespace-nowrap text-ink-muted">
+                <Td col="md" className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
+                <Td col="lg" className="tabular whitespace-nowrap text-ink-muted">
                   {fileSize(row.size_bytes)}
                 </Td>
                 <Td>

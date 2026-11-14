@@ -304,7 +304,7 @@ function Column({
 }
 
 /* -------------------------------------------------------------------------- */
-/* New project (Admin)                                                        */
+/* New project (Admin, Designer)                                                        */
 /* -------------------------------------------------------------------------- */
 
 /** Staff as Settings › Users lists them; Designers and Installers are assigned to projects. */
@@ -361,8 +361,10 @@ export function NewProjectDialog({
         client_id: clientId,
         name: form.name.trim(),
         type: form.type,
-        assigned_designer_id: form.assigned_designer_id || null,
-        assigned_installer_id: form.assigned_installer_id || null,
+        ...(designers.length > 0 && {
+          assigned_designer_id: form.assigned_designer_id || null,
+          assigned_installer_id: form.assigned_installer_id || null,
+        }),
         ...(form.site_address !== null && { site_address: form.site_address }),
       });
       toast.success(`${created.name} created at ${created.status}.`);
@@ -393,7 +395,7 @@ export function NewProjectDialog({
       open={open}
       onClose={onClose}
       title={client ? `New project for ${client.name}` : 'New project'}
-      description="It starts at the first stage, hidden from the client portal until you send it."
+      description={`It starts at the first stage, hidden from the client portal until ${designers.length > 0 ? 'you' : 'an Admin'} send${designers.length > 0 ? '' : 's'} it.`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={saving}>
@@ -450,10 +452,13 @@ export function NewProjectDialog({
           maxLength={300}
         />
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          {assign('assigned_designer_id', 'Designer')}
-          {assign('assigned_installer_id', 'Installer')}
-        </div>
+        {/* Only an Admin assigns people; a Designer's own project is assigned to them by the API. */}
+        {designers.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2">
+            {assign('assigned_designer_id', 'Designer')}
+            {assign('assigned_installer_id', 'Installer')}
+          </div>
+        ) : null}
 
         {error ? (
           <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
@@ -487,7 +492,8 @@ export function ProjectsPage() {
   const navigate = useNavigate();
   const { isAdmin, can } = useAuth();
   const projects = useQuery<Project[]>('/projects');
-  const clients = useQuery<Client[]>(isAdmin ? '/clients' : null);
+  const canCreate = can('Admin', 'Designer');
+  const clients = useQuery<Client[]>(canCreate ? '/clients' : null);
   const designers = useDesigners(isAdmin);
   const { names: stages, stages: stageList } = useStages();
 
@@ -496,7 +502,7 @@ export function ProjectsPage() {
   const view: View =
     PROJECT_VIEWS.find(({ id }) => id === params.get('view'))?.id ??
     (window.matchMedia('(max-width: 639px)').matches ? 'list' : 'board');
-  const creating = isAdmin && params.get('new') === '1';
+  const creating = canCreate && params.get('new') === '1';
   /** Changes some of the address's parameters and keeps the rest (see Clients). */
   const update = (changes: Record<string, string | null>, replace = false) =>
     setParams(
@@ -577,7 +583,7 @@ export function ProjectsPage() {
   const tall = 'pointer-coarse:min-h-12';
 
   return (
-    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+    <div className="flex h-full flex-col px-5 pb-5 pt-3 sm:px-8">
       {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
       <PageHeader title="" />
 
@@ -606,7 +612,7 @@ export function ProjectsPage() {
             />
           </div>
         </div>
-        {isAdmin ? (
+        {canCreate ? (
           <Button
             variant="primary"
             className={clsx(tall, 'max-sm:w-full')}
@@ -635,12 +641,12 @@ export function ProjectsPage() {
         <EmptyState
           title="No projects yet"
           message={
-            isAdmin
+            canCreate
               ? 'Start one here, or from a client’s page, to track it from consultation to completed.'
-              : 'Projects appear here once you are assigned to one as designer or installer.'
+              : 'Projects appear here once you are assigned to one as installer.'
           }
           action={
-            isAdmin ? (
+            canCreate ? (
               <Button variant="primary" onClick={openCreate}>
                 New project
               </Button>
@@ -699,12 +705,12 @@ export function ProjectsPage() {
           <thead>
             <tr>
               <Th sort={header('name')}>Project</Th>
-              <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
+              <Th col="md" sort={header('client')}>Client</Th>
               <Th sort={header('stage')}>Stage</Th>
-              <Th className="max-sm:hidden">Team</Th>
-              <Th className="max-sm:hidden" sort={header('progress')}>Progress</Th>
-              <Th className="max-sm:hidden">Client sees</Th>
-              <Th className="max-sm:hidden" sort={header('updated')}>Updated</Th>
+              <Th col="xl">Team</Th>
+              <Th col="lg" sort={header('progress')}>Progress</Th>
+              <Th col="xl">Client sees</Th>
+              <Th col="lg" sort={header('updated')}>Updated</Th>
             </tr>
           </thead>
           <tbody>
@@ -725,20 +731,20 @@ export function ProjectsPage() {
                     {refNo('PRJ', project.ref_no)} · {SERVICE_LABELS[project.type]}
                   </p>
                 </Td>
-                <Td className="text-ink max-sm:hidden">{project.client_name}</Td>
+                <Td col="md" className="text-ink">{project.client_name}</Td>
                 <Td>
                   <StatusTag tone={projectTone(project.status, stageList)}>{project.status}</StatusTag>
                 </Td>
-                <Td className="text-ink-muted max-sm:hidden">{crew(project)}</Td>
-                <Td className="min-w-36 max-sm:hidden">
+                <Td col="xl" className="text-ink-muted">{crew(project)}</Td>
+                <Td col="lg" className="min-w-36">
                   <Progress value={project.progress_pct} label={`${project.name} progress`} />
                 </Td>
-                <Td className="max-sm:hidden">
+                <Td col="xl">
                   <StatusTag tone={project.client_visible ? 'success' : 'neutral'}>
                     {project.client_visible ? 'Visible' : 'Hidden'}
                   </StatusTag>
                 </Td>
-                <Td className="whitespace-nowrap text-xs text-ink-muted max-sm:hidden">
+                <Td col="lg" className="whitespace-nowrap text-xs text-ink-muted">
                   {dateTime(project.updated_at)}
                 </Td>
               </tr>

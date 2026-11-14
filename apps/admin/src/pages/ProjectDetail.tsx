@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Plus, Trash, UploadSimple } from '@phosphor-icons/react';
+import { CaretLeft, Plus, Trash, UploadSimple } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -11,7 +11,6 @@ import {
   ErrorState,
   Input,
   LoadingState,
-  PageHeader,
   StatusTag,
   TableWrap,
   Tabs,
@@ -144,34 +143,8 @@ export function ProjectDetailPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto px-5 pb-5 pt-3 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] sm:px-8 lg:overflow-visible lg:[mask-image:none]">
-      <PageHeader
-        title={project.name}
-        actions={
-          isAdmin ? (
-            <>
-              <Button
-                variant="secondary"
-                className={ICON_ONLY}
-                icon={<Plus size={16} aria-hidden="true" />}
-                onClick={() => navigate('/quotes')}
-              >
-                <span className="max-sm:sr-only">Quote from a design</span>
-              </Button>
-              <Button
-                variant="destructive"
-                className={ICON_ONLY}
-                icon={<Trash size={16} aria-hidden="true" />}
-                onClick={() => setDeleting(true)}
-              >
-                <span className="max-sm:sr-only">Delete</span>
-              </Button>
-            </>
-          ) : null
-        }
-      />
-
       {/* From lg up the page is one screen: the project scrolls on the left, the team thread stays put on the right. Below that it stacks. */}
-      <div className="mx-auto mt-3 grid w-full max-w-[100rem] grid-cols-1 gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+      <div className="mt-3 grid w-full grid-cols-1 gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_28rem]">
         <div className="min-w-0 lg:-mx-1 lg:min-h-0 lg:overflow-y-auto lg:px-1 lg:pb-1">
           <ChangeRequests key={asked} projectId={project.id} onDecided={() => void refetch()} />
 
@@ -185,16 +158,37 @@ export function ProjectDetailPage() {
             </Card>
           ) : null}
 
-          {/* The project's name is in the heading row. Here: who it is for, whether the client sees it, and where it stands. */}
+          {/* Back, name, who it is for, whether the client sees it, and where it stands: one card, top to bottom. */}
           <Card className="mb-5">
-            <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <Link
+                to="/projects"
+                className="-ml-2 flex min-h-9 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+              >
+                <CaretLeft size={16} aria-hidden="true" />
+                Projects
+              </Link>
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" className={ICON_ONLY} icon={<Plus size={16} aria-hidden="true" />} onClick={() => navigate('/quotes')}>
+                    <span className="max-sm:sr-only">Quote from a design</span>
+                  </Button>
+                  <Button variant="destructive" className={ICON_ONLY} icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+                    <span className="max-sm:sr-only">Delete</span>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
               <div className="min-w-0">
-                {client ? (
-                  <Link to={`/clients/${client.id}`} className="text-link text-lg font-semibold [overflow-wrap:anywhere]">
-                    {client.name}
-                  </Link>
-                ) : null}
-                <p className="mt-0.5 text-xs text-ink-muted [overflow-wrap:anywhere]">
+                <h1 className="text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{project.name}</h1>
+                <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">
+                  {client ? (
+                    <Link to={`/clients/${client.id}`} className="font-semibold text-green-900 hover:underline">
+                      {client.name}
+                    </Link>
+                  ) : null}
+                  {client ? ' · ' : ''}
                   {refNo('PRJ', project.ref_no)} · {SERVICE_LABELS[project.type]}
                   {project.site_address ? ` · ${project.site_address}` : ''}
                 </p>

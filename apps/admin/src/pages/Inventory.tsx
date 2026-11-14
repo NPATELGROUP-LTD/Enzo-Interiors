@@ -121,7 +121,7 @@ export function InventoryPage() {
   const tall = 'pointer-coarse:min-h-12';
 
   return (
-    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+    <div className="flex h-full flex-col px-5 pb-5 pt-3 sm:px-8">
       {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
       <PageHeader title="" />
 
@@ -188,11 +188,11 @@ export function InventoryPage() {
                 <tr>
                   <Th sort={header('sku')}>Code</Th>
                   <Th sort={header('name')}>Name</Th>
-                  <Th className="max-md:hidden" sort={header('type')}>Type</Th>
-                  <Th className="max-lg:hidden" sort={header('supplier')}>Supplier</Th>
+                  <Th col="lg" sort={header('type')}>Type</Th>
+                  <Th col="xl" sort={header('supplier')}>Supplier</Th>
                   <Th className="text-right" sort={header('on_hand')}>In stock</Th>
-                  <Th className="text-right max-sm:hidden" sort={header('cost')}>Avg cost</Th>
-                  <Th className="text-right max-sm:hidden" sort={header('value')}>Value</Th>
+                  <Th col="md" className="text-right" sort={header('cost')}>Avg cost</Th>
+                  <Th col="lg" className="text-right" sort={header('value')}>Value</Th>
                 </tr>
               </thead>
               <tbody>
@@ -204,8 +204,8 @@ export function InventoryPage() {
                         {item.name}
                       </button>
                     </Td>
-                    <Td className="max-md:hidden">{item.type}</Td>
-                    <Td className="max-lg:hidden">{item.supplier_name ?? '—'}</Td>
+                    <Td col="lg">{item.type}</Td>
+                    <Td col="xl">{item.supplier_name ?? '—'}</Td>
                     <Td className="tabular text-right">
                       <span className="inline-flex items-center gap-2">
                         {item.low && item.active ? <StatusTag tone="warning">Low</StatusTag> : null}
@@ -214,8 +214,8 @@ export function InventoryPage() {
                       {item.reserved ? <span className="block text-xs text-ink-muted">{item.reserved} reserved · {item.available} free</span> : null}
                       {item.on_order ? <span className="block text-xs text-ink-muted">{item.on_order} on order</span> : null}
                     </Td>
-                    <Td className="tabular text-right max-sm:hidden">{money(item.avg_cost)}</Td>
-                    <Td className="tabular text-right max-sm:hidden">{money(item.on_hand * item.avg_cost)}</Td>
+                    <Td col="md" className="tabular text-right">{money(item.avg_cost)}</Td>
+                    <Td col="lg" className="tabular text-right">{money(item.on_hand * item.avg_cost)}</Td>
                   </tr>
                 ))}
               </tbody>
@@ -283,9 +283,9 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
       <thead>
         <tr>
           <Th sort={header('name')}>Name</Th>
-          <Th className="max-sm:hidden">Contact</Th>
-          <Th className="max-md:hidden">Email</Th>
-          <Th className="max-md:hidden">Phone</Th>
+          <Th col="md">Contact</Th>
+          <Th col="lg">Email</Th>
+          <Th col="xl">Phone</Th>
           <Th className="text-right" sort={header('lead')}>Lead time</Th>
         </tr>
       </thead>
@@ -297,9 +297,9 @@ function SupplierTable({ suppliers, onOpen }: { suppliers: Supplier[]; onOpen: (
                 {supplier.name}
               </button>
             </Td>
-            <Td className="max-sm:hidden">{supplier.contact_name ?? '—'}</Td>
-            <Td className="max-md:hidden">{supplier.email ?? '—'}</Td>
-            <Td className="max-md:hidden">{supplier.phone ?? '—'}</Td>
+            <Td col="md">{supplier.contact_name ?? '—'}</Td>
+            <Td col="lg">{supplier.email ?? '—'}</Td>
+            <Td col="xl">{supplier.phone ?? '—'}</Td>
             <Td className="tabular text-right">{supplier.lead_days === null ? '—' : `${supplier.lead_days} days`}</Td>
           </tr>
         ))}
@@ -428,8 +428,8 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
                 <Th>When</Th>
                 <Th>What</Th>
                 <Th className="text-right">Qty</Th>
-                <Th className="text-right max-sm:hidden">Cost each</Th>
-                <Th className="max-sm:hidden">By</Th>
+                <Th col="md" className="text-right">Cost each</Th>
+                <Th col="lg">By</Th>
               </tr>
             </thead>
             <tbody>
@@ -441,8 +441,8 @@ function ItemPanel({ item, onClose, onEdit, onChanged }: { item: Item; onClose: 
                     {move.reason ? <span className="text-ink-muted"> · {move.reason}</span> : null}
                   </Td>
                   <Td className="tabular text-right font-semibold">{move.quantity > 0 ? `+${move.quantity}` : move.quantity}</Td>
-                  <Td className="tabular text-right max-sm:hidden">{money(move.unit_cost)}</Td>
-                  <Td className="max-sm:hidden">{move.by_name}</Td>
+                  <Td col="md" className="tabular text-right">{money(move.unit_cost)}</Td>
+                  <Td col="lg">{move.by_name}</Td>
                 </tr>
               ))}
             </tbody>

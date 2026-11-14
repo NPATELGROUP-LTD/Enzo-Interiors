@@ -171,7 +171,7 @@ export function SiteSettingsPage() {
 /** `/settings`: every group as a card, each pane a row with its one plain line. */
 function SettingsIndex({ groups }: { groups: SettingsNavGroup[] }) {
   return (
-    <div className="mx-auto max-w-5xl px-5 pb-16 pt-3 sm:px-8">
+    <div className="px-5 pb-16 pt-3 sm:px-8">
       <PageHeader title="Settings" description="Everything that can be set up, by what it is for." />
       <div className="grid gap-5 lg:grid-cols-2">
         {groups.map((group) => (

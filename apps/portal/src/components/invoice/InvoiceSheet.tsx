@@ -120,7 +120,6 @@ export function InvoiceSheet({ invoice, editBody, kind = 'invoice' }: { invoice:
 
       <section className="inv-parties">
         <div>
-          <p className="inv-kicker">Submitted to</p>
           <dl className="inv-pairs">
             <dt>Customer</dt>
             <dd className="inv-strong">{invoice.client_name}</dd>
@@ -131,7 +130,6 @@ export function InvoiceSheet({ invoice, editBody, kind = 'invoice' }: { invoice:
           </dl>
         </div>
         <div>
-          <p className="inv-kicker">Job</p>
           <dl className="inv-pairs">
             <dt>Job name</dt>
             <dd className="inv-strong">{invoice.job_name || invoice.project_name || '—'}</dd>
@@ -298,24 +296,112 @@ export function InvoiceSheet({ invoice, editBody, kind = 'invoice' }: { invoice:
   );
 }
 
-/** One sheet on screen, scaled down to fit its column (never up). */
+/** One A4 page's height in CSS pixels (297mm). */
+const PAGE_PX = 1122.5;
+const ZOOM_STEPS = [0.6, 0.8, 1, 1.25, 1.5, 2, 2.5];
+/** Blocks the preview never cuts through (the printed copy keeps them whole the same way). */
+const UNBREAKABLE = '.inv-table tr, .inv-totals, .inv-schedule, .inv-bank, .inv-parties, .inv-notes';
+
+/**
+ * Where each preview page starts: A4 height apart, pulled up to the top of any
+ * block that would straddle the cut. A block taller than a page is cut anyway.
+ */
+function pageStarts(sheet: HTMLElement): number[] {
+  const box = sheet.getBoundingClientRect();
+  const k = box.height / (sheet.offsetHeight || 1); // CSS zoom scales rects, not offsets
+  const blocks = [...sheet.querySelectorAll(UNBREAKABLE)].map((el) => {
+    const r = el.getBoundingClientRect();
+    return { top: (r.top - box.top) / k, bottom: (r.bottom - box.top) / k };
+  });
+  const total = sheet.offsetHeight;
+  const starts = [0];
+  for (;;) {
+    const start = starts[starts.length - 1]!;
+    const limit = start + PAGE_PX;
+    if (limit >= total - 1) return starts;
+    const straddling = blocks.filter((b) => b.top > start + 1 && b.top < limit && b.bottom > limit);
+    starts.push(straddling.length ? Math.min(...straddling.map((b) => b.top)) : limit);
+  }
+}
+
+/**
+ * The sheet on screen, one whole page at a time. It opens fitted to its column
+ * (never larger), with Previous/Next page when the content runs past one A4
+ * page, and zoom: past "fit" the page scrolls sideways and down inside its own
+ * box. Pages are cut at A4 height, moved up to the top of any row or block that
+ * would straddle the cut (pageStarts); the printed copy (InvoicePrint) does the same by CSS.
+ */
 export function InvoicePreview({ invoice, editBody, kind }: { invoice: Invoice; editBody?: ReactNode; kind?: SheetKind }) {
   const frame = useRef<HTMLDivElement>(null);
-  const [zoom, setZoom] = useState(1);
+  const sheet = useRef<HTMLDivElement>(null);
+  const [fit, setFit] = useState(1);
+  const [step, setStep] = useState(2);
+  const [page, setPage] = useState(0);
+  const [starts, setStarts] = useState<number[]>([0]);
+  const [total, setTotal] = useState(PAGE_PX);
+  const pages = starts.length;
   useEffect(() => {
     const element = frame.current;
     if (!element) return;
     const observer = new ResizeObserver(([entry]) => {
       // Editing on a phone keeps the sheet at full size (it scrolls sideways) so the fields stay readable.
-      if (entry) setZoom(editBody && entry.contentRect.width < 600 ? 1 : Math.min(1, entry.contentRect.width / SHEET_PX));
+      if (entry) setFit(editBody && entry.contentRect.width < 600 ? 1 : Math.min(1, entry.contentRect.width / SHEET_PX));
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, [editBody !== undefined]);
+  useEffect(() => {
+    const element = sheet.current;
+    if (!element) return;
+    const observer = new ResizeObserver(() => {
+      const next = pageStarts(element);
+      setStarts((old) => (old.length === next.length && old.every((v, i) => Math.abs(v - next[i]!) < 1) ? old : next));
+      setTotal(element.offsetHeight);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+  const current = Math.min(page, pages - 1);
+  const scale = fit * ZOOM_STEPS[step]!;
+  const tool =
+    'inline-flex h-8 min-w-8 items-center justify-center rounded-[7px] px-2 text-sm font-semibold text-ink hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 disabled:cursor-not-allowed disabled:opacity-40';
   return (
     <div ref={frame} className="inv-frame" data-editing={editBody ? '' : undefined}>
-      <div style={{ zoom }}>
-        <InvoiceSheet invoice={invoice} editBody={editBody} kind={kind} />
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2" role="toolbar" aria-label="Preview">
+        <div className="flex items-center gap-1">
+          <button type="button" className={tool} aria-label="Previous page" disabled={current === 0} onClick={() => setPage(current - 1)}>
+            ‹
+          </button>
+          <span className="tabular min-w-20 text-center text-[13px] text-ink-muted" aria-live="polite">
+            Page {current + 1} of {pages}
+          </span>
+          <button type="button" className={tool} aria-label="Next page" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>
+            ›
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <button type="button" className={tool} aria-label="Zoom out" disabled={step === 0} onClick={() => setStep(step - 1)}>
+            −
+          </button>
+          <button type="button" className={tool + ' min-w-14 text-[13px]'} aria-label="Fit the page to the width" onClick={() => setStep(2)}>
+            {step === 2 ? 'Fit' : `${Math.round(ZOOM_STEPS[step]! * 100)}%`}
+          </button>
+          <button type="button" className={tool} aria-label="Zoom in" disabled={step === ZOOM_STEPS.length - 1} onClick={() => setStep(step + 1)}>
+            +
+          </button>
+        </div>
+      </div>
+      <div className="inv-viewport">
+        <div className="inv-pane" style={{ zoom: scale }}>
+          <div style={{ height: PAGE_PX, overflow: 'hidden', background: '#fff' }}>
+            {/* Only this page's slice shows: from its start to the next page's start. */}
+            <div style={{ height: Math.min(PAGE_PX, (starts[current + 1] ?? total) - starts[current]!), overflow: 'hidden' }}>
+              <div ref={sheet} style={{ transform: `translateY(-${starts[current]}px)` }}>
+                <InvoiceSheet invoice={invoice} editBody={editBody} kind={kind} />
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

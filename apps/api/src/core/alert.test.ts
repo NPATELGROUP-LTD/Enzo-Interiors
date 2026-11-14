@@ -55,7 +55,7 @@ test('one email per problem per 15 minutes, with a count of what was skipped', a
   service.report({ kind: 'error', source: 'api', title: 'Boom', route: 'GET /x', status: 500 });
   await settle();
   assert.equal(mails.length, 2);
-  assert.match(mails[1]!.text, /Since the last email: 3 more times/);
+  assert.match(mails[1]!.text, /Times seen: Once, then 3 more since the last email/);
 });
 
 test('a bucket stops at its cap with one notice, and the other buckets carry on', async () => {
@@ -108,4 +108,18 @@ test('the 5xx filter reports server faults with the route as written, and leaves
   assert.equal(reports.length, 2, 'a 404 is nobody’s alarm');
   assert.deepEqual({ route: reports[0]!.route, title: reports[0]!.title, status: reports[0]!.status }, { route: 'GET /clients/:id', title: 'P2022 Column does not exist', status: 500 });
   assert.deepEqual(replies, [500, 502, 404], 'and Nest still answers exactly as before');
+});
+
+test('every sample alert renders in full, and a test goes out as a clearly marked real one', async () => {
+  const { service, mails } = setup();
+  const samples = service.samples();
+  assert.ok(samples.length >= 10, 'one of each kind of alert');
+  for (const sample of samples) {
+    assert.ok(sample.impact && sample.next, `${sample.id} says what it means and what to do`);
+    assert.ok(sample.rows.some(([key]) => key === 'What happened') && sample.rows.some(([key]) => key === 'When'), sample.id);
+  }
+  const sent = await service.sendTest('lockout');
+  assert.equal(sent.sent, true);
+  assert.match(mails[0]!.subject, /^\[Enzo\]\[SECURITY\]\[TEST\] /);
+  assert.match(mails[0]!.text, /settings\/security/);
 });

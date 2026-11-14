@@ -39,8 +39,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
   request-changes are the only `'Client'` routes) and **documents**
   (`/documents`; the portal's list and `GET /documents/:id/download`) and
   **invoices** and the **dashboard** (below) and **messages** (`/conversations`
-  + the Socket.IO gateway; `/saved-replies` and the Admin's `/activity-logs` from
-  `modules/settings`). All CRM tables are kept (incl. the retired CRM `bookings`); the CRM's
+  + the Socket.IO gateway; the Admin's `/activity-logs` from
+  `modules/settings`; saved replies were removed from the app, their table is kept). All CRM tables are kept (incl. the retired CRM `bookings`); the CRM's
   bookings and content modules were deleted (booking is `appointments`, content is the CMS;
   enquiries have their own inbox, below). The first admin
   is created on boot from `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
@@ -148,7 +148,7 @@ all; `Designer` and `Installer` only clients with a project
 they are a member of (`project_members`, migration 22: any number of designers and installers per project; the legacy `projects.assigned_designer_id` / `assigned_installer_id` still grant access and mirror the first of each)
 (`AccessService.projectScope`; `clients.assigned_staff_id` also grants a Designer the client, which is how a Designer sees one they added before any project),
 read-only; Editors none. An Admin or a Designer adds a client (`POST /clients`, **name only is enough**: `email` is optional, a Designer's is assigned to them and Active); only an Admin edits one and invites it. `GET /clients` also carries `active_projects` (SQL count, within the caller's project scope) and, Admin only, `outstanding` (SQL sum of Sent/Outstanding/Overdue invoices); the list opens a client's page, where Edit, Delete and Invite live. A client with no email is stored with a unique stand-in `client-<uuid>@no-email.invalid` (`modules/clients/no-email.ts`; `clients.email` stays NOT NULL UNIQUE, no migration), shown as `''`, never emailed, and `POST /clients/:id/invite` refuses it until an Admin adds a real address. **Projects:** Admin all
-(create, delete, assignment, `client_visible`, default off); a Designer only
+(create, delete, assignment, `client_visible`, default off); a Designer also creates one for a client they can see (`POST /projects`: the API pins first stage, themselves as designer, nobody else, hidden from the client; an unseen client is 400), and otherwise only
 projects they design or install (others 404), moving the stage directly and
 editing `current_stage` only; an Installer reads the same and cannot move a
 stage. Nobody types `progress_pct`: it follows the stage. **Change requests**

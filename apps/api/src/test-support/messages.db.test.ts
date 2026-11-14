@@ -182,12 +182,9 @@ test('one conversation per client; each role sees its own scope', async () => {
     ['GET', `/conversations/${conv.mine}`],
     ['GET', `/conversations/${conv.mine}/messages`],
     ['POST', '/conversations'],
-    ['GET', '/saved-replies'],
   ] as const) {
     await json(await call(method, path, tokens.editor, method === 'POST' ? { client_id: MINE.id } : undefined), 403);
   }
-  await json(await call('GET', '/saved-replies', tokens.mine), 403);
-  await json(await call('GET', '/saved-replies', tokens.designer));
 });
 
 test('unread counts, read receipts and validation', async () => {

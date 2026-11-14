@@ -110,7 +110,6 @@ test('a new project starts from the client address; the Admin can put it elsewhe
   assert.equal((await call('PUT', `/projects/${home.id}`, tokens.designer, { site_address: 'x' })).status, 403);
   assert.equal((await call('PUT', `/projects/${home.id}`, tokens.editor, { site_address: 'x' })).status, 403);
   assert.equal((await call('PUT', `/projects/${home.id}`, tokens.mine, { site_address: 'x' })).status, 403);
-  assert.equal((await call('POST', '/projects', tokens.designer, { client_id: MINE.id, name: 'No', type: 'Kitchen' })).status, 403);
   assert.equal((await json<{ project: Project }>(await call('GET', `/projects/${elsewhere.id}/detail`, tokens.admin))).project.site_address, '9 Site Lane, Derby');
 });
 

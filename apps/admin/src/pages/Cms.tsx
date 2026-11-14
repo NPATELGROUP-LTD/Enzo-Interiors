@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   ArrowRight,
   ArrowSquareOut,
+  CaretLeft,
   CaretRight,
   ChatCircleText,
   Check,
@@ -304,7 +305,7 @@ export function CmsHome() {
 
   return (
     <div className={PANE}>
-      <PageHeader title="CMS" actions={<SiteLink href={WEB_URL} label="View website" />} />
+      <PageHeader title="" actions={<SiteLink href={WEB_URL} label="View website" />} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div className="flex min-w-0 flex-col gap-4">
           {reviews.length ? (
@@ -464,7 +465,7 @@ export function CollectionPage({
   return (
     <div className={PANE}>
       <PageHeader
-        title={schema.label}
+        title=""
         actions={
           <>
             <SiteLink href={WEB_URL} label="View website" />
@@ -1230,17 +1231,6 @@ export function EntryPage({
         navigation ? 'lg:grid-cols-[15rem_minmax(0,1fr)]' : 'lg:grid-cols-1',
       )}
     >
-      <PageHeader
-        title={title}
-        actions={
-          path ? (
-            <SiteLink href={`${WEB_URL}${path}`} label="View page" />
-          ) : (
-            <SiteLink href={WEB_URL} label="View website" />
-          )
-        }
-      />
-
       {navigation ? (
         <aside className="hidden overflow-y-auto rounded-card bg-surface p-2.5 shadow-soft lg:row-span-2 lg:block">
           {navigation}
@@ -1248,8 +1238,30 @@ export function EntryPage({
       ) : null}
 
       <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-card bg-surface px-4 py-2 shadow-soft lg:static">
-        <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
+        <div className="flex min-w-0 items-center gap-3">
+          {/* The way back lives in the bar you are already using, with the save state beside it. */}
+          <Link
+            to={collection === 'pages' || collection === 'company' ? '/cms' : basePath}
+            aria-label={`Back to ${collection === 'pages' || collection === 'company' ? 'CMS' : schema.label}`}
+            className="-ml-1.5 flex min-h-9 shrink-0 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+          >
+            <CaretLeft size={16} aria-hidden="true" />
+            {collection === 'pages' || collection === 'company' ? 'CMS' : schema.label}
+          </Link>
+          <span aria-hidden="true" className="h-5 w-px bg-border" />
+          <SaveIndicator state={saveState} pending={pending} onRetry={() => void save()} />
+        </div>
         <div className="flex items-center gap-2">
+          <a
+            href={`${WEB_URL}${path ?? ''}`}
+            target="_blank"
+            rel="noopener"
+            title={path ? 'View this page on the website' : 'View the website'}
+            className="flex min-h-9 items-center gap-1.5 rounded-control px-2.5 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+          >
+            <ArrowSquareOut size={15} aria-hidden="true" />
+            <span className="hidden sm:inline">{path ? 'View page' : 'View site'}</span>
+          </a>
           {isAdmin ? (
             <Button variant="primary" onClick={publish} loading={publishing} disabled={!notLive}>
               Publish

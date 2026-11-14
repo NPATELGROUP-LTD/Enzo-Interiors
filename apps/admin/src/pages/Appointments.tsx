@@ -148,7 +148,7 @@ export function AppointmentsPage() {
   const askedTime = params.get('time') ?? '';
 
   return (
-    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+    <div className="flex h-full flex-col px-5 pb-5 pt-3 sm:px-8">
       {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
       <PageHeader title="" />
 
