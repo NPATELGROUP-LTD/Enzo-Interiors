@@ -406,8 +406,8 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   };
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="sticky top-0 z-20 -mx-5 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+    <div className="flex flex-col px-5 pb-16 sm:px-8 xl:h-full xl:overflow-hidden xl:pb-0">
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 xl:static xl:mb-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
             to="/quotes?tab=quotes"
@@ -462,8 +462,8 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
         </div>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
           {!canEdit ? (
             <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">
               {quote.status === 'Sent' ? 'This quote is with the client. Withdraw it to edit it.' : 'An accepted quote is final. Create the invoice from it.'}
@@ -502,7 +502,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           ) : null}
         </form>
 
-        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-20">
+        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
           <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
           {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} editBody={linesOnSheet} kind="quote" />}
           {stock.length ? (

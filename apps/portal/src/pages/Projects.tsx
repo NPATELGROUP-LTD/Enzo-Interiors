@@ -22,8 +22,7 @@ export function ProjectsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Projects" />
+      <PageHeader title="" />
 
       {error ? (
         <ErrorState message={error} onRetry={refetch} />

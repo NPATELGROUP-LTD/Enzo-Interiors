@@ -615,7 +615,8 @@ export function InvoicesPage() {
   }
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+    // The editor fits the window on wide screens (form and sheet scroll on their own), so the page itself never moves.
+    <div className={editing ? 'flex flex-col px-5 pb-16 sm:px-8 xl:h-full xl:overflow-hidden xl:pb-0' : 'px-5 pb-16 pt-6 sm:px-8 lg:pt-8'}>
       {main}
 
       {printJob ? <InvoicePrint invoices={printJob} /> : null}
@@ -1021,7 +1022,7 @@ function InvoiceEditor({
   return (
     <>
       {/* Stays on top while the form and the sheet scroll: the way back, what this is, and its buttons. */}
-      <div className="sticky top-0 z-20 -mx-5 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 xl:static xl:mb-4">
         <div className="flex min-w-0 items-center gap-3">
           <button
             type="button"
@@ -1098,8 +1099,8 @@ function InvoiceEditor({
         </div>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
           {lockNote ? <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">{lockNote}</p> : null}
 
           <Card className="flex flex-col gap-4">
@@ -1457,7 +1458,7 @@ function InvoiceEditor({
           ) : null}
         </form>
 
-        <section aria-label="Invoice preview" className="min-w-0 xl:sticky xl:top-20">
+        <section aria-label="Invoice preview" className="min-w-0 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
           <InvoicePreview invoice={sheet} editBody={linesOnSheet} />
         </section>
       </div>

@@ -22,7 +22,6 @@ import { PushPrompt } from '@/components/PushToggle';
 import { BottomBar, type BarPage } from './BottomBar';
 import { LegalLinks } from './LegalLinks';
 import { Notifications } from './Notifications';
-import { PAGE_TITLE } from '@/components/ui';
 import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
@@ -239,7 +238,7 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
       </div>
 
       {/* ------------------------------------------------------- Page heading */}
-      <div className="no-print flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pt-4 sm:px-5 lg:px-6">
+      <div className="page-head no-print flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 pb-1 pt-4 sm:px-5 lg:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {isDetail && current ? (
             <Link
@@ -252,8 +251,9 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
             </Link>
           ) : null}
           {/* <PageHeader> puts the page's own heading here; until it does, the section's name shows. */}
-          <div id="page-title" className="min-w-0 empty:hidden [&:not(:empty)+h1]:hidden" />
-          <h1 className={PAGE_TITLE}>{current?.label ?? appName}</h1>
+          <div id="page-title" className="min-w-0 empty:hidden" />
+          {/* The section's name stays for screen readers only: the menu bar already shows where you are. */}
+          <h1 className="sr-only [#page-title:not(:empty)+&]:hidden">{current?.label ?? appName}</h1>
         </div>
         <div id="page-actions" className="flex flex-wrap items-center justify-end gap-2" />
       </div>
