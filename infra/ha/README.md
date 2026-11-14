@@ -11,14 +11,14 @@ runs in production yet. Three machines on a private link (VLAN or WireGuard):
 
 ## Bring-up
 
-1. **Firewall first.** On every VM allow 2379, 2380, 5432, 8008, 6379, 26379, 9000 from `PRIVATE_CIDR` only. Nothing public.
+1. **Firewall first.** On every VM allow 2379, 2380, 5432, 8008, 6379, 26379, 9000 from `PRIVATE_CIDR` only. Nothing public. On a data VM with ufw also run `ufw allow from 172.16.0.0/12 to <NODE_IP> port 9000 proto tcp`: MinIO site replication makes each MinIO call its own published address from inside its container, which ufw otherwise drops (symptom: `mc admin replicate add` times out).
 2. **Certificates** (admin machine): `DATA1_IP=.. DATA2_IP=.. WITNESS_IP=.. sh certs/gen-certs.sh`. Copy `certs/out/<node>/` to that VM's `CERT_DIR`; run the `chown`/`chmod` it prints. Keep `ca.key` offline.
 3. **Env:** `cp data/.env.example data/.env`, fill in, `openssl rand -hex 24` for each secret.
 4. **Start etcd on all three first:** `docker compose --profile data up -d etcd` (witness: `--profile witness`). Check `etcdctl --endpoints=... --cacert --cert --key endpoint health`.
 5. **ha-data-1:** `docker compose --profile data up -d --build`. Wait until `docker exec <patroni> patronictl -c /tmp/patroni.yml list` shows a Leader.
 6. **ha-data-2** (`REDIS_ROLE=replica`): same command. It clones from the leader and shows `Sync Standby`.
 7. **Witness:** `docker compose --profile witness up -d`.
-8. **MinIO:** `sh data/setup-minio.sh` (see its header).
+8. **MinIO:** `sh data/setup-minio.sh` (see its header). It needs `mc`; the Docker Hub and quay.io `minio/mc` images were not pullable, so run it inside the MinIO image (`/opt/bitnami/minio-client/bin/mc`) with `--network host`.
 9. **Gate (plan P2):** Patroni shows Leader + Sync Standby; `redis-cli -p 26379 sentinel master enzo` names the master; `mc admin replicate status` is healthy; a file uploaded to one MinIO is listed on the other.
 
 ## Facts that matter

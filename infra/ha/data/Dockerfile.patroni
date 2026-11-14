@@ -2,7 +2,7 @@
 # has the PGDG apt repo, which ships patroni.
 FROM postgres:16
 RUN apt-get update \
- && apt-get install -y --no-install-recommends patroni pgbackrest curl \
+ && apt-get install -y --no-install-recommends patroni python3-etcd pgbackrest curl \
  && rm -rf /var/lib/apt/lists/*
 COPY patroni.yml.tpl /etc/patroni/patroni.yml.tpl
 COPY patroni-start.sh post_bootstrap.sh /usr/local/bin/
