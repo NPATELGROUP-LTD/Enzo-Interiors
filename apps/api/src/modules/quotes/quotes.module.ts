@@ -133,8 +133,7 @@ export class QuotesService {
     return (await this.views([quote], this.access.isClient(principal)))[0]!;
   }
 
-  /** design_id is set only by the quote maker, never from a request body. */
-  async create(principal: AuthPrincipal, dto: CreateQuoteDto, design_id: string | null = null): Promise<QuoteView> {
+  async create(principal: AuthPrincipal, dto: CreateQuoteDto): Promise<QuoteView> {
     const client = await this.db.clients.findById(dto.client_id);
     if (!client) throw new BadRequestException('Client does not exist');
     const project = await this.db.projects.findById(dto.project_id);
@@ -166,7 +165,7 @@ export class QuotesService {
             responded_at: null,
             response_comment: null,
             invoice_id: null,
-            design_id,
+            design_id: null,
             created_by: principal.name,
             created_at: now,
             updated_at: now,

@@ -355,7 +355,7 @@
 
   /* The shell's heading row disappears when it holds no back link, heading or buttons. */
   .page-head:not(:has(a, button, #page-title:not(:empty))) {
-    display: none;
+    display: none !important; /* beats the shell's flex utility */
   }
 
   /* Tabular figures keep money columns from jittering as values change. */

@@ -1,7 +1,7 @@
 // Settings › Pages: which public pages are switched on. Pure, so npm test can
 // run it; the API sends `site.pages`, and anything it leaves out (an older API,
 // or the offline fallback) takes the default below.
-export const PAGE_KEYS = ["about", "services", "portfolio", "booking", "quote", "contact", "privacy", "terms", "cookies"] as const;
+export const PAGE_KEYS = ["about", "services", "portfolio", "booking", "contact", "privacy", "terms", "cookies"] as const;
 export type PagesKey = (typeof PAGE_KEYS)[number];
 export type PagesSetting = Partial<Record<PagesKey, boolean>>;
 
@@ -11,7 +11,6 @@ export const PAGE_DEFAULTS: Record<PagesKey, boolean> = {
   services: false,
   portfolio: false,
   booking: false,
-  quote: false,
   contact: true,
   privacy: true,
   terms: true,

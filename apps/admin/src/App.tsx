@@ -17,9 +17,6 @@ import { DashboardPage } from './pages/Dashboard';
 import { EnquiriesPage } from './pages/Enquiries';
 import { InvoicesPage } from './pages/Invoices';
 import { QuotesPage } from './pages/Quotes';
-import { InventoryPage } from './pages/Inventory';
-import { QuoteMakerPage } from './pages/QuoteMaker';
-import { CataloguePage } from './components/inventory/Specs';
 import { MailPage } from './pages/Mail';
 import { MessagesPage } from './pages/Messages';
 import { ProjectDetailPage } from './pages/ProjectDetail';
@@ -41,7 +38,7 @@ function EntryRoute({ collection, basePath }: { collection: CmsCollection; baseP
 
 /** Addresses that are real screens once signed in, so signed out they go to sign-in and not a 404. */
 const isAppPath = (path: string) =>
-  ['/', '/cms', '/account', '/settings', '/clients', '/projects', '/messages', '/team', '/mail', '/invoices', '/quotes', '/inventory', '/enquiries', '/bookings', ...SECTIONS.map(({ to }) => to)].some(
+  ['/', '/cms', '/account', '/settings', '/clients', '/projects', '/messages', '/team', '/mail', '/invoices', '/quotes', '/enquiries', '/bookings', ...SECTIONS.map(({ to }) => to)].some(
     (base) => (base === '/' ? path === '/' : path === base || path.startsWith(`${base}/`)),
   );
 
@@ -131,12 +128,6 @@ export function App() {
         />
         <Route path="/quotes" element={user.role === 'Admin' ? <QuotesPage /> : <Navigate to={home} replace />} />
         <Route path="/quotes/:id" element={user.role === 'Admin' ? <QuotesPage /> : <Navigate to={home} replace />} />
-        <Route path="/quote-maker" element={user.role === 'Admin' ? <QuoteMakerPage /> : <Navigate to={home} replace />} />
-        <Route path="/quote-maker/:id" element={user.role === 'Admin' ? <QuoteMakerPage /> : <Navigate to={home} replace />} />
-        <Route
-          path="/inventory"
-          element={user.role === 'Admin' ? <InventoryPage /> : user.role === 'Editor' ? <CataloguePage /> : <Navigate to={home} replace />}
-        />
         <Route
           path="/enquiries"
           element={user.role === 'Admin' ? <EnquiriesPage /> : <Navigate to={home} replace />}

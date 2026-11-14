@@ -9,7 +9,6 @@ export const PAGE_COPY: Record<PagesKey, { name: string; line: string }> = {
   services: { name: "Services", line: "Kitchens, wardrobes, media walls and more, with the detail of each." },
   portfolio: { name: "Recent work", line: "Finished projects across Leicestershire, photographed on site." },
   booking: { name: "Book a consultation", line: "To book a free home survey today, call or email us and we will find a time." },
-  quote: { name: "Design & price", line: "Design your room in your browser and see a price range straight away." },
   contact: { name: "Contact", line: "" },
   privacy: { name: "Privacy", line: "" },
   terms: { name: "Terms", line: "" },

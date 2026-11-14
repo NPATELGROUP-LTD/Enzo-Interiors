@@ -24,7 +24,7 @@ function QuoteList() {
   const quotes = useQuery<Quote[]>('/quotes');
   return (
     <>
-      <PageHeader title="Quotes" />
+      <PageHeader title="" />
       {quotes.error ? (
         <ErrorState message={quotes.error} onRetry={quotes.refetch} />
       ) : quotes.loading ? (

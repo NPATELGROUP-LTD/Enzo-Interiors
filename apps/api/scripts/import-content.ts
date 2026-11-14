@@ -30,7 +30,6 @@ import { HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s
 
 import { CmsCollection, CmsEntry } from '../src/common/types/domain';
 import { DatabaseService } from '../src/data/database.service';
-import { importStarterLibrary } from '../src/modules/quote-maker/starter';
 import { PrismaService } from '../src/data/prisma.service';
 
 /** apps/web/src/data, resolved from this file rather than from cwd. */

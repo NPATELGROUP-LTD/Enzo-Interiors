@@ -49,8 +49,7 @@ export function DocumentsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Documents" />
+      <PageHeader title="" />
 
       <div className="mb-4 flex flex-wrap gap-3">
         <div className="relative min-w-56 flex-1">
@@ -139,10 +138,10 @@ export function DocumentsPage() {
             <thead>
               <tr>
                 <Th sort={header('name')}>Document</Th>
-                <Th className="max-sm:hidden" sort={header('category')}>Category</Th>
-                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
-                <Th className="max-sm:hidden" sort={header('added')}>Added</Th>
-                <Th className="max-sm:hidden" sort={header('size')}>Size</Th>
+                <Th col="md" sort={header('category')}>Category</Th>
+                <Th col="lg" sort={header('project')}>Project</Th>
+                <Th col="lg" sort={header('added')}>Added</Th>
+                <Th col="xl" sort={header('size')}>Size</Th>
                 <Th className="text-right">Actions</Th>
               </tr>
             </thead>
@@ -152,12 +151,12 @@ export function DocumentsPage() {
                   <Td className="font-medium text-ink [overflow-wrap:anywhere]">
                     <DocumentName document={document} />
                   </Td>
-                  <Td className="max-sm:hidden">
+                  <Td col="md">
                     <StatusTag tone="info">{categoryLabel(document.category)}</StatusTag>
                   </Td>
-                  <Td className="text-ink-muted max-sm:hidden">{document.project_name ?? '—'}</Td>
-                  <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(document.upload_date)}</Td>
-                  <Td className="tabular whitespace-nowrap text-ink-muted max-sm:hidden">
+                  <Td col="lg" className="text-ink-muted">{document.project_name ?? '—'}</Td>
+                  <Td col="lg" className="whitespace-nowrap text-ink-muted">{date(document.upload_date)}</Td>
+                  <Td col="xl" className="tabular whitespace-nowrap text-ink-muted">
                     {fileSize(document.size_bytes)}
                   </Td>
                   <Td>

@@ -31,7 +31,6 @@ import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
 import { DocumentsTable, UploadDialog } from '@/components/DocumentsTable';
-import { ProjectMaterials } from '@/components/ProjectMaterials';
 import { ProjectTeam } from '@/components/ProjectTeam';
 import { ProjectThread } from '@/components/TeamThread';
 
@@ -170,8 +169,8 @@ export function ProjectDetailPage() {
               </Link>
               {isAdmin ? (
                 <div className="flex items-center gap-2">
-                  <Button variant="secondary" className={ICON_ONLY} icon={<Plus size={16} aria-hidden="true" />} onClick={() => navigate('/quotes')}>
-                    <span className="max-sm:sr-only">Quote from a design</span>
+                  <Button variant="secondary" className={ICON_ONLY} icon={<Plus size={16} aria-hidden="true" />} onClick={() => navigate(`/quotes?new=1&client=${project.client_id}&project=${project.id}`)}>
+                    <span className="max-sm:sr-only">New quote</span>
                   </Button>
                   <Button variant="destructive" className={ICON_ONLY} icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
                     <span className="max-sm:sr-only">Delete</span>
@@ -302,7 +301,6 @@ export function ProjectDetailPage() {
                 tabs={[
                   { id: 'overview', label: 'Overview' },
                   { id: 'documents', label: 'Documents', count: documents.length },
-                  { id: 'materials', label: 'Materials' },
                   ...(isAdmin ? [{ id: 'invoices', label: 'Invoices & quotes', count: invoices.length + quoteRows.length }] : []),
                   { id: 'activity', label: 'Activity', count: activity.length },
                 ]}
@@ -415,7 +413,6 @@ export function ProjectDetailPage() {
             }}
           />
 
-          {tab === 'materials' ? <ProjectMaterials projectId={project.id} /> : null}
 
           {tab === 'invoices' && isAdmin ? (
             <div className="flex flex-col gap-5">
@@ -425,7 +422,7 @@ export function ProjectDetailPage() {
                   <Card className="p-0">
                     <EmptyState
                       title="No quotes"
-                      message="Make one from a design: open Quotes, choose a design and Make quote."
+                      message="Choose New quote above to write one for this project."
                     />
                   </Card>
                 ) : (

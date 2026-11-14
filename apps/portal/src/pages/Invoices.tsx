@@ -58,8 +58,7 @@ export function InvoicesPage() {
 
   return (
     <>
-      <PageHeader
-        title="Invoices" />
+      <PageHeader title="" />
 
       {invoices.error ? (
         <ErrorState message={invoices.error} onRetry={invoices.refetch} />
@@ -152,9 +151,9 @@ export function InvoicesPage() {
               <thead>
                 <tr>
                   <Th sort={header('number')}>Invoice</Th>
-                  <Th className="max-sm:hidden">Project</Th>
-                  <Th className="max-sm:hidden" sort={header('issued')}>Issued</Th>
-                  <Th className="max-sm:hidden" sort={header('due')}>Due</Th>
+                  <Th col="xl">Project</Th>
+                  <Th col="lg" sort={header('issued')}>Issued</Th>
+                  <Th col="md" sort={header('due')}>Due</Th>
                   <Th sort={header('status')}>Status</Th>
                   <Th className="text-right" sort={header('amount')}>Amount</Th>
                 </tr>
@@ -174,9 +173,9 @@ export function InvoicesPage() {
                         {invoice.number}
                       </Link>
                     </Td>
-                    <Td className="text-ink-muted max-sm:hidden">{invoice.project_name ?? '—'}</Td>
-                    <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.created_at)}</Td>
-                    <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">
+                    <Td col="xl" className="text-ink-muted">{invoice.project_name ?? '—'}</Td>
+                    <Td col="lg" className="whitespace-nowrap text-ink-muted">{date(invoice.created_at)}</Td>
+                    <Td col="md" className="whitespace-nowrap text-ink-muted">
                       {date(invoice.due_date)}
                       {invoice.is_overdue ? (
                         <span className="ml-1.5 text-xs text-danger">

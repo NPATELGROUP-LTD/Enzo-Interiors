@@ -3,15 +3,13 @@ import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { InvoicePreview, InvoicePrint, printWhenReady, quoteSheet } from '@/components/invoice/InvoiceSheet';
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, Select, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
-import type { Quote, QuoteItem, QuoteStatus } from '@/types/api';
-
-import { DesignsView, LibraryView, PricingView } from './QuoteMaker';
+import type { Client, Project, Quote, QuoteItem, QuoteStatus } from '@/types/api';
 
 const TONE: Record<QuoteStatus, StatusTone> = { Draft: 'neutral', Sent: 'info', Accepted: 'success', Declined: 'danger' };
 const FILTERS = [
@@ -21,34 +19,13 @@ const FILTERS = [
   { id: 'Accepted', label: 'Accepted' },
   { id: 'Declined', label: 'Declined' },
 ];
-const TABS = [
-  { id: 'designs', label: 'Designs' },
-  { id: 'quotes', label: 'Quotes' },
-  { id: 'library', label: 'Unit library' },
-  { id: 'pricing', label: 'Pricing' },
-];
-
 /** Draft, or Declined (the API takes the edit as a fresh draft). */
 const editable = (quote: Quote) => quote.status === 'Draft' || quote.status === 'Declined';
 
-/** `/quotes`: Designs, Quotes, Unit library, Pricing. `?view=` filters the quotes; `/quotes/:id` opens one. Admin only. */
+/** `/quotes`: every quote (`?view=` filters, `?new=1&client=&project=` starts one); `/quotes/:id` opens one. Admin only. */
 export function QuotesPage() {
   const { id } = useParams();
-  return id ? <QuoteDetail id={id} /> : <QuotesHome />;
-}
-
-function QuotesHome() {
-  const [params, setParams] = useSearchParams();
-  // A status filter in the address (the dashboard links to ?view=Sent) means the quotes themselves.
-  const tab = TABS.some((entry) => entry.id === params.get('tab')) ? params.get('tab')! : params.get('view') ? 'quotes' : 'designs';
-  return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="mb-4">
-        <Tabs tabs={TABS} active={tab} onChange={(next) => setParams(next === 'designs' ? {} : { tab: next })} />
-      </div>
-      {tab === 'quotes' ? <QuoteList /> : tab === 'library' ? <LibraryView /> : tab === 'pricing' ? <PricingView /> : <DesignsView />}
-    </div>
-  );
+  return id ? <QuoteDetail id={id} /> : <QuoteList />;
 }
 
 function QuoteList() {
@@ -69,12 +46,15 @@ function QuoteList() {
   if (!quotes.data) return <LoadingState label="Loading quotes…" />;
 
   return (
-    <>
-      <div className="mb-4">
-        <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: id })} />
+    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? {} : { view: id })} />
+        <Button variant="primary" icon={<Plus size={16} aria-hidden="true" />} onClick={() => setParams({ new: '1' })}>
+          New quote
+        </Button>
       </div>
       {shown.length === 0 ? (
-        <EmptyState title="No quotes" message="A quote is made from a design: open a design and choose Make quote. It lands here, ready to check and send." />
+        <EmptyState title="No quotes" message="Choose New quote, pick the client and project, then write the lines on the sheet." />
       ) : (
         <TableWrap>
           <thead>
@@ -103,7 +83,60 @@ function QuoteList() {
           </tbody>
         </TableWrap>
       )}
-    </>
+      <NewQuoteDialog open={params.get('new') === '1'} client={params.get('client')} project={params.get('project')} onClose={() => setParams({})} />
+    </div>
+  );
+}
+
+/** Pick the client and project, then land on the sheet with one blank line to write over. */
+function NewQuoteDialog({ open, client, project, onClose }: { open: boolean; client: string | null; project: string | null; onClose: () => void }) {
+  const navigate = useNavigate();
+  const clients = useQuery<Client[]>('/clients');
+  const projects = useQuery<Project[]>('/projects');
+  const preset = (projects.data ?? []).find((entry) => entry.id === project);
+  const [clientId, setClientId] = useState(client ?? preset?.client_id ?? '');
+  const [projectId, setProjectId] = useState(project ?? '');
+  const [title, setTitle] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const own = (projects.data ?? []).filter((entry) => entry.client_id === (clientId || preset?.client_id));
+  const create = async (event: FormEvent) => {
+    event.preventDefault();
+    const owner = clientId || preset?.client_id || '';
+    if (!owner || !projectId) return setError('Choose the client and the project this quote is for.');
+    setSaving(true);
+    try {
+      // The API wants a line; this one is a placeholder to write over on the sheet.
+      const saved = await api.post<Quote>('/quotes', { client_id: owner, project_id: projectId, title: title.trim() || null, items: [{ description: 'Item', quantity: 1, unit_price: 0 }] });
+      navigate(`/quotes/${saved.id}`);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.fieldMessages[0] ?? caught.message : 'Could not start the quote.');
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="New quote" width="md">
+      <form onSubmit={create} className="flex flex-col gap-4" noValidate>
+        <Select label="Client" value={clientId || preset?.client_id || ''} onChange={(event) => { setClientId(event.target.value); setProjectId(''); }}>
+          <option value="">Choose a client…</option>
+          {(clients.data ?? []).map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.name}</option>
+          ))}
+        </Select>
+        <Select label="Project" value={projectId} disabled={!(clientId || preset?.client_id)} onChange={(event) => setProjectId(event.target.value)}>
+          <option value="">{clientId || preset ? (own.length ? 'Choose a project…' : 'This client has no project') : 'Choose a client first'}</option>
+          {own.map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.name}</option>
+          ))}
+        </Select>
+        <Input label="Title" value={title} maxLength={200} placeholder="e.g. Kitchen and utility" onChange={(event) => setTitle(event.target.value)} />
+        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={saving}>Start quote</Button>
+        </div>
+      </form>
+    </Modal>
   );
 }
 
@@ -172,10 +205,6 @@ function totalsOf(items: Array<{ quantity: number; unit_price: number }>, vatRat
   return { subtotal: subtotal / 100, net: net / 100, vat: vat / 100, gross: (net + vat) / 100 };
 }
 
-/** Inventory items offered on a line's name; picking one fills its name and its average cost (still editable). */
-type StockOption = { sku: string; name: string; avg_cost: number; active: boolean };
-const stockLabel = (item: StockOption) => `${item.sku} · ${item.name}`;
-
 function QuoteDetail({ id }: { id: string }) {
   const quote = useQuery<Quote>(`/quotes/${encodeURIComponent(id)}`);
   if (quote.error && !quote.data) return <ErrorState message={quote.error} onRetry={() => void quote.refetch()} />;
@@ -188,7 +217,6 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   const toast = useToast();
   const navigate = useNavigate();
   const canEdit = editable(quote);
-  const stock = (useQuery<StockOption[]>('/inventory/items').data ?? []).filter((item) => item.active);
 
   const [title, setTitle] = useState(quote.title ?? '');
   const [validUntil, setValidUntil] = useState(quote.valid_until?.slice(0, 10) ?? '');
@@ -284,13 +312,9 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
             <td>
               <input
                 value={row.description}
-                list={stock.length ? 'quote-stock-items' : undefined}
-                onChange={(event) => {
-                  const picked = stock.find((item) => stockLabel(item) === event.target.value);
-                  setRow(row.key, picked ? { description: picked.name, cost: picked.avg_cost.toFixed(2) } : { description: event.target.value });
-                }}
+                onChange={(event) => setRow(row.key, { description: event.target.value })}
                 aria-label={`Line ${index + 1} item`}
-                placeholder={stock.length ? 'Item, or pick from stock' : 'Item'}
+                placeholder="Item"
                 maxLength={300}
               />
             </td>
@@ -397,7 +421,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
     try {
       await api.delete(`/quotes/${quote.id}`);
       toast.success('Deleted.');
-      navigate('/quotes?tab=quotes');
+      navigate('/quotes');
     } catch (caught) {
       toast.error(failure(caught));
       setBusy(null);
@@ -406,11 +430,11 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   };
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="sticky top-0 z-20 -mx-5 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+    <div className="flex flex-col px-5 pb-16 sm:px-8 xl:h-full xl:overflow-hidden xl:pb-0">
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 xl:static xl:mb-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link
-            to="/quotes?tab=quotes"
+            to="/quotes"
             aria-label="Back to all quotes"
             title="All quotes"
             className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-ink shadow-card hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 pointer-coarse:h-11 pointer-coarse:w-11"
@@ -462,8 +486,8 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
         </div>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
           {!canEdit ? (
             <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">
               {quote.status === 'Sent' ? 'This quote is with the client. Withdraw it to edit it.' : 'An accepted quote is final. Create the invoice from it.'}
@@ -502,16 +526,9 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           ) : null}
         </form>
 
-        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-20">
+        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
           <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
           {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} editBody={linesOnSheet} kind="quote" />}
-          {stock.length ? (
-            <datalist id="quote-stock-items">
-              {stock.map((item) => (
-                <option key={item.sku} value={stockLabel(item)} />
-              ))}
-            </datalist>
-          ) : null}
         </section>
       </div>
 

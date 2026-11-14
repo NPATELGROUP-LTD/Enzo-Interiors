@@ -16,8 +16,6 @@ export const PAGE_DEFAULTS: Record<PageKey, boolean> = {
   privacy: true,
   terms: true,
   cookies: true,
-  // The quote maker (/quote and its public API). Off until the owner opens it.
-  quote: false,
 };
 
 /** Every page's switch: what was saved, else the default. Unknown keys are dropped. */
