@@ -125,26 +125,30 @@ function Tile({
 
 const SUB = 'mt-2 line-clamp-2 text-ink-muted';
 
-/** Where the projects are, stage by stage; each stage opens its projects. */
+/** Where the projects are, stage by stage; each stage opens its projects. Bars are scaled to the busiest stage. */
 function Pipeline({ projects, className }: { projects: DashboardProjects; className?: string }) {
-  const total = Math.max(1, Object.values(projects.by_stage).reduce((sum, value) => sum + value, 0));
+  const busiest = Math.max(1, ...projects.stages.map((stage) => projects.by_stage[stage] ?? 0));
+  const total = projects.stages.reduce((sum, stage) => sum + (projects.by_stage[stage] ?? 0), 0);
   return (
-    <Card className={className}>
-      <p className="label-eyebrow">Pipeline</p>
-      <ul className="-mx-2 mt-2 flex flex-col">
+    <Card className={clsx('flex flex-col', className)}>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-base font-semibold text-ink">Pipeline</h2>
+        <span className="tabular text-sm text-ink-muted">{plural(total, 'project')}</span>
+      </div>
+      <ul className="-mx-2 mt-3 flex flex-col">
         {projects.stages.map((stage) => {
           const count = projects.by_stage[stage] ?? 0;
           return (
             <li key={stage}>
               <Link
                 to={stageLink([stage])}
-                className="block rounded-control px-2 py-2 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+                className="grid grid-cols-[minmax(0,7rem)_1fr_2rem] items-center gap-3 rounded-control px-2 py-2.5 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
               >
-                <span className="mb-1 flex items-center justify-between">
-                  <span className="text-sm text-ink">{stage}</span>
-                  <span className="tabular text-sm font-semibold text-ink">{padCount(count)}</span>
+                <span className={clsx('truncate text-sm', count ? 'font-medium text-ink' : 'text-ink-muted')}>{stage}</span>
+                <span className="h-2 overflow-hidden rounded-full bg-ink/[0.07]" role="img" aria-label={`${plural(count, 'project')} at ${stage}`}>
+                  <span className="block h-full rounded-full bg-green-900" style={{ width: `${(count / busiest) * 100}%` }} />
                 </span>
-                <Progress value={Math.round((count / total) * 100)} label={`${stage} share`} />
+                <span className={clsx('tabular text-right text-sm font-semibold', count ? 'text-ink' : 'text-ink-muted/60')}>{count}</span>
               </Link>
             </li>
           );
@@ -291,6 +295,17 @@ function AdminView() {
   );
 }
 
+/** One figure in a strip: label, a large number that opens its list, one line of context. */
+function Stat({ label, value, to, note, tone = 'primary' }: { label: string; value: number; to: string; note: string; tone?: keyof typeof TONE_TEXT }) {
+  return (
+    <Link to={to} className="group block px-5 py-4 first:rounded-t-card last:rounded-b-card hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-inset focus-visible:ring-focus-ring/40 sm:first:rounded-l-card sm:first:rounded-tr-none sm:last:rounded-r-card sm:last:rounded-bl-none">
+      <span className="label-eyebrow block">{label}</span>
+      <span className={clsx('tabular mt-1.5 block text-4xl font-bold leading-none tracking-tight', TONE_TEXT[tone])}>{padCount(value)}</span>
+      <span className="mt-2 block text-sm text-ink-muted">{note}</span>
+    </Link>
+  );
+}
+
 function DesignerView() {
   const { data, loading, error, refetch } = useQuery<DesignerDashboard>('/dashboard/designer');
   const { stages, approvals } = useStages();
@@ -316,49 +331,47 @@ function DesignerView() {
         line={`${plural(projects.active, 'active project')}, ${projects.awaiting_decision} with the client.`}
         actions={<Shortcuts />}
       />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Tile title="Your active projects" value={padCount(projects.active)} to="/projects?view=list">
-          <p className={SUB}>{projects.completed} completed.</p>
-        </Tile>
-        <Tile
-          title="With the client"
-          value={padCount(projects.awaiting_decision)}
+      {/* One strip, three figures: the number leads, what it is sits above it, one line of context under. */}
+      <Card className="grid grid-cols-1 divide-y divide-border p-0 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <Stat label="Active projects" value={projects.active} to="/projects?view=list" note={`${projects.completed} completed`} />
+        <Stat
+          label="With the client"
+          value={projects.awaiting_decision}
           to={stageLink(approvals)}
+          note="Waiting for a decision"
           tone={projects.awaiting_decision > 0 ? 'warning' : 'primary'}
-        >
-          <p className={SUB}>Designs waiting for a client decision.</p>
-        </Tile>
-        <Tile title={`At ${beforeDone}`} value={padCount(projects.by_stage[beforeDone] ?? 0)} to={stageLink([beforeDone])}>
-          <p className={SUB}>The last stage before done.</p>
-        </Tile>
-      </div>
+        />
+        <Stat label={`At ${beforeDone}`} value={projects.by_stage[beforeDone] ?? 0} to={stageLink([beforeDone])} note="One step from done" />
+      </Card>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2">
-          <p className="label-eyebrow">Your open work</p>
-          <p className="mt-1 text-ink-muted">Projects assigned to you that are not finished, latest first.</p>
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+        <Card className="p-0">
+          <div className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-5">
+            <h2 className="text-base font-semibold text-ink">Your open work</h2>
+            <span className="tabular text-sm text-ink-muted">{tasks.length}</span>
+          </div>
           {tasks.length === 0 ? (
-            <p className="py-6 text-center text-ink-muted">Nothing is assigned to you right now.</p>
+            <p className="px-5 pb-8 pt-4 text-center text-ink-muted">Nothing is assigned to you right now.</p>
           ) : (
-            <ul className="rows mt-3">
+            <ul className="px-2 pb-2">
               {tasks.map((task) => (
-                <li key={task.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <Link to={`/projects/${task.id}`} className="text-link block truncate">
-                        {task.name}
-                      </Link>
-                      <p className="truncate text-xs text-ink-muted">
-                        {task.client_name} · {SERVICE_LABELS[task.type]} · {task.roles.join(' and ')} · updated{' '}
-                        {relative(task.updated_at)}
-                      </p>
-                    </div>
+                <li key={task.id}>
+                  <Link
+                    to={`/projects/${task.id}`}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 rounded-control px-3 py-3 hover:bg-surface-muted focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 md:grid-cols-[minmax(0,1fr)_9rem_11rem]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-semibold text-ink">{task.name}</span>
+                      <span className="block truncate text-xs text-ink-muted">
+                        {task.client_name} · {SERVICE_LABELS[task.type]} · {task.roles.join(' and ')} · {relative(task.updated_at)}
+                      </span>
+                      {task.current_stage ? <span className="mt-0.5 block truncate text-xs text-ink-muted/80">{task.current_stage}</span> : null}
+                    </span>
                     <StatusTag tone={projectTone(task.status, stages)}>{task.status}</StatusTag>
-                  </div>
-                  <div className="mt-2">
-                    <Progress value={task.progress_pct} label={`${task.name} progress`} />
-                  </div>
-                  {task.current_stage ? <p className="mt-1.5 text-xs text-ink-muted">{task.current_stage}</p> : null}
+                    <span className="col-span-2 md:col-span-1">
+                      <Progress value={task.progress_pct} label={`${task.name} progress`} />
+                    </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -374,5 +387,5 @@ function DesignerView() {
 export function DashboardPage() {
   const { isAdmin } = useAuth();
 
-  return <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">{isAdmin ? <AdminView /> : <DesignerView />}</div>;
+  return <div className="px-5 pb-16 pt-2 sm:px-8">{isAdmin ? <AdminView /> : <DesignerView />}</div>;
 }

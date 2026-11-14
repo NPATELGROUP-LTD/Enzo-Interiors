@@ -198,6 +198,27 @@ test('an Editor is refused on every /projects route', async () => {
   }
 });
 
+test('a Designer creates a project only for a client they can see, and gets the pinned defaults', async () => {
+  // Handing over other people, the client's view or a later stage is ignored, not honoured.
+  const made = await json<{ id: string; status: string; client_visible: boolean; assigned_designer_id: string | null; assigned_installer_id: string | null }>(
+    await call('POST', '/projects', tokens.designer, {
+      client_id: MINE.id, name: `Designer ${run}`, type: 'Kitchen',
+      assigned_designer_id: null, assigned_installer_id: INSTALLER.id, client_visible: true, status: 'Completed',
+    }),
+    201,
+  );
+  assert.equal(made.client_visible, false);
+  assert.equal(made.assigned_designer_id, DESIGNER.id);
+  assert.equal(made.assigned_installer_id, null);
+  assert.notEqual(made.status, 'Completed');
+  assert.ok(ids(await json(await call('GET', '/projects', tokens.designer))).includes(made.id), 'it is theirs to see');
+  await prisma.project.delete({ where: { id: made.id } });
+
+  // A client they have no project or look-after link with answers like a missing one.
+  assert.equal((await call('POST', '/projects', tokens.designer, { client_id: OTHER.id, name: 'Nope', type: 'Kitchen' })).status, 400);
+  assert.equal((await call('POST', '/projects', tokens.editor, { client_id: MINE.id, name: 'Nope', type: 'Kitchen' })).status, 403);
+});
+
 test('a Designer sees only projects they design or install, and changes only the stage and its note', async () => {
   assert.deepEqual(ids(await json(await call('GET', '/projects', tokens.designer))), [P.designs, P.installs].sort());
 
@@ -216,7 +237,6 @@ test('a Designer sees only projects they design or install, and changes only the
   for (const body of [{ client_visible: true }, { name: 'Renamed' }]) {
     assert.equal((await call('PUT', `/projects/${P.designs}`, tokens.designer, body)).status, 403, JSON.stringify(body));
   }
-  assert.equal((await call('POST', '/projects', tokens.designer, { client_id: MINE.id, name: 'Nope', type: 'Kitchen' })).status, 403);
   assert.equal((await call('DELETE', `/projects/${P.designs}`, tokens.designer)).status, 403);
   const row = await prisma.project.findUniqueOrThrow({ where: { id: P.designs } });
   assert.equal(row.assigned_designer_id, DESIGNER.id);

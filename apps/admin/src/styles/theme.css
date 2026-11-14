@@ -309,14 +309,14 @@
     color: var(--green-900);
     font-size: 14px;
     font-weight: 600;
-    text-decoration: underline;
+    text-decoration: none;
     text-decoration-thickness: 1px;
     text-underline-offset: 3px;
     transition: color 160ms ease;
   }
   .text-link:hover {
     color: var(--green-800);
-    text-decoration-thickness: 2px;
+    text-decoration-line: underline;
   }
   .text-link:focus-visible {
     outline: 2px solid var(--focus-ring);
@@ -353,6 +353,11 @@
     backdrop-filter: saturate(180%) blur(24px);
   }
 
+  /* The shell's heading row disappears when it holds no back link, heading or buttons. */
+  .page-head:not(:has(a, button, #page-title:not(:empty))) {
+    display: none;
+  }
+
   /* Tabular figures keep money columns from jittering as values change. */
   .tabular {
     font-variant-numeric: tabular-nums;
@@ -376,6 +381,20 @@
 }
 .data-table td:last-child {
   border-radius: 0 8px 8px 0;
+}
+
+/* Columns tagged data-col give way as the table's own box narrows: md first, then lg, then xl. */
+.table-box {
+  container-type: inline-size;
+}
+@container (max-width: 34rem) {
+  .data-table [data-col='md'] { display: none; }
+}
+@container (max-width: 50rem) {
+  .data-table [data-col='lg'] { display: none; }
+}
+@container (max-width: 66rem) {
+  .data-table [data-col='xl'] { display: none; }
 }
 
 .rows {

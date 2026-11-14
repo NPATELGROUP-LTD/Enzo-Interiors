@@ -20,7 +20,6 @@ import { useAuth } from '@/lib/auth';
 import { initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
 import { WEB_URL } from '@/components/cms/MediaPicker';
-import { PAGE_TITLE } from '@/components/ui';
 import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
@@ -124,7 +123,7 @@ export function Desktop({
   /** Shell-wide buttons at the right of the heading row (Publish all). */
   windowActions?: ReactNode;
   /** Opens the search palette; shows the menu-bar magnifier when set. */
-  onSearch?: () => void;
+  onSearch?: (seed?: string) => void;
   /** Where Ctrl/⌘ , goes. Omitted for accounts that cannot change settings. */
   settingsTo?: string;
   /** Menu-bar extras left of the account menu (the notification bell). */
@@ -170,18 +169,31 @@ export function Desktop({
         <span className="shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold">{appName}</span>
         <div className="hidden lg:contents">{menus}</div>
 
-        <span className="ml-auto flex shrink-0 items-center gap-1">
+        {/* The search bar sits in the middle and takes what room the menus and the right-hand cluster leave. */}
+        <div className="flex min-w-0 flex-1 justify-center px-2">
           {onSearch ? (
             <button
               type="button"
-              onClick={onSearch}
+              onClick={() => onSearch()}
+              // Typing straight onto the bar opens the results with those letters already in.
+              onKeyDown={(event) => {
+                if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+                  event.preventDefault();
+                  onSearch(event.key);
+                }
+              }}
               aria-label={`Search (${MODIFIER} K)`}
               title={`Search (${MODIFIER} K)`}
-              className="flex h-7 w-8 items-center justify-center rounded-[6px] hover:bg-ink/10 pointer-coarse:h-10 pointer-coarse:w-10"
+              className="flex h-7 w-full max-w-md min-w-8 items-center justify-center gap-2 rounded-[8px] border border-glass-border bg-ink/[0.04] px-2.5 font-normal text-ink-muted transition-colors hover:bg-ink/10 hover:text-ink md:justify-start pointer-coarse:h-10"
             >
-              <MagnifyingGlass size={15} weight="bold" aria-hidden="true" />
+              <MagnifyingGlass size={14} weight="bold" aria-hidden="true" className="shrink-0" />
+              <span className="hidden min-w-0 flex-1 truncate text-left md:inline">Search clients, projects, pages…</span>
+              <kbd className="hidden shrink-0 rounded-[5px] border border-border px-1.5 text-[11px] xl:block">{MODIFIER} K</kbd>
             </button>
           ) : null}
+        </div>
+
+        <span className="flex shrink-0 items-center gap-1">
           {online ? null : (
             <span role="status" className="flex items-center gap-1.5 rounded-full bg-warning-bg px-2 py-0.5 text-xs text-warning">
               <WifiSlash size={13} aria-hidden="true" />
@@ -265,7 +277,8 @@ export function Desktop({
       </div>
 
       {/* ------------------------------------------------------- Page heading */}
-      <div className="flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pt-4 sm:px-8">
+      {/* A row only when it has something to hold (a way back, a heading the page gave, buttons); pb-3 keeps scrolled cards off the text. */}
+      <div className="page-head flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pb-3 pt-4 sm:px-8">
         <div className="flex min-w-0 items-center gap-2">
           {back ? (
             <Link
@@ -278,8 +291,9 @@ export function Desktop({
             </Link>
           ) : null}
           {/* <PageHeader> puts the page's own heading here; until it does, the section's name shows. */}
-          <div id="page-title" className="min-w-0 [&:not(:empty)+h1]:hidden" />
-          <h1 className={PAGE_TITLE}>{title}</h1>
+          <div id="page-title" className="min-w-0" />
+          {/* The section's name stays for screen readers only: the menu bar already shows where you are. */}
+          <h1 className="sr-only [#page-title:not(:empty)+&]:hidden">{title}</h1>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div id="page-actions" className="contents" />

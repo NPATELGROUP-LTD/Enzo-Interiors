@@ -267,7 +267,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
           {design.enquiry ? (
             <span>
               From the website: <strong>{design.enquiry.name}</strong> ({design.enquiry.email}),{' '}
-              <Link className="font-semibold text-green-900 underline" to={`/enquiries?id=${design.enquiry.id}`}>
+              <Link className="font-semibold text-green-900 hover:underline" to={`/enquiries?id=${design.enquiry.id}`}>
                 enquiry
               </Link>
             </span>
@@ -278,7 +278,7 @@ export function DesignEditor({ design, onSaved }: { design: Design | null; onSav
               {design.quotes.map((q, i) => (
                 <span key={q.id}>
                   {i ? ', ' : ''}
-                  <Link className="font-semibold text-green-900 underline" to={`/quotes/${q.id}`}>
+                  <Link className="font-semibold text-green-900 hover:underline" to={`/quotes/${q.id}`}>
                     {q.number}
                   </Link>{' '}
                   ({q.status})

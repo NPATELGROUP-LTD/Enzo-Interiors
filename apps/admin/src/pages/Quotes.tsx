@@ -80,10 +80,10 @@ function QuoteList() {
           <thead>
             <tr>
               <Th sort={header('number')}>Number</Th>
-              <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
-              <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+              <Th col="md" sort={header('client')}>Client</Th>
+              <Th col="xl" sort={header('project')}>Project</Th>
               <Th sort={header('status')}>Status</Th>
-              <Th className="max-sm:hidden" sort={header('valid')}>Valid until</Th>
+              <Th col="lg" sort={header('valid')}>Valid until</Th>
               <Th className="text-right" sort={header('total')}>Total</Th>
             </tr>
           </thead>
@@ -91,12 +91,12 @@ function QuoteList() {
             {rows.map((quote) => (
               <tr key={quote.id} onClick={() => navigate(`/quotes/${quote.id}`)} className="cursor-pointer hover:bg-ink/[0.03]">
                 <Td className="font-semibold text-ink">{quote.number}</Td>
-                <Td className="max-sm:hidden">{quote.client_name}</Td>
-                <Td className="max-sm:hidden">{quote.project_name ?? '—'}</Td>
+                <Td col="md">{quote.client_name}</Td>
+                <Td col="xl">{quote.project_name ?? '—'}</Td>
                 <Td>
                   <StatusTag tone={quote.expired ? 'warning' : TONE[quote.status]}>{quote.expired ? 'Expired' : quote.status}</StatusTag>
                 </Td>
-                <Td className="max-sm:hidden">{quote.valid_until ? date(quote.valid_until) : '—'}</Td>
+                <Td col="lg">{quote.valid_until ? date(quote.valid_until) : '—'}</Td>
                 <Td className="tabular text-right font-semibold">{money(quote.amount)}</Td>
               </tr>
             ))}
@@ -407,13 +407,17 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
 
   return (
     <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <Link to="/quotes?tab=quotes" className="text-link inline-flex min-h-11 items-center gap-1.5 text-sm pointer-fine:min-h-0">
-            <ArrowLeft size={14} aria-hidden="true" />
-            All quotes
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <Link
+            to="/quotes?tab=quotes"
+            aria-label="Back to all quotes"
+            title="All quotes"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-ink shadow-card hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 pointer-coarse:h-11 pointer-coarse:w-11"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
           </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-xl font-bold tracking-tight text-ink">{quote.number}</h2>
             <StatusTag tone={quote.expired ? 'warning' : TONE[quote.status]}>{quote.expired ? 'Expired' : quote.status}</StatusTag>
             <span className="text-sm text-ink-muted">{quote.client_name}</span>
@@ -498,7 +502,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           ) : null}
         </form>
 
-        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-4">
+        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:sticky xl:top-20">
           <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
           {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} editBody={linesOnSheet} kind="quote" />}
           {stock.length ? (

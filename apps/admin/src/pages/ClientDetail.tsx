@@ -5,6 +5,7 @@ import {
   PencilSimple,
   Plus,
   Trash,
+  CaretLeft,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -15,7 +16,6 @@ import {
   ConfirmDialog,
   ErrorState,
   LoadingState,
-  PageHeader,
   Progress,
   StatusTag,
 } from '@/components/ui';
@@ -134,10 +134,17 @@ export function ClientDetailPage() {
 
   return (
     <div className="flex h-full flex-col overflow-y-auto px-5 pb-5 pt-3 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] sm:px-8 lg:overflow-visible lg:[mask-image:none]">
-      <PageHeader
-        title={client.name}
-        actions={
-          <>
+      {/* Back, name, portal state and the actions: one card, as on a project. */}
+      <Card className="mb-1 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <Link
+            to="/clients"
+            className="-ml-2 flex min-h-9 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+          >
+            <CaretLeft size={16} aria-hidden="true" />
+            Clients
+          </Link>
+          <div className="flex flex-wrap items-center gap-2">
             {/* A client who cannot sign in to the portal would never see a message. */}
             <Button
               variant="secondary"
@@ -159,7 +166,7 @@ export function ClientDetailPage() {
                   : 'Message'}
               </span>
             </Button>
-            {isAdmin ? (
+            {canEdit ? (
               <Button
                 variant="secondary"
                 className="max-sm:w-11 max-sm:gap-0 max-sm:px-0"
@@ -189,23 +196,25 @@ export function ClientDetailPage() {
                 <span className="max-sm:sr-only">Delete</span>
               </Button>
             ) : null}
-          </>
-        }
-      />
+                    </div>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <h1 className="text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{client.name}</h1>
+          {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+        </div>
+        <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">
+          {[client.email, client.phone].filter(Boolean).join(' · ') || 'No contact details yet'} · Portal: {portalStatus.toLowerCase()}
+        </p>
+      </Card>
 
       <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
 
       {/* From xl up the page is one screen: details left, sections right (each scrolls in its own box). Below that it stacks and the page scrolls. */}
       <div
-        className={`mx-auto mt-3 grid w-full grid-cols-1 max-w-[100rem] gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)] ${chat ? '2xl:grid-cols-[19rem_minmax(0,1fr)_24rem]' : ''}`}
+        className={`mt-3 grid w-full grid-cols-1 gap-5 lg:min-h-0 lg:flex-1 lg:grid-rows-1 lg:grid-cols-[19rem_minmax(0,1fr)] ${chat ? '2xl:grid-cols-[19rem_minmax(0,1fr)_24rem]' : ''}`}
       >
         <div className="flex min-w-0 flex-col gap-5 lg:min-h-0">
         <Card className="shrink-0">
-          {client.status === 'Inactive' ? (
-            <div className="mb-3">
-              <StatusTag tone="neutral">Inactive</StatusTag>
-            </div>
-          ) : null}
           <p className="label-eyebrow">Contact</p>
           <dl className="mt-3 flex flex-col gap-3.5 [&_dt]:text-[11px] [&_dt]:font-semibold [&_dt]:uppercase [&_dt]:tracking-wide [&_dt]:text-ink-muted [&_dd]:mt-0.5 [&_dd]:text-sm [&_dd]:font-medium [&_dd]:leading-snug [&_dd]:text-ink [&_dd]:[overflow-wrap:anywhere]">
             <div>
@@ -378,7 +387,7 @@ export function ClientDetailPage() {
                 {projects.length === 0 ? (
                   <div className="flex flex-col items-center gap-3 py-4 text-center">
                     <p className="text-ink-muted">This client has no projects yet.</p>
-                    {isAdmin ? (
+                    {canEdit ? (
                       <Button variant="primary" onClick={() => setCreatingProject(true)}>
                         New project
                       </Button>

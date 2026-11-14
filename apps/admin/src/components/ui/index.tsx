@@ -27,6 +27,8 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
+
+import { DateField } from './DateField';
 import { Link, useNavigate } from 'react-router-dom';
 
 /**
@@ -269,6 +271,22 @@ export function Input({
   return (
     <Field label={label} error={error} hint={hint} required={required}>
       {(id, describedBy) => {
+        // Dates use the app's own calendar; callers still read event.target.value.
+        if (rest.type === 'date') {
+          return (
+            <DateField
+              id={id}
+              value={String(rest.value ?? '')}
+              min={rest.min as string | undefined}
+              max={rest.max as string | undefined}
+              required={required}
+              disabled={rest.disabled}
+              invalid={Boolean(error)}
+              describedBy={describedBy}
+              onChange={(next) => rest.onChange?.({ target: { value: next }, currentTarget: { value: next } } as ChangeEvent<HTMLInputElement>)}
+            />
+          );
+        }
         const input = (
           <input
             {...rest}
@@ -952,8 +970,8 @@ export function TableWrap({
   wrapClassName?: string;
 }) {
   return (
-    <div className={clsx('overflow-x-auto rounded-card bg-surface p-2 shadow-soft', wrapClassName)}>
-      <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
+    <div className={clsx('table-box overflow-x-auto rounded-card bg-surface p-2 shadow-soft', wrapClassName)}>
+      <table className={clsx('data-table w-full min-w-[20rem] border-separate border-spacing-0 text-left', className)}>
         {children}
       </table>
     </div>
@@ -967,11 +985,18 @@ export interface ThSort {
   onSort: () => void;
 }
 
-export function Th({ children, className, sort }: { children: ReactNode; className?: string; sort?: ThSort }) {
+/**
+ * A column that gives way as its table narrows: `md` goes first, then `lg`, then `xl`
+ * (see .table-box in theme.css). No `col` = always shown.
+ */
+export type TableCol = 'md' | 'lg' | 'xl';
+
+export function Th({ children, className, sort, col }: { children: ReactNode; className?: string; sort?: ThSort; col?: TableCol }) {
   const Caret = !sort?.active ? CaretUpDown : sort.dir === 'asc' ? CaretUp : CaretDown;
   return (
     <th
       scope="col"
+      data-col={col}
       aria-sort={sort ? (sort.active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       className={clsx(
         'label-eyebrow whitespace-nowrap px-3 py-2',
@@ -994,9 +1019,9 @@ export function Th({ children, className, sort }: { children: ReactNode; classNa
   );
 }
 
-export function Td({ children, className }: { children: ReactNode; className?: string }) {
+export function Td({ children, className, col }: { children: ReactNode; className?: string; col?: TableCol }) {
   return (
-    <td className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
+    <td data-col={col} className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
   );
 }
 
