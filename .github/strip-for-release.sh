@@ -12,6 +12,7 @@ git rm -rq --ignore-unmatch -- \
   CLAUDE.md DESIGN.md PRODUCT.md README.md .prettierrc.json tsconfig.base.json \
   .github/pull_request_template.md \
   apps/web/AGENTS.md apps/web/CLAUDE.md apps/web/scripts \
+  infra/ha docker-compose.ha.yml \
   apps/api/readme.md apps/admin/readme.md apps/web/readme.md apps/portal/readme.md
 
 git rm -q -- .github/strip-for-release.sh

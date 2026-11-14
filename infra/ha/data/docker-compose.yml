@@ -1,0 +1,131 @@
+# HA data stack. One file for all three data-side machines:
+#   ha-data-1, ha-data-2 : docker compose --profile data up -d --build
+#   ha-witness           : docker compose --profile witness up -d
+# Plain compose over SSH, not Coolify (Coolify's Postgres cannot replicate).
+# Host networking so each service binds the node's private address; the host
+# firewall must allow these ports from the private link only (README).
+# Values come from this folder's .env (names in .env.example); never in git.
+
+x-etcd: &etcd
+  image: quay.io/coreos/etcd:v3.5.17
+  restart: unless-stopped
+  network_mode: host
+  profiles: [data, witness]
+  volumes:
+    - etcd-data:/data
+    - ${CERT_DIR:-../certs/out}/${NODE_NAME}:/certs:ro
+  environment:
+    ETCD_NAME: ${NODE_NAME:?}
+    ETCD_DATA_DIR: /data
+    ETCD_LISTEN_PEER_URLS: https://${NODE_IP:?}:2380
+    ETCD_LISTEN_CLIENT_URLS: https://${NODE_IP}:2379
+    ETCD_ADVERTISE_CLIENT_URLS: https://${NODE_IP}:2379
+    ETCD_INITIAL_ADVERTISE_PEER_URLS: https://${NODE_IP}:2380
+    ETCD_INITIAL_CLUSTER: ha-data-1=https://${DATA1_IP:?}:2380,ha-data-2=https://${DATA2_IP:?}:2380,ha-witness=https://${WITNESS_IP:?}:2380
+    ETCD_INITIAL_CLUSTER_TOKEN: enzo-ha
+    ETCD_CLIENT_CERT_AUTH: "true"
+    ETCD_TRUSTED_CA_FILE: /certs/ca.crt
+    ETCD_CERT_FILE: /certs/node.crt
+    ETCD_KEY_FILE: /certs/node.key
+    ETCD_PEER_CLIENT_CERT_AUTH: "true"
+    ETCD_PEER_TRUSTED_CA_FILE: /certs/ca.crt
+    ETCD_PEER_CERT_FILE: /certs/node.crt
+    ETCD_PEER_KEY_FILE: /certs/node.key
+
+services:
+  etcd:
+    <<: *etcd
+
+  patroni:
+    build: { context: ., dockerfile: Dockerfile.patroni }
+    image: enzo-ha-patroni:latest
+    restart: unless-stopped
+    network_mode: host
+    profiles: [data]
+    depends_on: [etcd]
+    stop_grace_period: 60s
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ${CERT_DIR:-../certs/out}/${NODE_NAME}:/certs:ro
+    environment:
+      PRIVATE_CIDR: ${PRIVATE_CIDR:?}
+      APP_DB_USER: ${APP_DB_USER:?}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?}
+      APP_DB_NAME: ${APP_DB_NAME:-enzo}
+      PATRONI_NAME: ${NODE_NAME}
+      PATRONI_RESTAPI_LISTEN: ${NODE_IP}:8008
+      PATRONI_RESTAPI_CONNECT_ADDRESS: ${NODE_IP}:8008
+      PATRONI_RESTAPI_USERNAME: patroni
+      PATRONI_RESTAPI_PASSWORD: ${PATRONI_REST_PASSWORD:?}
+      PATRONI_POSTGRESQL_LISTEN: ${NODE_IP}:5432
+      PATRONI_POSTGRESQL_CONNECT_ADDRESS: ${NODE_IP}:5432
+      PATRONI_POSTGRESQL_DATA_DIR: /var/lib/postgresql/data/pgdata
+      PATRONI_ETCD3_HOSTS: ${DATA1_IP}:2379,${DATA2_IP}:2379,${WITNESS_IP}:2379
+      PATRONI_SUPERUSER_USERNAME: postgres
+      PATRONI_SUPERUSER_PASSWORD: ${PG_SUPERUSER_PASSWORD:?}
+      PATRONI_REPLICATION_USERNAME: replicator
+      PATRONI_REPLICATION_PASSWORD: ${PG_REPLICATION_PASSWORD:?}
+      PATRONI_REWIND_USERNAME: rewind_user
+      PATRONI_REWIND_PASSWORD: ${PG_REWIND_PASSWORD:?}
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    network_mode: host
+    profiles: [data]
+    entrypoint: ["/bin/sh", "/start.sh"]
+    volumes:
+      - ./redis-start.sh:/start.sh:ro
+      - redis-data:/data
+    environment:
+      NODE_IP: ${NODE_IP}
+      DATA1_IP: ${DATA1_IP}
+      REDIS_ROLE: ${REDIS_ROLE:?primary on ha-data-1, replica on ha-data-2}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" --no-auth-warning ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  sentinel:
+    image: redis:7-alpine
+    restart: unless-stopped
+    network_mode: host
+    profiles: [data, witness]
+    entrypoint: ["/bin/sh", "/start.sh"]
+    volumes:
+      - ./sentinel-start.sh:/start.sh:ro
+      - sentinel-data:/data
+    environment:
+      NODE_IP: ${NODE_IP}
+      DATA1_IP: ${DATA1_IP}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
+
+  # Same release as production. Bridge network, published on the private
+  # address only. Each node has its own root login; the app uses a replicated
+  # service user (setup-minio.sh), never root.
+  minio:
+    image: bitnamilegacy/minio:2025.4.22
+    restart: unless-stopped
+    profiles: [data]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?}
+    volumes:
+      - minio-data:/bitnami/minio/data
+    ports:
+      - "${NODE_IP}:9000:9000"
+      - "127.0.0.1:9001:9001"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/ready"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  etcd-data:
+  pg-data:
+  redis-data:
+  sentinel-data:
+  minio-data:
