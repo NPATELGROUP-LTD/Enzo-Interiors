@@ -194,6 +194,7 @@ export function Desktop({
         </div>
 
         <span className="flex shrink-0 items-center gap-1">
+          {windowActions}
           {online ? null : (
             <span role="status" className="flex items-center gap-1.5 rounded-full bg-warning-bg px-2 py-0.5 text-xs text-warning">
               <WifiSlash size={13} aria-hidden="true" />
@@ -297,7 +298,6 @@ export function Desktop({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div id="page-actions" className="contents" />
-          {windowActions}
         </div>
       </div>
 

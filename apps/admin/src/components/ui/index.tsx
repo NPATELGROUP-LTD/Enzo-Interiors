@@ -896,7 +896,7 @@ export function PageHeader({
   const buttons = useSlot('page-actions');
   return (
     <>
-      {heading
+      {heading && (title || description)
         ? createPortal(
             <>
               <h1 className={PAGE_TITLE}>{title}</h1>

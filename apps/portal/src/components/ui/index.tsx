@@ -830,7 +830,7 @@ export function PageHeader({
   const buttons = useSlot('page-actions');
   return (
     <>
-      {heading
+      {heading && (title || description)
         ? createPortal(
             <>
               <h1 className={PAGE_TITLE}>{title}</h1>
@@ -853,8 +853,8 @@ export function PageHeader({
  */
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
-      <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
+    <div className="table-box overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
+      <table className={clsx('data-table w-full min-w-[20rem] border-separate border-spacing-0 text-left', className)}>
         {children}
       </table>
     </div>
@@ -868,11 +868,14 @@ export interface ThSort {
   onSort: () => void;
 }
 
-export function Th({ children, className, sort }: { children: ReactNode; className?: string; sort?: ThSort }) {
+export type TableCol = 'md' | 'lg' | 'xl';
+
+export function Th({ children, className, sort, col }: { children: ReactNode; className?: string; sort?: ThSort; col?: TableCol }) {
   const Caret = !sort?.active ? CaretUpDown : sort.dir === 'asc' ? CaretUp : CaretDown;
   return (
     <th
       scope="col"
+      data-col={col}
       aria-sort={sort ? (sort.active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       className={clsx(
         'label-eyebrow whitespace-nowrap px-3 py-2',
@@ -895,9 +898,9 @@ export function Th({ children, className, sort }: { children: ReactNode; classNa
   );
 }
 
-export function Td({ children, className }: { children: ReactNode; className?: string }) {
+export function Td({ children, className, col }: { children: ReactNode; className?: string; col?: TableCol }) {
   return (
-    <td className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
+    <td data-col={col} className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
   );
 }
 
