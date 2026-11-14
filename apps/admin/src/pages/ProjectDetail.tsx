@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { Trash, UploadSimple } from '@phosphor-icons/react';
+import { CaretLeft, Plus, Trash, UploadSimple } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 
@@ -11,15 +11,13 @@ import {
   ErrorState,
   Input,
   LoadingState,
-  PageHeader,
-  Progress,
-  Select,
   StatusTag,
   TableWrap,
   Tabs,
   Td,
   Th,
   Toggle,
+  type StatusTone,
 } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -27,8 +25,8 @@ import { useStages } from '@/hooks/useStages';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { date, dateTime, humanise, money, refNo } from '@/lib/format';
-import { invoiceTone, projectTone } from '@/lib/status';
-import type { ProjectDetail, ProjectStage, TeamMember } from '@/types/api';
+import { invoiceTone } from '@/lib/status';
+import type { ProjectDetail, ProjectStage, Quote, QuoteStatus } from '@/types/api';
 import { SERVICE_LABELS } from '@/types/api';
 
 import { ChangeRequests } from '@/components/ChangeRequests';
@@ -38,11 +36,18 @@ import { ProjectThread } from '@/components/TeamThread';
 
 import { useDesigners } from './Projects';
 
+const QUOTE_TONE: Record<QuoteStatus, StatusTone> = { Draft: 'neutral', Sent: 'info', Accepted: 'success', Declined: 'danger' };
+
+/** The icon-only form of a header button on a phone. */
+const ICON_ONLY = 'max-sm:w-11 max-sm:gap-0 max-sm:px-0';
+
 /**
- * One project. An Admin or Designer moves its stage and keeps its status line
- * up to date (progress follows the stage); an Installer asks an Admin to move
- * it. Only an Admin sets the team (designers, installers and the installers'
- * dates and pay), sends it to the client, or deletes it (the API enforces it).
+ * One project. An Admin or Designer moves its stage (the steps in the header)
+ * and keeps its status line up to date (progress follows the stage); an
+ * Installer asks an Admin to move it. Only an Admin sets the team (designers,
+ * installers and the installers' dates and pay), sends it to the client, sees
+ * its money, or deletes it (the API enforces it). Team and the team thread sit
+ * in a rail beside the tabs.
  */
 export function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -50,17 +55,18 @@ export function ProjectDetailPage() {
   const navigate = useNavigate();
   const { isAdmin, can } = useAuth();
   const canMove = can('Admin', 'Designer');
-  const { stages } = useStages();
+  const { stages: stageConfig } = useStages();
   const { data, loading, error, refetch, setData } = useQuery<ProjectDetail>(
     id ? `/projects/${id}/detail` : null,
   );
+  const quotes = useQuery<Quote[]>(isAdmin && id ? `/quotes?project_id=${id}` : null);
   const designers = useDesigners(isAdmin);
-  const [tab, setTab] = useState('timeline');
+  const [tab, setTab] = useState('overview');
   const [uploading, setUploading] = useState(false);
-  const [savingNote, setSavingNote] = useState(false);
   const [asked, setAsked] = useState(0);
   const [askStage, setAskStage] = useState<ProjectStage | ''>('');
   const [asking, setAsking] = useState(false);
+  const [moving, setMoving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -70,8 +76,8 @@ export function ProjectDetailPage() {
 
   const { project, client, documents, invoices, activity, timeline, awaiting_client_decision, team } =
     data;
-  const named = (role: TeamMember['role']) =>
-    team.filter((member) => member.role === role).map((member) => member.name).join(', ') || 'Unassigned';
+  const approvalStages = stageConfig.filter((stage) => stage.approval).map((stage) => stage.name);
+  const quoteRows = quotes.data ?? [];
 
   const patch = async (body: Record<string, unknown>, successMessage: string) => {
     try {
@@ -84,21 +90,17 @@ export function ProjectDetailPage() {
   };
 
   const changeStage = async (stage: ProjectStage) => {
+    if (stage === project.status) return;
+    setMoving(true);
     try {
       await api.patch(`/projects/${project.id}/stage`, { status: stage });
       toast.success(`Moved to ${stage}.`);
       await refetch();
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not change the stage.');
+    } finally {
+      setMoving(false);
     }
-  };
-
-  const saveNote = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSavingNote(true);
-    const note = String(new FormData(event.currentTarget).get('current_stage') ?? '').trim();
-    await patch({ current_stage: note || null }, 'Saved.');
-    setSavingNote(false);
   };
 
   /** Installer: the Admin moves it, once they approve. */
@@ -139,369 +141,411 @@ export function ProjectDetailPage() {
   };
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-      <PageHeader
-        title={project.name}
-        actions={
-          <>
-            <span className="text-sm text-ink-muted">{refNo('PRJ', project.ref_no)}</span>
-            <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
-            {isAdmin ? (
-              <Button variant="secondary" onClick={() => navigate(`/quotes?new=1&project=${project.id}`)}>
-                New quote
-              </Button>
-            ) : null}
-            {isAdmin ? (
-              <Button
-                variant="ghost"
-                className="text-danger"
-                icon={<Trash size={15} aria-hidden="true" />}
-                onClick={() => setDeleting(true)}
-              >
-                Delete
-              </Button>
-            ) : null}
-          </>
-        }
-      />
+    <div className="flex h-full flex-col overflow-y-auto px-5 pb-5 pt-3 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] sm:px-8 lg:overflow-visible lg:[mask-image:none]">
+      {/* From lg up the page is one screen: the project scrolls on the left, the team thread stays put on the right. Below that it stacks. */}
+      <div className="mt-3 grid w-full grid-cols-1 gap-5 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-1 2xl:grid-cols-[minmax(0,1fr)_28rem]">
+        <div className="min-w-0 lg:-mx-1 lg:min-h-0 lg:overflow-y-auto lg:px-1 lg:pb-1">
+          <ChangeRequests key={asked} projectId={project.id} onDecided={() => void refetch()} />
 
-      <ChangeRequests key={asked} projectId={project.id} onDecided={() => void refetch()} />
-
-      {awaiting_client_decision ? (
-        <Card accent="warning" className="mb-4 pl-5">
-          <p className="font-semibold text-ink">Awaiting the client’s decision</p>
-          <p className="mt-1 text-ink-muted">
-            {client?.name ?? 'The client'} can approve this stage or request changes from their
-            portal. Requesting changes sends the project back one stage automatically.
-          </p>
-        </Card>
-      ) : null}
-
-      <div className="mb-5 grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <p className="label-eyebrow">Stage</p>
-          {/* Horizontal timeline of the configured stages. */}
-          <ol className="mt-4 flex items-start">
-            {timeline.map((step, index) => (
-              <li key={step.stage} className="flex min-w-0 flex-1 items-start last:flex-none">
-                <div className="flex flex-col items-center gap-1.5">
-                  <span
-                    aria-hidden="true"
-                    className={clsx(
-                      'flex h-7 w-7 items-center justify-center rounded-control border text-xs font-bold',
-                      step.current
-                        ? 'border-green-900 bg-green-900 text-on-primary'
-                        : step.reached
-                          ? 'border-green-900 bg-green-100 text-green-900'
-                          : 'border-transparent bg-ink/[0.07] text-ink-muted',
-                    )}
-                  >
-                    {index + 1}
-                  </span>
-                  <span
-                    className={clsx(
-                      'whitespace-nowrap text-[11px] font-semibold',
-                      // Phones show only the current stage's name, so the line between steps keeps its room.
-                      step.current ? 'text-green-900' : 'text-ink-muted max-sm:sr-only',
-                    )}
-                  >
-                    {step.stage}
-                  </span>
-                </div>
-                {index < timeline.length - 1 ? (
-                  <span
-                    aria-hidden="true"
-                    className={clsx(
-                      'mx-1 mt-3.5 h-px min-w-3 flex-1',
-                      timeline[index + 1]?.reached ? 'bg-green-900' : 'bg-border',
-                    )}
-                  />
-                ) : null}
-              </li>
-            ))}
-          </ol>
-
-          <div className="mt-5">
-            <Progress value={project.progress_pct} label="Project progress" />
-          </div>
-
-          {canMove ? (
-            // Keyed on the saved value, so a stage move's new note shows up.
-            <form
-              key={project.current_stage ?? ''}
-              onSubmit={saveNote}
-              className="mt-4 grid items-end gap-3 sm:grid-cols-[1fr_auto]"
-            >
-              <Input
-                label="Where it’s at"
-                name="current_stage"
-                maxLength={80}
-                defaultValue={project.current_stage ?? ''}
-                placeholder="Drawings with the client"
-              />
-              <Button type="submit" variant="secondary" loading={savingNote}>
-                Save
-              </Button>
-            </form>
-          ) : project.current_stage ? (
-            <p className="mt-4 text-sm text-ink-muted">{project.current_stage}</p>
+          {awaiting_client_decision ? (
+            <Card accent="warning" className="mb-4 pl-5">
+              <p className="font-semibold text-ink">Awaiting the client’s decision</p>
+              <p className="mt-1 text-ink-muted">
+                {client?.name ?? 'The client'} can approve this stage or request changes from their
+                portal. Requesting changes sends the project back one stage automatically.
+              </p>
+            </Card>
           ) : null}
-        </Card>
 
-        <Card>
-          <p className="label-eyebrow">Controls</p>
-          <div className="mt-3 flex flex-col gap-4">
-            {canMove ? (
-              <Select
-                label="Move to stage"
-                value={project.status}
-                onChange={(event) => void changeStage(event.target.value as ProjectStage)}
+          {/* Back, name, who it is for, whether the client sees it, and where it stands: one card, top to bottom. */}
+          <Card className="mb-5">
+            <div className="flex items-center justify-between gap-3">
+              <Link
+                to="/projects"
+                className="-ml-2 flex min-h-9 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
               >
-                {timeline.map(({ stage }) => (
-                  <option key={stage} value={stage}>
-                    {stage}
-                  </option>
-                ))}
-              </Select>
-            ) : (
-              <form onSubmit={askToMove} className="flex flex-col gap-3">
-                <Select
-                  label="Request stage change"
-                  value={askStage}
-                  onChange={(event) => setAskStage(event.target.value as ProjectStage)}
-                >
-                  <option value="">Choose a stage…</option>
-                  {timeline
-                    .filter(({ stage }) => stage !== project.status)
-                    .map(({ stage }) => (
-                      <option key={stage} value={stage}>
-                        {stage}
-                      </option>
-                    ))}
-                </Select>
-                <Input label="Note for the Admin (optional)" name="note" maxLength={1000} />
-                <Button type="submit" variant="secondary" loading={asking} disabled={!askStage}>
-                  Send to Admin
-                </Button>
-              </form>
-            )}
-
-            {isAdmin ? (
-              <>
-                <Input
-                  key={project.site_address ?? ''}
-                  label="Site address"
-                  hint="Where the work happens. This project’s invoices start from it."
-                  defaultValue={project.site_address ?? ''}
-                  maxLength={300}
-                  onBlur={(event) => {
-                    const value = event.target.value.trim();
-                    if (value !== (project.site_address ?? '')) void patch({ site_address: value }, 'Site address saved.');
-                  }}
-                />
-                <Toggle
-                  label="Send to client"
-                  description="When off, this project is hidden from the client portal entirely."
-                  checked={project.client_visible}
-                  onChange={(next) =>
-                    void patch(
-                      { client_visible: next },
-                      next ? 'Now visible to the client.' : 'Hidden from the client.',
-                    )
-                  }
-                />
-              </>
-            ) : null}
-          </div>
-        </Card>
-      </div>
-
-      <div className="mb-5 grid items-start gap-4 xl:grid-cols-2">
-        <ProjectTeam
-          projectId={project.id}
-          team={team}
-          staff={designers}
-          onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
-        />
-        <ProjectThread projectId={project.id} />
-      </div>
-
-      {/* The Documents tab's Upload sits at the end of the tabs row. */}
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <Tabs
-            tabs={[
-              { id: 'timeline', label: 'Overview' },
-              { id: 'documents', label: 'Documents & mood boards', count: documents.length },
-              ...(isAdmin ? [{ id: 'invoices', label: 'Invoices', count: invoices.length }] : []),
-              { id: 'activity', label: 'Activity log', count: activity.length },
-            ]}
-            active={tab}
-            onChange={setTab}
-          />
-        </div>
-        {tab === 'documents' ? (
-          <Button
-            className="shrink-0"
-            icon={<UploadSimple size={15} aria-hidden="true" />}
-            onClick={() => setUploading(true)}
-          >
-            Upload
-          </Button>
-        ) : null}
-      </div>
-
-      {tab === 'timeline' ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card>
-            <p className="label-eyebrow">Project details</p>
-            <dl className="mt-3 rows">
-              {[
-                [
-                  'Client',
-                  client ? (
-                    <Link key="client" to={`/clients/${client.id}`} className="text-link">
+                <CaretLeft size={16} aria-hidden="true" />
+                Projects
+              </Link>
+              {isAdmin ? (
+                <div className="flex items-center gap-2">
+                  <Button variant="secondary" className={ICON_ONLY} icon={<Plus size={16} aria-hidden="true" />} onClick={() => navigate(`/quotes?new=1&client=${project.client_id}&project=${project.id}`)}>
+                    <span className="max-sm:sr-only">New quote</span>
+                  </Button>
+                  <Button variant="destructive" className={ICON_ONLY} icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
+                    <span className="max-sm:sr-only">Delete</span>
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{project.name}</h1>
+                <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">
+                  {client ? (
+                    <Link to={`/clients/${client.id}`} className="font-semibold text-green-900 hover:underline">
                       {client.name}
                     </Link>
-                  ) : (
-                    '—'
-                  ),
-                ],
-                ['Service', SERVICE_LABELS[project.type]],
-                ['Stage', project.status],
-                ['Progress', `${project.progress_pct}%`],
-                ['Designers', named('Designer')],
-                ['Installers', named('Installer')],
-                ['Site address', project.site_address ?? '—'],
-                ['Visible to client', project.client_visible ? 'Yes' : 'No'],
-                ['Created', date(project.created_at)],
-                ['Last updated', dateTime(project.updated_at)],
-              ].map(([label, value]) => (
-                <div key={String(label)} className="flex justify-between gap-3">
-                  <dt className="text-ink-muted">{label}</dt>
-                  <dd className="text-right font-medium text-ink">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </Card>
-
-          <Card>
-            <p className="label-eyebrow">Recent activity</p>
-            {activity.length === 0 ? (
-              <p className="py-6 text-center text-ink-muted">Nothing recorded yet.</p>
-            ) : (
-              <ul className="mt-3 rows">
-                {activity.slice(0, 6).map((entry) => (
-                  <li key={entry.id} className="py-2.5 first:pt-0">
-                    <p className="font-medium text-ink">{humanise(entry.action)}</p>
-                    <p className="text-xs text-ink-muted">
-                      {entry.actor_name} · {dateTime(entry.created_at)}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Card>
-        </div>
-      ) : null}
-
-      {tab === 'documents' ? (
-        <DocumentsTable
-          documents={documents}
-          onChanged={refetch}
-          emptyMessage="Plans, contracts and mood boards for this project appear here."
-        />
-      ) : null}
-      <UploadDialog
-        open={uploading}
-        target={{ clientId: project.client_id, projectId: project.id }}
-        onClose={() => setUploading(false)}
-        onUploaded={async () => {
-          setUploading(false);
-          await refetch();
-        }}
-      />
-
-      {tab === 'invoices' && isAdmin ? (
-        invoices.length === 0 ? (
-          <Card className="p-0">
-            <EmptyState title="No invoices" message="Nothing has been invoiced for this project." />
-          </Card>
-        ) : (
-          <TableWrap>
-            <thead>
-              <tr>
-                <Th>Number</Th>
-                <Th>Status</Th>
-                <Th>Due</Th>
-                <Th className="text-right">Amount</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {invoices.map((invoice) => (
-                <tr
-                  key={invoice.id}
-                  className="cursor-pointer"
-                  // The number stays the link for keyboards; a click anywhere else on the row opens it too.
-                  onClick={(event) => {
-                    if (!(event.target as HTMLElement).closest('a, button'))
-                      navigate(`/invoices?open=${invoice.id}`);
-                  }}
-                >
-                  <Td className="font-medium text-ink">
-                    <Link
-                      to={`/invoices?open=${invoice.id}`}
-                      className="underline-offset-2 hover:text-green-900 hover:underline"
-                    >
-                      {invoice.number}
-                    </Link>
-                  </Td>
-                  <Td>
-                    <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
-                      {invoice.status}
-                    </StatusTag>
-                  </Td>
-                  <Td className="whitespace-nowrap text-ink-muted">{date(invoice.due_date)}</Td>
-                  <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
-                    {money(invoice.amount)}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
-        )
-      ) : null}
-
-      {tab === 'activity' ? (
-        activity.length === 0 ? (
-          <Card className="p-0">
-            <EmptyState title="No activity" message="Changes to this project appear here." />
-          </Card>
-        ) : (
-          <Card>
-            <ul className="rows">
-              {activity.map((entry) => (
-                <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <p className="font-medium text-ink">{humanise(entry.action)}</p>
-                    <p className="text-xs text-ink-muted">{dateTime(entry.created_at)}</p>
-                  </div>
-                  <p className="mt-0.5 text-xs text-ink-muted">
-                    by {entry.actor_name} ({entry.actor_type})
-                  </p>
-                  {entry.details ? (
-                    <p className="mt-1 text-xs text-ink-muted">
-                      {Object.entries(entry.details)
-                        .map(([key, value]) => `${humanise(key)}: ${String(value)}`)
-                        .join(' · ')}
-                    </p>
                   ) : null}
-                </li>
-              ))}
-            </ul>
+                  {client ? ' · ' : ''}
+                  {refNo('PRJ', project.ref_no)} · {SERVICE_LABELS[project.type]}
+                  {project.site_address ? ` · ${project.site_address}` : ''}
+                </p>
+              </div>
+              {isAdmin ? (
+                <div className="w-full rounded-control bg-ink/[0.04] px-3 py-2 sm:w-64">
+                  <Toggle
+                    label="Send to client"
+                    description={project.client_visible ? 'Visible in the client portal' : 'Hidden from the client portal'}
+                    checked={project.client_visible}
+                    onChange={(next) =>
+                      void patch(
+                        { client_visible: next },
+                        next ? 'Now visible to the client.' : 'Hidden from the client.',
+                      )
+                    }
+                  />
+                </div>
+              ) : (
+                <StatusTag tone={project.client_visible ? 'success' : 'neutral'}>
+                  {project.client_visible ? 'Visible to client' : 'Hidden from client'}
+                </StatusTag>
+              )}
+            </div>
+
+            <div className="mt-5 border-t border-border pt-4">
+              <div className="flex items-baseline justify-between gap-3">
+                <p className="label-eyebrow">Stage</p>
+                <p className="tabular text-xs font-semibold text-ink-muted">{project.progress_pct}% complete</p>
+              </div>
+            <ol className="mt-2 flex items-start" aria-label="Stages">
+              {timeline.map((step, index) => {
+                const selected = !canMove && askStage === step.stage;
+                return (
+                  <li key={step.stage} className="flex min-w-0 flex-1 items-start last:flex-none">
+                    <button
+                      type="button"
+                      disabled={step.current || moving}
+                      aria-current={step.current ? 'step' : undefined}
+                      aria-label={
+                        step.current
+                          ? `${step.stage}, current stage`
+                          : canMove
+                            ? `Move to ${step.stage}`
+                            : `Ask to move to ${step.stage}`
+                      }
+                      title={approvalStages.includes(step.stage) ? `${step.stage} (the client approves)` : step.stage}
+                      onClick={() => (canMove ? void changeStage(step.stage) : setAskStage(selected ? '' : step.stage))}
+                      className="group flex min-h-11 min-w-11 flex-col items-center gap-1.5 rounded-control px-1 disabled:cursor-default"
+                    >
+                      <span
+                        className={clsx(
+                          'flex h-7 w-7 items-center justify-center rounded-control border text-xs font-bold transition-colors',
+                          step.current
+                            ? 'border-green-900 bg-green-900 text-on-primary'
+                            : selected
+                              ? 'border-green-900 bg-green-100 text-green-900 ring-2 ring-green-900/30'
+                              : step.reached
+                                ? 'border-green-900 bg-green-100 text-green-900 group-hover:bg-green-200'
+                                : 'border-transparent bg-ink/[0.07] text-ink-muted group-hover:bg-ink/[0.12]',
+                        )}
+                      >
+                        {index + 1}
+                      </span>
+                      <span
+                        className={clsx(
+                          'whitespace-nowrap text-[11px] font-semibold',
+                          // Phones show only the current stage's name, so the line between steps keeps its room.
+                          step.current ? 'text-green-900' : 'text-ink-muted max-sm:sr-only',
+                        )}
+                      >
+                        {step.stage}
+                      </span>
+                    </button>
+                    {index < timeline.length - 1 ? (
+                      <span
+                        aria-hidden="true"
+                        className={clsx(
+                          'mx-1 mt-3.5 h-px min-w-3 flex-1',
+                          timeline[index + 1]?.reached ? 'bg-green-900' : 'bg-border',
+                        )}
+                      />
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ol>
+
+            {!canMove ? (
+              askStage ? (
+                <form onSubmit={askToMove} className="mt-4 grid items-end gap-3 sm:grid-cols-[1fr_auto_auto]">
+                  <Input label={`Note for the Admin about moving to ${askStage} (optional)`} name="note" maxLength={1000} />
+                  <Button type="submit" variant="primary" loading={asking}>
+                    Send to Admin
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setAskStage('')}>
+                    Cancel
+                  </Button>
+                </form>
+              ) : (
+                <p className="mt-3 text-xs text-ink-muted">Pick a stage to ask the Admin to move this project there.</p>
+              )
+            ) : null}
+            </div>
           </Card>
-        )
-      ) : null}
+
+          {/* The Documents tab's Upload sits at the end of the tabs row. */}
+          <div className="flex items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <Tabs
+                tabs={[
+                  { id: 'overview', label: 'Overview' },
+                  { id: 'documents', label: 'Documents', count: documents.length },
+                  ...(isAdmin ? [{ id: 'invoices', label: 'Invoices & quotes', count: invoices.length + quoteRows.length }] : []),
+                  { id: 'activity', label: 'Activity', count: activity.length },
+                ]}
+                active={tab}
+                onChange={setTab}
+              />
+            </div>
+            {tab === 'documents' ? (
+              <Button
+                className="shrink-0"
+                icon={<UploadSimple size={15} aria-hidden="true" />}
+                onClick={() => setUploading(true)}
+              >
+                Upload
+              </Button>
+            ) : null}
+          </div>
+
+          {tab === 'overview' ? (
+            <div className="grid items-start gap-4 xl:grid-cols-2">
+              <Card>
+                <p className="label-eyebrow">Details</p>
+                {isAdmin ? (
+                  <div className="mt-3">
+                    <Input
+                      key={project.site_address ?? ''}
+                      label="Site address"
+                      hint="Where the work happens. This project’s invoices start from it."
+                      defaultValue={project.site_address ?? ''}
+                      maxLength={300}
+                      onBlur={(event) => {
+                        const value = event.target.value.trim();
+                        if (value !== (project.site_address ?? '')) void patch({ site_address: value }, 'Site address saved.');
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-4 [&_dd]:mt-0.5 [&_dd]:text-sm [&_dd]:font-medium [&_dd]:leading-snug [&_dd]:text-ink [&_dd]:[overflow-wrap:anywhere] [&_dt]:text-[11px] [&_dt]:font-semibold [&_dt]:uppercase [&_dt]:tracking-wide [&_dt]:text-ink-muted">
+                  {!isAdmin ? (
+                    <div className="col-span-2">
+                      <dt>Site address</dt>
+                      <dd>{project.site_address ?? '—'}</dd>
+                    </div>
+                  ) : null}
+                  <div>
+                    <dt>Service</dt>
+                    <dd>{SERVICE_LABELS[project.type]}</dd>
+                  </div>
+                  <div>
+                    <dt>Created</dt>
+                    <dd>{date(project.created_at)}</dd>
+                  </div>
+                  {project.current_stage ? (
+                    <div className="col-span-2">
+                      <dt>Status note</dt>
+                      <dd>{project.current_stage}</dd>
+                    </div>
+                  ) : null}
+                  <div className="col-span-2">
+                    <dt>Last updated</dt>
+                    <dd>{dateTime(project.updated_at)}</dd>
+                  </div>
+                </dl>
+              </Card>
+
+              <div className="flex min-w-0 flex-col gap-4">
+                <ProjectTeam
+                  projectId={project.id}
+                  team={team}
+                  staff={designers}
+                  onChange={(next) => setData((current) => (current ? { ...current, team: next } : current))}
+                />
+
+                <Card>
+                  <p className="label-eyebrow">Recent activity</p>
+                  {activity.length === 0 ? (
+                    <p className="py-6 text-center text-ink-muted">Nothing recorded yet.</p>
+                  ) : (
+                    <ol className="mt-4 flex flex-col gap-4 border-l border-border pl-4">
+                      {activity.slice(0, 6).map((entry) => (
+                        <li key={entry.id} className="relative">
+                          <span aria-hidden="true" className="absolute -left-[21px] top-1.5 h-2 w-2 rounded-full bg-green-900 ring-4 ring-surface" />
+                          <p className="text-sm font-medium text-ink">{humanise(entry.action)}</p>
+                          <p className="text-xs text-ink-muted">
+                            {entry.actor_name} · {dateTime(entry.created_at)}
+                          </p>
+                        </li>
+                      ))}
+                    </ol>
+                  )}
+                </Card>
+              </div>
+            </div>
+          ) : null}
+
+          {tab === 'documents' ? (
+            <DocumentsTable
+              documents={documents}
+              onChanged={refetch}
+              emptyMessage="Plans, contracts and mood boards for this project appear here."
+            />
+          ) : null}
+          <UploadDialog
+            open={uploading}
+            target={{ clientId: project.client_id, projectId: project.id }}
+            onClose={() => setUploading(false)}
+            onUploaded={async () => {
+              setUploading(false);
+              await refetch();
+            }}
+          />
+
+
+          {tab === 'invoices' && isAdmin ? (
+            <div className="flex flex-col gap-5">
+              <section aria-label="Quotes">
+                <h2 className="label-eyebrow mb-2">Quotes ({quoteRows.length})</h2>
+                {quoteRows.length === 0 ? (
+                  <Card className="p-0">
+                    <EmptyState
+                      title="No quotes"
+                      message="Choose New quote above to write one for this project."
+                    />
+                  </Card>
+                ) : (
+                  <TableWrap className="max-sm:min-w-0">
+                    <thead>
+                      <tr>
+                        <Th>Number</Th>
+                        <Th>Status</Th>
+                        <Th className="max-sm:hidden">Valid until</Th>
+                        <Th className="text-right">Amount</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {quoteRows.map((quote) => (
+                        <tr
+                          key={quote.id}
+                          className="cursor-pointer hover:bg-surface-muted/40"
+                          onClick={(event) => {
+                            if (!(event.target as HTMLElement).closest('a, button')) navigate(`/quotes/${quote.id}`);
+                          }}
+                        >
+                          <Td className="font-medium text-ink">
+                            <Link to={`/quotes/${quote.id}`} className="text-link">
+                              {quote.number}
+                            </Link>
+                            {quote.title ? <p className="text-xs font-normal text-ink-muted">{quote.title}</p> : null}
+                          </Td>
+                          <Td>
+                            <StatusTag tone={QUOTE_TONE[quote.status]}>{quote.status}</StatusTag>
+                          </Td>
+                          <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{quote.valid_until ? date(quote.valid_until) : '—'}</Td>
+                          <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">{money(quote.amount)}</Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableWrap>
+                )}
+              </section>
+
+              <section aria-label="Invoices">
+                <h2 className="label-eyebrow mb-2">Invoices ({invoices.length})</h2>
+                {invoices.length === 0 ? (
+                  <Card className="p-0">
+                    <EmptyState title="No invoices" message="Nothing has been invoiced for this project." />
+                  </Card>
+                ) : (
+                  <TableWrap className="max-sm:min-w-0">
+                    <thead>
+                      <tr>
+                        <Th>Number</Th>
+                        <Th>Status</Th>
+                        <Th className="max-sm:hidden">Due</Th>
+                        <Th className="text-right">Amount</Th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((invoice) => (
+                        <tr
+                          key={invoice.id}
+                          className="cursor-pointer hover:bg-surface-muted/40"
+                          // The number stays the link for keyboards; a click anywhere else on the row opens it too.
+                          onClick={(event) => {
+                            if (!(event.target as HTMLElement).closest('a, button'))
+                              navigate(`/invoices?open=${invoice.id}`);
+                          }}
+                        >
+                          <Td className="font-medium text-ink">
+                            <Link to={`/invoices?open=${invoice.id}`} className="text-link">
+                              {invoice.number}
+                            </Link>
+                          </Td>
+                          <Td>
+                            <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>
+                              {invoice.status}
+                            </StatusTag>
+                          </Td>
+                          <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
+                          <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
+                            {money(invoice.amount)}
+                          </Td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </TableWrap>
+                )}
+              </section>
+            </div>
+          ) : null}
+
+          {tab === 'activity' ? (
+            activity.length === 0 ? (
+              <Card className="p-0">
+                <EmptyState title="No activity" message="Changes to this project appear here." />
+              </Card>
+            ) : (
+              <Card>
+                <ul className="rows">
+                  {activity.map((entry) => (
+                    <li key={entry.id} className="py-3 first:pt-0 last:pb-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <p className="font-medium text-ink">{humanise(entry.action)}</p>
+                        <p className="text-xs text-ink-muted">{dateTime(entry.created_at)}</p>
+                      </div>
+                      <p className="mt-0.5 text-xs text-ink-muted">
+                        by {entry.actor_name} ({entry.actor_type})
+                      </p>
+                      {entry.details ? (
+                        <p className="mt-1 text-xs text-ink-muted">
+                          {Object.entries(entry.details)
+                            .map(([key, value]) => `${humanise(key)}: ${String(value)}`)
+                            .join(' · ')}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            )
+          ) : null}
+        </div>
+
+        <ProjectThread projectId={project.id} documents={documents} />
+      </div>
 
       <ConfirmDialog
         open={deleting}

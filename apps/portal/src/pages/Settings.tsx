@@ -1,7 +1,6 @@
-import { Bell, PaintBrush, ShieldCheck, UserCircle } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { Fragment, useState, type FormEvent } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 import {
   AppearancePicker,
@@ -13,7 +12,6 @@ import {
   PaneHeader,
   SettingsGroup,
   SettingsRow,
-  Tabs,
   Toggle,
   buttonClass,
 } from '@/components/ui';
@@ -41,23 +39,13 @@ const CHANNELS: Array<{ id: NotifyChannel; label: string }> = [
 /** The notification grid: what it is, then one column per channel (from sm up). */
 const GRID = 'sm:grid sm:grid-cols-[minmax(0,1fr)_repeat(3,6.5rem)] sm:items-center sm:gap-x-2';
 
-const SECTIONS = [
-  { id: 'profile', label: 'Profile', Icon: UserCircle },
-  { id: 'notifications', label: 'Notifications', Icon: Bell },
-  { id: 'security', label: 'Security', Icon: ShieldCheck },
-  { id: 'appearance', label: 'Appearance', Icon: PaintBrush },
-];
-
-/** Laid out like System Settings: the panes down the left from lg, a segmented control below. */
+/** Every section is its own card on one page, two across from xl. */
 export function SettingsPage() {
   const { user, logout } = useAuth();
   const { theme, set: setTheme } = useTheme();
   const toast = useToast();
   const preferences = useQuery<NotificationPreference>('/notification-preferences');
 
-  const [params, setParams] = useSearchParams();
-  const tab = SECTIONS.find(({ id }) => id === params.get('section'))?.id ?? 'profile';
-  const setTab = (id: string) => setParams(id === 'profile' ? {} : { section: id }, { replace: true });
   const [passwordForm, setPasswordForm] = useState({ current: '', next: '', confirm: '' });
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [passwordSaving, setPasswordSaving] = useState(false);
@@ -106,32 +94,10 @@ export function SettingsPage() {
 
   return (
     <>
-      <PageHeader title="Settings" />
+      <PageHeader title="" />
 
-      <div className="grid items-start gap-5 lg:grid-cols-[13rem_minmax(0,1fr)]">
-        <div className="lg:hidden">
-          <Tabs tabs={SECTIONS} active={tab} onChange={setTab} />
-        </div>
-        <nav aria-label="Settings" className="hidden flex-col gap-px rounded-card bg-surface p-2 shadow-soft lg:flex">
-          {SECTIONS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              aria-current={id === tab ? 'page' : undefined}
-              onClick={() => setTab(id)}
-              className={clsx(
-                'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11',
-                id === tab ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]',
-              )}
-            >
-              <Icon size={16} aria-hidden="true" className="shrink-0" />
-              {label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="min-w-0 max-w-3xl rounded-card bg-surface p-5 shadow-soft sm:p-6">
-          {tab === 'profile' ? (
+      <div className="grid items-start gap-4 xl:grid-cols-2">
+          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader title="Profile" help="Your details as the studio has them." />
               <SettingsGroup>
@@ -153,9 +119,9 @@ export function SettingsPage() {
                 </SettingsRow>
               </SettingsGroup>
             </>
-          ) : null}
+          </section>
 
-          {tab === 'notifications' ? (
+          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader
                 title="Notifications"
@@ -217,9 +183,9 @@ export function SettingsPage() {
                 “Phone & browser” only reaches devices where you turned notifications on. Security emails, like a password change, are always sent.
               </p>
             </>
-          ) : null}
+          </section>
 
-          {tab === 'security' ? (
+          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader title="Security" help="Your password, and this session." />
               <SettingsGroup title="Password">
@@ -270,9 +236,9 @@ export function SettingsPage() {
                 </SettingsRow>
               </SettingsGroup>
             </>
-          ) : null}
+          </section>
 
-          {tab === 'appearance' ? (
+          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader title="Appearance" help="Applies to this browser only." />
               <SettingsGroup>
@@ -281,8 +247,7 @@ export function SettingsPage() {
                 </div>
               </SettingsGroup>
             </>
-          ) : null}
-        </div>
+          </section>
       </div>
     </>
   );

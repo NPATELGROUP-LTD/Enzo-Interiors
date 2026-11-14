@@ -1,6 +1,6 @@
 import clsx from 'clsx';
 import {
-  CaretDown,
+  ArrowSquareOut,
   CaretLeft,
   MagnifyingGlass,
   Moon,
@@ -8,33 +8,39 @@ import {
   Sun,
   UserCircle,
   WifiSlash,
-  type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
+import { BottomBar, type BarPage } from './BottomBar';
 import { LegalLinks } from './LegalLinks';
 import { MODIFIER } from './SearchPalette';
 
 import { useAuth } from '@/lib/auth';
 import { initials, roleLabel } from '@/lib/format';
 import { useTheme } from '@/lib/theme';
+import { WEB_URL } from '@/components/cms/MediaPicker';
 import { RouteBoundary } from '@/components/ui/ErrorBoundary';
 
 /**
- * macOS-style app shell: a glass menu bar on top and one window below it,
- * inset with rounded corners the way a Mac app window sits on the desktop.
- * The menu bar starts with the app's name (plain text, not a menu) and the
- * app's menus (AdminLayout's CMS, Bookings, Settings); on the right are
- * search, the bell and your own account menu. Below xl there is no room for the
- * menus, so the name and the current page become one button that opens every
- * page as a list (the same page menu as apps/portal). The window's title bar carries
- * the traffic lights, a back button, the title and its own actions.
+ * The app shell: a glass menu bar on top, the page's heading under it, and the
+ * page itself straight on the page background (cards float on it; there is no
+ * window around them). The menu bar starts with the app's name (plain text) and
+ * the app's menus (AdminLayout's Dashboard, Work, Inbox, Website, Settings); on
+ * the right are search, the bell and your own account menu. Below lg there is
+ * no room for the menus, so the pages move to a bottom bar of icons with the
+ * rest under More (BottomBar.tsx).
+ *
+ * The heading row names the page top left (with a way back where there is one)
+ * and holds its buttons top right. A page that knows a better name or has
+ * buttons of its own puts them there through <PageHeader> (components/ui),
+ * which fills the two slots below. The row does not scroll with the page, so
+ * full-height pages (Messages, Mail, the CMS editor) keep their own layout.
  *
  * apps/portal has its own copy of this shell (its pages inline, no menus); the
  * two share the look, not the code.
  *
- * Stacking note: the window is deliberately NOT positioned, transformed or
+ * Stacking note: the page area is deliberately NOT positioned, transformed or
  * blurred. Any of those would trap the pages' `fixed` modals inside it. Only
  * the menu bar uses backdrop blur, which is also why a menu that drops out of
  * it is a top-layer popover rather than its child: a blurred parent stops its
@@ -91,16 +97,6 @@ export function Badge({ count, inverted = false }: { count: number; inverted?: b
   );
 }
 
-/** One entry of the page menu (below xl): where it goes, and whether you are there. */
-export interface DesktopPage {
-  to: string;
-  label: string;
-  Icon: PhosphorIcon;
-  active: boolean;
-  /** Count shown beside the label (unread messages, new enquiries). */
-  badge?: number;
-}
-
 export function Desktop({
   appName,
   pages,
@@ -114,20 +110,20 @@ export function Desktop({
   status,
 }: {
   appName: string;
-  /** Every page, listed by the page menu below xl. */
-  pages: DesktopPage[];
-  /** The app's menus, after its name in the menu bar (xl and up). */
+  /** Every page this person may open, in the bottom bar's order (below lg). */
+  pages: BarPage[];
+  /** The app's menus, after its name in the menu bar (lg and up). */
   menus?: ReactNode;
-  /** The window's title: a name, or a breadcrumb trail. */
-  title: ReactNode;
-  /** Where the title bar's back button goes, when there is somewhere to go back to. */
+  /** The page's heading, unless the page gives its own through <PageHeader>. */
+  title: string;
+  /** Where the heading's back link goes, when there is somewhere to go back to. */
   back?: { to: string; label: string } | null;
   /** Handed to the pages through useOutletContext. */
   context?: unknown;
-  /** Controls in the right of the window's title bar. */
+  /** Shell-wide buttons at the right of the heading row (Publish all). */
   windowActions?: ReactNode;
   /** Opens the search palette; shows the menu-bar magnifier when set. */
-  onSearch?: () => void;
+  onSearch?: (seed?: string) => void;
   /** Where Ctrl/⌘ , goes. Omitted for accounts that cannot change settings. */
   settingsTo?: string;
   /** Menu-bar extras left of the account menu (the notification bell). */
@@ -139,11 +135,8 @@ export function Desktop({
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<HTMLElement>(null);
-  const current = pages.find((page) => page.active);
-  // Pending counts on the pages you are not on, so the closed button still tells you.
-  const pending = pages.reduce((sum, page) => sum + (page.active ? 0 : (page.badge ?? 0)), 0);
 
-  // A new page starts at the top of the window, and open menus get out of the way.
+  // A new page starts at the top, and open menus get out of the way.
   useEffect(() => {
     // A section link (#hero) scrolls itself; anything else starts at the top.
     if (!window.location.hash) scrollRef.current?.scrollTo({ top: 0 });
@@ -169,42 +162,39 @@ export function Desktop({
   const menuItem = 'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2 text-left pointer-coarse:min-h-11';
 
   return (
-    <div className="wallpaper flex h-dvh flex-col overflow-hidden text-ink">
+    <div className="flex h-dvh flex-col overflow-hidden bg-canvas text-ink">
       {/* ---------------------------------------------------------- Menu bar */}
       <header className="glass relative z-40 flex h-10 shrink-0 items-center gap-0.5 border-b border-glass-border px-2 text-[13px] font-semibold pointer-coarse:h-12">
-        {/* Below xl the name and the current page are the page menu. */}
-        <button
-          type="button"
-          popoverTarget="page-menu"
-          className="flex h-8 min-w-0 items-center gap-1 rounded-[6px] px-2 font-bold hover:bg-ink/10 pointer-coarse:h-10 xl:hidden"
-        >
-          <span className="shrink-0 whitespace-nowrap">{appName}</span>
-          {current ? <span className="hidden min-w-0 truncate font-medium text-ink-muted min-[380px]:inline">· {current.label}</span> : null}
-          <CaretDown size={12} aria-hidden="true" className="shrink-0 text-ink-muted" />
-          {pending > 0 ? (
-            <span className="h-2 w-2 shrink-0 rounded-full bg-green-900">
-              <span className="sr-only">New items in other sections</span>
-            </span>
-          ) : null}
-        </button>
-        {/* From xl up, the app's name where a Mac keeps it (just a name: nothing to click), then its menus. */}
-        <span className="hidden shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold xl:inline">
-          {appName}
-        </span>
-        <div className="hidden xl:contents">{menus}</div>
+        {/* The app's name where a Mac keeps it (just a name: nothing to click), then its menus. */}
+        <span className="shrink-0 cursor-default select-none whitespace-nowrap px-2 font-bold">{appName}</span>
+        <div className="hidden lg:contents">{menus}</div>
 
-        <span className="ml-auto flex shrink-0 items-center gap-1">
+        {/* The search bar sits in the middle and takes what room the menus and the right-hand cluster leave. */}
+        <div className="flex min-w-0 flex-1 justify-center px-2">
           {onSearch ? (
             <button
               type="button"
-              onClick={onSearch}
+              onClick={() => onSearch()}
+              // Typing straight onto the bar opens the results with those letters already in.
+              onKeyDown={(event) => {
+                if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
+                  event.preventDefault();
+                  onSearch(event.key);
+                }
+              }}
               aria-label={`Search (${MODIFIER} K)`}
               title={`Search (${MODIFIER} K)`}
-              className="flex h-7 w-8 items-center justify-center rounded-[6px] hover:bg-ink/10 pointer-coarse:h-10 pointer-coarse:w-10"
+              className="flex h-7 w-full max-w-md min-w-8 items-center justify-center gap-2 rounded-[8px] border border-glass-border bg-ink/[0.04] px-2.5 font-normal text-ink-muted transition-colors hover:bg-ink/10 hover:text-ink md:justify-start pointer-coarse:h-10"
             >
-              <MagnifyingGlass size={15} weight="bold" aria-hidden="true" />
+              <MagnifyingGlass size={14} weight="bold" aria-hidden="true" className="shrink-0" />
+              <span className="hidden min-w-0 flex-1 truncate text-left md:inline">Search clients, projects, pages…</span>
+              <kbd className="hidden shrink-0 rounded-[5px] border border-border px-1.5 text-[11px] xl:block">{MODIFIER} K</kbd>
             </button>
           ) : null}
+        </div>
+
+        <span className="flex shrink-0 items-center gap-1">
+          {windowActions}
           {online ? null : (
             <span role="status" className="flex items-center gap-1.5 rounded-full bg-warning-bg px-2 py-0.5 text-xs text-warning">
               <WifiSlash size={13} aria-hidden="true" />
@@ -238,33 +228,6 @@ export function Desktop({
         </span>
       </header>
 
-      {/* Page menu (below xl): native popover, so light-dismiss and Escape come free. */}
-      <div
-        id="page-menu"
-        popover="auto"
-        className="glass fixed inset-auto left-2 top-11 m-0 max-h-[calc(100dvh-4rem)] w-64 overflow-y-auto rounded-[12px] border border-glass-border p-1.5 text-sm text-ink shadow-window pointer-coarse:top-[3.25rem]"
-      >
-        <nav aria-label="Pages">
-          <ul>
-            {pages.map(({ to, label, Icon, active, badge }) => (
-              <li key={to}>
-                <Link
-                  to={to}
-                  aria-current={active ? 'page' : undefined}
-                  // Same page, new query: the path is unchanged, so close it here too.
-                  onClick={() => hidePopover('page-menu')}
-                  className={clsx(menuItem, active ? 'bg-green-900 font-semibold text-on-primary' : 'hover:bg-ink/[0.08]')}
-                >
-                  <Icon size={17} aria-hidden="true" weight={active ? 'fill' : 'regular'} />
-                  <span className="flex-1">{label}</span>
-                  <Badge count={badge ?? 0} inverted={active} />
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-      </div>
-
       {/* Account menu. */}
       <div
         id="user-menu"
@@ -292,6 +255,10 @@ export function Desktop({
           <UserCircle size={15} aria-hidden="true" />
           Account settings…
         </Link>
+        <a href={WEB_URL} target="_blank" rel="noopener" className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}>
+          <ArrowSquareOut size={15} aria-hidden="true" />
+          View website
+        </a>
         <button type="button" onClick={toggle} className={clsx(menuItem, 'hover:bg-green-900 hover:text-on-primary')}>
           {theme === 'dark' ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
           {themeLabel}
@@ -310,39 +277,36 @@ export function Desktop({
         </p>
       </div>
 
-      {/* ------------------------------------------------------------ Window */}
-      {/* One window on the desktop, inset from the menu bar and the screen's
-          edges with rounded corners, the way a Mac app window sits. Each page
-          still lays itself out across the window's full width. */}
-      <div className="flex min-h-0 flex-1 flex-col px-1.5 pb-[calc(env(safe-area-inset-bottom)+0.375rem)] pt-1.5 sm:p-3">
-      <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[14px] bg-canvas shadow-window">
-        <div className="grid h-11 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-border bg-surface px-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <span aria-hidden="true" className="hidden gap-2 sm:flex">
-              <span className="h-3 w-3 rounded-full bg-[#ff5f57]" />
-              <span className="h-3 w-3 rounded-full bg-[#febc2e]" />
-              <span className="h-3 w-3 rounded-full bg-[#28c840]" />
-            </span>
-            {back ? (
-              <Link
-                to={back.to}
-                className="flex min-h-9 min-w-0 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
-              >
-                <CaretLeft size={16} aria-hidden="true" className="shrink-0" />
-                <span className="truncate">{back.label}</span>
-              </Link>
-            ) : null}
-          </div>
-          <div className="flex min-w-0 justify-center truncate text-center text-[13px] font-semibold text-ink">{title}</div>
-          <div className="flex items-center justify-end gap-1.5">{windowActions}</div>
+      {/* ------------------------------------------------------- Page heading */}
+      {/* A row only when it has something to hold (a way back, a heading the page gave, buttons); pb-3 keeps scrolled cards off the text. */}
+      <div className="page-head flex shrink-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 px-5 pb-3 pt-4 sm:px-8">
+        <div className="flex min-w-0 items-center gap-2">
+          {back ? (
+            <Link
+              to={back.to}
+              aria-label={`Back to ${back.label}`}
+              className="-ml-1.5 flex min-h-9 shrink-0 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+            >
+              <CaretLeft size={16} aria-hidden="true" className="shrink-0" />
+              <span className="hidden sm:inline">{back.label}</span>
+            </Link>
+          ) : null}
+          {/* <PageHeader> puts the page's own heading here; until it does, the section's name shows. */}
+          <div id="page-title" className="min-w-0" />
+          {/* The section's name stays for screen readers only: the menu bar already shows where you are. */}
+          <h1 className="sr-only [#page-title:not(:empty)+&]:hidden">{title}</h1>
         </div>
-
-        <main ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
-          <RouteBoundary><Outlet context={context} /></RouteBoundary>
-        </main>
-      </section>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <div id="page-actions" className="contents" />
+        </div>
       </div>
 
+      {/* --------------------------------------------------------------- Page */}
+      <main ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto">
+        <RouteBoundary><Outlet context={context} /></RouteBoundary>
+      </main>
+
+      <BottomBar pages={pages} />
     </div>
   );
 }

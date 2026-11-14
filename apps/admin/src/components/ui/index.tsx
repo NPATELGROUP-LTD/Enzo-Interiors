@@ -27,16 +27,21 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import { createPortal } from 'react-dom';
+
+import { DateField } from './DateField';
 import { Link, useNavigate } from 'react-router-dom';
 
 /**
  * The admin design system.
  *
  * Built directly from docs/Enzo_Interiors_UI_UX_Brief_v6.md, which calls itself
- * a strict implementation contract, restyled for the macOS-style desktop shell
- * (see styles/theme.css). The rules it enforces here:
+ * a strict implementation contract, restyled for the app shell (a glass menu
+ * bar, a heading row, then the page straight on the canvas with its cards
+ * floating on soft shadows; a bottom bar of icons on phones: layout/Desktop.tsx
+ * and styles/theme.css). The rules it enforces here:
  *   - 44px minimum touch target; mouse users get compact 36px macOS controls
- *   - 8px corners on controls, 12px on cards/tiles, 14px on windows/sheets
+ *   - 8px corners on controls, 12px on cards/tiles, 14px on sheets
+ *   - One heading per page, top left, with its buttons top right (<PageHeader>)
  *   - No pill buttons; switches, tags and segmented controls are capsules
  *   - Status tags are written labels only — no dots or bullet markers
  *   - Text links never gain a background, box, shadow or movement on hover
@@ -266,6 +271,22 @@ export function Input({
   return (
     <Field label={label} error={error} hint={hint} required={required}>
       {(id, describedBy) => {
+        // Dates use the app's own calendar; callers still read event.target.value.
+        if (rest.type === 'date') {
+          return (
+            <DateField
+              id={id}
+              value={String(rest.value ?? '')}
+              min={rest.min as string | undefined}
+              max={rest.max as string | undefined}
+              required={required}
+              disabled={rest.disabled}
+              invalid={Boolean(error)}
+              describedBy={describedBy}
+              onChange={(next) => rest.onChange?.({ target: { value: next }, currentTarget: { value: next } } as ChangeEvent<HTMLInputElement>)}
+            />
+          );
+        }
         const input = (
           <input
             {...rest}
@@ -710,6 +731,7 @@ export function ConfirmDialog({
   onCancel,
   pending,
   password = false,
+  tone = 'destructive',
 }: {
   open: boolean;
   title: string;
@@ -719,6 +741,8 @@ export function ConfirmDialog({
   onCancel: () => void;
   pending?: boolean;
   password?: boolean;
+  /** `primary` for a confirmation that destroys nothing (a move). */
+  tone?: 'destructive' | 'primary';
 }) {
   const [typed, setTyped] = useState('');
   const formId = useId();
@@ -739,7 +763,7 @@ export function ConfirmDialog({
             Cancel
           </Button>
           <Button
-            variant="destructive"
+            variant={tone}
             type={password ? 'submit' : 'button'}
             form={password ? formId : undefined}
             onClick={password ? undefined : () => onConfirm('')}
@@ -844,38 +868,45 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /* Layout helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
+/** The page heading's type, shared with the shell's own heading (layout/Desktop.tsx). */
+export const PAGE_TITLE = 'truncate text-xl font-bold tracking-tight text-ink sm:text-2xl';
+
+/** One of the shell's heading-row slots, once it is in the page. */
+function useSlot(id: string) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById(id)), [id]);
+  return slot;
+}
+
 /**
- * A page's heading. Only the Dashboard shows it (`prominent`); everywhere else
- * the window's title bar already names the page, so the heading is kept for
- * screen readers alone and only the actions show.
+ * A page's heading and its buttons. Both are drawn in the shell's heading row
+ * above the page (heading top left, buttons top right), in place of the
+ * section name the shell shows by default.
  */
 export function PageHeader({
   title,
   description,
   actions,
-  prominent = false,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
-  prominent?: boolean;
 }) {
-  if (!prominent) {
-    return (
-      <>
-        <h1 className="sr-only">{title}</h1>
-        {actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
-      </>
-    );
-  }
+  const heading = useSlot('page-title');
+  const buttons = useSlot('page-actions');
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-      <div className="min-w-0 [overflow-wrap:anywhere]">
-        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px] sm:leading-tight">{title}</h1>
-        {description ? <p className="mt-1 max-w-2xl text-ink-muted">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </div>
+    <>
+      {heading && (title || description)
+        ? createPortal(
+            <>
+              <h1 className={PAGE_TITLE}>{title}</h1>
+              {description ? <p className="truncate text-sm text-ink-muted">{description}</p> : null}
+            </>,
+            heading,
+          )
+        : null}
+      {buttons && actions ? createPortal(actions, buttons) : null}
+    </>
   );
 }
 
@@ -928,10 +959,19 @@ export function Crumbs({ items, className }: { items: Crumb[]; className?: strin
  * Wide tables scroll inside their own box so the page body never scrolls
  * sideways, which is what keeps the 375px breakpoint usable.
  */
-export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
+export function TableWrap({
+  children,
+  className,
+  wrapClassName,
+}: {
+  children: ReactNode;
+  className?: string;
+  /** For a table that scrolls inside its own box (the box keeps its rounded corners). */
+  wrapClassName?: string;
+}) {
   return (
-    <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
-      <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
+    <div className={clsx('table-box overflow-x-auto rounded-card bg-surface p-2 shadow-soft', wrapClassName)}>
+      <table className={clsx('data-table w-full min-w-[20rem] border-separate border-spacing-0 text-left', className)}>
         {children}
       </table>
     </div>
@@ -945,11 +985,18 @@ export interface ThSort {
   onSort: () => void;
 }
 
-export function Th({ children, className, sort }: { children: ReactNode; className?: string; sort?: ThSort }) {
+/**
+ * A column that gives way as its table narrows: `md` goes first, then `lg`, then `xl`
+ * (see .table-box in theme.css). No `col` = always shown.
+ */
+export type TableCol = 'md' | 'lg' | 'xl';
+
+export function Th({ children, className, sort, col }: { children: ReactNode; className?: string; sort?: ThSort; col?: TableCol }) {
   const Caret = !sort?.active ? CaretUpDown : sort.dir === 'asc' ? CaretUp : CaretDown;
   return (
     <th
       scope="col"
+      data-col={col}
       aria-sort={sort ? (sort.active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       className={clsx(
         'label-eyebrow whitespace-nowrap px-3 py-2',
@@ -972,9 +1019,9 @@ export function Th({ children, className, sort }: { children: ReactNode; classNa
   );
 }
 
-export function Td({ children, className }: { children: ReactNode; className?: string }) {
+export function Td({ children, className, col }: { children: ReactNode; className?: string; col?: TableCol }) {
   return (
-    <td className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
+    <td data-col={col} className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
   );
 }
 
@@ -993,12 +1040,12 @@ export function Tabs({
   // A macOS segmented control. The outer box scrolls if the segments outgrow a
   // phone screen, so the page itself never scrolls sideways.
   return (
-    <div className={clsx('mb-4 max-w-full overflow-x-auto', vertical && 'lg:mb-0')}>
+    <div className={clsx('mb-4 max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden', vertical && 'lg:mb-0')}>
       <div
         role="tablist"
         aria-orientation={vertical ? 'vertical' : undefined}
         className={clsx(
-          'inline-flex flex-wrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
+          'inline-flex flex-nowrap gap-0.5 rounded-[9px] bg-ink/[0.07] p-0.5',
           vertical && 'lg:flex lg:flex-col lg:gap-1 lg:rounded-card lg:bg-surface lg:p-2 lg:shadow-soft',
         )}
       >
@@ -1143,52 +1190,74 @@ export function Checkbox({
 export interface SettingsSection {
   id: string;
   label: string;
+  /** One plain line on what the pane is for. */
+  detail?: string;
   Icon: PhosphorIcon;
 }
 
+/** Panes that belong together, under a heading and a plain line about them. */
+export interface SettingsNavGroup {
+  id: string;
+  label: string;
+  detail: string;
+  sections: SettingsSection[];
+}
+
 const SIDEBAR_ROW =
-  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35 pointer-coarse:min-h-11';
+  'flex min-h-9 w-full items-center gap-2.5 rounded-[7px] px-2.5 text-left text-[13px] transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/35';
 
 /**
- * Laid out like System Settings: the panes down the left, the open one on the
- * right. Below lg there is no sidebar: a native dropdown takes one line.
+ * Settings, grouped: from lg up the groups' panes stand in a card on the left and the open pane in
+ * a card beside it, both floating on the page. Below lg the card of panes is not drawn: with
+ * `groups` the Settings page lists them and the heading row's back link returns there; with a flat
+ * `sections` list (Account, which has no such page) a native dropdown takes one line instead.
  */
 export function SettingsShell({
   label,
+  groups,
   sections,
   active,
   to,
   children,
 }: {
   label: string;
-  sections: SettingsSection[];
+  groups?: SettingsNavGroup[];
+  sections?: SettingsSection[];
   active: string;
   to: (id: string) => string;
   children: ReactNode;
 }) {
   const navigate = useNavigate();
+  const shown = groups ?? [{ id: 'all', label, detail: '', sections: sections ?? [] }];
   return (
-    <div className="flex h-full min-h-0">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-surface-muted/45 lg:flex">
-        <nav aria-label={label} className="flex flex-col gap-px px-2.5 py-5">
-          {sections.map(({ id, label: name, Icon }) => (
-            <Link
-              key={id}
-              to={to(id)}
-              aria-current={id === active ? 'page' : undefined}
-              className={clsx(SIDEBAR_ROW, id === active ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')}
-            >
-              <Icon size={16} aria-hidden="true" className="shrink-0" />
-              {name}
-            </Link>
+    <div className="mx-auto flex max-w-[84rem] items-start gap-6 px-5 pb-16 pt-3 sm:px-8">
+      <aside className="sticky top-3 hidden max-h-[calc(100vh-7rem)] w-64 shrink-0 overflow-y-auto rounded-card bg-surface p-2.5 shadow-soft lg:block">
+        <nav aria-label={label} className="flex flex-col gap-4">
+          {shown.map((group) => (
+            <div key={group.id}>
+              {groups ? <p className="label-eyebrow px-2.5 pb-1">{group.label}</p> : null}
+              <div className="flex flex-col gap-px">
+                {group.sections.map(({ id, label: name, Icon }) => (
+                  <Link
+                    key={id}
+                    to={to(id)}
+                    aria-current={id === active ? 'page' : undefined}
+                    className={clsx(SIDEBAR_ROW, id === active ? 'bg-green-900 font-semibold text-on-primary' : 'text-ink hover:bg-ink/[0.06]')}
+                  >
+                    <Icon size={16} aria-hidden="true" className="shrink-0" />
+                    {name}
+                  </Link>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
       </aside>
 
-      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must scroll in here, not stretch the page. */}
-      <div className="relative min-h-0 min-w-0 flex-1 overflow-y-auto bg-surface">
-        <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
-          <label className="mb-7 block lg:hidden">
+      {/* relative: hidden absolutely-positioned inputs (switches, checkboxes) must stay in this card, not stretch the page. */}
+      <div className="relative min-w-0 flex-1 rounded-card bg-surface p-5 shadow-soft sm:p-8">
+        {sections ? (
+          <label className="mb-6 block lg:hidden">
             <span className="mb-1.5 block text-[13px] font-medium text-ink-muted">{label}</span>
             <Listbox value={active} onChange={(event) => navigate(to(event.target.value))} className={clsx(FIELD_BASE, 'w-full')}>
               {sections.map((row) => (
@@ -1198,20 +1267,20 @@ export function SettingsShell({
               ))}
             </Listbox>
           </label>
-          {children}
-        </div>
+        ) : null}
+        {children}
       </div>
     </div>
   );
 }
 
-/** A pane's title, what it is for, and an optional action at the right. */
+/** A pane's title (the shell's heading already shows it, so it is read aloud only), what it is for, and an optional action at the right. */
 export function PaneHeader({ title, help, action }: { title: string; help: ReactNode; action?: ReactNode }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h2 className="text-lg font-semibold tracking-tight text-ink">{title}</h2>
-        <p className="mt-1 max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
+        <h2 className="sr-only">{title}</h2>
+        <p className="max-w-[60ch] text-sm leading-relaxed text-ink-muted">{help}</p>
       </div>
       {action}
     </header>

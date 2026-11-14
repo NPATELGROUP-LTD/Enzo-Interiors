@@ -16,18 +16,21 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Throttle } from '@nestjs/throttler';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
   IsEmail,
   IsIn,
   IsISO8601,
+  IsNumber,
   IsObject,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -90,6 +93,10 @@ export class BankDetailsDto {
   @Transform(withoutSpaces(false)) @Matches(/^\d{8}$/, { message: 'The account number must be 8 digits' }) account_number!: string;
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() || null : value))
   @IsOptional() @IsString() @MaxLength(200) reference_note?: string | null;
+}
+
+export class VatDto {
+  @Type(() => Number) @IsNumber({ maxDecimalPlaces: 2 }, { message: 'Enter a rate such as 20' }) @Min(0) @Max(100) vat_rate!: number;
 }
 
 export class PreviewDto {
@@ -226,6 +233,25 @@ export class SiteSettingsService implements OnApplicationBootstrap, OnModuleDest
     // The numbers themselves stay out of the log; it records only that they changed.
     await this.activity.record({ principal, action: 'bank_details_update', targetTable: 'site_settings', targetId: ID, details: {} });
     return { bank_details };
+  }
+
+  /** The rate new quotes and invoices start with; saved ones keep their own. Purchase orders keep the supplier's 20%. */
+  async vat(): Promise<{ vat_rate: number }> {
+    return { vat_rate: (await this.db.settings()).vat_rate };
+  }
+
+  async saveVat(principal: AuthPrincipal, dto: VatDto): Promise<{ vat_rate: number }> {
+    const current = await this.db.settings();
+    if (await this.db.businessSettings.findById(current.id)) await this.db.businessSettings.update(current.id, { vat_rate: dto.vat_rate });
+    else await this.db.businessSettings.create({ ...current, vat_rate: dto.vat_rate });
+    await this.activity.record({
+      principal,
+      action: 'vat_rate_update',
+      targetTable: 'business_settings',
+      targetId: current.id,
+      details: { from: current.vat_rate, to: dto.vat_rate },
+    });
+    return { vat_rate: dto.vat_rate };
   }
 
   /** Where enquiries go: the configured list, else the bootstrap admin, else every Admin (never nobody). */
@@ -383,6 +409,18 @@ export class SiteSettingsController {
   @Roles('Admin')
   saveBankDetails(@CurrentUser() principal: AuthPrincipal, @Body() dto: BankDetailsDto) {
     return this.settings.saveBankDetails(principal, dto);
+  }
+
+  @Get('settings/vat')
+  @Roles('Admin')
+  vat() {
+    return this.settings.vat();
+  }
+
+  @Put('settings/vat')
+  @Roles('Admin')
+  saveVat(@CurrentUser() principal: AuthPrincipal, @Body() dto: VatDto) {
+    return this.settings.saveVat(principal, dto);
   }
 
   @Post('settings/test-email')

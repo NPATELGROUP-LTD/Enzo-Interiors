@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 
 import { App } from './App';
+import { Splash } from './components/Splash';
 import { ErrorBoundary } from './components/ui/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
 import { AuthProvider } from './lib/auth';
@@ -27,6 +28,7 @@ createRoot(container).render(
             </BrowserRouter>
           </AuthProvider>
         </ToastProvider>
+        <Splash />
       </ThemeProvider>
     </IconContext.Provider>
   </StrictMode>,

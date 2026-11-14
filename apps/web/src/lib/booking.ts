@@ -25,6 +25,8 @@ export async function fetchAvailability(from: string, to: string): Promise<Avail
 
 export interface Booking {
   service: string;
+  /** Every service picked; `service` is the first. */
+  services?: string[];
   date: string;
   time: string;
   name: string;

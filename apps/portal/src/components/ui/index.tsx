@@ -31,10 +31,13 @@ import { createPortal } from 'react-dom';
  * The client portal design system.
  *
  * Built directly from docs/Enzo_Interiors_UI_UX_Brief_v6.md, which calls itself
- * a strict implementation contract, restyled for the macOS-style desktop shell
- * (see styles/theme.css). The rules it enforces here:
+ * a strict implementation contract, restyled for the app shell (a glass menu
+ * bar, a heading row, then the page straight on the canvas with its cards
+ * floating on soft shadows; a bottom bar of icons on phones: layout/Desktop.tsx
+ * and styles/theme.css). The rules it enforces here:
  *   - 44px minimum touch target; mouse users get compact 36px macOS controls
- *   - 8px corners on controls, 12px on cards/tiles, 14px on windows/sheets
+ *   - 8px corners on controls, 12px on cards/tiles, 14px on sheets
+ *   - One heading per page, top left, with its buttons top right (<PageHeader>)
  *   - No pill buttons; switches, tags and segmented controls are capsules
  *   - Status tags are written labels only — no dots or bullet markers
  *   - Text links never gain a background, box, shadow or movement on hover
@@ -165,14 +168,15 @@ export function MetricCard({
   accent?: CardProps['accent'];
 }) {
   return (
-    <Card accent={accent} className="flex h-full flex-col p-5">
+    // The card stays plain; tone shows in the figure only, so a row of them reads calmly.
+    <Card className="flex h-full flex-col">
       <p className="label-eyebrow">{eyebrow}</p>
-      <p className={clsx('tabular mt-3 text-[40px] font-bold leading-none tracking-tight', TONE_TEXT[accent])}>
+      <p className={clsx('tabular mt-2 text-2xl font-bold sm:text-[28px] leading-tight tracking-tight', TONE_TEXT[accent])}>
         {value}
       </p>
       {context ? (
         // Max two lines, per the brief's content rules.
-        <p className="mt-2 line-clamp-2 text-ink-muted">{context}</p>
+        <p className="mt-1 line-clamp-2 text-ink-muted">{context}</p>
       ) : null}
       {bottom ? <div className="mt-auto pt-3">{bottom}</div> : null}
     </Card>
@@ -798,40 +802,48 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
 /* Layout helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
+/** The page heading's type, shared with the shell's own heading (layout/Desktop.tsx). */
+export const PAGE_TITLE = 'truncate text-xl font-bold tracking-tight text-ink sm:text-2xl';
+
+/** One of the shell's heading-row slots, once it is in the page. */
+function useSlot(id: string) {
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  useEffect(() => setSlot(document.getElementById(id)), [id]);
+  return slot;
+}
+
 /**
- * A page's heading. Only the Dashboard shows it (`prominent`); everywhere else
- * the window's title bar already names the page, so the heading is kept for
- * screen readers alone and only the actions show.
+ * A page's heading and its buttons. Both are drawn in the shell's heading row
+ * above the page (heading top left, buttons top right), in place of the
+ * section name the shell shows by default.
  */
 export function PageHeader({
   title,
   description,
   actions,
-  prominent = false,
 }: {
   title: string;
   description?: string;
   actions?: ReactNode;
-  prominent?: boolean;
 }) {
-  if (!prominent) {
-    return (
-      <>
-        <h1 className="sr-only">{title}</h1>
-        {actions ? <div className="mb-4 flex flex-wrap items-center justify-end gap-2">{actions}</div> : null}
-      </>
-    );
-  }
+  const heading = useSlot('page-title');
+  const buttons = useSlot('page-actions');
   return (
-    <div className="mb-5 flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
-      <div className="min-w-0 [overflow-wrap:anywhere]">
-        <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-[28px] sm:leading-tight">{title}</h1>
-        {description ? <p className="mt-1 max-w-2xl text-ink-muted">{description}</p> : null}
-      </div>
-      {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </div>
+    <>
+      {heading && (title || description)
+        ? createPortal(
+            <>
+              <h1 className={PAGE_TITLE}>{title}</h1>
+              {description ? <p className="truncate text-sm text-ink-muted">{description}</p> : null}
+            </>,
+            heading,
+          )
+        : null}
+      {buttons && actions ? createPortal(actions, buttons) : null}
+    </>
   );
 }
+
 
 /**
  * Horizontal scroll container for tables.
@@ -841,8 +853,8 @@ export function PageHeader({
  */
 export function TableWrap({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
-      <table className={clsx('data-table w-full min-w-[44rem] border-separate border-spacing-0 text-left', className)}>
+    <div className="table-box overflow-x-auto rounded-card bg-surface p-2 shadow-soft">
+      <table className={clsx('data-table w-full min-w-[20rem] border-separate border-spacing-0 text-left', className)}>
         {children}
       </table>
     </div>
@@ -856,11 +868,14 @@ export interface ThSort {
   onSort: () => void;
 }
 
-export function Th({ children, className, sort }: { children: ReactNode; className?: string; sort?: ThSort }) {
+export type TableCol = 'md' | 'lg' | 'xl';
+
+export function Th({ children, className, sort, col }: { children: ReactNode; className?: string; sort?: ThSort; col?: TableCol }) {
   const Caret = !sort?.active ? CaretUpDown : sort.dir === 'asc' ? CaretUp : CaretDown;
   return (
     <th
       scope="col"
+      data-col={col}
       aria-sort={sort ? (sort.active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none') : undefined}
       className={clsx(
         'label-eyebrow whitespace-nowrap px-3 py-2',
@@ -883,9 +898,9 @@ export function Th({ children, className, sort }: { children: ReactNode; classNa
   );
 }
 
-export function Td({ children, className }: { children: ReactNode; className?: string }) {
+export function Td({ children, className, col }: { children: ReactNode; className?: string; col?: TableCol }) {
   return (
-    <td className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
+    <td data-col={col} className={clsx('px-3 py-3 align-middle', className)}>{children}</td>
   );
 }
 
@@ -1066,7 +1081,7 @@ export function SettingsGroup({ title, children }: { title?: string; children: R
   return (
     <section className="mt-6">
       {title ? <h3 className="mb-2 px-1 text-[13px] font-semibold text-ink-muted">{title}</h3> : null}
-      <div className="divide-y divide-border/70 rounded-[10px] border border-border bg-surface">{children}</div>
+      <div className="divide-y divide-border/50 rounded-[10px] bg-ink/[0.035]">{children}</div>
     </section>
   );
 }

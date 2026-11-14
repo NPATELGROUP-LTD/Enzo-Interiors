@@ -131,7 +131,7 @@ export function PushPrompt({ detail }: { detail: string }) {
     <div
       role="region"
       aria-labelledby="push-prompt-title"
-      className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-40 rounded-card border border-border bg-surface p-4 shadow-window sm:inset-x-auto sm:right-5 sm:bottom-5 sm:w-[22rem]"
+      className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom)+4.25rem)] z-40 rounded-card border border-border bg-surface p-4 shadow-window sm:inset-x-auto sm:right-5 sm:w-[22rem] lg:bottom-5"
     >
       <div className="flex gap-3">
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-green-900 text-on-primary">

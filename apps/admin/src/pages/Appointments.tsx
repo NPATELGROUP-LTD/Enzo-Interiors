@@ -1,60 +1,61 @@
-import { CalendarPlus, CaretLeft, CaretRight, EnvelopeSimple, MapPin, Phone } from '@phosphor-icons/react';
+import { CalendarPlus, EnvelopeSimple, MapPin, Phone, Plus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
-import { DayTimePicker, STUDIO_ZONE, clock, type StaffAvailability } from '@/components/booking/DayTimePicker';
-import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, Tabs, Textarea } from '@/components/ui';
+import {
+  addDays,
+  at,
+  dayKey,
+  MonthCalendar,
+  useNarrow,
+  WeekCalendar,
+  mondayOf,
+  type Appointment,
+} from '@/components/booking/Calendars';
+import { DayTimePicker, STUDIO_ZONE, clock, studioToday, type StaffAvailability } from '@/components/booking/DayTimePicker';
+import { Button, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, Modal, PageHeader, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import type { CmsEntrySummary } from '@/types/cms';
 
-interface Appointment {
-  id: string;
-  reference: string;
-  service: string;
-  service_label: string;
-  starts_at: string;
-  ends_at: string;
-  status: 'Confirmed' | 'Cancelled';
-  name: string;
-  email: string;
-  phone: string | null;
-  address: string | null;
-  postcode: string | null;
-  notes: string | null;
-  details: Record<string, string> | null;
-  source: 'website' | 'admin';
-  created_by: string | null;
-  cancelled_at: string | null;
-  created_at: string;
-}
-
 const DAY = new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: STUDIO_ZONE });
-const TIME = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23', timeZone: STUDIO_ZONE });
 const STAMP = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: STUDIO_ZONE });
-const dayKey = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: STUDIO_ZONE }).format(new Date(iso));
-const at = (iso: string) => clock(TIME.format(new Date(iso)));
 
-type Tab = 'upcoming' | 'past' | 'cancelled';
+type Mode = 'week' | 'month' | 'list';
+type Filter = 'upcoming' | 'past' | 'cancelled';
+const MODES: Array<{ id: Mode; label: string }> = [
+  { id: 'week', label: 'Week' },
+  { id: 'month', label: 'Month' },
+  { id: 'list', label: 'List' },
+];
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
- * Consultations booked on the website or here. Admin only. Opening one shows
- * everything the customer gave and lets you move or cancel it; the customer
- * is emailed either way. The address carries the state, so the menu bar and
- * the bell can link straight in: `?view=past|cancelled` picks the list,
- * `?open=<id>` opens one booking, `?new=1` the new-booking form, `#month` the
- * month at a glance.
+ * Consultations booked on the website or here. Admin only. The week is the default: click a free
+ * time to book it, drag a booking to move it. Month and List are the other views. Opening a booking
+ * shows everything the customer gave and lets you move or cancel it; the customer is emailed either
+ * way. The address carries the state, so the menu bar and the bell can link straight in:
+ * `?view=week|month|list` (`past` / `cancelled` are the List's other lists), `?open=<id>` opens one
+ * booking, `?new=1` the new-booking form (`&date=&time=` prefilled), `#month` the month.
  */
 export function AppointmentsPage() {
+  const toast = useToast();
   const appointments = useQuery<Appointment[]>('/appointments');
   const [params, setParams] = useSearchParams();
   const { hash } = useLocation();
+  const narrow = useNarrow();
   const view = params.get('view');
-  const tab: Tab = view === 'past' || view === 'cancelled' ? view : 'upcoming';
+  const mode: Mode = view === 'month' ? 'month' : view === 'list' || view === 'past' || view === 'cancelled' ? 'list' : 'week';
+  const filter: Filter = view === 'past' || view === 'cancelled' ? view : 'upcoming';
   const creating = params.get('new') === '1';
   const openId = params.get('open');
+  const today = useMemo(studioToday, []);
+  const [anchor, setAnchor] = useState(() => {
+    const asked = params.get('date');
+    return asked && ISO_DAY.test(asked) ? asked : today;
+  });
 
   /**
    * Changes some of the address's parameters and keeps the rest. Read from
@@ -73,29 +74,36 @@ export function AppointmentsPage() {
       },
       { replace },
     );
-  const setTab = (next: Tab) => update({ view: next === 'upcoming' ? null : next, open: null });
-  const setCreating = (on: boolean) => update({ new: on ? '1' : null }, !on);
+  const setMode = (next: Mode) => update({ view: next === 'week' ? null : next, open: null });
+  const setFilter = (next: Filter) => update({ view: next === 'upcoming' ? 'list' : next, open: null });
+  const closeForm = () => update({ new: null, time: null }, true);
 
-  // The menu bar's "Month at a glance" link, once there is a month to show.
-  const loaded = !!appointments.data;
+  // The old "Month at a glance" link.
   useEffect(() => {
-    if (hash === '#month' && loaded) {
-      document.getElementById('month')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [hash, loaded]);
+    if (hash === '#month') update({ view: 'month' }, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hash]);
+
+  // The week's free times (staff rules; Google Calendar busy time is already left out).
+  const monday = mondayOf(anchor);
+  const free = useQuery<StaffAvailability>(
+    mode === 'week' ? `/appointments/availability?from=${monday}&to=${addDays(monday, 6)}` : null,
+  );
+
+  const confirmed = useMemo(() => (appointments.data ?? []).filter((row) => row.status === 'Confirmed'), [appointments.data]);
 
   const groups = useMemo(() => {
     const now = Date.now();
     const rows = (appointments.data ?? []).filter((row) =>
-      tab === 'cancelled'
+      filter === 'cancelled'
         ? row.status === 'Cancelled'
-        : row.status === 'Confirmed' && (tab === 'upcoming' ? Date.parse(row.ends_at) >= now : Date.parse(row.ends_at) < now),
+        : row.status === 'Confirmed' && (filter === 'upcoming' ? Date.parse(row.ends_at) >= now : Date.parse(row.ends_at) < now),
     );
-    if (tab !== 'upcoming') rows.reverse();
+    if (filter !== 'upcoming') rows.reverse();
     const byDay = new Map<string, Appointment[]>();
     for (const row of rows) byDay.set(dayKey(row.starts_at), [...(byDay.get(dayKey(row.starts_at)) ?? []), row]);
     return [...byDay.entries()];
-  }, [appointments.data, tab]);
+  }, [appointments.data, filter]);
 
   const counts = useMemo(() => {
     const now = Date.now();
@@ -109,69 +117,125 @@ export function AppointmentsPage() {
 
   const open = appointments.data?.find((row) => row.id === openId) ?? null;
   const setOpen = (id: string | null) => update({ open: id }, !id);
-  const replace = (next: Appointment) =>
+  const replace = (next: Appointment) => {
     appointments.setData((list) => (list ?? []).map((row) => (row.id === next.id ? next : row)));
+    void free.refetch();
+  };
+
+  // A booking dropped on a free time in the week: ask, then move it (the customer is emailed).
+  const [moveTo, setMoveTo] = useState<{ row: Appointment; date: string; time: string } | null>(null);
+  const [moving, setMoving] = useState(false);
+  const move = async () => {
+    if (!moveTo) return;
+    setMoving(true);
+    try {
+      replace(await api.put<Appointment>(`/appointments/${moveTo.row.id}`, { date: moveTo.date, time: moveTo.time }));
+      toast.success('Moved. The customer has been emailed.');
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'That did not move.');
+      void free.refetch();
+    } finally {
+      setMoving(false);
+      setMoveTo(null);
+    }
+  };
 
   if (appointments.error) return <ErrorState message={appointments.error} onRetry={appointments.refetch} />;
   if (!appointments.data) return <LoadingState label="Loading bookings…" />;
 
-  const todayKey = dayKey(new Date().toISOString());
-
-  // A day picked in the calendar: show its list, then scroll to it.
-  const jump = (key: string) => {
-    const row = appointments.data?.find((item) => item.status === 'Confirmed' && dayKey(item.starts_at) === key);
-    if (!row) return;
-    setTab(Date.parse(row.ends_at) >= Date.now() ? 'upcoming' : 'past');
-    requestAnimationFrame(() =>
-      document.getElementById(`day-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-    );
-  };
+  const tall = 'pointer-coarse:min-h-12';
+  const askedDate = params.get('date') ?? '';
+  const askedTime = params.get('time') ?? '';
 
   return (
-    <div className="grid items-start gap-x-10 gap-y-8 px-5 pb-16 pt-6 sm:px-8 lg:pt-8 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0">
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-        <Tabs
-          tabs={[
-            { id: 'upcoming', label: 'Upcoming', count: counts.upcoming },
-            { id: 'past', label: 'Past', count: counts.past },
-            { id: 'cancelled', label: 'Cancelled', count: counts.cancelled },
-          ]}
-          active={tab}
-          onChange={(id) => setTab(id as Tab)}
-        />
-        <span className="mb-4">
-          <Button variant="primary" icon={<CalendarPlus size={16} />} onClick={() => setCreating(true)}>
+    <div className="flex h-full flex-col px-5 pb-5 pt-3 sm:px-8">
+      {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
+      <PageHeader title="" />
+
+      <div className="mb-4 flex shrink-0 flex-wrap items-center gap-3">
+        <div className="[&>div]:mb-0">
+          <Tabs tabs={MODES} active={mode} onChange={(id) => setMode(id as Mode)} />
+        </div>
+        {mode === 'list' ? (
+          <div className="[&>div]:mb-0">
+            <Tabs
+              tabs={[
+                { id: 'upcoming', label: 'Upcoming', count: counts.upcoming },
+                { id: 'past', label: 'Past', count: counts.past },
+                { id: 'cancelled', label: 'Cancelled', count: counts.cancelled },
+              ]}
+              active={filter}
+              onChange={(id) => setFilter(id as Filter)}
+            />
+          </div>
+        ) : null}
+        <div className="max-sm:w-full sm:ml-auto">
+          <Button
+            variant="primary"
+            className={clsx(tall, 'max-sm:w-full')}
+            icon={<Plus size={16} aria-hidden="true" />}
+            onClick={() => update({ new: '1' })}
+          >
             New booking
           </Button>
-        </span>
+        </div>
       </div>
 
-      {groups.length === 0 ? (
+      {mode === 'week' ? (
+        <WeekCalendar
+          bookings={confirmed}
+          free={free.data}
+          loading={free.loading}
+          error={free.error}
+          onRetry={free.refetch}
+          anchor={anchor}
+          onAnchor={setAnchor}
+          today={today}
+          narrow={narrow}
+          onOpen={setOpen}
+          onBook={(date, time) => {
+            setAnchor(date);
+            update({ new: '1', date, time });
+          }}
+          onMove={(row, date, time) => setMoveTo({ row, date, time })}
+        />
+      ) : mode === 'month' ? (
+        <MonthCalendar
+          bookings={confirmed}
+          anchor={anchor}
+          onAnchor={setAnchor}
+          today={today}
+          onOpen={setOpen}
+          onPickDay={(key) => {
+            setAnchor(key);
+            setMode('week');
+          }}
+        />
+      ) : groups.length === 0 ? (
         <EmptyState
-          title={tab === 'upcoming' ? 'Nothing booked yet' : tab === 'past' ? 'No past bookings' : 'Nothing cancelled'}
+          title={filter === 'upcoming' ? 'Nothing booked yet' : filter === 'past' ? 'No past bookings' : 'Nothing cancelled'}
           message={
-            tab === 'upcoming'
+            filter === 'upcoming'
               ? 'Bookings made on the website appear here straight away.'
-              : tab === 'past'
+              : filter === 'past'
                 ? 'Consultations move here once they have happened.'
                 : 'Cancelled bookings are kept here for the record.'
           }
           action={
-            tab === 'upcoming' ? (
-              <Button variant="primary" icon={<CalendarPlus size={16} />} onClick={() => setCreating(true)}>
+            filter === 'upcoming' ? (
+              <Button variant="primary" icon={<CalendarPlus size={16} />} onClick={() => update({ new: '1' })}>
                 New booking
               </Button>
             ) : null
           }
         />
       ) : (
-        <div className="mt-2 flex flex-col gap-8">
+        <div className="flex min-h-0 flex-1 flex-col gap-8 overflow-y-auto">
           {groups.map(([key, rows]) => (
-            <section key={key} id={`day-${key}`} className="scroll-mt-4" aria-label={DAY.format(new Date(rows[0]!.starts_at))}>
+            <section key={key} aria-label={DAY.format(new Date(rows[0]!.starts_at))}>
               <h2 className="mb-2 flex items-baseline gap-2 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
                 {DAY.format(new Date(rows[0]!.starts_at))}
-                {key === todayKey ? <span className="normal-case tracking-normal text-green-900 dark:text-ink">Today</span> : null}
+                {key === today ? <span className="normal-case tracking-normal text-green-900 dark:text-ink">Today</span> : null}
               </h2>
               <ul className="rounded-card bg-surface p-1.5 shadow-soft">
                 {rows.map((row) => (
@@ -202,9 +266,6 @@ export function AppointmentsPage() {
           ))}
         </div>
       )}
-      </div>
-
-      <MonthGlance appointments={appointments.data} today={todayKey} onPick={jump} />
 
       {open ? (
         <AppointmentDialog
@@ -214,128 +275,40 @@ export function AppointmentsPage() {
           onDeleted={(id) => {
             setOpen(null);
             appointments.setData((list) => (list ?? []).filter((row) => row.id !== id));
+            void free.refetch();
           }}
         />
       ) : null}
-      <NewBookingDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        onCreated={(row) => {
-          appointments.setData((list) => [...(list ?? []), row].sort((a, b) => a.starts_at.localeCompare(b.starts_at)));
-          setTab('upcoming');
-        }}
+      {creating ? (
+        <NewBookingDialog
+          initial={ISO_DAY.test(askedDate) && /^\d{1,2}:\d{2}$/.test(askedTime) ? { date: askedDate, time: askedTime } : null}
+          onClose={closeForm}
+          onCreated={(row) => {
+            appointments.setData((list) => [...(list ?? []), row].sort((a, b) => a.starts_at.localeCompare(b.starts_at)));
+            setAnchor(dayKey(row.starts_at));
+            void free.refetch();
+          }}
+        />
+      ) : null}
+      <ConfirmDialog
+        open={!!moveTo}
+        title={`Move ${moveTo?.row.name ?? ''}'s consultation?`}
+        message={
+          moveTo
+            ? `From ${DAY.format(new Date(moveTo.row.starts_at))} at ${at(moveTo.row.starts_at)} to ${DAY.format(new Date(`${moveTo.date}T12:00:00Z`))} at ${clock(moveTo.time)}. They are emailed the change.`
+            : ''
+        }
+        confirmLabel="Move and email"
+        tone="primary"
+        pending={moving}
+        onConfirm={() => void move()}
+        onCancel={() => setMoveTo(null)}
       />
     </div>
   );
 }
 
 /* -------------------------------------------------------------------------- */
-
-const MONTH_NAME = new Intl.DateTimeFormat('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-const pad = (n: number) => String(n).padStart(2, '0');
-
-/** The month at a glance: how many consultations each day holds. A day with any jumps to it. */
-function MonthGlance({
-  appointments,
-  today,
-  onPick,
-}: {
-  appointments: Appointment[];
-  today: string;
-  onPick: (key: string) => void;
-}) {
-  const [view, setView] = useState(today.slice(0, 7));
-  const [year, month] = view.split('-').map(Number) as [number, number];
-  const days = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const offset = (new Date(Date.UTC(year, month - 1, 1)).getUTCDay() + 6) % 7;
-  const perDay = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const row of appointments) {
-      if (row.status !== 'Confirmed') continue;
-      const key = dayKey(row.starts_at);
-      map.set(key, (map.get(key) ?? 0) + 1);
-    }
-    return map;
-  }, [appointments]);
-  const inMonth = [...perDay.entries()].filter(([key]) => key.startsWith(view)).reduce((sum, [, n]) => sum + n, 0);
-  const move = (delta: number) => {
-    const next = new Date(Date.UTC(year, month - 1 + delta, 1));
-    setView(`${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}`);
-  };
-
-  return (
-    <aside id="month" aria-label="Month at a glance" className="scroll-mt-6 xl:sticky xl:top-6">
-      <div className="rounded-card bg-surface p-4 shadow-soft">
-        <div className="mb-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => move(-1)}
-            aria-label="Previous month"
-            className="flex h-8 w-8 items-center justify-center rounded-control text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
-          >
-            <CaretLeft size={16} aria-hidden="true" />
-          </button>
-          <span className="text-sm font-semibold text-ink" aria-live="polite">
-            {MONTH_NAME.format(new Date(Date.UTC(year, month - 1, 1)))}
-          </span>
-          <button
-            type="button"
-            onClick={() => move(1)}
-            aria-label="Next month"
-            className="flex h-8 w-8 items-center justify-center rounded-control text-ink-muted hover:bg-ink/[0.06] hover:text-ink"
-          >
-            <CaretRight size={16} aria-hidden="true" />
-          </button>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5 text-center">
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, i) => (
-            <span key={i} className="py-1 text-[11px] font-semibold text-ink-muted">
-              {day}
-            </span>
-          ))}
-          {Array.from({ length: offset }, (_, i) => (
-            <span key={`blank-${i}`} />
-          ))}
-          {Array.from({ length: days }, (_, i) => {
-            const key = `${view}-${pad(i + 1)}`;
-            const count = perDay.get(key) ?? 0;
-            return (
-              <button
-                key={key}
-                type="button"
-                disabled={!count}
-                onClick={() => onPick(key)}
-                aria-label={`${i + 1}: ${count ? `${count} booked` : 'nothing booked'}`}
-                className={clsx(
-                  'tabular relative mx-auto flex h-9 w-9 flex-col items-center justify-center rounded-full text-[13px] transition-colors',
-                  count ? 'bg-green-100 font-semibold text-green-900 hover:bg-green-900 hover:text-on-primary' : 'text-ink-muted',
-                  key === today && 'ring-1 ring-inset ring-green-900/50',
-                )}
-              >
-                {i + 1}
-                {count > 1 ? (
-                  <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-green-900 px-1 text-[10px] text-on-primary">
-                    {count}
-                  </span>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-[13px] text-ink-muted">
-          {inMonth ? `${inMonth} consultation${inMonth === 1 ? '' : 's'} this month.` : 'Nothing booked this month.'}
-        </p>
-      </div>
-      <p className="mt-3 px-1 text-[13px] leading-relaxed text-ink-muted">
-        Opening hours, breaks and the booking form&apos;s questions are in{' '}
-        <Link to="/settings/booking" className="text-link">
-          Settings › Booking
-        </Link>
-        .
-      </p>
-    </aside>
-  );
-}
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -546,20 +519,21 @@ const FIELD_LABELS = { phone: 'Phone', address: 'Address', postcode: 'Postcode',
  * gets the same confirmation email as a website booking.
  */
 function NewBookingDialog({
-  open,
+  initial,
   onClose,
   onCreated,
 }: {
-  open: boolean;
+  /** A free time clicked in the week. */
+  initial: { date: string; time: string } | null;
   onClose: () => void;
   onCreated: (row: Appointment) => void;
 }) {
   const toast = useToast();
-  const services = useQuery<CmsEntrySummary[]>(open ? '/cms/collections/services' : null);
+  const services = useQuery<CmsEntrySummary[]>('/cms/collections/services');
   const [rules, setRules] = useState<StaffAvailability | null>(null);
   const [service, setService] = useState('');
-  const [date, setDate] = useState<string | null>(null);
-  const [time, setTime] = useState<string | null>(null);
+  const [date, setDate] = useState<string | null>(initial?.date ?? null);
+  const [time, setTime] = useState<string | null>(initial?.time ?? null);
   const [form, setForm] = useState({ name: '', email: '', phone: '', address: '', postcode: '', notes: '' });
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -609,7 +583,7 @@ function NewBookingDialog({
   const heading = 'mb-3 text-[13px] font-semibold uppercase tracking-[0.06em] text-ink-muted';
 
   return (
-    <Modal open={open} onClose={close} title="New booking" description="Book a consultation for a customer." width="lg">
+    <Modal open onClose={close} title="New booking" description="Book a consultation for a customer." width="lg">
       <form onSubmit={submit} className="flex flex-col gap-8" noValidate>
         <section aria-labelledby="new-service">
           <h3 id="new-service" className={heading}>
@@ -635,22 +609,20 @@ function NewBookingDialog({
           </div>
         </section>
 
-        {open ? (
-          <section aria-labelledby="new-when">
-            <h3 id="new-when" className={heading}>
-              2. When
-            </h3>
-            <DayTimePicker
-              date={date}
-              time={time}
-              onRules={setRules}
-              onChange={(d, t) => {
-                setDate(d);
-                setTime(t);
-              }}
-            />
-          </section>
-        ) : null}
+        <section aria-labelledby="new-when">
+          <h3 id="new-when" className={heading}>
+            2. When
+          </h3>
+          <DayTimePicker
+            date={date}
+            time={time}
+            onRules={setRules}
+            onChange={(d, t) => {
+              setDate(d);
+              setTime(t);
+            }}
+          />
+        </section>
 
         <section aria-labelledby="new-who">
           <h3 id="new-who" className={heading}>

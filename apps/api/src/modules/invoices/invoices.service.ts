@@ -559,7 +559,7 @@ export class InvoicesService {
   }
 
   /** The company block printed at the top. One indexed read per request, however many invoices. */
-  private async issuer(): Promise<Issuer> {
+  async issuer(): Promise<Issuer> {
     const entry = await this.db.cmsEntries.findFirstWhere({ collection: 'company' });
     const company = (entry?.published ?? entry?.draft ?? {}) as {
       legalName?: string;

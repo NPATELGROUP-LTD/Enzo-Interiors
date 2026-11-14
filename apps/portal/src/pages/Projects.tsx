@@ -22,9 +22,7 @@ export function ProjectsPage() {
 
   return (
     <>
-      <PageHeader
-        title="My Projects"
-      />
+      <PageHeader title="" />
 
       {error ? (
         <ErrorState message={error} onRetry={refetch} />
@@ -45,7 +43,6 @@ export function ProjectsPage() {
             <Card
               key={project.id}
               accent={approvals.includes(project.status) ? 'warning' : 'none'}
-              className={approvals.includes(project.status) ? 'pl-5' : undefined}
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">

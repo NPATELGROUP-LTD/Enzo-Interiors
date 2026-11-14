@@ -3,7 +3,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { AlertKind, AlertSettings, AlertSource } from '../common/types/domain';
 import { DatabaseService } from '../data/database.service';
 import { clean, fingerprint } from './alert-scrub';
-import { MailService, templates } from './mail.service';
+import { ALERT_SAMPLES, guidance, type AlertSample } from './alert-samples';
+import { MailService, templates, type AlertExtra } from './mail.service';
 
 export interface Alert {
   kind: AlertKind;
@@ -18,6 +19,14 @@ export interface Alert {
 const SITE = process.env.ALERT_SITE ?? 'Enzo';
 const RELEASE = (process.env.RELEASE ?? '').slice(0, 12) || null;
 const SETTINGS_ID = 'alerts';
+const ADMIN_URL = (process.env.ADMIN_URL ?? 'http://localhost:5174').replace(/\/+$/, '');
+const SOURCE_NAME: Record<AlertSource, string> = {
+  api: 'API server',
+  web: 'Public website',
+  admin: 'Admin app (browser)',
+  portal: 'Client portal (browser)',
+  system: 'Background job or email',
+};
 const LONDON = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'medium', timeZone: 'Europe/London' });
 
 /** The same problem is emailed once per window, with a count of what it skipped. */
@@ -91,15 +100,25 @@ export class AlertService {
     return value;
   }
 
-  /** From Settings › Alerts: goes out at once, past the windows and caps, so the sender and the folder rules can be checked. */
-  async sendTest(kind: AlertKind): Promise<{ sent: boolean; to: string[] }> {
+  /** The kinds of alert there are, with sample data, for Settings › Alerts. */
+  samples(): Array<AlertSample & { rows: Array<[string, string]>; impact: string; next: string }> {
+    return ALERT_SAMPLES.map((sample) => {
+      const { rows, extra } = this.compose(sample, { now: this.now(), skipped: 0, test: true });
+      return { ...sample, rows, impact: extra.impact, next: extra.next };
+    });
+  }
+
+  /**
+   * From Settings › Alerts: one sample alert, laid out exactly as a real one, goes
+   * out at once (past the windows and caps) so the sender, the folder rules and
+   * the wording can be checked. The subject says it is a test.
+   */
+  async sendTest(sampleId: string): Promise<{ sent: boolean; to: string[] }> {
+    const sample = ALERT_SAMPLES.find((row) => row.id === sampleId) ?? ALERT_SAMPLES[0]!;
     const to = await this.recipients();
     if (!to.length) return { sent: false, to };
-    const sent = await this.deliver(to, `[${SITE}][${kind.toUpperCase()}] Test alert`, [
-      ['What', 'A test from Settings › Alerts. Nothing is wrong.'],
-      ['Sent from', this.sender],
-      ['When', LONDON.format(new Date(this.now()))],
-    ]);
+    const { rows, extra } = this.compose(sample, { now: this.now(), skipped: 0, test: true });
+    const sent = await this.deliver(to, `[${SITE}][${sample.kind.toUpperCase()}][TEST] ${sample.title}`, rows, extra);
     return { sent, to };
   }
 
@@ -165,7 +184,7 @@ export class AlertService {
       await this.deliver(to, `[${SITE}][${alert.kind.toUpperCase()}] Alert limit reached`, [
         ['What', `More than ${cap} ${name} alerts this hour. The rest are recorded, and not emailed until the hour is up.`],
         ['When', LONDON.format(new Date(now))],
-      ]);
+      ], { band: alert.kind, impact: 'Alerts from this source are being recorded but not emailed until the hour is up.', next: 'Open alerts to see what is repeating, and fix the cause: the cap only stops the email, not the problem.', link: { label: 'Open alerts', url: `${ADMIN_URL}/settings/alerts` } });
       return;
     }
     bucket.sent += 1;
@@ -173,19 +192,34 @@ export class AlertService {
     this.sent.set(id, { at: now, skipped: 0 });
     if (this.sent.size > REMEMBER) this.sent.delete(this.sent.keys().next().value as string);
 
-    const rows: Array<[string, string]> = [['What', alert.title]];
+    const { rows, extra } = this.compose(alert, { now, skipped: seen?.skipped ?? 0 });
+    await this.deliver(to, `[${SITE}][${alert.kind.toUpperCase()}] ${alert.title}`, rows, extra);
+  }
+
+  /** The facts and the guidance of one alert, as the email shows them. */
+  private compose(
+    alert: Alert,
+    ctx: { now: number; skipped: number; test?: boolean },
+  ): { rows: Array<[string, string]>; extra: AlertExtra } {
+    const rows: Array<[string, string]> = [['What happened', alert.title]];
     if (alert.route) rows.push(['Where', alert.route]);
     if (alert.location) rows.push(['In', alert.location]);
     if (alert.status) rows.push(['Status', String(alert.status)]);
-    rows.push(['From', alert.source]);
+    rows.push(['Source', SOURCE_NAME[alert.source]]);
+    rows.push(['Site', SITE]);
     if (RELEASE) rows.push(['Release', RELEASE]);
-    if (seen?.skipped) rows.push(['Since the last email', `${seen.skipped} more time${seen.skipped === 1 ? '' : 's'}`]);
-    rows.push(['When', LONDON.format(new Date(now))]);
-    await this.deliver(to, `[${SITE}][${alert.kind.toUpperCase()}] ${alert.title}`, rows);
+    rows.push([
+      'Times seen',
+      ctx.test ? 'Sample' : ctx.skipped ? `Once, then ${ctx.skipped} more since the last email` : 'First time in the last 15 minutes',
+    ]);
+    rows.push(['When', LONDON.format(new Date(ctx.now))]);
+    const { impact, next, pane } = guidance(alert.kind, alert.source);
+    const label = { alerts: 'Open alerts', health: 'Open health', security: 'Open the access log' }[pane];
+    return { rows, extra: { band: alert.kind, impact, next, link: { label, url: `${ADMIN_URL}/settings/${pane}` }, test: ctx.test } };
   }
 
-  private deliver(to: string[], subject: string, rows: Array<[string, string]>): Promise<boolean> {
-    return this.mail.send({ to, from: this.sender, ...templates.alert(subject, rows) });
+  private deliver(to: string[], subject: string, rows: Array<[string, string]>, extra?: AlertExtra): Promise<boolean> {
+    return this.mail.send({ to, from: this.sender, ...templates.alert(subject, rows, extra) });
   }
 }
 

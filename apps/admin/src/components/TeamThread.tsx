@@ -1,16 +1,20 @@
 import clsx from 'clsx';
-import { FileText, Paperclip, X } from '@phosphor-icons/react';
+import { ChatsCircle, FileText, Files, Paperclip, X } from '@phosphor-icons/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { Composer, MessageText, TOOL } from '@/components/chat';
 import { useFileViewer } from '@/components/FileViewer';
-import { Card, EmptyState, ErrorState, LoadingState } from '@/components/ui';
+import { Button, Card, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useAuth } from '@/lib/auth';
 import { ApiError, api } from '@/lib/api';
 import { date, fileSize, time } from '@/lib/format';
 import { connectSocket } from '@/lib/socket';
-import type { TeamMessage } from '@/types/api';
+import type { DocumentRecord, TeamMessage } from '@/types/api';
+
+/** A project document the thread can attach: what the picker needs. */
+export type ThreadDocument = Pick<DocumentRecord, 'id' | 'name' | 'size_bytes' | 'preview' | 'category'>;
 
 const ACCEPT = 'video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm,.jpg,.jpeg,.png,.webp,.pdf';
 const MAX_VIDEO = 100 * 1024 * 1024;
@@ -21,7 +25,16 @@ const MAX_FILE = 25 * 1024 * 1024;
  * socket (`team:message`), sending is a POST that the API also delivers live. Staff only:
  * the API refuses clients, and nothing here is shown in the portal.
  */
-export function TeamThread({ threadId, className }: { threadId: string; className?: string }) {
+export function TeamThread({
+  threadId,
+  className,
+  documents,
+}: {
+  threadId: string;
+  className?: string;
+  /** The project’s uploaded files, offered next to the paperclip. */
+  documents?: ThreadDocument[];
+}) {
   const toast = useToast();
   const files = useFileViewer();
   const { user } = useAuth();
@@ -30,6 +43,8 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [sending, setSending] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [fetching, setFetching] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const current = useRef(threadId);
@@ -69,6 +84,22 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
     const limit = picked.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(picked.name) ? MAX_VIDEO : MAX_FILE;
     if (picked.size > limit) return toast.error(limit === MAX_VIDEO ? 'Videos can be up to 100 MB.' : 'Files can be up to 25 MB.');
     setFile(picked);
+  };
+
+  // An uploaded project document goes into the thread as a file of its own (the API takes uploads, not references).
+  const attachDocument = async (doc: ThreadDocument) => {
+    setFetching(doc.id);
+    try {
+      const { url } = await api.get<{ url: string }>(`/documents/${doc.id}/download?inline=1`);
+      const response = await fetch(url);
+      if (!response.ok) throw new Error('download');
+      setFile(new File([await response.blob()], doc.name));
+      setPicking(false);
+    } catch {
+      toast.error('Could not attach that file. Upload it from your device instead.');
+    } finally {
+      setFetching(null);
+    }
   };
 
   const send = async () => {
@@ -166,6 +197,17 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
             <button type="button" onClick={() => picker.current?.click()} aria-label="Attach a photo, video or PDF" title="Attach a photo, video (up to 100 MB) or PDF" className={TOOL}>
               <Paperclip size={20} aria-hidden="true" />
             </button>
+            {documents ? (
+              <button
+                type="button"
+                onClick={() => setPicking(true)}
+                aria-label="Attach a file uploaded to this project"
+                title="Attach a file uploaded to this project"
+                className={TOOL}
+              >
+                <Files size={20} aria-hidden="true" />
+              </button>
+            ) : null}
             <input ref={picker} type="file" accept={ACCEPT} hidden onChange={(event) => choose(event.target.files?.[0])} />
           </>
         }
@@ -183,14 +225,66 @@ export function TeamThread({ threadId, className }: { threadId: string; classNam
           ) : null
         }
       />
+      <Modal
+        open={picking}
+        onClose={() => setPicking(false)}
+        title="Attach from this project"
+        description="Photos and PDFs uploaded to the project’s documents."
+        footer={
+          <Button variant="secondary" onClick={() => setPicking(false)}>
+            Cancel
+          </Button>
+        }
+      >
+        {(() => {
+          const usable = (documents ?? []).filter((doc) => doc.preview && doc.size_bytes <= MAX_FILE);
+          return usable.length === 0 ? (
+            <p className="py-4 text-center text-ink-muted">Nothing to attach yet. Upload photos or PDFs on the Documents tab.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {usable.map((doc) => (
+                <li key={doc.id}>
+                  <button
+                    type="button"
+                    disabled={fetching !== null}
+                    onClick={() => void attachDocument(doc)}
+                    className="flex min-h-11 w-full items-center gap-2 rounded-control px-2 text-left hover:bg-ink/[0.06] disabled:opacity-60"
+                  >
+                    <FileText size={18} aria-hidden="true" className="shrink-0 text-ink-muted" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-ink">{doc.name}</span>
+                      <span className="block text-xs text-ink-muted">
+                        {doc.category} · {fileSize(doc.size_bytes)}
+                      </span>
+                    </span>
+                    {fetching === doc.id ? <span className="text-xs text-ink-muted">Adding…</span> : null}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          );
+        })()}
+      </Modal>
     </div>
   );
 }
 
-/** A project's thread, as a card on the project page: everyone on the project and the Admins, no clients. */
-export function ProjectThread({ projectId }: { projectId: string }) {
+/**
+ * A project's thread: everyone on the project and the Admins, no clients. From lg up it is a card that fills
+ * its column; on a phone it is a button that opens the thread full screen, so it has a page of its own to type in.
+ */
+export function ProjectThread({ projectId, documents }: { projectId: string; documents?: ThreadDocument[] }) {
   const [thread, setThread] = useState<{ id: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  // Only one copy is mounted, so a hidden thread never opens a second socket listener.
+  const [wide, setWide] = useState(() => window.matchMedia('(min-width: 1024px)').matches);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 1024px)');
+    const onChange = () => setWide(query.matches);
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, []);
   useEffect(() => {
     let live = true;
     api
@@ -201,12 +295,58 @@ export function ProjectThread({ projectId }: { projectId: string }) {
       live = false;
     };
   }, [projectId]);
+  useEffect(() => {
+    if (!open) return;
+    const escape = (event: KeyboardEvent) => event.key === 'Escape' && setOpen(false);
+    document.addEventListener('keydown', escape);
+    return () => document.removeEventListener('keydown', escape);
+  }, [open]);
+
+  const body = error ? (
+    <ErrorState message={error} />
+  ) : thread ? (
+    <TeamThread threadId={thread.id} documents={documents} className="min-h-0 flex-1" />
+  ) : (
+    <LoadingState label="Opening the thread…" />
+  );
+
+  if (wide)
+    return (
+      <Card className="flex min-h-0 flex-col">
+        <h2 className="pb-1 text-sm font-semibold text-ink">Team thread</h2>
+        <p className="pb-2 text-xs text-ink-muted">Messages, photos and videos for everyone on this project and the Admins. Clients never see this.</p>
+        {body}
+      </Card>
+    );
 
   return (
-    <Card className="flex h-[36rem] flex-col xl:sticky xl:top-6">
-      <h2 className="pb-1 text-sm font-semibold text-ink">Team thread</h2>
-      <p className="pb-2 text-xs text-ink-muted">Messages, photos and videos for everyone on this project and the Admins. Clients never see this.</p>
-      {error ? <ErrorState message={error} /> : thread ? <TeamThread threadId={thread.id} className="min-h-0 flex-1" /> : <LoadingState label="Opening the thread…" />}
-    </Card>
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.75rem)] right-4 z-30 flex min-h-12 items-center gap-2 rounded-full bg-green-900 px-4 text-sm font-semibold text-on-primary shadow-overlay"
+      >
+        <ChatsCircle size={20} aria-hidden="true" />
+        Team thread
+      </button>
+      {open
+        ? createPortal(
+        <div role="dialog" aria-modal="true" aria-label="Team thread" className="fixed inset-0 z-[60] flex flex-col bg-canvas pb-[env(safe-area-inset-bottom)]">
+          <div className="flex shrink-0 justify-end border-b border-border px-2 py-1.5">
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              className="flex min-h-11 items-center gap-1.5 rounded-control px-3 text-sm font-semibold text-ink-muted hover:bg-ink/[0.07] hover:text-ink"
+            >
+              <X size={18} aria-hidden="true" />
+              Close
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col px-4 pb-3 pt-3">{body}</div>
+        </div>,
+        document.body,
+      )
+        : null}
+    </>
   );
 }

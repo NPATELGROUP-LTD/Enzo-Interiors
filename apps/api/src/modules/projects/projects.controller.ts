@@ -74,8 +74,9 @@ export class ProjectsController {
     return this.projects.detail(principal, id);
   }
 
+  /** A Designer creates projects for clients they can see; ProjectsService pins the rest. */
   @Post()
-  @Roles('Admin')
+  @Roles('Admin', 'Designer')
   create(@CurrentUser() principal: AuthPrincipal, @Body() dto: CreateProjectDto) {
     return this.projects.create(principal, dto);
   }
