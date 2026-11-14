@@ -1,0 +1,319 @@
+# Enzo Interiors — PRE-PROD on Coolify (branch pre-prod). Same stack as docker-compose.preprod.yml
+# (the laptop version), with Traefik routing instead of host ports.
+#
+# Coolify: new resource > Docker Compose > this repo, branch pre-prod, compose file
+# /docker-compose.coolify.yml, then paste .env.coolify into Environment Variables.
+#
+#   - services are named pp-* so they never clash with other stacks on the shared `coolify` network;
+#   - hosts come from env (WEB_HOST, ADMIN_HOST, PORTAL_HOST, API_HOST, MEDIA_HOST, MAIL_HOST),
+#     required, routed by Traefik on its http entrypoint (Cloudflare/Coolify does the https);
+#   - own database, MinIO and Redis; mail goes to the bundled Mailpit (MAIL_HOST); Google is off.
+#   - the web/admin/portal images bake the public URLs in: change a host, redeploy with a rebuild.
+name: enzo-interiors-preprod
+
+x-node-health: &node-health
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 45s
+
+services:
+  pp-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    networks: [preprod]
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-enzo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?run node scripts/preprod-env.mjs}
+      POSTGRES_DB: ${POSTGRES_DB:-enzo}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-enzo} -d ${POSTGRES_DB:-enzo}']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  pp-minio:
+    # Same pinned release as docker-compose.yml (MinIO stopped publishing images).
+    image: bitnamilegacy/minio:2025.4.22
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-media.rule=Host(`${MEDIA_HOST:?set MEDIA_HOST}`)
+      - traefik.http.routers.enzo-preprod-media.entrypoints=http
+      - traefik.http.services.enzo-preprod-media.loadbalancer.server.port=9000
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:?run node scripts/preprod-env.mjs}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:?run node scripts/preprod-env.mjs}
+    volumes:
+      - minio-data:/bitnami/minio/data
+    healthcheck:
+      test: ['CMD-SHELL', 'curl -fsS http://localhost:9000/minio/health/ready']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Creates both buckets; only the marketing one is public-read.
+  pp-minio-init:
+    image: bitnamilegacy/minio-client:2025.4.16
+    networks: [preprod]
+    depends_on:
+      pp-minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      set -e &&
+      until mc alias set enzo http://pp-minio:9000 '${S3_ACCESS_KEY_ID}' '${S3_SECRET_ACCESS_KEY}'; do
+        echo 'minio not ready, retrying...'; sleep 2;
+      done &&
+      mc mb --ignore-existing enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      mc mb --ignore-existing enzo/${S3_PRIVATE_BUCKET:-enzo-private} &&
+      mc anonymous set download enzo/${S3_PUBLIC_BUCKET:-enzo-public} &&
+      echo 'Buckets ready.'
+      "
+    restart: 'no'
+
+  # Rate-limit counters only; nothing to keep.
+  pp-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    networks: [preprod]
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-ttl"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Catches every email the API sends (sign-in codes, invites, enquiries). UI on :18025.
+  pp-mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-mail.rule=Host(`${MAIL_HOST:?set MAIL_HOST}`)
+      - traefik.http.routers.enzo-preprod-mail.entrypoints=http
+      - traefik.http.services.enzo-preprod-mail.loadbalancer.server.port=8025
+
+  pp-api:
+    image: enzo-interiors-preprod-api:latest
+    build:
+      context: ./apps/api
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-api.rule=Host(`${API_HOST:?set API_HOST}`)
+      - traefik.http.routers.enzo-preprod-api.entrypoints=http
+      - traefik.http.services.enzo-preprod-api.loadbalancer.server.port=4000
+    depends_on:
+      pp-postgres:
+        condition: service_healthy
+      pp-minio-init:
+        condition: service_completed_successfully
+      # Always exits 0, so a failed import never keeps the API down.
+      pp-seed:
+        condition: service_completed_successfully
+      pp-mailpit:
+        condition: service_started
+    environment:
+      NODE_ENV: production
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@pp-postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?run node scripts/preprod-env.mjs}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_NAME: ${ADMIN_NAME:-}
+      CORS_ORIGINS: ${ADMIN_URL},${PORTAL_URL},${WEB_PUBLIC_URL}
+      ADMIN_URL: ${ADMIN_URL}
+      PORTAL_URL: ${PORTAL_URL}
+      WEB_PUBLIC_URL: ${WEB_PUBLIC_URL}
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      REDIS_URL: redis://pp-redis:6379
+      TRUST_PROXY: ${TRUST_PROXY:-1}
+      TRUST_CLOUDFLARE: ${TRUST_CLOUDFLARE:-}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?run node scripts/preprod-env.mjs}
+      DISABLE_2FA: ${DISABLE_2FA:-}
+      # Google is deliberately off here: unset = no Google buttons.
+      GOOGLE_CLIENT_ID: ''
+      GOOGLE_CLIENT_SECRET: ''
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:preprod@enzo.test}
+      SMTP_HOST: pp-mailpit
+      SMTP_PORT: 1025
+      SMTP_SECURE: 'false'
+      MAIL_FROM: ${MAIL_FROM:-Enzo Interiors (pre-prod) <no-reply@enzo.test>}
+      ALERT_FROM: ''
+      ALERT_TO: ${ALERT_TO:-}
+      ALERT_SHARED_SECRET: ${ALERT_SHARED_SECRET:?run node scripts/preprod-env.mjs}
+      WEB_REVALIDATE_URL: http://pp-web:3000/api/revalidate
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET:?run node scripts/preprod-env.mjs}
+      S3_ENDPOINT: http://pp-minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-enzo-private}
+      S3_PUBLIC_BASE_URL: ${MEDIA_BASE_URL:?run node scripts/preprod-env.mjs}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
+
+  # One-shot on every `up`: migrations, then the shipped content into the CMS.
+  # Retries three times and always exits 0. By hand:
+  #   docker compose --env-file .env.preprod -f docker-compose.preprod.yml run --rm seed
+  pp-seed:
+    image: enzo-interiors-preprod-seed:latest
+    build:
+      context: ./apps/api
+      target: seed
+      additional_contexts:
+        webdata: ./apps/web/src/data
+        seedmedia: ./apps/api/seed-media
+    networks: [preprod]
+    depends_on:
+      pp-postgres:
+        condition: service_healthy
+      pp-minio-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-enzo}:${POSTGRES_PASSWORD}@pp-postgres:5432/${POSTGRES_DB:-enzo}?schema=public
+      S3_ENDPOINT: http://pp-minio:9000
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_PUBLIC_BUCKET: ${S3_PUBLIC_BUCKET:-enzo-public}
+      S3_PRIVATE_BUCKET: ${S3_PRIVATE_BUCKET:-enzo-private}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY}
+    command:
+      - sh
+      - -c
+      - |
+        for try in 1 2 3; do
+          timeout 300 npx prisma migrate deploy && timeout 900 npx tsx scripts/import-content.ts && { timeout 300 npx tsx scripts/mock-data.ts seed || echo 'Mock data failed; the site still works.'; exit 0; }
+          echo "Content import: try $$try failed."; sleep 10
+        done
+        echo 'Content import FAILED three times. The API starts anyway; fix and redeploy, or run the seed service by hand.'
+        exit 0
+    restart: 'no'
+
+  pp-web:
+    image: enzo-interiors-preprod-web:latest
+    build:
+      context: ./apps/web
+      args:
+        NEXT_PUBLIC_API_BASE_URL: http://pp-api:4000
+        NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL:?run node scripts/preprod-env.mjs}
+        NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+        SITE_URL: ${WEB_PUBLIC_URL}
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-web.rule=Host(`${WEB_HOST:?set WEB_HOST}`)
+      - traefik.http.routers.enzo-preprod-web.entrypoints=http
+      - traefik.http.services.enzo-preprod-web.loadbalancer.server.port=3000
+    depends_on:
+      pp-api:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_BASE_URL: http://pp-api:4000
+      NEXT_PUBLIC_API_PUBLIC_URL: ${API_PUBLIC_URL}
+      NEXT_PUBLIC_MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+      SITE_URL: ${WEB_PUBLIC_URL}
+      REVALIDATE_SECRET: ${REVALIDATE_SECRET}
+      ALERT_SHARED_SECRET: ${ALERT_SHARED_SECRET}
+      CONTENT_REVALIDATE_SECONDS: ${CONTENT_REVALIDATE_SECONDS:-3600}
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      <<: *node-health
+
+  pp-admin:
+    image: enzo-interiors-preprod-admin:latest
+    build:
+      context: ./apps/admin
+      args:
+        VITE_API_BASE_URL: ${API_PUBLIC_URL:?run node scripts/preprod-env.mjs}
+        VITE_WEB_URL: ${WEB_PUBLIC_URL}
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-admin.rule=Host(`${ADMIN_HOST:?set ADMIN_HOST}`)
+      - traefik.http.routers.enzo-preprod-admin.entrypoints=http
+      - traefik.http.services.enzo-preprod-admin.loadbalancer.server.port=80
+    depends_on:
+      pp-api:
+        condition: service_healthy
+    environment:
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+  pp-portal:
+    image: enzo-interiors-preprod-portal:latest
+    build:
+      context: ./apps/portal
+      args:
+        VITE_API_BASE_URL: ${API_PUBLIC_URL:?run node scripts/preprod-env.mjs}
+    restart: unless-stopped
+    networks: [preprod, coolify]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=coolify
+      - traefik.http.routers.enzo-preprod-portal.rule=Host(`${PORTAL_HOST:?set PORTAL_HOST}`)
+      - traefik.http.routers.enzo-preprod-portal.entrypoints=http
+      - traefik.http.services.enzo-preprod-portal.loadbalancer.server.port=80
+    depends_on:
+      pp-api:
+        condition: service_healthy
+    environment:
+      API_PUBLIC_URL: ${API_PUBLIC_URL}
+      MEDIA_BASE_URL: ${MEDIA_BASE_URL}
+    healthcheck:
+      test: ['CMD', 'wget', '--spider', '-q', 'http://127.0.0.1/']
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+networks:
+  # The stack's own network (created with it); services talk over this one.
+  preprod:
+    name: enzo-preprod-net
+    driver: bridge
+  # Coolify's shared network: only so Traefik can reach the labelled services.
+  coolify:
+    external: true
+
+volumes:
+  postgres-data:
+  minio-data:

@@ -1,8 +1,0 @@
-title = "Enzo gitleaks"
-
-[extend]
-useDefault = true
-
-[allowlist]
-description = "Throwaway keys the CI workflow gives its disposable test database"
-paths = ['''\.github/workflows/ci\.yml''']
