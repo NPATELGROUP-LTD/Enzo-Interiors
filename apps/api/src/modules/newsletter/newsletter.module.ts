@@ -315,43 +315,11 @@ export class NewsletterService implements OnApplicationBootstrap {
     this.sending.add(id);
     try {
       for (;;) {
-        const campaign = await this.db.newsletterCampaigns.findById(id);
-        if (!campaign || campaign.status !== 'sending') return;
-        // The next batch after the cursor, in id order: a stable place to
-        // resume from, read through the (status, id) index.
-        const batch = await this.db.newsletterSubscribers.findWhere(
-          { status: 'confirmed', ...(campaign.cursor ? { id: { gt: campaign.cursor } } : {}) },
-          { orderBy: { id: 'asc' }, take: BATCH },
-        );
-        if (!batch.length) {
-          await this.db.newsletterCampaigns.update(id, {
-            status: 'sent',
-            sent_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-          this.logger.log(`Newsletter "${campaign.subject}" sent: ${campaign.sent_count} delivered, ${campaign.failed_count} failed.`);
-          return;
-        }
-        const text = campaignText(campaign.html);
-        let sent = 0;
-        for (const subscriber of batch) {
-          const unsubscribe = `${WEB_URL}/newsletter/unsubscribe?token=${subscriber.token}`;
-          const ok = await this.mail.send({
-            to: subscriber.email,
-            ...templates.newsletter(campaign.subject, campaign.html, text, unsubscribe),
-            headers: {
-              'List-Unsubscribe': `<${API_URL}/newsletter/unsubscribe?token=${subscriber.token}>`,
-              'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-            },
-          });
-          if (ok) sent += 1;
-        }
-        await this.db.newsletterCampaigns.update(id, {
-          cursor: batch[batch.length - 1]!.id,
-          sent_count: campaign.sent_count + sent,
-          failed_count: campaign.failed_count + batch.length - sent,
-          updated_at: new Date().toISOString(),
-        });
+        // One batch at a time across API instances: the cursor is read and moved under the lock,
+        // so two instances resuming the same campaign never send a batch twice. Lost lock = the other one carries on.
+        let more = false;
+        const held = await this.db.once(`newsletter:${id}`, async () => (more = await this.batch(id)), 10 * 60_000);
+        if (!held || !more) return;
         await sleep(PAUSE_MS);
       }
     } catch (error) {
@@ -361,6 +329,48 @@ export class NewsletterService implements OnApplicationBootstrap {
     } finally {
       this.sending.delete(id);
     }
+  }
+
+  /** Sends the next batch after the cursor and moves it on. False once there is nothing left to send. */
+  private async batch(id: string): Promise<boolean> {
+    const campaign = await this.db.newsletterCampaigns.findById(id);
+    if (!campaign || campaign.status !== 'sending') return false;
+    // The next batch after the cursor, in id order: a stable place to
+    // resume from, read through the (status, id) index.
+    const batch = await this.db.newsletterSubscribers.findWhere(
+      { status: 'confirmed', ...(campaign.cursor ? { id: { gt: campaign.cursor } } : {}) },
+      { orderBy: { id: 'asc' }, take: BATCH },
+    );
+    if (!batch.length) {
+      await this.db.newsletterCampaigns.update(id, {
+        status: 'sent',
+        sent_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+      this.logger.log(`Newsletter "${campaign.subject}" sent: ${campaign.sent_count} delivered, ${campaign.failed_count} failed.`);
+      return false;
+    }
+    const text = campaignText(campaign.html);
+    let sent = 0;
+    for (const subscriber of batch) {
+      const unsubscribe = `${WEB_URL}/newsletter/unsubscribe?token=${subscriber.token}`;
+      const ok = await this.mail.send({
+        to: subscriber.email,
+        ...templates.newsletter(campaign.subject, campaign.html, text, unsubscribe),
+        headers: {
+          'List-Unsubscribe': `<${API_URL}/newsletter/unsubscribe?token=${subscriber.token}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
+      });
+      if (ok) sent += 1;
+    }
+    await this.db.newsletterCampaigns.update(id, {
+      cursor: batch[batch.length - 1]!.id,
+      sent_count: campaign.sent_count + sent,
+      failed_count: campaign.failed_count + batch.length - sent,
+      updated_at: new Date().toISOString(),
+    });
+    return true;
   }
 }
 

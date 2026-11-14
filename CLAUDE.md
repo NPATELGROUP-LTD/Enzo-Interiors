@@ -426,9 +426,13 @@ re-checks each room member before delivery, so a signed-out/demoted socket is
 dropped; HTTP send/read go through the same `publish`/`read`. Nobody on the
 other side connected = email (no message text; staff via `notification_emails`
 + bell, client to `PORTAL_URL/messages`), once per conversation and side per
-15 min (`CacheService`). Single API instance: no Redis adapter; socket.io's
-default `/socket.io` path rides the API's Traefik host (WebSocket upgrade passes
-through Traefik and Cloudflare Tunnel as is).
+15 min (`CacheService`). Several API instances: with `REDIS_URL` set, rooms go
+through `@socket.io/redis-adapter`, and the admin and portal connect by WebSocket
+only (no sticky sessions needed); socket.io's default `/socket.io` path rides the
+API's Traefik host (WebSocket upgrade passes through Traefik and Cloudflare Tunnel
+as is). Timers: `InfraWatch.tick` claims each 5-minute slot in Redis; a newsletter
+sends each batch under `DatabaseService.once` (a Postgres advisory lock); the
+design purge, access-log purge and launch timer are safe to run on every instance.
 
 **Newsletter:** `newsletter_subscribers` (double opt-in: `pending` until the
 emailed link is clicked; only `confirmed` are sent to) and

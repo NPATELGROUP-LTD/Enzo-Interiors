@@ -20,7 +20,8 @@ export function connectSocket(): Socket | null {
   if (!tokenStore.get()) return null;
   socket = io(api.baseUrl, {
     auth: (send) => send({ token: tokenStore.get() }),
-    transports: ['websocket', 'polling'],
+    // WebSocket only: long-polling would hop between API instances (no sticky sessions). Pages still refetch every 60 s.
+    transports: ['websocket'],
     reconnectionDelay: 1000,
     reconnectionDelayMax: 30_000,
   });
