@@ -402,10 +402,6 @@ async function main(): Promise<void> {
     );
   }
 
-  // --force does not touch the unit library: an edited unit is the studio's own work.
-  const units = await importStarterLibrary(db);
-  console.log(`\nUnit library: ${units.added} added, ${units.refreshed} unedited updated, ${units.kept} edited kept.`);
-
   await prisma.$disconnect();
 }
 
