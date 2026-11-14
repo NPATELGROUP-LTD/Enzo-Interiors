@@ -76,6 +76,8 @@ services:
       JWT_SECRET: ${JWT_SECRET:?}
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
       APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:?prod's value, so 2FA secrets decrypt}
+      # Test copies only: staff sign in with a password alone. Unset (default) keeps two-step on.
+      DISABLE_2FA: ${DISABLE_2FA:-}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ADMIN_NAME: ${ADMIN_NAME:-}
