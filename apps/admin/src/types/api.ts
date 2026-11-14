@@ -120,6 +120,10 @@ export interface Client {
   joined_date: string;
   /** Admin only: a Designer's copy of a client has no money in it. */
   total_spent?: number;
+  /** In the client list only: projects in your scope not yet completed. */
+  active_projects?: number;
+  /** In the client list, Admin only: invoices still to be paid. */
+  outstanding?: number;
   notes: string | null;
   /** A portal password is stored (an invitation was sent, or they set their own). */
   has_portal_access: boolean;
@@ -347,13 +351,6 @@ export interface Conversation {
   message_count: number;
 }
 
-export interface SavedReply {
-  id: string;
-  staff_id: string | null;
-  title: string;
-  body: string;
-}
-
 export interface DocumentRecord {
   id: string;
   client_id: string;
@@ -524,6 +521,8 @@ export interface AdminDashboard {
     paid_this_month: number;
   };
   clients: { total: number; active: number };
+  /** Quotes sent and not yet answered. */
+  quotes: { sent: number };
   appointments_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
 }
@@ -622,4 +621,9 @@ export interface Quote {
   invoice_id: string | null;
   created_at: string;
   items: QuoteItem[];
+  /** For the letterhead sheet. */
+  issuer: InvoiceIssuer;
+  client_email: string | null;
+  client_phone: string | null;
+  job_address: string | null;
 }

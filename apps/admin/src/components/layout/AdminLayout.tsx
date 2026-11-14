@@ -1,15 +1,13 @@
 import {
   Armchair,
-  ArrowSquareOut,
   Browsers,
   Buildings,
   CalendarBlank,
-  CalendarPlus,
+  CaretDown,
   ChatCircle,
   Check,
   CloudCheck,
   Envelope,
-  FilePlus,
   GearSix,
   ImagesSquare,
   Kanban,
@@ -22,7 +20,6 @@ import {
   Star,
   Tray,
   User,
-  UserPlus,
   UsersThree,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
@@ -35,13 +32,13 @@ import {
   useState,
   type KeyboardEvent,
   type ReactNode,
+  type RefObject,
 } from 'react';
 import { flushSync } from 'react-dom';
 import { NavLink, useLocation, useOutletContext } from 'react-router-dom';
 
 import { PAGES } from '@/components/cms/guide';
-import { WEB_URL } from '@/components/cms/MediaPicker';
-import { Button, Crumbs } from '@/components/ui';
+import { Button } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
@@ -52,7 +49,8 @@ import { useUnreadCount } from '@/hooks/useUnreadCount';
 import { SETTINGS_SECTIONS, settingsSections } from '@/pages/SiteSettings';
 import type { CmsCollection, CmsOverview } from '@/types/cms';
 
-import { Badge, Desktop, type DesktopPage } from './Desktop';
+import type { BarPage } from './BottomBar';
+import { Badge, Desktop } from './Desktop';
 import { InstallPrompt } from '@/components/InstallPrompt';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { PushPrompt } from '@/components/PushToggle';
@@ -98,7 +96,7 @@ export interface CmsShell {
   /** Re-reads the unpublished-change counts after a save, publish or delete. */
   refresh: () => void;
   /** Opens the search palette. */
-  openSearch: () => void;
+  openSearch: (seed?: string) => void;
   /** Re-reads the new-enquiries count behind the menu bar badge. */
   refreshEnquiries: () => void;
 }
@@ -108,10 +106,10 @@ export function useCmsShell(): CmsShell {
 }
 
 /**
- * A menu-bar menu, the way a Mac app's menus work: pointing at the name drops
- * its list, clicking it opens its screen. Keyboard: ArrowDown opens it and
- * moves through it, Escape closes. Touch has no hover, so a tap goes straight
- * to the screen, which lists the same things.
+ * A menu-bar menu: pointing at the name drops its list. A name with a screen
+ * of its own (Website, Settings) opens it on a click; a group (Work, Inbox)
+ * has none, so a click, a tap or Enter opens and closes the list instead.
+ * Keyboard: ArrowDown opens it and moves through it, Escape closes.
  *
  * It is a manual popover rather than a child of the menu bar so it lands in
  * the top layer — see the stacking note in Desktop.tsx.
@@ -121,18 +119,26 @@ function MenuBarMenu({
   label,
   to,
   end,
+  active = false,
+  badge = 0,
   children,
 }: {
   id: string;
   label: string;
-  to: string;
+  /** The menu's own screen. Without one the name only opens the list. */
+  to?: string;
   end?: boolean;
+  /** Also lit on these screens (the path match only covers `to`). */
+  active?: boolean;
+  /** What is waiting inside, added up. */
+  badge?: number;
   children: (close: () => void) => ReactNode;
 }) {
   const [open, setOpen] = useState(false);
-  const trigger = useRef<HTMLAnchorElement>(null);
+  const trigger = useRef<HTMLElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const closing = useRef(0);
+  const touched = useRef(false);
   const { pathname } = useLocation();
 
   useEffect(() => {
@@ -149,6 +155,17 @@ function MenuBarMenu({
   // Choosing something closes the menu, as it does on a Mac.
   useEffect(() => setOpen(false), [pathname]);
   useEffect(() => () => window.clearTimeout(closing.current), []);
+
+  // A manual popover has no light dismiss: a press anywhere else closes it.
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (!menu.current?.contains(target) && !trigger.current?.contains(target)) setOpen(false);
+    };
+    document.addEventListener('pointerdown', away);
+    return () => document.removeEventListener('pointerdown', away);
+  }, [open]);
 
   // A short grace period, so crossing the gap between the title and the menu
   // (or overshooting its edge) does not snap it shut.
@@ -181,27 +198,48 @@ function MenuBarMenu({
     }
   };
 
+  const shared = {
+    'aria-haspopup': 'menu' as const,
+    'aria-expanded': open,
+    'aria-controls': id,
+    onPointerEnter: hover(true),
+    onPointerLeave: hover(false),
+    onKeyDown,
+  };
+  const look = (isActive: boolean) =>
+    clsx(
+      'flex h-7 items-center gap-1 rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
+      open ? 'bg-ink/15 text-ink' : isActive || active ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
+    );
+  const name = (
+    <>
+      {label}
+      <Badge count={badge} />
+      <CaretDown size={10} aria-hidden="true" className="text-ink-muted" />
+    </>
+  );
+
   return (
     <>
-      <NavLink
-        ref={trigger}
-        to={to}
-        end={end}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={id}
-        onPointerEnter={hover(true)}
-        onPointerLeave={hover(false)}
-        onKeyDown={onKeyDown}
-        className={({ isActive }) =>
-          clsx(
-            'flex h-7 items-center rounded-[6px] px-2.5 transition-colors duration-100 pointer-coarse:h-10',
-            open ? 'bg-ink/15 text-ink' : isActive ? 'bg-ink/10' : 'text-ink/85 hover:bg-ink/10',
-          )
-        }
-      >
-        {label}
-      </NavLink>
+      {to ? (
+        <NavLink ref={trigger as RefObject<HTMLAnchorElement>} to={to} end={end} {...shared} className={({ isActive }) => look(isActive)}>
+          {name}
+        </NavLink>
+      ) : (
+        <button
+          ref={trigger as RefObject<HTMLButtonElement>}
+          type="button"
+          {...shared}
+          onPointerDown={(event) => {
+            touched.current = event.pointerType !== 'mouse';
+          }}
+          // The mouse has already opened it by pointing; touch and the keyboard (detail 0) toggle.
+          onClick={(event) => setOpen((was) => (touched.current || event.detail === 0 ? !was : true))}
+          className={look(false)}
+        >
+          {name}
+        </button>
+      )}
 
       <div
         ref={menu}
@@ -212,7 +250,7 @@ function MenuBarMenu({
         onPointerEnter={hover(true)}
         onPointerLeave={hover(false)}
         onKeyDown={onKeyDown}
-        className="glass fixed inset-auto top-10 m-0 max-h-[calc(100dvh-3rem)] w-72 overflow-y-auto rounded-[10px] border border-glass-border p-1.5 text-[13px] text-ink shadow-window"
+        className="glass fixed inset-auto top-10 m-0 max-h-[calc(100dvh-3rem)] w-72 overflow-y-auto rounded-[10px] border border-glass-border p-1.5 text-[13px] text-ink shadow-window pointer-coarse:top-12"
       >
         {children(() => setOpen(false))}
       </div>
@@ -241,11 +279,11 @@ function MenuBarLink({ to, label, end, badge = 0 }: { to: string; label: string;
   );
 }
 
-/** CMS: every page and every kind of shared content. */
-function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
+/** Website: the CMS overview, every page and every kind of shared content. */
+function CmsMenu({ counts, active }: { counts: CmsOverview['counts']; active: boolean }) {
   const shared = SECTIONS.filter((section) => section.collection !== 'pages');
   return (
-    <MenuBarMenu id="cms-menu" label="CMS" to="/cms" end>
+    <MenuBarMenu id="cms-menu" label="Website" to="/cms" end active={active}>
       {(close) => (
         <>
           <MenuItem to="/cms" end label="Overview" onChoose={close} />
@@ -278,35 +316,21 @@ function CmsMenu({ counts }: { counts: CmsOverview['counts'] }) {
   );
 }
 
-/** The lists on the Bookings screen, addressed as /bookings?view=past. */
-export const BOOKING_VIEWS = [
-  { id: 'upcoming', label: 'Upcoming' },
-  { id: 'past', label: 'Past' },
-  { id: 'cancelled', label: 'Cancelled' },
-] as const;
-
-/** Bookings: its three lists, the month, and a new booking. */
-function BookingsMenu() {
-  const { pathname, search } = useLocation();
-  const view = pathname === '/bookings' ? (new URLSearchParams(search).get('view') ?? 'upcoming') : null;
+/** Work and Inbox: a group of screens under one name, each with what is waiting on it. */
+function GroupMenu({ id, label, pages }: { id: string; label: string; pages: BarPage[] }) {
+  if (pages.length === 0) return null;
   return (
-    <MenuBarMenu id="bookings-menu" label="Bookings" to="/bookings">
-      {(close) => (
-        <>
-          {BOOKING_VIEWS.map(({ id, label }) => (
-            <MenuItem
-              key={id}
-              to={id === 'upcoming' ? '/bookings' : `/bookings?view=${id}`}
-              label={label}
-              active={view === id}
-              onChoose={close}
-            />
-          ))}
-          <Separator />
-          <MenuItem to="/bookings#month" label="Month at a glance" Icon={CalendarBlank} active={false} onChoose={close} />
-          <MenuItem to="/bookings?new=1" label="New booking…" Icon={CalendarPlus} active={false} onChoose={close} />
-        </>
-      )}
+    <MenuBarMenu
+      id={id}
+      label={label}
+      active={pages.some((page) => page.active)}
+      badge={pages.reduce((sum, page) => sum + (page.badge ?? 0), 0)}
+    >
+      {(close) =>
+        pages.map((page) => (
+          <MenuItem key={page.to} to={page.to} label={page.label} Icon={page.Icon} active={page.active} badge={page.badge} onChoose={close} />
+        ))
+      }
     </MenuBarMenu>
   );
 }
@@ -327,69 +351,11 @@ export const CLIENT_VIEWS = [
   { id: 'inactive', label: 'Inactive' },
 ] as const;
 
-/** Clients: its lists, and (Admin) a new client. */
-function ClientsMenu({ canAdd }: { canAdd: boolean }) {
-  const { pathname, search } = useLocation();
-  const view = pathname === '/clients' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
-  return (
-    <MenuBarMenu id="clients-menu" label="Clients" to="/clients">
-      {(close) => (
-        <>
-          {CLIENT_VIEWS.map(({ id, label }) => (
-            <MenuItem
-              key={id}
-              to={id === 'all' ? '/clients' : `/clients?view=${id}`}
-              label={label}
-              active={view === id}
-              onChoose={close}
-            />
-          ))}
-          {canAdd ? (
-            <>
-              <Separator />
-              <MenuItem to="/clients?new=1" label="Add client…" Icon={UserPlus} active={false} onChoose={close} />
-            </>
-          ) : null}
-        </>
-      )}
-    </MenuBarMenu>
-  );
-}
-
 /** The views of the Projects screen, addressed as /projects?view=list. */
 export const PROJECT_VIEWS = [
   { id: 'board', label: 'Board' },
   { id: 'list', label: 'List' },
 ] as const;
-
-/** Projects: the board, the list, and (Admin) a new project. */
-function ProjectsMenu({ canAdd }: { canAdd: boolean }) {
-  const { pathname, search } = useLocation();
-  const view = pathname === '/projects' ? (new URLSearchParams(search).get('view') ?? 'board') : null;
-  return (
-    <MenuBarMenu id="projects-menu" label="Projects" to="/projects">
-      {(close) => (
-        <>
-          {PROJECT_VIEWS.map(({ id, label }) => (
-            <MenuItem
-              key={id}
-              to={`/projects?view=${id}`}
-              label={label}
-              active={view === id}
-              onChoose={close}
-            />
-          ))}
-          {canAdd ? (
-            <>
-              <Separator />
-              <MenuItem to="/projects?new=1" label="New project…" Icon={Kanban} active={false} onChoose={close} />
-            </>
-          ) : null}
-        </>
-      )}
-    </MenuBarMenu>
-  );
-}
 
 /** The lists on the Invoices screen, addressed as /invoices?view=overdue. */
 export const INVOICE_VIEWS = [
@@ -399,31 +365,6 @@ export const INVOICE_VIEWS = [
   { id: 'overdue', label: 'Overdue' },
   { id: 'paid', label: 'Paid' },
 ] as const;
-
-/** Invoices (Admin): its lists, and a new invoice. */
-function InvoicesMenu() {
-  const { pathname, search } = useLocation();
-  const view = pathname === '/invoices' ? (new URLSearchParams(search).get('view') ?? 'all') : null;
-  return (
-    <MenuBarMenu id="invoices-menu" label="Invoices" to="/invoices">
-      {(close) => (
-        <>
-          {INVOICE_VIEWS.map(({ id, label }) => (
-            <MenuItem
-              key={id}
-              to={id === 'all' ? '/invoices' : `/invoices?view=${id}`}
-              label={label}
-              active={view === id}
-              onChoose={close}
-            />
-          ))}
-          <Separator />
-          <MenuItem to="/invoices?new=1" label="New invoice…" Icon={FilePlus} active={false} onChoose={close} />
-        </>
-      )}
-    </MenuBarMenu>
-  );
-}
 
 /** Settings: each pane, as in its sidebar. */
 function SettingsMenu() {
@@ -492,61 +433,42 @@ function MenuItem({
   );
 }
 
-/** The window's title and back button, from where you are. */
-function useWindowTitle(): { title: ReactNode; back: { to: string; label: string } | null } {
-  const { pathname, search } = useLocation();
-  if (pathname.startsWith('/settings')) {
+/** Screens whose heading is just their name. */
+const TITLES: Record<string, string> = {
+  '/': 'Dashboard',
+  '/cms': 'CMS',
+  '/clients': 'Clients',
+  '/projects': 'Projects',
+  '/quotes': 'Quotes',
+  '/invoices': 'Invoices',
+  '/enquiries': 'Enquiries',
+  '/bookings': 'Bookings',
+  '/messages': 'Messages',
+  '/team': 'Team',
+  '/mail': 'Mail',
+  '/settings': 'Settings',
+  '/account': 'Account',
+};
+
+/** The heading the shell shows for where you are (a page's own <PageHeader> replaces it), and the way back. */
+function usePageTitle(): { title: string; back: { to: string; label: string } | null } {
+  const { pathname } = useLocation();
+  const known = TITLES[pathname];
+  if (known) return { title: known, back: null };
+  if (pathname.startsWith('/settings/')) {
     const pane = SETTINGS_SECTIONS.find(({ id }) => pathname === `/settings/${id}`);
-    return {
-      title: pane ? <Crumbs items={[{ label: 'Settings', to: '/settings' }, { label: pane.label }]} /> : 'Settings',
-      back: null,
-    };
+    return { title: pane?.label ?? 'Settings', back: pane ? { to: '/settings', label: 'Settings' } : null };
   }
-  if (pathname === '/bookings') {
-    const view = BOOKING_VIEWS.find(({ id }) => id === new URLSearchParams(search).get('view'));
-    return {
-      title: view ? <Crumbs items={[{ label: 'Bookings', to: '/bookings' }, { label: view.label }]} /> : 'Bookings',
-      back: null,
-    };
-  }
-  if (pathname === '/clients') {
-    const view = CLIENT_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
-    return {
-      title: view ? <Crumbs items={[{ label: 'Clients', to: '/clients' }, { label: view.label }]} /> : 'Clients',
-      back: null,
-    };
-  }
-  if (pathname.startsWith('/clients/')) return { title: 'Client', back: { to: '/clients', label: 'Clients' } };
-  if (pathname === '/projects') {
-    const view = PROJECT_VIEWS.find(({ id }) => id !== 'board' && id === new URLSearchParams(search).get('view'));
-    return {
-      title: view ? <Crumbs items={[{ label: 'Projects', to: '/projects' }, { label: view.label }]} /> : 'Projects',
-      back: null,
-    };
-  }
-  if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
-  if (pathname === '/invoices') {
-    const view = INVOICE_VIEWS.find(({ id }) => id !== 'all' && id === new URLSearchParams(search).get('view'));
-    return {
-      title: view ? <Crumbs items={[{ label: 'Invoices', to: '/invoices' }, { label: view.label }]} /> : 'Invoices',
-      back: null,
-    };
-  }
-  if (pathname === '/quotes') return { title: 'Quotes', back: null };
-  if (pathname.startsWith('/quotes/')) return { title: 'Quotes', back: { to: '/quotes', label: 'Quotes' } };
-  if (pathname === '/enquiries') return { title: 'Enquiries', back: null };
-  if (pathname === '/account') return { title: 'Account', back: null };
-  if (pathname === '/messages') return { title: 'Messages', back: null };
-  if (pathname === '/team') return { title: 'Team', back: null };
-  if (pathname === '/mail') return { title: 'Mail', back: null };
-  if (pathname === '/') return { title: 'Dashboard', back: null };
+  // A client's and a project's own page carry their way back inside their header card.
+  if (pathname.startsWith('/clients/')) return { title: 'Client', back: null };
+  if (pathname.startsWith('/projects/')) return { title: 'Project', back: null };
+  // A quote's top bar carries its own way back.
+  if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: null };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
-  if (!section) return { title: pathname === '/cms' ? 'CMS' : 'Enzo Interiors', back: null };
-  const isEntry = pathname !== section.to && section.collection !== 'pages';
-  return {
-    title: section.label,
-    back: isEntry ? { to: section.to, label: section.label } : { to: '/cms', label: 'CMS' },
-  };
+  if (!section) return { title: 'Enzo Interiors', back: null };
+  // An editor (a page, an entry, the company record) carries its own way back in its save bar.
+  const editing = pathname !== section.to || section.collection === 'company' || section.collection === 'pages';
+  return { title: section.label, back: editing ? null : { to: '/cms', label: 'CMS' } };
 }
 
 export function AdminLayout() {
@@ -569,7 +491,12 @@ export function AdminLayout() {
   const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
   const [searching, setSearching] = useState(false);
-  const openSearch = useCallback(() => setSearching(true), []);
+  const [seed, setSeed] = useState('');
+  // The menu-bar search may hand over the first letters typed on it.
+  const openSearch = useCallback((first?: string) => {
+    setSeed(typeof first === 'string' ? first : '');
+    setSearching(true);
+  }, []);
 
   // Ctrl/⌘ K, from anywhere in the app.
   useEffect(() => {
@@ -583,7 +510,7 @@ export function AdminLayout() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  const { title, back } = useWindowTitle();
+  const { title, back } = usePageTitle();
   const { pathname } = useLocation();
 
   // Keyed on refetch, which is stable per path; `overview` itself is a new
@@ -610,30 +537,30 @@ export function AdminLayout() {
     }
   };
 
-  // The page menu (below xl): the same pages, in the same order, as the menu bar.
+  // Every screen this person may open, in the menu bar's groups.
   const at = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
-  const pages: DesktopPage[] = [
-    ...(canSeeClients ? [{ to: '/', label: 'Dashboard', Icon: SquaresFour, active: pathname === '/' }] : []),
-    ...(canCms ? [{ to: '/cms', label: 'CMS', Icon: Browsers, active: at('/cms') || SECTIONS.some(({ to }) => at(to)) }] : []),
-    ...(canSeeClients
-      ? [
-          { to: '/clients', label: 'Clients', Icon: User, active: at('/clients') },
-          { to: '/projects', label: 'Projects', Icon: Kanban, active: at('/projects') },
-          { to: '/messages', label: 'Messages', Icon: ChatCircle, active: at('/messages'), badge: unreadMessages },
-        ]
-      : []),
-    ...(canTeam ? [{ to: '/team', label: 'Team', Icon: ChatsCircle, active: at('/team'), badge: unreadTeam }] : []),
-    ...(mailConfigured ? [{ to: '/mail', label: 'Mail', Icon: Envelope, active: at('/mail') }] : []),
+  const page = (to: string, label: string, Icon: PhosphorIcon, badge = 0): BarPage => ({ to, label, Icon, active: at(to), badge });
+  const home = canSeeClients ? [page('/', 'Dashboard', SquaresFour)] : [];
+  const work = [
+    ...(canSeeClients ? [page('/clients', 'Clients', User), page('/projects', 'Projects', Kanban)] : []),
     ...(isAdmin
-      ? [
-          { to: '/invoices', label: 'Invoices', Icon: Receipt, active: at('/invoices') },
-          { to: '/quotes', label: 'Quotes', Icon: FileText, active: at('/quotes') },
-          { to: '/enquiries', label: 'Enquiries', Icon: Tray, active: at('/enquiries'), badge: enquiries.data?.new_count ?? 0 },
-          { to: '/bookings', label: 'Bookings', Icon: CalendarBlank, active: at('/bookings') },
-        ]
+      ? [page('/quotes', 'Quotes', FileText), page('/invoices', 'Invoices', Receipt)]
       : []),
-    ...(canSettings ? [{ to: '/settings', label: 'Settings', Icon: GearSix, active: at('/settings') }] : []),
   ];
+  const inbox = [
+    ...(isAdmin ? [page('/enquiries', 'Enquiries', Tray, enquiries.data?.new_count ?? 0), page('/bookings', 'Bookings', CalendarBlank)] : []),
+    ...(canSeeClients ? [page('/messages', 'Messages', ChatCircle, unreadMessages)] : []),
+    ...(canTeam ? [page('/team', 'Team', ChatsCircle, unreadTeam)] : []),
+    ...(mailConfigured ? [page('/mail', 'Mail', Envelope)] : []),
+  ];
+  // /team itself is staff chat (it wins the route); /team/<slug> is the CMS's team entry.
+  const onWebsite = at('/cms') || SECTIONS.some(({ to }) => at(to) && pathname !== '/team');
+  const website = canCms ? [{ ...page('/cms', 'Website', Browsers), active: onWebsite }] : [];
+  const settings = canSettings ? [page('/settings', 'Settings', GearSix)] : [];
+  // The bottom bar (below lg) leads with the four reached for most on a phone; the rest follow in menu order.
+  const all = [...home, ...inbox, ...work, ...website, ...settings];
+  const first = ['/', '/projects', '/clients', '/bookings'];
+  const pages = [...first.flatMap((to) => all.filter((entry) => entry.to === to)), ...all.filter((entry) => !first.includes(entry.to))];
 
   const context = useMemo<CmsShell>(
     () => ({ overview: overview.data, error: overview.error, refresh, openSearch, refreshEnquiries: () => void refreshEnquiries() }),
@@ -644,7 +571,11 @@ export function AdminLayout() {
     <>
     <SearchPalette
       open={searching}
-      onClose={() => setSearching(false)}
+      seed={seed}
+      onClose={() => {
+        setSearching(false);
+        setSeed('');
+      }}
       actions={{ isAdmin, clients: canSeeClients, cms: canCms, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
     />
     <Desktop
@@ -655,16 +586,9 @@ export function AdminLayout() {
       menus={
         <>
           {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
-          {canCms ? <CmsMenu counts={counts} /> : null}
-          {canSeeClients ? <ClientsMenu canAdd={can('Admin', 'Designer')} /> : null}
-          {canSeeClients ? <ProjectsMenu canAdd={isAdmin} /> : null}
-          {canSeeClients ? <MenuBarLink to="/messages" label="Messages" badge={unreadMessages} /> : null}
-          {canTeam ? <MenuBarLink to="/team" label="Team" badge={unreadTeam} /> : null}
-          {mailConfigured ? <MenuBarLink to="/mail" label="Mail" /> : null}
-          {isAdmin ? <InvoicesMenu /> : null}
-          {isAdmin ? <MenuBarLink to="/quotes" label="Quotes" /> : null}
-          {isAdmin ? <MenuBarLink to="/enquiries" label="Enquiries" badge={enquiries.data?.new_count ?? 0} /> : null}
-          {isAdmin ? <BookingsMenu /> : null}
+          <GroupMenu id="work-menu" label="Work" pages={work} />
+          <GroupMenu id="inbox-menu" label="Inbox" pages={inbox} />
+          {canCms ? <CmsMenu counts={counts} active={onWebsite} /> : null}
           {canSettings ? <SettingsMenu /> : null}
         </>
       }
@@ -674,15 +598,6 @@ export function AdminLayout() {
       context={context}
       windowActions={
         <>
-          <a
-            href={WEB_URL}
-            target="_blank"
-            rel="noopener"
-            className="hidden min-h-8 items-center gap-1.5 rounded-[7px] px-2 text-[13px] font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink sm:flex"
-          >
-            <ArrowSquareOut size={15} aria-hidden="true" />
-            View website
-          </a>
           {isAdmin && unpublished > 0 ? (
             <Button
               variant="primary"

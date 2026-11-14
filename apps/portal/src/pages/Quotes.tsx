@@ -2,6 +2,7 @@ import { CheckCircle, XCircle } from '@phosphor-icons/react';
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
+import { InvoicePreview, quoteSheet } from '@/components/invoice/InvoiceSheet';
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, PageHeader, StatusTag, Textarea, type StatusTone } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -23,7 +24,7 @@ function QuoteList() {
   const quotes = useQuery<Quote[]>('/quotes');
   return (
     <>
-      <PageHeader title="Quotes" />
+      <PageHeader title="" />
       {quotes.error ? (
         <ErrorState message={quotes.error} onRetry={quotes.refetch} />
       ) : quotes.loading ? (
@@ -98,16 +99,8 @@ function QuoteDetail({ id }: { id: string }) {
         actions={<StatusTag tone={q.expired ? 'warning' : TONE[q.status]}>{label(q)}</StatusTag>}
       />
       <Card className="flex flex-col gap-4">
-        {q.valid_until ? <p className="text-sm text-ink-muted">Valid until {date(q.valid_until)}.</p> : null}
-        {/* Installation charges and the totals only: the API sends no lines, costs or margins. Keep in step with apps/admin Quotes.tsx. */}
-        <div className="flex items-baseline justify-between text-sm font-semibold text-ink"><span>Installation charges</span><span className="tabular">{money(q.subtotal_amount)}</span></div>
-        <dl className="flex flex-col gap-1 border-t border-border pt-3 text-sm">
-          <div className="flex justify-between"><dt className="text-ink-muted">Subtotal</dt><dd className="tabular">{money(q.subtotal_amount)}</dd></div>
-          {q.discount > 0 ? <div className="flex justify-between"><dt className="text-ink-muted">Discount</dt><dd className="tabular">−{money(q.discount)}</dd></div> : null}
-          <div className="flex justify-between"><dt className="text-ink-muted">VAT ({q.vat_rate}%)</dt><dd className="tabular">{money(q.vat_amount)}</dd></div>
-          <div className="flex justify-between text-base font-semibold text-ink"><dt>Total</dt><dd className="tabular">{money(q.amount)}</dd></div>
-        </dl>
-        {q.notes ? <p className="whitespace-pre-wrap text-sm text-ink-muted">{q.notes}</p> : null}
+        {/* The letterhead sheet, installation charges and totals only: the API sends no lines, costs or margins. */}
+        <InvoicePreview invoice={quoteSheet(q)} kind="quote" />
         {q.response_comment ? <p className="rounded-control bg-surface-muted px-3 py-2 text-sm text-ink">Your note: “{q.response_comment}”</p> : null}
         {q.expired ? <p className="text-sm text-warning">This quote has expired. Ask the studio for a new one.</p> : null}
         {open ? (

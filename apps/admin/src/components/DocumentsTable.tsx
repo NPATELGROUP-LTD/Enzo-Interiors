@@ -44,10 +44,15 @@ export function DocumentsTable({
   documents,
   onChanged,
   emptyMessage,
+  wrapClassName,
+  list,
 }: {
   documents: Row[];
   onChanged: () => Promise<unknown> | void;
   emptyMessage: string;
+  wrapClassName?: string;
+  /** Cards instead of a table, for a narrow box. */
+  list?: boolean;
 }) {
   const toast = useToast();
   const { isAdmin } = useAuth();
@@ -120,13 +125,83 @@ export function DocumentsTable({
             </Select>
           </div>
         ) : null}
-        <TableWrap>
+        {list ? (
+          <Card className={wrapClassName}>
+            <ul className="rows">
+              {sortedShown.map((row) => (
+                <li key={row.id} className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0">
+                  <div className="flex items-start gap-2">
+                    <div className="min-w-0 flex-1">
+                      <button
+                        type="button"
+                        onClick={() => void files.show(row)}
+                        title={row.name}
+                        className="line-clamp-2 text-left font-semibold leading-snug text-ink [overflow-wrap:anywhere] hover:text-green-900 hover:underline hover:underline-offset-2"
+                      >
+                        {row.name}
+                      </button>
+                      <p className="mt-1 text-xs text-ink-muted">
+                        <span className="font-medium text-ink">{label(row.category)}</span> · {date(row.upload_date)} ·{' '}
+                        <span className="tabular">{fileSize(row.size_bytes)}</span>
+                      </p>
+                    </div>
+                    <div className="-mr-1 -mt-1 flex shrink-0">
+                      {row.preview ? (
+                        <Button
+                          variant="ghost"
+                          icon={<Eye size={15} aria-hidden="true" />}
+                          loading={files.opening === row.id}
+                          onClick={() => void files.show(row)}
+                          aria-label={`View ${row.name}`}
+                        />
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        icon={<DownloadSimple size={15} aria-hidden="true" />}
+                        onClick={() => void files.download(row.id)}
+                        aria-label={`Download ${row.name}`}
+                      />
+                      <Button
+                        variant="ghost"
+                        className="text-danger"
+                        aria-label={`Delete ${row.name}`}
+                        icon={<Trash size={15} aria-hidden="true" />}
+                        onClick={() => setDeleting(row)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 gap-x-6 border-t border-border pt-2 sm:grid-cols-2">
+                    {isAdmin ? (
+                      <>
+                        <Toggle
+                          label="Client sees"
+                          checked={row.client_visible}
+                          onChange={(next) => void setVisible(row, next)}
+                        />
+                        <Toggle
+                          label="Can download"
+                          checked={row.client_can_download}
+                          onChange={(next) => void setDownload(row, next)}
+                        />
+                      </>
+                    ) : (
+                      <StatusTag tone={row.client_visible ? 'success' : 'neutral'}>
+                        {row.client_visible ? 'Visible to client' : 'Internal only'}
+                      </StatusTag>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : (
+        <TableWrap wrapClassName={wrapClassName}>
           <thead>
             <tr>
               <Th sort={header('name')}>Name</Th>
-              <Th sort={header('category')}>Category</Th>
-              <Th sort={header('uploaded')}>Uploaded</Th>
-              <Th sort={header('size')}>Size</Th>
+              <Th col="xl" sort={header('category')}>Category</Th>
+              <Th col="md" sort={header('uploaded')}>Uploaded</Th>
+              <Th col="lg" sort={header('size')}>Size</Th>
               <Th>Visible to client</Th>
               {isAdmin ? <Th>Client can download</Th> : null}
               <Th className="text-right">Actions</Th>
@@ -145,11 +220,11 @@ export function DocumentsTable({
                     {row.name}
                   </button>
                 </Td>
-                <Td>
+                <Td col="xl">
                   <StatusTag tone="info">{label(row.category)}</StatusTag>
                 </Td>
-                <Td className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
-                <Td className="tabular whitespace-nowrap text-ink-muted">
+                <Td col="md" className="whitespace-nowrap text-ink-muted">{date(row.upload_date)}</Td>
+                <Td col="lg" className="tabular whitespace-nowrap text-ink-muted">
                   {fileSize(row.size_bytes)}
                 </Td>
                 <Td>
@@ -210,6 +285,7 @@ export function DocumentsTable({
             ))}
           </tbody>
         </TableWrap>
+        )}
         </>
       )}
 

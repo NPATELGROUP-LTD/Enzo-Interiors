@@ -29,6 +29,7 @@ import type { AlertEvent, AlertKind } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { whereFrom } from '../../core/alert-scrub';
+import { ALERT_SAMPLES, SAMPLE_IDS } from '../../core/alert-samples';
 import { AlertService } from '../../core/alert.service';
 import { MailService } from '../../core/mail.service';
 import { corsOrigins } from '../../core/origins';
@@ -54,8 +55,15 @@ export class UpdateAlertsDto {
 }
 
 export class TestAlertDto {
+  /** One of the sample alerts (GET /alerts/samples). */
+  @IsOptional()
+  @IsIn(SAMPLE_IDS)
+  sample?: string;
+
+  /** Older callers: the first sample of that kind. */
+  @IsOptional()
   @IsIn(KINDS)
-  kind!: AlertKind;
+  kind?: AlertKind;
 }
 
 /** From the admin or the portal, when something in the browser threw. */
@@ -147,13 +155,21 @@ export class AlertsController {
     return this.overview();
   }
 
+  /** Every kind of alert the platform sends, with the facts and advice a real one carries. */
+  @Get('samples')
+  @Roles('Infra')
+  samples() {
+    return this.alerts.samples();
+  }
+
   @Post('test')
   @Roles('Infra')
   @HttpCode(200)
-  @Throttle({ default: { limit: 5, ttl: 15 * 60_000 } })
+  @Throttle({ default: { limit: 20, ttl: 15 * 60_000 } })
   async test(@Body() dto: TestAlertDto) {
     if (!this.mail.enabled) throw new ServiceUnavailableException('Email is not configured on the server (SMTP_HOST).');
-    const { sent, to } = await this.alerts.sendTest(dto.kind);
+    const sample = dto.sample ?? ALERT_SAMPLES.find((row) => row.kind === (dto.kind ?? 'error'))!.id;
+    const { sent, to } = await this.alerts.sendTest(sample);
     if (!to.length) throw new BadRequestException('Add a recipient first, or set ALERT_TO on the server.');
     if (!sent) throw new ServiceUnavailableException('The test email could not be sent. The server log says why.');
     return { to, from: this.alerts.sender };

@@ -89,8 +89,10 @@ function matches(query: string, text: string): boolean {
  * A native <dialog>, so it sits in the top layer above the glass menu bar and
  * gets Escape, focus trapping and the backdrop for free.
  */
-export function SearchPalette({ open, onClose, actions }: {
+export function SearchPalette({ open, onClose, actions, seed = '' }: {
   open: boolean;
+  /** Letters already typed on the menu-bar search when it opened. */
+  seed?: string;
   onClose: () => void;
   actions: PaletteActions;
 }) {
@@ -112,12 +114,13 @@ export function SearchPalette({ open, onClose, actions }: {
     if (!dialog) return;
     if (open && !dialog.open) {
       dialog.showModal();
-      setQuery('');
+      setQuery(seed);
       setHits(null);
       setActive(0);
       inputRef.current?.focus();
     }
     if (!open && dialog.open) dialog.close();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when it opens; the seed is only read then
   }, [open]);
 
   // Records by reference or a small detail ("PRJ-0012", a name, an email, a phone number); Admin and Designers.
@@ -338,7 +341,7 @@ export function SearchPalette({ open, onClose, actions }: {
       onClose={onClose}
       // A click on the backdrop lands on the dialog element itself.
       onClick={(event) => event.target === dialogRef.current && onClose()}
-      className="glass m-auto mt-[12vh] w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-glass-border p-0 text-ink shadow-window backdrop:bg-black/25 backdrop:backdrop-blur-[2px]"
+      className="glass m-auto mt-[max(3.25rem,8vh)] w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-glass-border p-0 text-ink shadow-window backdrop:bg-black/25 backdrop:backdrop-blur-[2px]"
     >
       <div className="flex items-center gap-3 border-b border-border px-4">
         <MagnifyingGlass size={18} aria-hidden="true" className="shrink-0 text-ink-muted" />

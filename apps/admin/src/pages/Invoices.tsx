@@ -148,6 +148,12 @@ const DEFAULT_STAGES: Array<Pick<StageRow, 'label' | 'value'>> = [
 ];
 const defaultStageRows = (): StageRow[] =>
   DEFAULT_STAGES.map((stage) => ({ key: ++rowKey, mode: 'percent', due_note: '', ...stage }));
+/** One click sets the whole split; "In full" is no stages, paid in one go. */
+const STAGE_PRESETS: Array<{ name: string; stages: typeof DEFAULT_STAGES }> = [
+  { name: '50 / 40 / 10', stages: DEFAULT_STAGES },
+  { name: '50 / 50', stages: [{ label: 'On start', value: '50' }, { label: 'On completion', value: '50' }] },
+  { name: 'In full', stages: [] },
+];
 const stageRowsOf = (stages: InvoiceStage[]): StageRow[] =>
   stages.map((stage) => ({ key: ++rowKey, label: stage.label, mode: stage.mode, value: String(stage.value), due_note: stage.due_note ?? '' }));
 const stagePayload = (rows: StageRow[]) =>
@@ -508,12 +514,12 @@ export function InvoicesPage() {
                   />
                 </Th>
                 <Th sort={header('number')}>Number</Th>
-                <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
-                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+                <Th col="md" sort={header('client')}>Client</Th>
+                <Th col="xl" sort={header('project')}>Project</Th>
                 <Th sort={header('status')}>Status</Th>
-                <Th className="max-sm:hidden" sort={header('due')}>Due</Th>
+                <Th col="lg" sort={header('due')}>Due</Th>
                 <Th className="text-right" sort={header('total')}>Total</Th>
-                <Th className="text-right max-sm:hidden">Actions</Th>
+                <Th col="lg" className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -545,8 +551,8 @@ export function InvoicesPage() {
                     </button>
                     <span className="block text-xs font-normal text-ink-muted sm:hidden">{invoice.client_name}</span>
                   </Td>
-                  <Td className="text-ink max-sm:hidden">{invoice.client_name}</Td>
-                  <Td className="text-ink-muted max-sm:hidden">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
+                  <Td col="md" className="text-ink">{invoice.client_name}</Td>
+                  <Td col="xl" className="text-ink-muted">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
                   <Td>
                     <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>{invoice.status}</StatusTag>
                     {invoice.is_overdue && invoice.status !== 'Overdue' ? (
@@ -556,7 +562,7 @@ export function InvoicesPage() {
                       <span className="mt-0.5 block text-xs text-ink-muted">{stageProgress(invoice)}</span>
                     ) : null}
                   </Td>
-                  <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
+                  <Td col="lg" className="whitespace-nowrap text-ink-muted">{date(invoice.due_date)}</Td>
                   <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
                     {money(invoice.amount)}
                     {invoice.status !== 'Paid' && (invoice.paid_amount ?? 0) > 0 ? (
@@ -564,7 +570,7 @@ export function InvoicesPage() {
                     ) : null}
                   </Td>
                   {/* Phones act from the opened invoice, which has the same buttons. */}
-                  <Td className="max-sm:hidden">
+                  <Td col="lg">
                     <div className="flex justify-end gap-1">
                       {invoice.status === 'Draft' ? (
                         <button
@@ -609,7 +615,8 @@ export function InvoicesPage() {
   }
 
   return (
-    <div className="px-5 pb-16 pt-6 sm:px-8 lg:pt-8">
+    // The editor fits the window on wide screens (form and sheet scroll on their own), so the page itself never moves.
+    <div className={editing ? 'flex flex-col px-5 pb-16 sm:px-8 xl:h-full xl:overflow-hidden xl:pb-0' : 'px-5 pb-16 pt-6 sm:px-8 lg:pt-8'}>
       {main}
 
       {printJob ? <InvoicePrint invoices={printJob} /> : null}
@@ -692,7 +699,12 @@ function InvoiceEditor({
   const [clientId, setClientId] = useState(invoice?.client_id ?? '');
   const [projectId, setProjectId] = useState(invoice?.project_id ?? '');
   const [dueDate, setDueDate] = useState(invoice ? invoice.due_date.slice(0, 10) : inDays(30));
-  const [vatRate, setVatRate] = useState(String(invoice?.vat_rate ?? 20));
+  const [vatRate, setVatRate] = useState(invoice ? String(invoice.vat_rate) : '');
+  // A new one starts at Settings › VAT; a saved one keeps its own rate.
+  const defaultVat = useQuery<{ vat_rate: number }>(invoice ? null : '/settings/vat').data?.vat_rate;
+  useEffect(() => {
+    if (defaultVat !== undefined) setVatRate((current) => (current === '' ? String(defaultVat) : current));
+  }, [defaultVat]);
   const [discount, setDiscount] = useState(invoice?.discount ? String(invoice.discount) : '');
   const [jobName, setJobName] = useState(invoice?.job_name ?? '');
   const [jobAddress, setJobAddress] = useState(invoice?.job_address ?? '');
@@ -820,6 +832,87 @@ function InvoiceEditor({
       const at = nextHeading === -1 ? current.length : nextHeading;
       return [...current.slice(0, at), blankLine(), ...current.slice(at)];
     });
+  /** The item rows as fields on the A4 sheet itself (screen only; the printed sheet is the saved invoice). */
+  const linesOnSheet = moneyEditable ? (
+    <>
+      {rows.map((row, index) =>
+        row.kind === 'heading' ? (
+          <tr key={row.key} className="inv-section">
+            <th colSpan={4} scope="rowgroup">
+              <div className="inv-edit-cell">
+                <input
+                  value={row.text}
+                  onChange={(event) => setRow(row.key, { text: event.target.value })}
+                  aria-label={`Section heading ${index + 1}`}
+                  placeholder="Section heading, e.g. Materials"
+                  maxLength={120}
+                />
+                <button type="button" className="inv-edit-btn" onClick={() => addLineTo(row.key)} aria-label={`Add a line under ${row.text || 'this heading'}`} title="Add a line to this section">
+                  <Plus size={14} aria-hidden="true" />
+                </button>
+                <button type="button" className="inv-edit-btn" onClick={() => removeRow(row.key)} aria-label={`Remove heading ${row.text || index + 1}`}>
+                  <Trash size={14} aria-hidden="true" />
+                </button>
+              </div>
+            </th>
+          </tr>
+        ) : (
+          <tr key={row.key}>
+            <td>
+              <input value={row.description} onChange={(event) => setRow(row.key, { description: event.target.value })} aria-label={`Line ${index + 1} item`} placeholder="Item" maxLength={300} />
+            </td>
+            <td>
+              <input value={row.detail} onChange={(event) => setRow(row.key, { detail: event.target.value })} aria-label={`Line ${index + 1} description`} placeholder="Description" maxLength={300} />
+            </td>
+            <td className="inv-right">
+              <input
+                type="number"
+                inputMode="numeric"
+                min={1}
+                step={1}
+                value={row.quantity}
+                // Whole numbers only: the arrows step by 1 and a pasted 2.5 becomes 2.
+                onChange={(event) => setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })}
+                aria-label={`Line ${index + 1} quantity`}
+                placeholder="Qty"
+                className="inv-num"
+              />
+            </td>
+            <td>
+              <div className="inv-edit-cell">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.01"
+                  value={row.unit_price}
+                  onChange={(event) => setRow(row.key, { unit_price: event.target.value })}
+                  aria-label={`Line ${index + 1} price each, in pounds`}
+                  placeholder="£ each"
+                  className="inv-num"
+                />
+                <button type="button" className="inv-edit-btn" onClick={() => removeRow(row.key)} aria-label={`Remove line ${index + 1}`}>
+                  <Trash size={14} aria-hidden="true" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ),
+      )}
+      <tr className="inv-edit-add">
+        <td colSpan={4}>
+          <button type="button" className="inv-edit-btn" disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankLine()])}>
+            <Plus size={14} aria-hidden="true" />
+            &nbsp;Add line
+          </button>
+          <button type="button" className="inv-edit-btn" disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankHeading(), blankLine()])}>
+            <TextHOne size={14} aria-hidden="true" />
+            &nbsp;Add section
+          </button>
+        </td>
+      </tr>
+    </>
+  ) : undefined;
   const setStage = (key: number, change: Partial<StageRow>) =>
     setStageRows((current) => current.map((row) => (row.key === key ? { ...row, ...change } : row)));
 
@@ -895,7 +988,8 @@ function InvoiceEditor({
           ...paperwork,
           project_id: projectId || null,
           due_date: dueDate,
-          ...(moneyEditable ? { vat_rate: rate, discount: off, items } : {}),
+          // Blank VAT = the setting had not loaded: the API then applies Settings › VAT itself.
+          ...(moneyEditable ? { ...(vatRate.trim() === '' ? {} : { vat_rate: rate }), discount: off, items } : {}),
           ...(stagesEditable ? { stages: stagePayload(stageRows) } : {}),
         };
 
@@ -927,14 +1021,20 @@ function InvoiceEditor({
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <button type="button" onClick={onClose} className="text-link inline-flex min-h-11 items-center gap-1.5 text-sm pointer-fine:min-h-0">
-            <ArrowLeft size={14} aria-hidden="true" />
-            All invoices
+      {/* Stays on top while the form and the sheet scroll: the way back, what this is, and its buttons. */}
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8 xl:static xl:mb-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Back to all invoices"
+            title="All invoices"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-ink shadow-card hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 pointer-coarse:h-11 pointer-coarse:w-11"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="text-xl font-bold tracking-tight text-ink">{invoice ? invoice.number : 'New invoice'}</h1>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-xl font-bold tracking-tight text-ink">{invoice ? invoice.number : 'New invoice'}</h2>
             {invoice ? (
               <>
                 <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>{invoice.status}</StatusTag>
@@ -999,8 +1099,8 @@ function InvoiceEditor({
         </div>
       </div>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)]">
-        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4" noValidate>
+      <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
+        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
           {lockNote ? <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">{lockNote}</p> : null}
 
           <Card className="flex flex-col gap-4">
@@ -1089,119 +1189,12 @@ function InvoiceEditor({
           {moneyEditable ? (
             <Card className="flex flex-col gap-3">
               <div>
-                <h2 className="text-lg font-semibold text-ink">Itemised list</h2>
+                <h2 className="text-lg font-semibold text-ink">Totals</h2>
                 <p className="mt-0.5 text-sm text-ink-muted">
-                  Prices are before VAT. Leave a price blank for a quantity-only row, such as materials.
+                  Edit the lines and sections on the invoice sheet. Prices are before VAT; leave a price blank for a quantity-only row.
                 </p>
               </div>
-              {rows.map((row, index) =>
-                row.kind === 'heading' ? (
-                  <div key={row.key} className="mt-2 flex items-center gap-2 first:mt-0">
-                    <input
-                      value={row.text}
-                      onChange={(event) => setRow(row.key, { text: event.target.value })}
-                      aria-label={`Section heading ${index + 1}`}
-                      placeholder="Section heading, e.g. Materials"
-                      maxLength={120}
-                      className={clsx(FIELD_BASE, 'font-semibold text-green-900')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => addLineTo(row.key)}
-                      aria-label={`Add a line under ${row.text || 'this heading'}`}
-                      title="Add a line to this section"
-                      className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-green-900"
-                    >
-                      <Plus size={16} aria-hidden="true" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.key)}
-                      aria-label={`Remove heading ${row.text || index + 1}`}
-                      className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
-                    >
-                      <Trash size={16} aria-hidden="true" />
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    key={row.key}
-                    className="grid grid-cols-[minmax(0,1fr)_4.5rem_6.5rem_2.75rem] items-center gap-2 border-l-2 border-border pl-2"
-                  >
-                    <input
-                      value={row.description}
-                      onChange={(event) => setRow(row.key, { description: event.target.value })}
-                      aria-label={`Line ${index + 1} item`}
-                      placeholder="Item"
-                      maxLength={300}
-                      className={FIELD_BASE}
-                    />
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={1}
-                      step={1}
-                      value={row.quantity}
-                      // Whole numbers only: the arrows step by 1 and a pasted 2.5 becomes 2.
-                      onChange={(event) =>
-                        setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })
-                      }
-                      aria-label={`Line ${index + 1} quantity`}
-                      placeholder="Qty"
-                      className={clsx(FIELD_BASE, 'tabular')}
-                    />
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      min={0}
-                      step="0.01"
-                      value={row.unit_price}
-                      onChange={(event) => setRow(row.key, { unit_price: event.target.value })}
-                      aria-label={`Line ${index + 1} price each, in pounds`}
-                      placeholder="£ each"
-                      className={clsx(FIELD_BASE, 'tabular')}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeRow(row.key)}
-                      aria-label={`Remove line ${index + 1}`}
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
-                    >
-                      <Trash size={16} aria-hidden="true" />
-                    </button>
-                    <input
-                      value={row.detail}
-                      onChange={(event) => setRow(row.key, { detail: event.target.value })}
-                      aria-label={`Line ${index + 1} description`}
-                      placeholder="Description (optional)"
-                      maxLength={300}
-                      className={clsx(FIELD_BASE, 'col-span-3 text-sm')}
-                    />
-                  </div>
-                ),
-              )}
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<Plus size={16} aria-hidden="true" />}
-                  onClick={() => setRows((current) => [...current, blankLine()])}
-                  disabled={items.length >= 50}
-                >
-                  Add line
-                </Button>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  icon={<TextHOne size={16} aria-hidden="true" />}
-                  onClick={() => setRows((current) => [...current, blankHeading(), blankLine()])}
-                  disabled={items.length >= 50}
-                >
-                  Add section
-                </Button>
-              </div>
-
-              <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 <Input
                   label="Discount (£)"
                   type="number"
@@ -1247,7 +1240,7 @@ function InvoiceEditor({
             </Card>
           ) : null}
 
-          <Card className="flex flex-col gap-3">
+          <Card className="@container flex flex-col gap-3">
             <div>
               <h2 className="text-lg font-semibold text-ink">Payment stages</h2>
               <p className="mt-0.5 text-sm text-ink-muted">
@@ -1257,10 +1250,23 @@ function InvoiceEditor({
             </div>
             {stagesEditable ? (
               <>
+                <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Quick split">
+                  <span className="text-sm text-ink-muted">Quick split</span>
+                  {STAGE_PRESETS.map((preset) => (
+                    <Button
+                      key={preset.name}
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setStageRows(preset.stages.map((stage) => ({ key: ++rowKey, mode: 'percent', due_note: '', ...stage })))}
+                    >
+                      {preset.name}
+                    </Button>
+                  ))}
+                </div>
                 {stageRows.map((row, index) => (
                   <div
                     key={row.key}
-                    className="grid grid-cols-[minmax(0,1fr)_5.25rem_5.5rem_2.75rem] items-center gap-2 border-l-2 border-border pl-2"
+                    className="grid grid-cols-[4.5rem_4.5rem_minmax(0,1fr)_auto] items-center gap-2 border-l-2 border-border pl-2 @sm:grid-cols-[minmax(0,1fr)_4.5rem_4.5rem_5rem_auto]"
                   >
                     <input
                       value={row.label}
@@ -1268,7 +1274,7 @@ function InvoiceEditor({
                       aria-label={`Stage ${index + 1} trigger`}
                       placeholder="On start"
                       maxLength={60}
-                      className={FIELD_BASE}
+                      className={clsx(FIELD_BASE, 'col-span-3 @sm:col-span-1')}
                     />
                     <div role="group" aria-label={`Stage ${index + 1} is a`} className="flex min-h-11 overflow-hidden rounded-[7px] border border-border pointer-fine:min-h-9">
                       {(['percent', 'fixed'] as const).map((mode) => (
@@ -1297,36 +1303,29 @@ function InvoiceEditor({
                       aria-label={`Stage ${index + 1} ${row.mode === 'percent' ? 'percentage' : 'amount in pounds'}`}
                       className={clsx(FIELD_BASE, 'tabular')}
                     />
-                    <button
-                      type="button"
-                      onClick={() => setStageRows((current) => current.filter((entry) => entry.key !== row.key))}
-                      aria-label={`Remove stage ${index + 1}`}
-                      className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger"
-                    >
-                      <Trash size={16} aria-hidden="true" />
-                    </button>
-                    <input
-                      value={row.due_note}
-                      onChange={(event) => setStage(row.key, { due_note: event.target.value })}
-                      aria-label={`Stage ${index + 1} note (optional)`}
-                      placeholder="Note (optional)"
-                      maxLength={120}
-                      className={clsx(FIELD_BASE, 'text-sm')}
-                    />
-                    <p className="tabular col-span-2 text-right text-sm font-semibold text-ink">{money(stagePreview.amounts[index] ?? 0)}</p>
-                    {canRecord && !stagesDirty && saved[index] ? (
+                    <p className="tabular col-span-2 text-right text-sm font-semibold text-ink @sm:col-span-1">{money(stagePreview.amounts[index] ?? 0)}</p>
+                    {/* Stages are editable only while none is paid, so there is no paid date yet: record one here once saved, it then shows in the list. */}
+                    <div className="col-start-4 row-start-1 flex @sm:col-auto @sm:row-auto">
+                      {canRecord && !stagesDirty && saved[index] ? (
+                        <button
+                          type="button"
+                          onClick={() => setRecording(saved[index]!)}
+                          aria-label={`Record ${row.label || `stage ${index + 1}`} as paid`}
+                          title="Record as paid"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-success pointer-fine:min-h-9 pointer-fine:min-w-9"
+                        >
+                          <SealCheck size={18} aria-hidden="true" />
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={() => setRecording(saved[index]!)}
-                        aria-label={`Record ${row.label || `stage ${index + 1}`} as paid`}
-                        title="Record as paid"
-                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-success"
+                        onClick={() => setStageRows((current) => current.filter((entry) => entry.key !== row.key))}
+                        aria-label={`Remove stage ${index + 1}`}
+                        className="flex min-h-11 min-w-11 items-center justify-center rounded-control text-ink-muted transition-colors hover:text-danger pointer-fine:min-h-9 pointer-fine:min-w-9"
                       >
-                        <SealCheck size={18} aria-hidden="true" />
+                        <Trash size={16} aria-hidden="true" />
                       </button>
-                    ) : (
-                      <span />
-                    )}
+                    </div>
                   </div>
                 ))}
                 {stageRows.length > 0 && !stagePreview.balanced ? (
@@ -1342,14 +1341,10 @@ function InvoiceEditor({
                     type="button"
                     variant="secondary"
                     icon={<Plus size={16} aria-hidden="true" />}
-                    onClick={() =>
-                      setStageRows((current) =>
-                        current.length === 0 ? defaultStageRows() : [...current, { key: ++rowKey, label: '', mode: 'fixed', value: '', due_note: '' }],
-                      )
-                    }
+                    onClick={() => setStageRows((current) => [...current, { key: ++rowKey, label: '', mode: 'fixed', value: '', due_note: '' }])}
                     disabled={stageRows.length >= MAX_STAGES}
                   >
-                    {stageRows.length === 0 ? 'Add 50 / 40 / 10 stages' : 'Add stage'}
+                    Add stage
                   </Button>
                 </div>
               </>
@@ -1463,8 +1458,8 @@ function InvoiceEditor({
           ) : null}
         </form>
 
-        <section aria-label="Invoice preview" className="min-w-0 xl:sticky xl:top-4">
-          <InvoicePreview invoice={sheet} />
+        <section aria-label="Invoice preview" className="min-w-0 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
+          <InvoicePreview invoice={sheet} editBody={linesOnSheet} />
         </section>
       </div>
 

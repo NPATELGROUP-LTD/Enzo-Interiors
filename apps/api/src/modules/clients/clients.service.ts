@@ -25,6 +25,10 @@ export type ClientView = Omit<Client, 'password_hash' | 'token_version' | 'total
   terms_accepted: boolean;
   /** Admin only: money is not a Designer's business. */
   total_spent?: number;
+  /** Set by the list only: projects in scope not yet in the last stage. */
+  active_projects?: number;
+  /** Set by the list, Admin only: invoices still to be paid. */
+  outstanding?: number;
 };
 
 export function toClientView(client: Client): ClientView {
@@ -54,7 +58,16 @@ export class ClientsService {
     const rows = await this.db.clients.findWhere(visible === 'all' ? {} : { id: { in: [...visible] } }, {
       orderBy: { name: 'asc' },
     });
-    return rows.map((row) => this.view(principal, row));
+    // Counts and sums in SQL. Projects within the caller's scope; money for an Admin only.
+    const [active, owed] = await Promise.all([
+      loadStages(this.db).then((stages) => this.db.activeProjectsByClient(doneStage(stages), this.access.projectScope(principal))),
+      this.access.isAdmin(principal) ? this.db.invoiceStore.outstandingByClient() : null,
+    ]);
+    return rows.map((row) => ({
+      ...this.view(principal, row),
+      active_projects: active.get(row.id) ?? 0,
+      ...(owed && { outstanding: owed.get(row.id) ?? 0 }),
+    }));
   }
 
   async findOne(principal: AuthPrincipal, id: string): Promise<ClientView> {

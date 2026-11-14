@@ -1,9 +1,9 @@
 import clsx from 'clsx';
-import { CaretLeft, ChatText, Checks, Files, Paperclip, X } from '@phosphor-icons/react';
+import { CaretLeft, Checks, Files, Paperclip, X } from '@phosphor-icons/react';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { BubbleMenu, Composer, MAX_BODY, MessageText, TOOL, ToolMenu, UploadButton } from '@/components/chat';
+import { BubbleMenu, Composer, MessageText, TOOL, UploadButton } from '@/components/chat';
 import { Button, Card, Checkbox, EmptyState, ErrorState, LoadingState, Modal } from '@/components/ui';
 import { downloadFile, useFileViewer } from '@/components/FileViewer';
 import { useToast } from '@/components/ui/Toast';
@@ -17,7 +17,6 @@ import type {
   Message,
   MessageAttachment,
   Project,
-  SavedReply,
 } from '@/types/api';
 
 const errorText = (caught: unknown, fallback: string) => (caught instanceof ApiError ? caught.message : fallback);
@@ -33,7 +32,6 @@ export function MessagesPage() {
   const toast = useToast();
   const [params, setParams] = useSearchParams();
   const conversations = useQuery<Conversation[]>('/conversations');
-  const savedReplies = useQuery<SavedReply[]>('/saved-replies');
   // A file from this device goes onto one of the client's shared projects.
   // ponytail: whole scoped list filtered here; add ?client_id= if it grows large.
   const projects = useQuery<Project[]>('/projects');
@@ -405,17 +403,6 @@ export function MessagesPage() {
                       >
                         <Files size={20} aria-hidden="true" />
                       </button>
-                      {(savedReplies.data ?? []).length > 0 ? (
-                        <ToolMenu
-                          label="Insert a saved reply"
-                          icon={<ChatText size={20} aria-hidden="true" />}
-                          items={(savedReplies.data ?? []).map((template) => ({
-                            label: `${template.title}${template.staff_id === null ? ' (shared)' : ''}`,
-                            hint: template.body,
-                            run: () => setDraft(template.body.slice(0, MAX_BODY)),
-                          }))}
-                        />
-                      ) : null}
                     </>
                   }
                 />
@@ -497,7 +484,7 @@ function bubbleActions(message: Message, toast: ReturnType<typeof useToast>) {
 }
 
 /** Attachment chips; each opens through Documents' own access check. */
-function Attachments({ items }: { items: MessageAttachment[] | null }) {
+export function Attachments({ items }: { items: MessageAttachment[] | null }) {
   const files = useFileViewer();
   if (!items?.length) return null;
   // PDFs and images open in the page; anything else is saved.
@@ -525,7 +512,7 @@ function Attachments({ items }: { items: MessageAttachment[] | null }) {
 }
 
 /** Pick from the files already shared with this client: the client can open everything they are sent. */
-function AttachPicker({
+export function AttachPicker({
   conversationId,
   clientName,
   chosen,

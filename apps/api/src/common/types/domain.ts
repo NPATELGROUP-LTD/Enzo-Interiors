@@ -343,6 +343,8 @@ export interface ProjectQuote extends BaseRecord {
   responded_at: string | null;
   response_comment: string | null;
   invoice_id: string | null;
+  /** The quote maker design it was made from (quote_designs), if any. */
+  design_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -729,7 +731,7 @@ export interface Appointment extends BaseRecord {
 /** One line in a staff member's notification bell. */
 export interface Notification extends BaseRecord {
   recipient_id: string;
-  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry' | 'request';
+  kind: 'booking' | 'review' | 'review_reply' | 'project' | 'message' | 'invoice' | 'document' | 'enquiry' | 'request' | 'stock';
   title: string;
   body: string | null;
   link: string | null;
@@ -816,6 +818,7 @@ export type CampaignStatus = 'draft' | 'sending' | 'sent';
 export interface NewsletterCampaign extends BaseRecord {
   subject: string;
   html: string;
+  blocks: unknown[] | null;
   status: CampaignStatus;
   recipients: number;
   sent_count: number;

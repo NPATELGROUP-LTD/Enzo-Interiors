@@ -123,6 +123,8 @@ model Project {
   updated_at            DateTime @default(now()) @db.Timestamptz(6)
   members               ProjectMember[]
   staff_thread          StaffThread?
+  materials             ProjectMaterial[]
+  stock_movements       StockMovement[]
 
   @@index([client_id])
   @@index([assigned_designer_id])
@@ -321,9 +323,13 @@ model ProjectQuote {
   created_at       DateTime           @default(now()) @db.Timestamptz(6)
   updated_at       DateTime           @default(now()) @db.Timestamptz(6)
   items            ProjectQuoteItem[]
+  /// The quote maker design it was made from; the design's deletion leaves the quote.
+  design_id        String?
+  design           QuoteDesign?       @relation(fields: [design_id], references: [id], onDelete: SetNull)
 
   @@index([client_id])
   @@index([project_id])
+  @@index([design_id])
   @@map("project_quotes")
 }
 
@@ -481,6 +487,7 @@ model ContactSubmission {
   source           String?
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   messages         EnquiryMessage[]
+  designs          QuoteDesign[]
 
   @@index([status])
   /// Shown as PRJ-0001 / ENQ-0001: a readable number for searching and for quoting on the phone.
@@ -594,6 +601,7 @@ model MediaAsset {
   mime_type   String?
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  inventory_items InventoryItem[]
 
   @@map("media_assets")
 }
@@ -766,6 +774,8 @@ model NewsletterCampaign {
   // The body as the admin wrote it, already sanitised; wrapped in the branded
   // shell (logo, address, unsubscribe link) when sent.
   html         String
+  // The editor's block list the html was made from (null on older newsletters); html is what is sent.
+  blocks       Json?
   // "draft" | "sending" | "sent"
   status       String    @default("draft")
   recipients   Int       @default(0)
@@ -991,4 +1001,238 @@ model StaffThreadRead {
 
   @@unique([thread_id, staff_id])
   @@map("staff_thread_reads")
+}
+
+// Inventory (modules/inventory, migration 34). The ledger is the truth; on_hand and avg_cost are kept in step with it.
+model InventorySupplier {
+  id           String          @id
+  name         String
+  contact_name String?
+  email        String?
+  phone        String?
+  lead_days    Int?
+  notes        String?
+  created_at   DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime        @default(now()) @db.Timestamptz(6)
+  items        InventoryItem[]
+  orders       PurchaseOrder[]
+
+  @@map("inventory_suppliers")
+}
+
+model InventoryItem {
+  id            String             @id
+  sku           String             @unique
+  name          String
+  /// Sheet | Hardware | Bought-in
+  type          String
+  category      String?
+  unit          String             @default("each")
+  size_note     String?
+  supplier_id   String?
+  /// Whole units; a CHECK in the migration keeps it >= 0.
+  on_hand       Int                @default(0)
+  /// Weighted average net cost per unit.
+  avg_cost      Decimal            @default(0) @db.Decimal(12, 2)
+  reorder_level Int?
+  low_notified  Boolean            @default(false)
+  active        Boolean            @default(true)
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @default(now()) @db.Timestamptz(6)
+  // Specs (migration 37): the one material record the quote maker shares. Editors edit these
+  // (and the image) only; cost, stock and supplier stay the Admin's.
+  length_mm     Int?
+  width_mm      Int?
+  thickness_mm  Int?
+  /// The grain runs along length_mm, so panels cut from it may not rotate.
+  grain         Boolean            @default(false)
+  /// carcass | front | worktop | back; null for anything that is not a board.
+  board_role    String?
+  /// #rrggbb, lower case.
+  swatch        String?
+  image_id      String?
+  /// [{ label, value }], shown as a spec list.
+  specs         Json               @default("[]")
+  /// Offered as a finish on the public quote maker (with public_name, else name).
+  show_on_site  Boolean            @default(false)
+  public_name   String?
+  /// What the quote maker prices this at; null = avg_cost. Admin only, never sent to the public.
+  quote_cost    Decimal?           @db.Decimal(12, 2)
+  image         MediaAsset?        @relation(fields: [image_id], references: [id], onDelete: SetNull)
+  supplier      InventorySupplier? @relation(fields: [supplier_id], references: [id], onDelete: SetNull)
+  movements     StockMovement[]
+  materials     ProjectMaterial[]
+  order_lines   PurchaseOrderItem[]
+
+  @@index([supplier_id])
+  @@index([image_id])
+  @@map("inventory_items")
+}
+
+/// Append-only: never updated or deleted.
+model StockMovement {
+  id         String        @id
+  item_id    String
+  /// receive | issue | return | adjust
+  kind       String
+  /// Signed: + into stock, - out of it.
+  quantity   Int
+  unit_cost  Decimal       @db.Decimal(12, 2)
+  reason     String?
+  by_id      String?
+  by_name    String
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  project_id String?
+  /// A receipt booked against a purchase order (migration 36).
+  po_id      String?
+  item       InventoryItem  @relation(fields: [item_id], references: [id], onDelete: Restrict)
+  project    Project?       @relation(fields: [project_id], references: [id], onDelete: SetNull)
+  order      PurchaseOrder? @relation(fields: [po_id], references: [id], onDelete: SetNull)
+
+  @@index([item_id, created_at])
+  @@index([project_id])
+  @@index([po_id])
+  @@map("stock_movements")
+}
+
+/// What a project needs, holds (reserved) and has used (issued) of one item. Available stock is
+/// on_hand minus every line's reserved, computed, never stored.
+model ProjectMaterial {
+  id         String        @id
+  project_id String
+  item_id    String
+  needed     Int           @default(0)
+  reserved   Int           @default(0)
+  issued     Int           @default(0)
+  created_at DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at DateTime      @default(now()) @db.Timestamptz(6)
+  project    Project       @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  item       InventoryItem @relation(fields: [item_id], references: [id], onDelete: Restrict)
+
+  @@unique([project_id, item_id])
+  @@index([item_id])
+  @@map("project_materials")
+}
+
+/// One row, id 'inventory'.
+model InventorySetting {
+  id               String   @id
+  /// Entering this project stage reserves what each line still needs. Null = by hand only.
+  reserve_on_stage String?
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("inventory_settings")
+}
+
+/// A purchase order to a supplier (migration 36). Draft -> Sent -> Part-received -> Received, or Cancelled
+/// before anything arrives. Line costs are net; VAT and gross come from invoices/totals.ts.
+model PurchaseOrder {
+  id          String              @id
+  ref_no      Int                 @unique @default(autoincrement())
+  supplier_id String
+  /// Draft | Sent | Part-received | Received | Cancelled
+  status      String              @default("Draft")
+  vat_rate    Decimal             @default(20) @db.Decimal(5, 2)
+  expected_at DateTime?           @db.Timestamptz(6)
+  notes       String?
+  sent_at     DateTime?           @db.Timestamptz(6)
+  created_by  String?
+  created_at  DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime            @default(now()) @db.Timestamptz(6)
+  supplier    InventorySupplier   @relation(fields: [supplier_id], references: [id], onDelete: Restrict)
+  items       PurchaseOrderItem[]
+  movements   StockMovement[]
+
+  @@index([supplier_id])
+  @@index([status])
+  @@map("purchase_orders")
+}
+
+/// Whole units ordered; received never passes it (CHECK in the migration).
+model PurchaseOrderItem {
+  id        String        @id
+  po_id     String
+  item_id   String
+  quantity  Int
+  received  Int           @default(0)
+  unit_cost Decimal       @db.Decimal(12, 2)
+  position  Int           @default(0)
+  order     PurchaseOrder @relation(fields: [po_id], references: [id], onDelete: Cascade)
+  item      InventoryItem @relation(fields: [item_id], references: [id], onDelete: Restrict)
+
+  @@index([po_id])
+  @@index([item_id])
+  @@map("purchase_order_items")
+}
+
+/* -------------------------------------------------------------------------- */
+/* Quote maker (migration 38)                                                 */
+/* -------------------------------------------------------------------------- */
+
+/// The unit library. slots / variants / hardware are JSONB (shapes in data/quote-maker-store.ts);
+/// the inventory item ids inside are checked by the API on save and again when pricing.
+model UnitTemplate {
+  id           String   @id
+  slug         String   @unique
+  name         String
+  description  String?
+  /// ROOM_TYPES ids in modules/quote-maker/engine.ts
+  room_types   String[] @default([])
+  /// floor | wall | tall | gap (an unpriced appliance space)
+  mount        String
+  /// Height of the underside above the floor, for wall units.
+  elevation_mm Int      @default(0)
+  /// { doors, drawers, shelves, back, plinth_mm, worktop }: drawn in 3D, and the panel recipe.
+  structure    Json
+  slots        Json     @default("[]")
+  variants     Json     @default("[]")
+  hardware     Json     @default("[]")
+  /// Fitting time per unit, priced at the pricing settings' hourly rate.
+  labour_hours Decimal  @default(0) @db.Decimal(6, 2)
+  /// Optional fixed £ per unit on top (LED, fire install, ...).
+  labour_extra Decimal  @default(0) @db.Decimal(12, 2)
+  active       Boolean  @default(true)
+  position     Int      @default(0)
+  /// 'starter library' = as shipped and never edited, so the import may still update it.
+  updated_by   String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("unit_templates")
+}
+
+/// One row, id 'quote_maker': margin, range, saw allowances, hourly rate, default board per role.
+model QuoteMakerSetting {
+  id         String   @id
+  pricing    Json     @default("{}")
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_by String?
+
+  @@map("quote_maker_settings")
+}
+
+/// A quote maker design (walls and the units on them), from the website (with its enquiry) or made by staff. Shown as QD-0007.
+model QuoteDesign {
+  id            String             @id
+  ref_no        Int                @unique @default(autoincrement())
+  /// web | staff
+  source        String
+  title         String?
+  room_type     String
+  design        Json
+  /// The questions' answers, when it was filled from them.
+  answers       Json?
+  /// The range last priced, VAT included; null when it could not be priced.
+  estimate_low  Decimal?           @db.Decimal(12, 2)
+  estimate_high Decimal?           @db.Decimal(12, 2)
+  enquiry_id    String?
+  enquiry       ContactSubmission? @relation(fields: [enquiry_id], references: [id], onDelete: Cascade)
+  created_by    String?
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @default(now()) @db.Timestamptz(6)
+  quotes        ProjectQuote[]
+
+  @@index([enquiry_id])
+  @@index([created_at])
+  @@map("quote_designs")
 }

@@ -52,7 +52,7 @@ import { AlertStore } from './alert-store';
 import { InfraStore } from './infra-store';
 import { INVOICE_FIELDS, INVOICE_ITEM_FIELDS, INVOICE_STAGE_FIELDS, InvoiceStore } from './invoice-store';
 import { QUOTE_FIELDS, QUOTE_ITEM_FIELDS, QuoteStore } from './quote-store';
-import { PrismaRepository } from './prisma-repository';
+import { PrismaRepository, Where } from './prisma-repository';
 import { PrismaService } from './prisma.service';
 import { TeamStore } from './team-store';
 
@@ -296,6 +296,16 @@ export class DatabaseService {
     });
   }
 
+  /** Projects not yet in the last stage, counted per client in SQL, within `where` (the caller's project scope). */
+  async activeProjectsByClient(done: string, where: Where<Project>): Promise<Map<string, number>> {
+    const rows = await this.prisma.project.groupBy({
+      by: ['client_id'],
+      where: { ...(where as Prisma.ProjectWhereInput), status: { not: done } },
+      _count: { _all: true },
+    });
+    return new Map(rows.map((row) => [row.client_id, row._count._all]));
+  }
+
   /**
    * Delete a client and everything that is only theirs, in one transaction:
    * projects, invoices (paid too; lines cascade), documents, the conversation,
@@ -342,7 +352,8 @@ export class DatabaseService {
       existing ?? {
         id: 'settings_enzo',
         business_name: 'Enzo Interiors',
-        vat_rate: 20,
+        // Settings › VAT; 0 until the studio is VAT-registered and saves a rate.
+        vat_rate: 0,
         logo_url: null,
         brand_primary_color: '#173C30',
         email_from_address: null,

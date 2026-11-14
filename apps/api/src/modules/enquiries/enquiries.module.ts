@@ -295,8 +295,9 @@ export class EnquiriesService {
    * The bell and every Admin's devices, the studio's email, and the visitor's confirmation.
    * Each on its own, so one failing never costs the others; the visitor is thanked even when
    * the studio list is empty, and the studio is told even when the visitor's mail bounces.
+   * The quote maker calls it after storing its design; `estimate` is the range the visitor saw.
    */
-  private async announce(row: ContactSubmission): Promise<void> {
+  async announce(row: ContactSubmission, estimate: string | null = null): Promise<void> {
     const studio = await this.settings.notificationRecipients();
     if (!studio.length) this.logger.warn(`Enquiry ${row.id} saved, but there is nobody to email.`);
     const results = await Promise.allSettled([
@@ -322,7 +323,7 @@ export class EnquiriesService {
         : null,
       this.settings
         .contactLine()
-        .then((contact) => this.mail.send({ to: row.email, replyTo: studio[0], ...templates.enquiryReceived(contact) })),
+        .then((contact) => this.mail.send({ to: row.email, replyTo: studio[0], ...templates.enquiryReceived(contact, estimate) })),
     ]);
     for (const result of results) {
       if (result.status === 'rejected') {
