@@ -152,3 +152,23 @@ test('the Infra manager can switch the summary off, and leaving it out keeps it 
   assert.equal(await app.nest.get(InfraWatch).digest(new Date('2026-07-05T09:00:00Z')), false);
   assert.equal(((await (await put({ digest_on: true })).json()) as { digest_on: boolean }).digest_on, true);
 });
+
+test('several API instances: a job runs once at a time, a watch slot once', async () => {
+  const db = app.nest.get(DatabaseService);
+  let release!: () => void;
+  const holding = new Promise<void>((resolve) => (release = resolve));
+  const first = db.once(`job-${run}`, () => holding);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(await db.once(`job-${run}`, async () => assert.fail('ran while held')), false);
+  release();
+  assert.equal(await first, true);
+  assert.equal(await db.once(`job-${run}`, async () => undefined), true, 'free again after commit');
+
+  const watch = app.nest.get(InfraWatch);
+  let calls = 0;
+  watch.attacks = async () => void calls++;
+  const at = new Date(Date.UTC(2030, 0, 1, 3, Number.parseInt(run.slice(0, 2), 16) % 50));
+  await watch.tick(at);
+  await watch.tick(at);
+  assert.equal(calls, 1, 'second instance skips the claimed slot');
+});

@@ -1,4 +1,4 @@
-import { Logger, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Logger, OnApplicationShutdown, UsePipes, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import {
@@ -10,7 +10,9 @@ import {
   WebSocketGateway,
   WebSocketServer,
 } from '@nestjs/websockets';
+import { createAdapter } from '@socket.io/redis-adapter';
 import { IsString, MaxLength } from 'class-validator';
+import Redis from 'ioredis';
 import { Server, Socket } from 'socket.io';
 
 import { AccessService } from '../../common/access/access.service';
@@ -59,10 +61,12 @@ let allowedOrigins: string[] = [];
  * is pushed to each socket in the room after re-checking that socket's session
  * and access, so a socket that has gone quiet cannot keep listening either.
  *
- * ponytail: one API instance, so rooms live in this process. Several replicas
- * need @socket.io/redis-adapter and sticky sessions. Socket.IO's default path
+ * With REDIS_URL set, rooms are shared through @socket.io/redis-adapter, so
+ * several API instances work together. The clients connect by WebSocket only:
+ * one connection stays on one instance, so no sticky sessions are needed
+ * (long-polling would hop between instances). Socket.IO's default path
  * (/socket.io) on the API host; Traefik and Cloudflare Tunnel pass the
- * WebSocket upgrade through as they are, and polling works as a fallback.
+ * WebSocket upgrade through as they are.
  */
 @WebSocketGateway({
   cors: {
@@ -73,11 +77,12 @@ let allowedOrigins: string[] = [];
   },
 })
 @UsePipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
-export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
+export class MessagesGateway implements OnGatewayInit, OnGatewayConnection, OnApplicationShutdown {
   @WebSocketServer()
   server!: Server;
 
   private readonly logger = new Logger(MessagesGateway.name);
+  private pubsub: [Redis, Redis] | null = null;
 
   constructor(
     private readonly conversations: ConversationsService,
@@ -96,6 +101,14 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
   /** The handshake: no valid session token, no connection (the client sees connect_error). */
   afterInit(server: Server): void {
     this.realtime.server = server;
+    const url = process.env.REDIS_URL?.trim();
+    if (url) {
+      // Rooms span every API instance: an emit or fetchSockets() on one reaches sockets held by the others.
+      // shortcut: ioredis queues publishes while Redis is down (local sockets still get them), fine for short outages.
+      this.pubsub = [new Redis(url), new Redis(url)];
+      for (const client of this.pubsub) client.on('error', (error: Error) => this.logger.warn(`Socket Redis: ${error.message}`));
+      server.adapter(createAdapter(...this.pubsub));
+    }
     server.use((socket, next) => {
       const token = socket.handshake.auth?.token;
       if (typeof token !== 'string' || !token) return next(new Error('Unauthorized'));
@@ -107,6 +120,10 @@ export class MessagesGateway implements OnGatewayInit, OnGatewayConnection {
         () => next(new Error('Unauthorized')),
       );
     });
+  }
+
+  onApplicationShutdown(): void {
+    for (const client of this.pubsub ?? []) client.disconnect(false);
   }
 
   /** Join every thread this principal may see, so new messages arrive without asking. */

@@ -257,6 +257,22 @@ export class DatabaseService {
    * write a removed name (READ COMMITTED); the board then shows it nowhere and
    * a later save refuses until it is moved. Lock projects if that bites.
    */
+  /**
+   * Runs `fn` only if no other API instance is running the job named `key`
+   * right now (a transaction-scoped advisory lock, freed on commit or if this
+   * process dies). Returns false when another instance holds it.
+   */
+  async once(key: string, fn: () => Promise<unknown>, timeoutMs = 120_000): Promise<boolean> {
+    return this.prisma.$transaction(
+      async (tx) => {
+        const [{ ok }] = await tx.$queryRaw<[{ ok: boolean }]>`SELECT pg_try_advisory_xact_lock(hashtext(${key})) AS ok`;
+        if (ok) await fn();
+        return ok;
+      },
+      { timeout: timeoutMs },
+    );
+  }
+
   async saveProjectStages(
     stages: ProjectStageConfig[],
     renames: Array<[string, string]>,

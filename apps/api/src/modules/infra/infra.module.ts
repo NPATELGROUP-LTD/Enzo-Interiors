@@ -8,6 +8,7 @@ import { ActivityLogService } from '../../core/activity-log.service';
 import { AlertService } from '../../core/alert.service';
 import { CacheService } from '../../core/cache';
 import { MailService } from '../../core/mail.service';
+import { RateLimitStore } from '../../core/rate-limit';
 import { s3Clients } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
 import { londonNow } from './london';
@@ -155,7 +156,7 @@ export class InfraService {
  * tell the Infra team when one address is hammering the sign-in or probing for
  * routes, and send the 08:00 summary. Alerts only, nothing is blocked: behind
  * Cloudflare many people share an address, so blocking is done by hand there.
- * ponytail: the API runs as one instance; claimDigest also makes a second one safe.
+ * Several API instances: tick() claims each slot once; claimDigest guards the summary too.
  */
 @Injectable()
 export class InfraWatch implements OnApplicationBootstrap, OnApplicationShutdown {
@@ -166,6 +167,7 @@ export class InfraWatch implements OnApplicationBootstrap, OnApplicationShutdown
     private readonly db: DatabaseService,
     private readonly alerts: AlertService,
     private readonly infra: InfraService,
+    private readonly limits: RateLimitStore,
   ) {}
 
   onApplicationBootstrap(): void {
@@ -177,7 +179,14 @@ export class InfraWatch implements OnApplicationBootstrap, OnApplicationShutdown
     clearInterval(this.timer);
   }
 
+  /**
+   * The first API instance to claim this five-minute slot runs it, so several
+   * instances don't each send the same attack alert. Redis down = each runs
+   * (counters fall back to memory): repeated alerts, nothing missed.
+   */
   async tick(now = new Date()): Promise<void> {
+    const slot = Math.floor(now.getTime() / EVERY_MS);
+    if ((await this.limits.hit(`job:infra-watch:${slot}`, EVERY_MS)) > 1) return;
     await this.attacks().catch((error: unknown) => this.logger.error(`Attack check failed: ${error instanceof Error ? error.message : String(error)}`));
     await this.digest(now).catch((error: unknown) => this.logger.error(`Daily summary failed: ${error instanceof Error ? error.message : String(error)}`));
   }
