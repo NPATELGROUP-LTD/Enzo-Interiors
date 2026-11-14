@@ -71,7 +71,8 @@ export class MailService {
 const FOREST = '#102E2D';
 const CREAM = '#F2F0EB';
 const CHARCOAL = '#2C2C2C';
-const SAGE = '#8A9E8C';
+const SAGE = '#5F6B61';
+const INK = '#1E2420';
 
 /** Every value that came from a person goes through this before it touches HTML. */
 export function escapeHtml(value: string): string {
@@ -92,35 +93,52 @@ function layout(title: string, body: string, footer = 'Enzo Interiors · Bespoke
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${escapeHtml(title)}</title></head>
 <body style="margin:0;padding:0;background:${CREAM}">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CREAM}"><tr><td align="center" style="padding:32px 16px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden">
-<tr><td style="background:${FOREST};padding:28px 32px">${logo}</td></tr>
-<tr><td style="padding:32px;font:16px/1.6 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${CHARCOAL}">${body}</td></tr>
-<tr><td style="padding:20px 32px;border-top:1px solid #ECE9E2;font:12px/1.5 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${SAGE}">${footer}</td></tr>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden">
+<tr><td style="background:${FOREST};padding:28px 40px">${logo}</td></tr>
+<tr><td style="padding:36px 40px;font:16px/1.65 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${INK}">${body}</td></tr>
+<tr><td style="padding:22px 40px;border-top:1px solid #ECE9E2;font:13px/1.55 -apple-system,Segoe UI,Helvetica,Arial,sans-serif;color:${SAGE}">${footer}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
 function button(href: string, label: string): string {
-  return `<p style="margin:28px 0"><a href="${escapeHtml(href)}" style="display:inline-block;background:${FOREST};color:${CREAM};text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600">${escapeHtml(label)}</a></p>`;
+  return `<p style="margin:28px 0"><a href="${escapeHtml(href)}" style="display:inline-block;background:${FOREST};color:${CREAM};text-decoration:none;padding:14px 26px;border-radius:10px;font-size:16px;font-weight:600">${escapeHtml(label)}</a></p>`;
 }
 
 type Rendered = Pick<Mail, 'subject' | 'html' | 'text'>;
+
+/** What an alert email adds to its facts: how serious, what it means, where to look, where to click. */
+export interface AlertExtra {
+  band: 'urgent' | 'error' | 'security';
+  bandLabel?: string;
+  impact: string;
+  next: string;
+  link?: { label: string; url: string };
+  test?: boolean;
+}
+
+const BANDS = {
+  urgent: { bg: '#FBE4E1', fg: '#8C1D13', label: 'Urgent' },
+  error: { bg: '#FCEFD5', fg: '#7A4A00', label: 'Error' },
+  security: { bg: '#E1EBF7', fg: '#1B4A82', label: 'Security' },
+  daily: { bg: '#E3EEE6', fg: '#1F4D38', label: 'Daily summary' },
+} as const;
 
 function detailRows(rows: Array<[string, string]>): string {
   return rows
     .map(
       ([key, value]) =>
-        `<tr><td style="padding:6px 16px 6px 0;color:#6B6B6B;vertical-align:top;white-space:nowrap">${escapeHtml(key)}</td><td style="padding:6px 0">${escapeHtml(value)}</td></tr>`,
+        `<tr><td style="padding:10px 20px 10px 0;border-bottom:1px solid #ECE9E2;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:${SAGE};vertical-align:top;white-space:nowrap">${escapeHtml(key)}</td><td style="padding:10px 0;border-bottom:1px solid #ECE9E2;font-size:15px;color:${INK};word-break:break-word">${escapeHtml(value)}</td></tr>`,
     )
     .join('');
 }
 
 function table(rows: Array<[string, string]>): string {
-  return `<table role="presentation" cellpadding="0" cellspacing="0" style="font-size:15px;margin:0 0 20px">${detailRows(rows)}</table>`;
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px">${detailRows(rows)}</table>`;
 }
 
 function heading(eyebrow: string, title: string): string {
-  return `<p style="margin:0 0 4px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:${SAGE}">${escapeHtml(eyebrow)}</p>
-<h1 style="margin:0 0 20px;font:600 22px/1.3 Georgia,serif;color:${FOREST}">${escapeHtml(title)}</h1>`;
+  return `<p style="margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:${SAGE}">${escapeHtml(eyebrow)}</p>
+<h1 style="margin:0 0 22px;font:600 26px/1.25 Georgia,serif;color:${FOREST}">${escapeHtml(title)}</h1>`;
 }
 
 const para = (text: string) => `<p style="margin:0 0 16px">${escapeHtml(text)}</p>`;
@@ -167,14 +185,34 @@ function bookingRows(b: BookingMail, full: boolean): Array<[string, string]> {
 }
 
 export const templates = {
-  /** To the people who run the platform: something broke, or someone should look. Plain on purpose. */
-  alert(subject: string, rows: Array<[string, string]>): Rendered {
+  /**
+   * To the people who run the platform: something broke, or someone should look.
+   * A coloured band says how serious it is, then what happened, what it means,
+   * where to look first, the facts, and a button to the right admin pane.
+   */
+  alert(subject: string, rows: Array<[string, string]>, extra?: AlertExtra): Rendered {
+    const headline = subject.replace(/^(\[[^\]]*\])+\s*/, '');
+    const tone = extra ? BANDS[extra.band] : BANDS.daily;
+    const band = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 24px"><tr><td style="background:${tone.bg};border-radius:8px;padding:10px 14px;font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:${tone.fg}">${escapeHtml(extra?.bandLabel ?? tone.label)}${extra?.test ? ' · test, nothing is wrong' : ''}</td></tr></table>`;
+    const note = (label: string, text: string) =>
+      `<p style="margin:0 0 4px;font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:${SAGE}">${escapeHtml(label)}</p><p style="margin:0 0 20px;font-size:16px">${escapeHtml(text)}</p>`;
+    const body =
+      band +
+      heading(extra ? 'Alert' : 'Daily summary', headline) +
+      (extra ? note('What it means', extra.impact) + note('What to do first', extra.next) : '') +
+      table(rows) +
+      (extra?.link ? button(extra.link.url, extra.link.label) : '');
+    const text = [
+      subject,
+      '',
+      ...(extra ? [`What it means: ${extra.impact}`, `What to do first: ${extra.next}`, ''] : []),
+      plain(rows),
+      ...(extra?.link ? ['', `${extra.link.label}: ${extra.link.url}`] : []),
+    ].join('\n');
     return {
       subject,
-      html: layout(subject, `${heading('Alert', subject.replace(/^(\[[^\]]*\])+\s*/, ''))}${table(rows)}`, 'Sent by the Enzo Interiors platform. Change who receives these under Settings › Alerts.'),
-      text: `${subject}
-
-${plain(rows)}`,
+      html: layout(subject, body, 'Sent by the Enzo Interiors platform. Change who receives these, or send a test of each kind, under Settings › Alerts.'),
+      text,
     };
   },
 

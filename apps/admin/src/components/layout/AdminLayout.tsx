@@ -97,7 +97,7 @@ export interface CmsShell {
   /** Re-reads the unpublished-change counts after a save, publish or delete. */
   refresh: () => void;
   /** Opens the search palette. */
-  openSearch: () => void;
+  openSearch: (seed?: string) => void;
   /** Re-reads the new-enquiries count behind the menu bar badge. */
   refreshEnquiries: () => void;
 }
@@ -461,18 +461,17 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
     const pane = SETTINGS_SECTIONS.find(({ id }) => pathname === `/settings/${id}`);
     return { title: pane?.label ?? 'Settings', back: pane ? { to: '/settings', label: 'Settings' } : null };
   }
-  if (pathname.startsWith('/clients/')) return { title: 'Client', back: { to: '/clients', label: 'Clients' } };
-  if (pathname.startsWith('/projects/')) return { title: 'Project', back: { to: '/projects', label: 'Projects' } };
+  // A client's and a project's own page carry their way back inside their header card.
+  if (pathname.startsWith('/clients/')) return { title: 'Client', back: null };
+  if (pathname.startsWith('/projects/')) return { title: 'Project', back: null };
   if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: { to: '/quotes', label: 'Quotes' } };
   if (pathname.startsWith('/quote-maker/'))
     return { title: pathname.endsWith('/new') ? 'New design' : 'Design', back: { to: '/quotes', label: 'Quotes' } };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: 'Enzo Interiors', back: null };
-  const isEntry = pathname !== section.to && section.collection !== 'pages';
-  return {
-    title: section.label,
-    back: isEntry ? { to: section.to, label: section.label } : { to: '/cms', label: 'CMS' },
-  };
+  // An editor (a page, an entry, the company record) carries its own way back in its save bar.
+  const editing = pathname !== section.to || section.collection === 'company' || section.collection === 'pages';
+  return { title: section.label, back: editing ? null : { to: '/cms', label: 'CMS' } };
 }
 
 export function AdminLayout() {
@@ -497,7 +496,12 @@ export function AdminLayout() {
   const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
   const [searching, setSearching] = useState(false);
-  const openSearch = useCallback(() => setSearching(true), []);
+  const [seed, setSeed] = useState('');
+  // The menu-bar search may hand over the first letters typed on it.
+  const openSearch = useCallback((first?: string) => {
+    setSeed(typeof first === 'string' ? first : '');
+    setSearching(true);
+  }, []);
 
   // Ctrl/⌘ K, from anywhere in the app.
   useEffect(() => {
@@ -573,7 +577,11 @@ export function AdminLayout() {
     <>
     <SearchPalette
       open={searching}
-      onClose={() => setSearching(false)}
+      seed={seed}
+      onClose={() => {
+        setSearching(false);
+        setSeed('');
+      }}
       actions={{ isAdmin, clients: canSeeClients, cms: canCms, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
     />
     <Desktop

@@ -514,12 +514,12 @@ export function InvoicesPage() {
                   />
                 </Th>
                 <Th sort={header('number')}>Number</Th>
-                <Th className="max-sm:hidden" sort={header('client')}>Client</Th>
-                <Th className="max-sm:hidden" sort={header('project')}>Project</Th>
+                <Th col="md" sort={header('client')}>Client</Th>
+                <Th col="xl" sort={header('project')}>Project</Th>
                 <Th sort={header('status')}>Status</Th>
-                <Th className="max-sm:hidden" sort={header('due')}>Due</Th>
+                <Th col="lg" sort={header('due')}>Due</Th>
                 <Th className="text-right" sort={header('total')}>Total</Th>
-                <Th className="text-right max-sm:hidden">Actions</Th>
+                <Th col="lg" className="text-right">Actions</Th>
               </tr>
             </thead>
             <tbody>
@@ -551,8 +551,8 @@ export function InvoicesPage() {
                     </button>
                     <span className="block text-xs font-normal text-ink-muted sm:hidden">{invoice.client_name}</span>
                   </Td>
-                  <Td className="text-ink max-sm:hidden">{invoice.client_name}</Td>
-                  <Td className="text-ink-muted max-sm:hidden">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
+                  <Td col="md" className="text-ink">{invoice.client_name}</Td>
+                  <Td col="xl" className="text-ink-muted">{invoice.job_name ?? invoice.project_name ?? '—'}</Td>
                   <Td>
                     <StatusTag tone={invoiceTone(invoice.status, invoice.is_overdue)}>{invoice.status}</StatusTag>
                     {invoice.is_overdue && invoice.status !== 'Overdue' ? (
@@ -562,7 +562,7 @@ export function InvoicesPage() {
                       <span className="mt-0.5 block text-xs text-ink-muted">{stageProgress(invoice)}</span>
                     ) : null}
                   </Td>
-                  <Td className="whitespace-nowrap text-ink-muted max-sm:hidden">{date(invoice.due_date)}</Td>
+                  <Td col="lg" className="whitespace-nowrap text-ink-muted">{date(invoice.due_date)}</Td>
                   <Td className="tabular whitespace-nowrap text-right font-semibold text-ink">
                     {money(invoice.amount)}
                     {invoice.status !== 'Paid' && (invoice.paid_amount ?? 0) > 0 ? (
@@ -570,7 +570,7 @@ export function InvoicesPage() {
                     ) : null}
                   </Td>
                   {/* Phones act from the opened invoice, which has the same buttons. */}
-                  <Td className="max-sm:hidden">
+                  <Td col="lg">
                     <div className="flex justify-end gap-1">
                       {invoice.status === 'Draft' ? (
                         <button
@@ -1020,13 +1020,19 @@ function InvoiceEditor({
 
   return (
     <>
-      <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <button type="button" onClick={onClose} className="text-link inline-flex min-h-11 items-center gap-1.5 text-sm pointer-fine:min-h-0">
-            <ArrowLeft size={14} aria-hidden="true" />
-            All invoices
+      {/* Stays on top while the form and the sheet scroll: the way back, what this is, and its buttons. */}
+      <div className="sticky top-0 z-20 -mx-5 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-border/70 bg-canvas/90 px-5 py-3 backdrop-blur sm:-mx-8 sm:px-8">
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Back to all invoices"
+            title="All invoices"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-control border border-border bg-surface text-ink shadow-card hover:bg-secondary-hover focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40 pointer-coarse:h-11 pointer-coarse:w-11"
+          >
+            <ArrowLeft size={16} aria-hidden="true" />
           </button>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-xl font-bold tracking-tight text-ink">{invoice ? invoice.number : 'New invoice'}</h2>
             {invoice ? (
               <>
@@ -1451,7 +1457,7 @@ function InvoiceEditor({
           ) : null}
         </form>
 
-        <section aria-label="Invoice preview" className="min-w-0 xl:sticky xl:top-4">
+        <section aria-label="Invoice preview" className="min-w-0 xl:sticky xl:top-20">
           <InvoicePreview invoice={sheet} editBody={linesOnSheet} />
         </section>
       </div>

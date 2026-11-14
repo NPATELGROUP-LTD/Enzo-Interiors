@@ -45,7 +45,7 @@ export function NotFoundPage() {
         </p>
 
         <div className="mt-8 flex flex-col gap-1 border-t border-border pt-4">
-          <button type="button" onClick={openSearch} className={option}>
+          <button type="button" onClick={() => openSearch()} className={option}>
             <MagnifyingGlass size={18} aria-hidden="true" className="text-ink-muted" />
             <span className="flex-1">Search for it</span>
             <kbd className="tabular text-xs text-ink-muted pointer-coarse:hidden">{MODIFIER} K</kbd>

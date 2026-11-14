@@ -32,6 +32,16 @@ interface AlertEvent {
   count: number;
   last_at: string;
 }
+interface Sample {
+  id: string;
+  label: string;
+  when: string;
+  kind: Kind;
+  source: string;
+  rows: Array<[string, string]>;
+  impact: string;
+  next: string;
+}
 interface AlertsView {
   recipients: string[];
   errors_on: boolean;
@@ -57,7 +67,9 @@ export function Alerts() {
   const [digestOn, setDigestOn] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState<Kind | 'digest' | null>(null);
+  const [testing, setTesting] = useState<string | null>(null);
+  const samples = useQuery<Sample[]>('/alerts/samples');
+  const [open, setOpen] = useState<string | null>(null);
 
   const saved = alerts.data;
   useEffect(() => {
@@ -88,10 +100,10 @@ export function Alerts() {
     }
   };
 
-  const test = async (kind: Kind) => {
-    setTesting(kind);
+  const test = async (sample: string) => {
+    setTesting(sample);
     try {
-      const { to } = await api.post<{ to: string[] }>('/alerts/test', { kind });
+      const { to } = await api.post<{ to: string[] }>('/alerts/test', { sample });
       toast.success(`Test sent to ${to.join(', ')}.`);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'Could not send the test.');
@@ -204,20 +216,52 @@ export function Alerts() {
         <SettingsRow label="Urgent and security alerts" help="Downtime and sign-in or account events always go out. They cannot be switched off." />
       </SettingsGroup>
 
-      <SettingsGroup title="Check it works">
-        <SettingsRow
-          label="Send a test email"
-          help={dirty ? 'Save first, so the test goes to these addresses.' : 'One email with that tag in its subject, to check the sender and your mail folders.'}
-        >
-          {(['urgent', 'error', 'security'] as const).map((kind) => (
-            <Button key={kind} loading={testing === kind} disabled={dirty || testing !== null} onClick={() => void test(kind)}>
-              {kind[0]!.toUpperCase() + kind.slice(1)}
-            </Button>
-          ))}
-        </SettingsRow>
-        <SettingsRow label="Send the daily summary now" help={dirty ? 'Save first, so it goes to these addresses.' : 'The numbers as they are now, to check it arrives. It does not use up the 08:00 one.'}>
+      <SettingsGroup title="Every kind of alert">
+        <p className="px-4 py-3 text-[13px] leading-relaxed text-ink-muted">
+          Each is a real alert laid out as it will arrive, with invented details. Open one to read what it says, then send it to{' '}
+          {dirty ? 'the saved addresses (save first)' : 'the addresses above'} to check the sender, your folders and the wording.
+        </p>
+        {(samples.data ?? []).map((sample) => (
+          <div key={sample.id} className="px-4 py-3">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+              <button
+                type="button"
+                aria-expanded={open === sample.id}
+                onClick={() => setOpen(open === sample.id ? null : sample.id)}
+                className="min-w-0 flex-1 basis-60 rounded-control text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-focus-ring/40"
+              >
+                <span className="flex flex-wrap items-center gap-2">
+                  <StatusTag tone={KIND_TONE[sample.kind]}>{sample.kind}</StatusTag>
+                  <span className="text-sm font-medium text-ink">{sample.label}</span>
+                </span>
+                <span className="mt-0.5 block text-[13px] text-ink-muted">{sample.when}</span>
+              </button>
+              <Button loading={testing === sample.id} disabled={dirty || testing !== null} onClick={() => void test(sample.id)}>
+                Send test
+              </Button>
+            </div>
+            {open === sample.id ? (
+              <div className="mt-3 rounded-control border border-border p-3 text-sm">
+                <p className="label-eyebrow">What it means</p>
+                <p className="mb-3 mt-0.5 text-ink">{sample.impact}</p>
+                <p className="label-eyebrow">What to do first</p>
+                <p className="mb-3 mt-0.5 text-ink">{sample.next}</p>
+                <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1.5 border-t border-border/70 pt-3">
+                  {sample.rows.map(([key, value]) => (
+                    <div key={key} className="contents">
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-ink-muted">{key}</dt>
+                      <dd className="break-words text-ink">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
+            ) : null}
+          </div>
+        ))}
+        {samples.error ? <p role="alert" className="px-4 py-3 text-sm text-danger">{samples.error}</p> : null}
+        <SettingsRow label="Daily summary" help={dirty ? 'Save first, so it goes to these addresses.' : 'The numbers as they are now, to check it arrives. It does not use up the 08:00 one.'}>
           <Button loading={testing === 'digest'} disabled={dirty || testing !== null} onClick={() => void sendDigest()}>
-            Send
+            Send test
           </Button>
         </SettingsRow>
       </SettingsGroup>

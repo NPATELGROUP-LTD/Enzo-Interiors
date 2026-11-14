@@ -178,10 +178,29 @@ export class ProjectsService {
   /* Writes                                                              */
   /* ------------------------------------------------------------------ */
 
-  /** Admin only (controller). */
+  /**
+   * Admin, or a Designer for a client they can already see. A Designer's project
+   * starts at the first stage, hidden from the client, with themselves as the
+   * designer and nobody else assigned: who works on it and what the client sees
+   * stay the Admin's.
+   */
   async create(principal: AuthPrincipal, dto: CreateProjectDto): Promise<ProjectView> {
+    const admin = this.access.isAdmin(principal);
+    // Same answer as a missing client, so a Designer cannot probe which ids exist.
+    if (!admin && !(await this.access.canAccessClient(principal, dto.client_id))) {
+      throw new BadRequestException('Client does not exist');
+    }
     const client = await this.db.clients.findById(dto.client_id);
     if (!client) throw new BadRequestException('Client does not exist');
+    if (!admin) {
+      dto = {
+        client_id: dto.client_id,
+        name: dto.name,
+        type: dto.type,
+        site_address: dto.site_address,
+        assigned_designer_id: principal.id,
+      };
+    }
     await this.assertAssignable(dto.assigned_designer_id);
     await this.assertAssignable(dto.assigned_installer_id);
 

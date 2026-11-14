@@ -371,7 +371,15 @@
   overflow: hidden;
   padding: 4px 0 16px;
 }
-.inv-frame > div {
+/* One page at a time in its own box; past "fit" it scrolls to pan. */
+.inv-viewport {
+  max-height: calc(100dvh - 11rem);
+  overflow: auto;
+  border-radius: 10px;
+  background: var(--surface-muted, #ecece7);
+  padding: 12px;
+}
+.inv-pane {
   width: 210mm;
   margin: 0 auto;
 }

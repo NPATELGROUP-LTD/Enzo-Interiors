@@ -351,13 +351,6 @@ export interface Conversation {
   message_count: number;
 }
 
-export interface SavedReply {
-  id: string;
-  staff_id: string | null;
-  title: string;
-  body: string;
-}
-
 export interface DocumentRecord {
   id: string;
   client_id: string;

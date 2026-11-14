@@ -109,7 +109,7 @@ export function ClientsPage() {
   const tall = 'pointer-coarse:min-h-12';
 
   return (
-    <div className="mx-auto flex h-full max-w-[100rem] flex-col px-5 pb-5 pt-3 sm:px-8">
+    <div className="flex h-full flex-col px-5 pb-5 pt-3 sm:px-8">
       {/* The shell's section name is not needed here; an empty heading keeps it from showing. */}
       <PageHeader title="" />
 
@@ -199,10 +199,10 @@ export function ClientsPage() {
           <thead>
             <tr>
               <Th sort={header('name')}>Name</Th>
-              <Th className="max-md:hidden" sort={header('phone')}>
+              <Th col="md" sort={header('phone')}>
                 Phone
               </Th>
-              <Th className="max-lg:hidden" sort={header('email')}>
+              <Th col="lg" sort={header('email')}>
                 Email
               </Th>
               <Th className="text-right" sort={header('active')}>
@@ -240,10 +240,10 @@ export function ClientsPage() {
                     <p className="mt-0.5 text-xs text-ink-muted md:hidden">{client.phone}</p>
                   ) : null}
                 </Td>
-                <Td className="whitespace-nowrap text-ink-muted max-md:hidden">
+                <Td col="md" className="whitespace-nowrap text-ink-muted">
                   {client.phone ?? '—'}
                 </Td>
-                <Td className="max-w-64 text-ink-muted [overflow-wrap:anywhere] max-lg:hidden">
+                <Td col="lg" className="max-w-64 text-ink-muted [overflow-wrap:anywhere]">
                   {client.email || '—'}
                 </Td>
                 <Td className="tabular text-right text-ink">{client.active_projects ?? 0}</Td>
