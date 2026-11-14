@@ -1,4 +1,4 @@
-import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, Ruler, Trash, UserPlus } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight, EnvelopeSimple, PaperPlaneTilt, Trash, UserPlus } from '@phosphor-icons/react';
 import clsx from 'clsx';
 import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -6,7 +6,6 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useCmsShell } from '@/components/layout/AdminLayout';
 import { Button, ConfirmDialog, EmptyState, ErrorState, LoadingState, StatusTag, Tabs, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
-import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { appendIfOpen } from '@/lib/enquiryThread';
 import { dateTime, refNo, relative } from '@/lib/format';
@@ -38,18 +37,6 @@ const FOCUS = 'focus-visible:outline-none focus-visible:ring-[3px] focus-visible
  * CMS overview's rows; the open one shows in a sidebar with its status and a
  * shortcut to add the sender as a client.
  */
-/** The quote maker designs sent with this enquiry (the website files one per room); nothing when it has none. */
-function OpenDesign({ enquiryId }: { enquiryId: string }) {
-  const designs = useQuery<Array<{ id: string; ref: string }>>(`/quote-maker/designs?enquiry_id=${encodeURIComponent(enquiryId)}`);
-  return (designs.data ?? []).map((design) => (
-    <Link key={design.id} to={`/quote-maker/${design.id}`}>
-      <Button variant="secondary" className="w-full whitespace-nowrap" icon={<Ruler size={16} aria-hidden="true" />}>
-        Open design {design.ref}
-      </Button>
-    </Link>
-  ));
-}
-
 export function EnquiriesPage() {
   const toast = useToast();
   const { refreshEnquiries } = useCmsShell();
@@ -332,7 +319,6 @@ export function EnquiriesPage() {
                       Add as client
                     </Button>
                   </Link>
-                  {open.kind === 'quote' ? <OpenDesign enquiryId={open.id} /> : null}
                 </div>
                 <div>
                   <p className="mb-2 text-[13px] font-semibold text-ink-muted">Status</p>

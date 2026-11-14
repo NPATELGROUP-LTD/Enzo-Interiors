@@ -11,7 +11,6 @@ import {
   GearSix,
   ImagesSquare,
   Kanban,
-  Package,
   ListBullets,
   Question,
   ChatsCircle,
@@ -442,7 +441,6 @@ const TITLES: Record<string, string> = {
   '/projects': 'Projects',
   '/quotes': 'Quotes',
   '/invoices': 'Invoices',
-  '/inventory': 'Inventory',
   '/enquiries': 'Enquiries',
   '/bookings': 'Bookings',
   '/messages': 'Messages',
@@ -465,8 +463,6 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
   if (pathname.startsWith('/clients/')) return { title: 'Client', back: null };
   if (pathname.startsWith('/projects/')) return { title: 'Project', back: null };
   if (pathname.startsWith('/quotes/')) return { title: 'Quote', back: { to: '/quotes', label: 'Quotes' } };
-  if (pathname.startsWith('/quote-maker/'))
-    return { title: pathname.endsWith('/new') ? 'New design' : 'Design', back: { to: '/quotes', label: 'Quotes' } };
   const section = SECTIONS.find(({ to }) => pathname === to || pathname.startsWith(`${to}/`));
   if (!section) return { title: 'Enzo Interiors', back: null };
   // An editor (a page, an entry, the company record) carries its own way back in its save bar.
@@ -476,9 +472,7 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
 
 export function AdminLayout() {
   const toast = useToast();
-  const { isAdmin, isInfra, logout, can, user } = useAuth();
-  // An Editor keeps the catalogue (specs and photos) in step with the website's quote maker.
-  const isEditor = user?.role === 'Editor';
+  const { isAdmin, isInfra, logout, can } = useAuth();
   // Settings: an Admin has every pane, an Infra manager the ones that run the platform.
   const canSettings = isAdmin || isInfra;
   const canSeeClients = can(...CLIENT_ROLES);
@@ -551,7 +545,6 @@ export function AdminLayout() {
     ...(isAdmin
       ? [page('/quotes', 'Quotes', FileText), page('/invoices', 'Invoices', Receipt)]
       : []),
-    ...(isAdmin || isEditor ? [page('/inventory', 'Inventory', Package)] : []),
   ];
   const inbox = [
     ...(isAdmin ? [page('/enquiries', 'Enquiries', Tray, enquiries.data?.new_count ?? 0), page('/bookings', 'Bookings', CalendarBlank)] : []),

@@ -7,7 +7,7 @@ import { parsePages, resolvePages } from './pages';
 test('page switches: saved values over the defaults, junk dropped', () => {
   assert.deepEqual(resolvePages(null), {
     about: false, services: false, portfolio: false, booking: false,
-    contact: true, privacy: true, terms: true, cookies: true, quote: false,
+    contact: true, privacy: true, terms: true, cookies: true,
   });
   const pages = resolvePages({ about: true, contact: false, booking: 'yes', home: false });
   assert.equal(pages.about, true);

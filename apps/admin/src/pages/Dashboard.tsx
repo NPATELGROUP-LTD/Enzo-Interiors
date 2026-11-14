@@ -175,7 +175,7 @@ function Shortcuts() {
     ...(isAdmin
       ? ([
           ['New project', 'Project', '/projects?new=1'],
-          ['New quote', 'Quote', '/quote-maker/new'],
+          ['New quote', 'Quote', '/quotes?new=1'],
           ['New invoice', 'Invoice', '/invoices?new=1'],
           ['New booking', 'Booking', '/bookings?new=1'],
         ] as Array<[string, string, string]>)

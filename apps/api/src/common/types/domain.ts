@@ -94,7 +94,7 @@ export const SITE_STATUSES = ['live', 'coming_soon'] as const;
 export type SiteStatus = (typeof SITE_STATUSES)[number];
 
 /** Settings › Pages: the public pages that can be switched off. Home is always on. */
-export const PAGE_KEYS = ['about', 'services', 'portfolio', 'booking', 'contact', 'privacy', 'terms', 'cookies', 'quote'] as const;
+export const PAGE_KEYS = ['about', 'services', 'portfolio', 'booking', 'contact', 'privacy', 'terms', 'cookies'] as const;
 export type PageKey = (typeof PAGE_KEYS)[number];
 
 /* -------------------------------------------------------------------------- */
