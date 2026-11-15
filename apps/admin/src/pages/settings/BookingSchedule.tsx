@@ -262,7 +262,7 @@ export function BookingSchedule() {
   const perDay = DAYS.map((day) => previewSlots(config.week[day], config.slotMinutes, config.gapMinutes).length);
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className={HEADING}>Booking</h2>

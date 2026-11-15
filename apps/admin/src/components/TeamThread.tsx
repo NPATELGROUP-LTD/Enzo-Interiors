@@ -42,9 +42,9 @@ export function TeamThread({
   const [error, setError] = useState<string | null>(null);
   const [body, setBody] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [attached, setAttached] = useState<ThreadDocument | null>(null);
   const [sending, setSending] = useState(false);
   const [picking, setPicking] = useState(false);
-  const [fetching, setFetching] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
   const end = useRef<HTMLDivElement>(null);
   const current = useRef(threadId);
@@ -83,27 +83,19 @@ export function TeamThread({
     if (!picked) return;
     const limit = picked.type.startsWith('video/') || /\.(mp4|mov|webm)$/i.test(picked.name) ? MAX_VIDEO : MAX_FILE;
     if (picked.size > limit) return toast.error(limit === MAX_VIDEO ? 'Videos can be up to 100 MB.' : 'Files can be up to 25 MB.');
+    setAttached(null);
     setFile(picked);
   };
 
-  // An uploaded project document goes into the thread as a file of its own (the API takes uploads, not references).
-  const attachDocument = async (doc: ThreadDocument) => {
-    setFetching(doc.id);
-    try {
-      const { url } = await api.get<{ url: string }>(`/documents/${doc.id}/download?inline=1`);
-      const response = await fetch(url);
-      if (!response.ok) throw new Error('download');
-      setFile(new File([await response.blob()], doc.name));
-      setPicking(false);
-    } catch {
-      toast.error('Could not attach that file. Upload it from your device instead.');
-    } finally {
-      setFetching(null);
-    }
+  // An uploaded project document is attached by reference: the API copies it (the browser cannot read the private bucket).
+  const attachDocument = (doc: ThreadDocument) => {
+    setAttached(doc);
+    setFile(null);
+    setPicking(false);
   };
 
   const send = async () => {
-    if (sending || (!body.trim() && !file)) return;
+    if (sending || (!body.trim() && !file && !attached)) return;
     setSending(true);
     try {
       let sent: TeamMessage;
@@ -113,11 +105,12 @@ export function TeamThread({
         if (body.trim()) form.append('body', body.trim());
         sent = await api.post<TeamMessage>(`/team/threads/${threadId}/messages`, form);
       } else {
-        sent = await api.post<TeamMessage>(`/team/threads/${threadId}/messages`, { body });
+        sent = await api.post<TeamMessage>(`/team/threads/${threadId}/messages`, attached ? { body, document_id: attached.id } : { body });
       }
       setMessages((current) => [...(current ?? []), sent]);
       setBody('');
       setFile(null);
+      setAttached(null);
     } catch (caught) {
       toast.error(caught instanceof ApiError ? caught.message : 'That did not send.');
     } finally {
@@ -190,7 +183,7 @@ export function TeamThread({
         onChange={setBody}
         onSend={() => void send()}
         sending={sending}
-        canSend={Boolean(body.trim() || file)}
+        canSend={Boolean(body.trim() || file || attached)}
         placeholder="Write a message…"
         tools={
           <>
@@ -212,13 +205,13 @@ export function TeamThread({
           </>
         }
         above={
-          file ? (
+          file || attached ? (
             <p className="mb-2 flex items-center gap-2 rounded-[10px] bg-ink/[0.05] px-3 py-1.5 text-sm text-ink">
               <FileText size={16} aria-hidden="true" />
               <span className="min-w-0 flex-1 truncate">
-                {file.name} · {fileSize(file.size)}
+                {file ? `${file.name} · ${fileSize(file.size)}` : `${attached!.name} · ${fileSize(attached!.size_bytes)}`}
               </span>
-              <button type="button" onClick={() => setFile(null)} aria-label="Remove the attachment" className="text-ink-muted hover:text-ink">
+              <button type="button" onClick={() => { setFile(null); setAttached(null); }} aria-label="Remove the attachment" className="text-ink-muted hover:text-ink">
                 <X size={16} aria-hidden="true" />
               </button>
             </p>
@@ -246,7 +239,6 @@ export function TeamThread({
                 <li key={doc.id}>
                   <button
                     type="button"
-                    disabled={fetching !== null}
                     onClick={() => void attachDocument(doc)}
                     className="flex min-h-11 w-full items-center gap-2 rounded-control px-2 text-left hover:bg-ink/[0.06] disabled:opacity-60"
                   >
@@ -257,7 +249,6 @@ export function TeamThread({
                         {doc.category} · {fileSize(doc.size_bytes)}
                       </span>
                     </span>
-                    {fetching === doc.id ? <span className="text-xs text-ink-muted">Adding…</span> : null}
                   </button>
                 </li>
               ))}

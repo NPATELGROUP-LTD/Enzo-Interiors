@@ -63,6 +63,8 @@ interface Upload {
 export class SendTeamMessageDto {
   /** May be empty when a file is attached. */
   @IsOptional() @IsString() @MaxLength(MAX_BODY) body?: string;
+  /** A document of this project's, attached by reference (project threads only). */
+  @IsOptional() @IsString() @MaxLength(64) document_id?: string;
 }
 
 export class OpenDirectDto {
@@ -159,8 +161,16 @@ export class TeamChatService {
     return latest.reverse().map((message) => this.messageView(message, names.get(message.sender_id) ?? 'Former team member'));
   }
 
-  async send(principal: AuthPrincipal, threadId: string, dto: SendTeamMessageDto, file?: Upload): Promise<MessageView> {
+  async send(principal: AuthPrincipal, threadId: string, dto: SendTeamMessageDto, upload?: Upload): Promise<MessageView> {
     const { thread, project } = await this.require(principal, threadId);
+    let file = upload;
+    if (dto.document_id && !file) {
+      // Copied server-side: the browser cannot read the private bucket, and the copy outlives the document.
+      const doc = project ? await this.db.documents.findFirstWhere({ id: dto.document_id, project_id: project.id }) : null;
+      if (!doc) throw new NotFoundException('Document not found');
+      const buffer = await this.storage.get(doc.storage_url);
+      file = { originalname: doc.name, size: buffer.length, buffer };
+    }
     const body = (dto.body ?? '').trim();
     if (!body && !file) throw new BadRequestException('Write a message or attach a file.');
 

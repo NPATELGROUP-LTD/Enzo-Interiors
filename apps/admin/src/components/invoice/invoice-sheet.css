@@ -329,6 +329,19 @@
   gap: 0.6mm;
   min-width: 0;
 }
+.inv-lbl {
+  display: flex;
+  align-items: center;
+  gap: 1mm;
+  color: var(--inv-muted);
+  font-size: 7pt;
+  white-space: nowrap;
+}
+.inv-lbl span {
+  flex: none;
+  width: 14mm;
+  text-align: right;
+}
 .inv-edit-tools {
   flex: none;
   width: 6mm;
@@ -373,8 +386,9 @@
 }
 /* One page at a time in its own box; past "fit" it scrolls to pan. */
 .inv-viewport {
-  max-height: calc(100dvh - 11rem);
-  overflow: auto;
+  /* Pans sideways when zoomed in; the page column is the one vertical scroll. */
+  overflow-x: auto;
+  overflow-y: hidden;
   border-radius: 10px;
   background: var(--surface-muted, #ecece7);
   padding: 12px;

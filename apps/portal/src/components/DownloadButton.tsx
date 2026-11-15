@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
+import { PdfPages } from '@/components/PdfPages';
 import { ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
 import { ApiError, documentAccess, downloadDocument } from '@/lib/api';
 import type { DocumentRecord } from '@/types/api';
@@ -94,7 +95,7 @@ export function useFileViewer() {
           className="h-[70dvh] w-full rounded-control border border-border bg-white"
         />
       ) : !shown.canSave ? (
-        <p className="text-ink">This browser cannot show this PDF in view-only mode. Ask the studio to send it another way.</p>
+        <PdfPages id={shown.file.id} />
       ) : (
         <p className="text-ink">
           This browser cannot show a PDF inside the page.{' '}

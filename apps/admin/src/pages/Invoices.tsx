@@ -1,7 +1,10 @@
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   ArrowUUpLeft,
   DownloadSimple,
+  Eye,
   FilePdf,
   PaperPlaneRight,
   Plus,
@@ -722,6 +725,7 @@ function InvoiceEditor({
   const [recording, setRecording] = useState<InvoiceStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
 
   const allowDownload = async (next: boolean) => {
     try {
@@ -824,6 +828,14 @@ function InvoiceEditor({
   const setRow = (key: number, change: Partial<LineRow> | { text: string }) =>
     setRows((current) => current.map((row) => (row.key === key ? ({ ...row, ...change } as Row) : row)));
   const removeRow = (key: number) => setRows((current) => current.filter((row) => row.key !== key));
+  const shift = (from: number, by: -1 | 1) =>
+    setRows((current) => {
+      const to = from + by;
+      if (to < 0 || to >= current.length) return current;
+      const next = [...current];
+      next.splice(to, 0, next.splice(from, 1)[0]!);
+      return next;
+    });
   /** A new line at the end of the section that `headingKey` starts. */
   const addLineTo = (headingKey: number) =>
     setRows((current) => {
@@ -1100,7 +1112,7 @@ function InvoiceEditor({
       </div>
 
       <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,30rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
-        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
+        <form id="invoice-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1 [&>*]:shrink-0" noValidate>
           {lockNote ? <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">{lockNote}</p> : null}
 
           <Card className="flex flex-col gap-4">
@@ -1184,6 +1196,45 @@ function InvoiceEditor({
               hint="Printed as written, one line each."
               onChange={(event) => setJobNotes(event.target.value)}
             />
+          </Card>
+
+          {/* Below xl: lines as a plain list; the sheet opens full screen from Preview. */}
+          <Card className="flex flex-col gap-4 xl:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-ink">Lines</h2>
+              <Button type="button" variant="secondary" icon={<Eye size={16} aria-hidden="true" />} onClick={() => setPreviewing(true)}>
+                Preview
+              </Button>
+            </div>
+            {rows.map((row, index) => (
+              <div key={row.key} className="flex flex-col gap-3 rounded-control border border-border p-3">
+                {row.kind === 'heading' ? (
+                  <Input label="Section heading" value={row.text} maxLength={120} disabled={!moneyEditable} placeholder="e.g. Materials" onChange={(event) => setRow(row.key, { text: event.target.value })} />
+                ) : (
+                  <>
+                    <Input label="Item" value={row.description} maxLength={300} disabled={!moneyEditable} onChange={(event) => setRow(row.key, { description: event.target.value })} />
+                    <Input label="Description" value={row.detail} maxLength={300} disabled={!moneyEditable} onChange={(event) => setRow(row.key, { detail: event.target.value })} />
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input label="Qty" type="number" inputMode="numeric" min={1} step={1} value={row.quantity} disabled={!moneyEditable} onChange={(event) => setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })} />
+                      <Input label="Price £ each" type="number" inputMode="decimal" min={0} step="0.01" value={row.unit_price} disabled={!moneyEditable} onChange={(event) => setRow(row.key, { unit_price: event.target.value })} />
+                    </div>
+                  </>
+                )}
+                {moneyEditable ? (
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" icon={<ArrowUp size={16} aria-hidden="true" />} disabled={index === 0} onClick={() => shift(index, -1)} aria-label="Move up" />
+                    <Button type="button" variant="ghost" icon={<ArrowDown size={16} aria-hidden="true" />} disabled={index === rows.length - 1} onClick={() => shift(index, 1)} aria-label="Move down" />
+                    <Button type="button" variant="ghost" className="ml-auto" icon={<Trash size={16} aria-hidden="true" />} onClick={() => removeRow(row.key)}>Remove</Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            {moneyEditable ? (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankLine()])}>Add line</Button>
+                <Button type="button" variant="secondary" icon={<TextHOne size={16} aria-hidden="true" />} disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankHeading(), blankLine()])}>Add section</Button>
+              </div>
+            ) : null}
           </Card>
 
           {moneyEditable ? (
@@ -1458,10 +1509,22 @@ function InvoiceEditor({
           ) : null}
         </form>
 
-        <section aria-label="Invoice preview" className="min-w-0 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
+        <section aria-label="Invoice preview" className="min-w-0 max-xl:hidden xl:min-h-0 xl:overflow-y-auto xl:pb-6">
           <InvoicePreview invoice={sheet} editBody={linesOnSheet} />
         </section>
       </div>
+
+      {previewing ? (
+        <div role="dialog" aria-modal="true" aria-label="Invoice preview" className="fixed inset-0 z-[110] flex flex-col bg-canvas xl:hidden">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
+            <h2 className="text-base font-semibold text-ink">Preview</h2>
+            <Button type="button" variant="secondary" icon={<X size={16} aria-hidden="true" />} onClick={() => setPreviewing(false)}>Close</Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <InvoicePreview invoice={sheet} />
+          </div>
+        </div>
+      ) : null}
 
       <InvoicePrint invoices={[sheet]} />
 
