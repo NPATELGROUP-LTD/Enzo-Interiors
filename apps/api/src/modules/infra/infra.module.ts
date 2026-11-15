@@ -1,4 +1,3 @@
-import { ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3';
 import { Controller, Get, Injectable, Logger, Module, OnApplicationBootstrap, OnApplicationShutdown, Post } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 
@@ -11,40 +10,12 @@ import { MailService } from '../../core/mail.service';
 import { RateLimitStore } from '../../core/rate-limit';
 import { s3Clients } from '../../core/storage';
 import { DatabaseService } from '../../data/database.service';
+import { type BucketUse, countBucket } from './buckets';
+import { ClusterService } from './cluster';
 import { londonNow } from './london';
 
-const MAX_PAGES = 50;
 const EVERY_MS = 5 * 60_000;
 const RELEASE = (process.env.RELEASE ?? '').slice(0, 12) || null;
-
-interface BucketUse {
-  id: 'public' | 'private';
-  files: number;
-  bytes: number;
-  /** Stopped counting at MAX_PAGES x 1000 files. */
-  partial: boolean;
-  error: string | null;
-}
-
-async function countBucket(client: S3Client, id: BucketUse['id'], bucket: string): Promise<BucketUse> {
-  let files = 0;
-  let bytes = 0;
-  let token: string | undefined;
-  try {
-    for (let page = 0; page < MAX_PAGES; page++) {
-      const out = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }));
-      for (const object of out.Contents ?? []) {
-        files += 1;
-        bytes += object.Size ?? 0;
-      }
-      if (!out.IsTruncated) return { id, files, bytes, partial: false, error: null };
-      token = out.NextContinuationToken;
-    }
-    return { id, files, bytes, partial: true, error: null };
-  } catch {
-    return { id, files, bytes, partial: false, error: 'Could not read this bucket.' };
-  }
-}
 
 const size = (bytes: number): string => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -221,6 +192,7 @@ export class InfraController {
   constructor(
     private readonly infra: InfraService,
     private readonly activity: ActivityLogService,
+    private readonly cluster: ClusterService,
   ) {}
 
   @Get('stats')
@@ -228,6 +200,14 @@ export class InfraController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   stats() {
     return this.infra.stats();
+  }
+
+  /** Settings › Cluster: the API copies' load and how far the second Postgres, Redis and MinIO have caught up. */
+  @Get('cluster')
+  @Roles('Infra')
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  clusterStatus() {
+    return this.cluster.status();
   }
 
   /** From Settings › Alerts: the summary now, to check it arrives. */
@@ -243,6 +223,6 @@ export class InfraController {
 
 @Module({
   controllers: [InfraController],
-  providers: [InfraService, InfraWatch],
+  providers: [InfraService, InfraWatch, ClusterService],
 })
 export class InfraModule {}
