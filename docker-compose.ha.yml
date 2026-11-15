@@ -93,6 +93,7 @@ services:
       CLUSTER_INSTANCES: ${CLUSTER_INSTANCES:-ha-app-1,ha-app-2}
       PATRONI_NODES: ${DATA1_IP},${DATA2_IP}
       REDIS_NODES: ${DATA1_IP}:6379,${DATA2_IP}:6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?}
       MINIO_NODES: http://${DATA1_IP}:9000,http://${DATA2_IP}:9000
       # cloudflared is the one hop in front of the API.
       TRUST_PROXY: ${TRUST_PROXY:-1}
