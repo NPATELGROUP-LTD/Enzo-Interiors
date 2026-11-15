@@ -3,7 +3,6 @@ import { Fragment, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 
 import {
-  AppearancePicker,
   Button,
   ErrorState,
   Input,
@@ -21,7 +20,6 @@ import { useQuery } from '@/hooks/useApi';
 import { ApiError, api, tokenStore } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { reauthSocket } from '@/lib/socket';
-import { useTheme } from '@/lib/theme';
 import type { NotificationPreference, NotifyCategory, NotifyChannel } from '@/types/api';
 
 /** Rows and columns of Settings › Notifications. */
@@ -42,7 +40,6 @@ const GRID = 'sm:grid sm:grid-cols-[minmax(0,1fr)_repeat(3,6.5rem)] sm:items-cen
 /** Every section is its own card on one page, two across from xl. */
 export function SettingsPage() {
   const { user, logout } = useAuth();
-  const { theme, set: setTheme } = useTheme();
   const toast = useToast();
   const preferences = useQuery<NotificationPreference>('/notification-preferences');
 
@@ -97,6 +94,7 @@ export function SettingsPage() {
       <PageHeader title="" />
 
       <div className="grid items-start gap-4 xl:grid-cols-2">
+        <div className="flex min-w-0 flex-col gap-4">
           <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader title="Profile" help="Your details as the studio has them." />
@@ -121,6 +119,60 @@ export function SettingsPage() {
             </>
           </section>
 
+
+          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
+            <>
+              <PaneHeader title="Security" help="Your password, and this session." />
+              <SettingsGroup title="Password">
+                <form onSubmit={changePassword} className="flex max-w-md flex-col gap-4 p-4" noValidate>
+                  <input type="text" name="username" autoComplete="username" value={user?.email ?? ''} hidden readOnly />
+                  <Input
+                    label="Current password"
+                    type="password"
+                    autoComplete="current-password"
+                    value={passwordForm.current}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, current: event.target.value })}
+                    required
+                  />
+                  <Input
+                    label="New password"
+                    type="password"
+                    autoComplete="new-password"
+                    hint="At least 12 characters. Changing it signs you out everywhere else."
+                    value={passwordForm.next}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, next: event.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Confirm new password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={passwordForm.confirm}
+                    onChange={(event) => setPasswordForm({ ...passwordForm, confirm: event.target.value })}
+                    required
+                  />
+                  {passwordError ? (
+                    <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
+                      {passwordError}
+                    </p>
+                  ) : null}
+                  <div>
+                    <Button type="submit" variant="primary" loading={passwordSaving}>
+                      Change password
+                    </Button>
+                  </div>
+                </form>
+              </SettingsGroup>
+              <SettingsGroup title="Session">
+                <SettingsRow label={`Signed in as ${user?.email ?? ''}`} help="Signing out ends this session on this device.">
+                  <Button variant="destructive" onClick={logout}>
+                    Sign out
+                  </Button>
+                </SettingsRow>
+              </SettingsGroup>
+            </>
+          </section>
+        </div>
           <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
             <>
               <PaneHeader
@@ -185,69 +237,6 @@ export function SettingsPage() {
             </>
           </section>
 
-          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
-            <>
-              <PaneHeader title="Security" help="Your password, and this session." />
-              <SettingsGroup title="Password">
-                <form onSubmit={changePassword} className="flex max-w-md flex-col gap-4 p-4" noValidate>
-                  <input type="text" name="username" autoComplete="username" value={user?.email ?? ''} hidden readOnly />
-                  <Input
-                    label="Current password"
-                    type="password"
-                    autoComplete="current-password"
-                    value={passwordForm.current}
-                    onChange={(event) => setPasswordForm({ ...passwordForm, current: event.target.value })}
-                    required
-                  />
-                  <Input
-                    label="New password"
-                    type="password"
-                    autoComplete="new-password"
-                    hint="At least 12 characters. Changing it signs you out everywhere else."
-                    value={passwordForm.next}
-                    onChange={(event) => setPasswordForm({ ...passwordForm, next: event.target.value })}
-                    required
-                  />
-                  <Input
-                    label="Confirm new password"
-                    type="password"
-                    autoComplete="new-password"
-                    value={passwordForm.confirm}
-                    onChange={(event) => setPasswordForm({ ...passwordForm, confirm: event.target.value })}
-                    required
-                  />
-                  {passwordError ? (
-                    <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg px-3 py-2 text-danger">
-                      {passwordError}
-                    </p>
-                  ) : null}
-                  <div>
-                    <Button type="submit" variant="primary" loading={passwordSaving}>
-                      Change password
-                    </Button>
-                  </div>
-                </form>
-              </SettingsGroup>
-              <SettingsGroup title="Session">
-                <SettingsRow label={`Signed in as ${user?.email ?? ''}`} help="Signing out ends this session on this device.">
-                  <Button variant="destructive" onClick={logout}>
-                    Sign out
-                  </Button>
-                </SettingsRow>
-              </SettingsGroup>
-            </>
-          </section>
-
-          <section className="min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
-            <>
-              <PaneHeader title="Appearance" help="Applies to this browser only." />
-              <SettingsGroup>
-                <div className="p-4">
-                  <AppearancePicker value={theme} onChange={setTheme} />
-                </div>
-              </SettingsGroup>
-            </>
-          </section>
       </div>
     </>
   );

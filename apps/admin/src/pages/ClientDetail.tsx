@@ -5,7 +5,7 @@ import {
   PencilSimple,
   Plus,
   Trash,
-  CaretLeft,
+  ArrowLeft,
 } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -136,14 +136,21 @@ export function ClientDetailPage() {
     <div className="flex h-full flex-col overflow-y-auto px-5 pb-5 pt-3 [mask-image:linear-gradient(to_bottom,transparent,#000_14px)] sm:px-8 lg:overflow-visible lg:[mask-image:none]">
       {/* Back, name, portal state and the actions: one card, as on a project. */}
       <Card className="mb-1 shrink-0">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
           <Link
             to="/clients"
-            className="-ml-2 flex min-h-9 items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+            aria-label="Back to clients"
+            title="Back to clients"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border text-ink transition-colors hover:bg-surface-muted pointer-coarse:h-11 pointer-coarse:w-11"
           >
-            <CaretLeft size={16} aria-hidden="true" />
-            Clients
+            <ArrowLeft size={18} aria-hidden="true" />
           </Link>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="text-xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{client.name}</h1>
+            {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
+            {client.phone ? <span className="text-sm text-ink-muted">{client.phone}</span> : null}
+            <StatusTag tone={portalStatus === 'Signed up' ? 'success' : invited ? 'warning' : 'neutral'}>Portal: {portalStatus.toLowerCase()}</StatusTag>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* A client who cannot sign in to the portal would never see a message. */}
             <Button
@@ -196,15 +203,8 @@ export function ClientDetailPage() {
                 <span className="max-sm:sr-only">Delete</span>
               </Button>
             ) : null}
-                    </div>
+          </div>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{client.name}</h1>
-          {client.status === 'Inactive' ? <StatusTag tone="neutral">Inactive</StatusTag> : null}
-        </div>
-        <p className="mt-1 text-sm text-ink-muted [overflow-wrap:anywhere]">
-          {[client.email, client.phone].filter(Boolean).join(' · ') || 'No contact details yet'} · Portal: {portalStatus.toLowerCase()}
-        </p>
       </Card>
 
       <ChangeRequests clientId={client.id} onDecided={() => void refetch()} />
