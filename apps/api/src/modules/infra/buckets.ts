@@ -1,6 +1,8 @@
 import { ListObjectsV2Command, type S3Client } from '@aws-sdk/client-s3';
 
 const MAX_PAGES = 50;
+/** A stopped node never answers and the SDK has no connect timeout of its own. */
+const PAGE_TIMEOUT_MS = 3_000;
 
 export interface BucketUse {
   id: 'public' | 'private';
@@ -17,7 +19,7 @@ export async function countBucket(client: S3Client, id: BucketUse['id'], bucket:
   let token: string | undefined;
   try {
     for (let page = 0; page < MAX_PAGES; page++) {
-      const out = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }));
+      const out = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: token }), { abortSignal: AbortSignal.timeout(PAGE_TIMEOUT_MS) });
       for (const object of out.Contents ?? []) {
         files += 1;
         bytes += object.Size ?? 0;
