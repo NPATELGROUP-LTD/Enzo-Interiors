@@ -27,9 +27,9 @@ type Cluster =
       enabled: true;
       generated_at: string;
       instances: Array<{ name: string; up: boolean; beat: Beat | null }>;
-      postgres: { reachable: boolean; members: Array<{ name: string; role: string; state: string; timeline: number | null; lag_bytes: number | null }> };
+      postgres: { reachable: boolean; members: Array<{ name: string; role: string; state: string; timeline: number | null; lag_bytes: number | null; up: boolean }> };
       redis: Array<{ label: string; up: boolean; role: string | null; link_up: boolean | null; bytes_behind: number | null }>;
-      minio: Array<{ label: string; buckets: Bucket[] }>;
+      minio: Array<{ label: string; up: boolean; buckets: Bucket[] }>;
     };
 
 const REFRESH_MS = 5_000;
@@ -179,18 +179,25 @@ export function Cluster({ compact = false }: { compact?: boolean }) {
   }));
   const members = data.postgres.reachable ? data.postgres.members.map((m) => ({ ...m, lag: push(`pg:${m.name}`, m.role === 'leader' ? null : m.lag_bytes) })) : [];
   const nodes = data.redis.map((n) => ({ ...n, lag: push(`redis:${n.label}`, n.role === 'master' ? null : n.bytes_behind) }));
-  const [one, two] = data.minio;
-  const buckets = (one?.buckets ?? []).map((bucket) => {
-    const other = two?.buckets.find((b) => b.id === bucket.id);
-    const files = other ? other.files - bucket.files : 0;
-    return { bucket, other, files, bytes: other ? other.bytes - bucket.bytes : 0, lag: push(`minio:${bucket.id}`, Math.abs(files)) };
-  });
+  // Differences are worked out between the nodes that answered; a node that did not is shown as down.
+  const stores = data.minio;
+  const buckets = stores.length > 1 ? (['public', 'private'] as const).map((id) => {
+    const sides = stores.map((node) => ({ label: node.label, up: node.up, bucket: node.buckets.find((b) => b.id === id) }));
+    const read = sides.flatMap((side) => (side.up && side.bucket && !side.bucket.error ? [side.bucket] : []));
+    const spread = (pick: (b: Bucket) => number) => (read.length > 1 ? Math.max(...read.map(pick)) - Math.min(...read.map(pick)) : 0);
+    const apart = spread((b) => b.files);
+    return { id, sides, apart, bytesApart: spread((b) => b.bytes), total: Math.max(1, ...read.map((b) => b.files)), lag: push(`minio:${id}`, read.length > 1 ? apart : null) };
+  }) : [];
   seen.current = at;
 
   const upCount = instances.filter((i) => i.up).length;
-  const pgBehind = members.some((m) => m.role !== 'leader' && (m.lag_bytes ?? 1) > 0);
-  const redisBehind = nodes.some((n) => n.role !== 'master' && ((n.bytes_behind ?? 1) > 0 || n.link_up === false));
-  const filesApart = buckets.some((b) => b.files !== 0 || b.bytes !== 0 || b.bucket.error);
+  const pgDown = members.some((m) => !m.up);
+  const pgBehind = members.some((m) => m.up && m.role !== 'leader' && (m.lag_bytes ?? 1) > 0);
+  const redisDown = nodes.some((n) => !n.up);
+  const redisBehind = nodes.some((n) => n.up && n.role !== 'master' && ((n.bytes_behind ?? 1) > 0 || n.link_up === false));
+  const filesDown = stores.some((n) => !n.up);
+  const filesApart = buckets.some((b) => b.apart !== 0 || b.bytesApart !== 0);
+  const state = (down: boolean, behind: boolean, ok: string) => (down ? 'Node down' : behind ? 'Catching up' : ok);
   const ago = Math.max(0, Math.round((Date.now() - at) / 1000));
   const stale = ago > 20;
 
@@ -213,9 +220,9 @@ export function Cluster({ compact = false }: { compact?: boolean }) {
       <div className={`${compact ? 'mt-2' : 'mt-6'} grid grid-cols-2 gap-3 lg:grid-cols-4`}>
         {[
           { label: 'Site copies', value: `${upCount} of ${instances.length} up`, ok: instances.length > 0 && upCount === instances.length },
-          { label: 'Database', value: !data.postgres.reachable ? 'No answer' : pgBehind ? 'Catching up' : 'In sync', ok: data.postgres.reachable && !pgBehind },
-          { label: 'Cache', value: nodes.length === 0 ? 'Not listed' : redisBehind ? 'Catching up' : 'In sync', ok: nodes.length > 0 && !redisBehind },
-          { label: 'Files', value: buckets.length === 0 ? 'Not listed' : filesApart ? 'Catching up' : 'Same on both', ok: buckets.length > 0 && !filesApart },
+          { label: 'Database', value: !data.postgres.reachable ? 'No answer' : state(pgDown, pgBehind, 'In sync'), ok: data.postgres.reachable && !pgDown && !pgBehind },
+          { label: 'Cache', value: nodes.length === 0 ? 'Not listed' : state(redisDown, redisBehind, 'In sync'), ok: nodes.length > 0 && !redisDown && !redisBehind },
+          { label: 'Files', value: buckets.length === 0 ? 'Not listed' : state(filesDown, filesApart, 'Same on both'), ok: buckets.length > 0 && !filesDown && !filesApart },
         ].map((tile) => (
           <div key={tile.label} className={CARD}>
             <p className="text-[12px] text-ink-muted">{tile.label}</p>
@@ -269,19 +276,21 @@ export function Cluster({ compact = false }: { compact?: boolean }) {
           {data.postgres.reachable ? (
             members.map((member) => {
               const leader = member.role === 'leader';
-              const left = leader ? null : eta(member.lag);
+              const left = leader || !member.up ? null : eta(member.lag);
               return (
                 <div key={member.name}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-sm font-medium text-ink">
-                      {member.name} · {ROLE[member.role] ?? member.role}
+                      {member.name} · {member.up ? (ROLE[member.role] ?? member.role) : 'Not answering'}
                       <span className="ml-2 text-[12px] font-normal text-ink-muted">
                         {member.state}
                         {member.timeline ? ` · timeline ${member.timeline}` : ''}
                       </span>
                     </p>
                     <span className="flex items-center gap-2">
-                      {leader ? (
+                      {!member.up ? (
+                        <StatusTag tone="danger">Down</StatusTag>
+                      ) : leader ? (
                         <StatusTag tone="info">Takes all writes</StatusTag>
                       ) : member.lag_bytes === null ? (
                         <StatusTag tone="warning">Lag unknown</StatusTag>
@@ -293,7 +302,7 @@ export function Cluster({ compact = false }: { compact?: boolean }) {
                       {left ? <span className="text-[13px] text-ink-muted">{left}</span> : null}
                     </span>
                   </div>
-                  {leader ? null : (
+                  {leader || !member.up ? null : (
                     <>
                       <Link from={members.find((m) => m.role === 'leader')?.name ?? 'Primary'} to={member.name} ok={member.lag_bytes === 0} busy={member.state === 'streaming' || (member.lag_bytes ?? 0) > 0} note={member.lag_bytes === 0 ? 'streaming, nothing behind' : member.lag_bytes === null ? '' : `${size(member.lag_bytes)} to go`} />
                       <Spark values={member.lag} color="var(--warning)" label={`${member.name} replication lag history`} />
@@ -345,41 +354,40 @@ export function Cluster({ compact = false }: { compact?: boolean }) {
 
       <Panel title="Files (MinIO)">
         <div className={`${CARD} space-y-4`}>
-          {buckets.length && two ? (
-            buckets.map(({ bucket, other, files, bytes, lag }) => {
+          {buckets.length ? (
+            buckets.map(({ id, sides, apart, bytesApart, total, lag }) => {
               const left = eta(lag);
-              const total = Math.max(bucket.files, other?.files ?? 0, 1);
+              const downSide = sides.find((side) => !side.up);
+              const bad = sides.find((side) => side.up && side.bucket?.error);
               return (
-                <div key={bucket.id}>
+                <div key={id}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-medium text-ink">{BUCKET_LABEL[bucket.id]}</p>
+                    <p className="text-sm font-medium text-ink">{BUCKET_LABEL[id]}</p>
                     <span className="flex items-center gap-2">
-                      {bucket.error ? <StatusTag tone="warning">Check</StatusTag> : files === 0 && bytes === 0 ? <StatusTag tone="success">Same on both</StatusTag> : <StatusTag tone="warning">{count.format(Math.abs(files))} file{Math.abs(files) === 1 ? '' : 's'} apart</StatusTag>}
+                      {downSide ? <StatusTag tone="danger">{downSide.label} down</StatusTag> : bad ? <StatusTag tone="warning">Check</StatusTag> : apart === 0 && bytesApart === 0 ? <StatusTag tone="success">Same on both</StatusTag> : <StatusTag tone="warning">{count.format(apart)} file{apart === 1 ? '' : 's'} apart</StatusTag>}
                       {left ? <span className="text-[13px] text-ink-muted">{left}</span> : null}
                     </span>
                   </div>
-                  {bucket.error ? (
-                    <p className="mt-1 text-[12px] text-ink-muted">{bucket.error}</p>
-                  ) : (
-                    [{ label: one?.label ?? 'Node 1', files: bucket.files, bytes: bucket.bytes }, { label: two.label, files: other?.files ?? 0, bytes: other?.bytes ?? 0 }].map((side) => (
+                  {sides.map((side) => {
+                    const b = side.bucket;
+                    const ok = side.up && b && !b.error;
+                    return (
                       <div key={side.label} className="mt-2 flex items-center gap-3 text-[12px] text-ink-muted">
                         <span className="w-14 shrink-0">{side.label}</span>
                         <div className="h-2 flex-1 overflow-hidden rounded-full bg-surface-muted">
-                          <div className="h-full rounded-full" style={{ width: `${(side.files / total) * 100}%`, background: files === 0 ? 'var(--success)' : 'var(--warning)', transition: 'width 900ms ease, background 400ms' }} />
+                          <div className="h-full rounded-full" style={{ width: ok ? `${(b.files / total) * 100}%` : '0%', background: apart === 0 && bytesApart === 0 ? 'var(--success)' : 'var(--warning)', transition: 'width 900ms ease, background 400ms' }} />
                         </div>
-                        <span className="w-40 shrink-0 text-right tabular-nums">
-                          {count.format(side.files)} files · {size(side.bytes)}
-                        </span>
+                        <span className={`w-40 shrink-0 text-right tabular-nums ${ok ? '' : 'text-danger'}`}>{ok ? `${count.format(b.files)} files · ${size(b.bytes)}` : side.up ? 'Could not read' : 'Not answering'}</span>
                       </div>
-                    ))
-                  )}
+                    );
+                  })}
                 </div>
               );
             })
           ) : (
             <p className="text-sm text-ink-muted">Two file stores are not listed on this server.</p>
           )}
-          <p className="text-[12px] text-ink-muted">File counts are read up to five minutes apart, so a small gap right after an upload is normal.</p>
+          <p className="text-[12px] text-ink-muted">File counts are re-counted every 10 seconds, so a small gap right after an upload is normal.</p>
         </div>
       </Panel>
 

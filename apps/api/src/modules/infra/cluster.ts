@@ -22,6 +22,17 @@ import { type BucketUse, countBucket } from './buckets';
 const list = (value: string | undefined): string[] => (value ?? '').split(',').map((item) => item.trim()).filter(Boolean);
 const HEARTBEAT_MS = 15_000;
 const TIMEOUT_MS = 2_000;
+/** A section that has not answered by then is shown as down: one dead node must never hide the rest of the page. */
+const SECTION_MS = 4_500;
+const MINIO_CACHE_MS = 10_000;
+
+function capped<T>(work: Promise<T>, fallback: T): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<T>((resolve) => {
+    timer = setTimeout(() => resolve(fallback), SECTION_MS);
+  });
+  return Promise.race([work.catch(() => fallback), late]).finally(() => clearTimeout(timer));
+}
 
 export interface Heartbeat {
   at: number;
@@ -56,6 +67,18 @@ export function parsePatroni(json: unknown): PatroniMember[] {
       lag_bytes: typeof m.lag === 'number' ? m.lag : null,
     };
   });
+}
+
+/** A Postgres node as the page sees it: Patroni drops a stopped member from /cluster, so `up` also says who is missing. */
+export type PgNode = PatroniMember & { up: boolean };
+
+/** Joins Patroni's member list with who actually answered, and adds a row for every listed host that is in neither. */
+export function mergePatroni(members: PatroniMember[], answeredNames: Array<string | null>, hosts: number): PgNode[] {
+  const names = new Set(answeredNames.filter((name): name is string => !!name));
+  const anyNameless = answeredNames.some((name) => name === null);
+  const nodes: PgNode[] = members.map((m) => ({ ...m, up: names.has(m.name) || (anyNameless && names.size === 0) }));
+  for (let i = nodes.length; i < hosts; i++) nodes.push({ name: `Node ${i + 1}`, role: 'unknown', state: 'not answering', timeline: null, lag_bytes: null, up: false });
+  return nodes;
 }
 
 export interface RedisRole {
@@ -121,11 +144,17 @@ export class ClusterService implements OnApplicationBootstrap, OnApplicationShut
     };
   }
 
-  /** Five seconds old at most; the object-counting part is remembered for five minutes. */
+  /** Five seconds old at most; the object-counting part is remembered for ten. */
   status() {
     if (!this.enabled) return Promise.resolve({ enabled: false as const });
     return this.cache.wrap('infra:cluster', 5_000, async () => {
-      const [instances, postgres, redis, minio] = await Promise.all([this.instances(), this.postgres(), this.redis(), this.minio()]);
+      const nodes = list(process.env.MINIO_NODES).map((_, index) => ({ label: `Node ${index + 1}`, up: false, buckets: [] as BucketUse[] }));
+      const [instances, postgres, redis, minio] = await Promise.all([
+        this.instances(),
+        capped(this.postgres(), { reachable: false, members: [] as PgNode[] }),
+        capped(this.redis(), list(process.env.REDIS_NODES).map((_, index) => ({ label: `Node ${index + 1}`, up: false, role: null, link_up: null, bytes_behind: null }))),
+        capped(this.minio(), nodes),
+      ]);
       return { enabled: true as const, generated_at: new Date().toISOString(), instances, postgres, redis, minio };
     });
   }
@@ -140,17 +169,31 @@ export class ClusterService implements OnApplicationBootstrap, OnApplicationShut
     return rows;
   }
 
-  /** Asks each Patroni in turn and uses the first answer: any member reports the whole cluster. */
+  /** Asks every Patroni who it is, and the first that answers for the whole cluster (lag, roles). */
   private async postgres() {
-    for (const host of list(process.env.PATRONI_NODES)) {
+    const hosts = list(process.env.PATRONI_NODES);
+    const asked = await Promise.all(
+      hosts.map(async (host) => {
+        try {
+          // The body is read whatever the status: Patroni answers 503 on a replica.
+          const res = await fetch(`http://${host}:8008/patroni`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+          const json = (await res.json()) as { patroni?: { name?: unknown } };
+          return { host, answered: true, name: typeof json.patroni?.name === 'string' ? json.patroni.name : null };
+        } catch {
+          return { host, answered: false, name: null };
+        }
+      }),
+    );
+    const live = asked.filter((node) => node.answered);
+    for (const node of live) {
       try {
-        const res = await fetch(`http://${host}:8008/cluster`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
-        if (res.ok) return { reachable: true, members: parsePatroni(await res.json()) };
+        const res = await fetch(`http://${node.host}:8008/cluster`, { signal: AbortSignal.timeout(TIMEOUT_MS) });
+        if (res.ok) return { reachable: true, members: mergePatroni(parsePatroni(await res.json()), live.map((l) => l.name), hosts.length) };
       } catch {
         /* try the next */
       }
     }
-    return { reachable: false, members: [] as PatroniMember[] };
+    return { reachable: false, members: [] as PgNode[] };
   }
 
   private async redis() {
@@ -158,7 +201,7 @@ export class ClusterService implements OnApplicationBootstrap, OnApplicationShut
     const infos = await Promise.all(
       nodes.map(async (node) => {
         const [host, port] = node.split(':');
-        const client = new Redis({ host, port: Number(port) || 6379, password: process.env.REDIS_PASSWORD, connectTimeout: TIMEOUT_MS, maxRetriesPerRequest: 0, enableOfflineQueue: false, lazyConnect: true, retryStrategy: () => null });
+        const client = new Redis({ host, port: Number(port) || 6379, password: process.env.REDIS_PASSWORD, connectTimeout: TIMEOUT_MS, commandTimeout: TIMEOUT_MS, maxRetriesPerRequest: 0, enableOfflineQueue: false, lazyConnect: true, retryStrategy: () => null });
         client.on('error', () => undefined);
         try {
           await client.connect();
@@ -176,11 +219,11 @@ export class ClusterService implements OnApplicationBootstrap, OnApplicationShut
 
   /** The same bucket counted on each MinIO: a gap between the two is what replication still owes. */
   private minio() {
-    return this.cache.wrap('infra:cluster:minio', 5 * 60_000, async () => {
+    return this.cache.wrap('infra:cluster:minio', MINIO_CACHE_MS, async () => {
       const key = process.env.S3_ACCESS_KEY_ID;
       const secret = process.env.S3_SECRET_ACCESS_KEY;
       const nodes = list(process.env.MINIO_NODES);
-      if (!key || !secret) return nodes.map((_, index) => ({ label: `Node ${index + 1}`, buckets: [] as BucketUse[] }));
+      if (!key || !secret) return nodes.map((_, index) => ({ label: `Node ${index + 1}`, up: false, buckets: [] as BucketUse[] }));
       return Promise.all(
         nodes.map(async (endpoint, index) => {
           const client = new S3Client({ endpoint, region: process.env.S3_REGION ?? 'us-east-1', credentials: { accessKeyId: key, secretAccessKey: secret }, forcePathStyle: true, maxAttempts: 1 });
@@ -189,7 +232,7 @@ export class ClusterService implements OnApplicationBootstrap, OnApplicationShut
             countBucket(client, 'private', process.env.S3_PRIVATE_BUCKET ?? 'enzo-private'),
           ]);
           client.destroy();
-          return { label: `Node ${index + 1}`, buckets };
+          return { label: `Node ${index + 1}`, up: buckets.some((b) => !b.error), buckets };
         }),
       );
     });
