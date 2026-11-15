@@ -84,7 +84,14 @@ test('only an Infra manager reads the platform numbers or sends the summary', as
   for (const token of [tokens.admin, tokens.editor, undefined]) {
     assert.ok([401, 403].includes((await call('GET', '/infra/stats', token)).status));
     assert.ok([401, 403].includes((await call('POST', '/infra/digest', token)).status));
+    assert.ok([401, 403].includes((await call('GET', '/infra/cluster', token)).status));
   }
+});
+
+test('the cluster pane says it is off on a single node', async () => {
+  const res = await call('GET', '/infra/cluster', tokens.infra);
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { enabled: false });
 });
 
 test('the stats are counts and sizes: the database, the last day of failures and which switches are set', async () => {
