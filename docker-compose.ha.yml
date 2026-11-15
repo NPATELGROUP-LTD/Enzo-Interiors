@@ -88,6 +88,12 @@ services:
       API_PUBLIC_URL: ${API_PUBLIC_URL:?}
       # Shared Redis (through HAProxy): rate limits and the Socket.IO adapter.
       REDIS_URL: redis://:${REDIS_PASSWORD:?}@haproxy:6379
+      # Settings > Cluster (Infra only, read-only): what each copy and each data node is doing.
+      INSTANCE_NAME: ${INSTANCE_NAME:-}
+      CLUSTER_INSTANCES: ${CLUSTER_INSTANCES:-ha-app-1,ha-app-2}
+      PATRONI_NODES: ${DATA1_IP},${DATA2_IP}
+      REDIS_NODES: ${DATA1_IP}:6379,${DATA2_IP}:6379
+      MINIO_NODES: http://${DATA1_IP}:9000,http://${DATA2_IP}:9000
       # cloudflared is the one hop in front of the API.
       TRUST_PROXY: ${TRUST_PROXY:-1}
       TRUST_CLOUDFLARE: 'true'

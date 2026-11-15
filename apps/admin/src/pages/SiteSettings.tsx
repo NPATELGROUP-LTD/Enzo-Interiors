@@ -10,6 +10,7 @@ import {
   FolderSimple,
   BellRinging,
   Globe,
+  HardDrives,
   Kanban,
   Newspaper,
   PaintBrush,
@@ -35,6 +36,7 @@ import { Alerts } from './settings/Alerts';
 import { BankDetailsSettings } from './settings/BankDetailsSettings';
 import { BookingSchedule } from './settings/BookingSchedule';
 import { DocumentCategories } from './settings/DocumentCategories';
+import { Cluster } from './settings/Cluster';
 import { Health } from './settings/Health';
 import { Newsletter } from './settings/Newsletter';
 import { Security } from './settings/Security';
@@ -79,6 +81,7 @@ const PANES: Record<string, { label: string; detail: string; Icon: PhosphorIcon 
   pages: { label: 'Pages', detail: 'Switch pages of the website on or off', Icon: Files },
   brand: { label: 'Logo & icon', detail: 'Logos and the browser-tab icon', Icon: PaintBrush },
   health: { label: 'Health', detail: 'Storage, database, cache and errors', Icon: Pulse },
+  cluster: { label: 'Cluster', detail: 'Load per copy, and how far the second database, cache and files have caught up', Icon: HardDrives },
   hours: { label: 'Opening hours', detail: 'When the studio is open, with notes', Icon: Clock },
   booking: { label: 'Booking', detail: 'Hours, breaks and the booking form', Icon: CalendarBlank },
   stages: { label: 'Project stages', detail: 'The stages a project moves through', Icon: Kanban },
@@ -93,7 +96,7 @@ const PANES: Record<string, { label: string; detail: string; Icon: PhosphorIcon 
 };
 
 const GROUPS: Array<{ id: string; label: string; detail: string; panes: string[] }> = [
-  { id: 'website', label: 'Website', detail: 'What visitors see, and whether the site is open to them.', panes: ['website', 'pages', 'brand', 'health'] },
+  { id: 'website', label: 'Website', detail: 'What visitors see, and whether the site is open to them.', panes: ['website', 'pages', 'brand', 'health', 'cluster'] },
   { id: 'bookings', label: 'Bookings', detail: 'When the studio is open and when people can book a consultation.', panes: ['hours', 'booking'] },
   { id: 'business', label: 'Business', detail: 'How projects, files, quotes and invoices are set up.', panes: ['stages', 'documents', 'bank', 'vat'] },
   { id: 'communication', label: 'Communication', detail: 'Where enquiries are emailed, and the newsletter you send out.', panes: ['emails', 'newsletter', 'alerts'] },
@@ -106,8 +109,8 @@ export const SETTINGS_SECTIONS: Array<{ id: string; label: string; detail: strin
 );
 
 /** What an Infra manager can open: the platform's switches and who can sign in. The business's own panes stay the Admin's. */
-const INFRA_SECTIONS = new Set(['health', 'website', 'pages', 'users', 'alerts', 'security']);
-const ADMIN_NEVER = new Set(['health', 'alerts', 'security']);
+const INFRA_SECTIONS = new Set(['health', 'cluster', 'website', 'pages', 'users', 'alerts', 'security']);
+const ADMIN_NEVER = new Set(['health', 'cluster', 'alerts', 'security']);
 
 const mayOpen = (id: string, isInfra: boolean) => (isInfra ? INFRA_SECTIONS.has(id) : !ADMIN_NEVER.has(id));
 
@@ -149,6 +152,7 @@ export function SiteSettingsPage() {
 
   let pane: ReactNode;
   if (section === 'health') pane = <Health />;
+  else if (section === 'cluster') pane = <Cluster />;
   else if (section === 'booking') pane = <BookingSchedule />;
   else if (section === 'hours') pane = <OpeningHours />;
   else if (section === 'stages') pane = <ProjectStages />;
