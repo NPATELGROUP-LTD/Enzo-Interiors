@@ -1,15 +1,11 @@
-import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import { MetricCard, PageHeader } from '@/components/ui';
 import { useQuery } from '@/hooks/useApi';
 
-import { GeneralPane } from './SiteSettings';
-import { Alerts } from './settings/Alerts';
-import { Health } from './settings/Health';
-import { Security } from './settings/Security';
-import { UsersSection } from './settings/Users';
+import { Cluster } from './settings/Cluster';
 
-/* The few figures the cards show, from the same /infra/stats the Health card reads. */
+/* The few figures the cards show, from the same /infra/stats the Health pane reads. */
 interface Stats {
   checks: Array<{ ok: boolean }>;
   database: { bytes: number; connections: number; max_connections: number } | null;
@@ -19,16 +15,17 @@ interface Stats {
 
 const mb = (bytes: number) => (bytes >= 1024 ** 3 ? `${(bytes / 1024 ** 3).toFixed(1)} GB` : `${Math.round(bytes / 1024 ** 2)} MB`);
 
-function Panel({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section aria-label={title} className="relative min-w-0 rounded-card bg-surface p-5 shadow-soft sm:p-6">
-      <h2 className="mb-4 text-base font-semibold tracking-tight text-ink">{title}</h2>
-      {children}
-    </section>
-  );
-}
+/* Each pane has its own page under Settings; the dashboard only points at them. */
+const PAGES = [
+  ['health', 'Health'],
+  ['alerts', 'Alerts'],
+  ['website', 'Website'],
+  ['pages', 'Pages'],
+  ['users', 'Users'],
+  ['security', 'Security'],
+] as const;
 
-/** The Infra manager's landing page: the platform's figures, then every pane it may use as a card, full width. */
+/** The Infra manager's landing page: the platform's figures and the live cluster. Everything else is its own Settings page. */
 export function InfraDashboard() {
   const stats = useQuery<Stats>('/infra/stats').data;
   const failing = stats ? stats.checks.filter((check) => !check.ok).length : 0;
@@ -63,14 +60,17 @@ export function InfraDashboard() {
         />
       </div>
 
-      <div className="mt-5 grid items-start gap-5 xl:grid-cols-2">
-        <Panel title="Health"><Health /></Panel>
-        <Panel title="Alerts"><Alerts /></Panel>
-        <Panel title="Website"><GeneralPane section="website" /></Panel>
-        <Panel title="Pages"><GeneralPane section="pages" /></Panel>
-        <Panel title="Users"><UsersSection /></Panel>
-        <Panel title="Security"><Security /></Panel>
-      </div>
+      <nav aria-label="Platform pages" className="mt-5 flex flex-wrap gap-2">
+        {PAGES.map(([id, label]) => (
+          <Link key={id} to={`/settings/${id}`} className="rounded-full border border-border bg-surface px-3.5 py-1.5 text-[13px] font-medium text-ink transition-colors hover:bg-surface-muted">
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <section aria-label="Cluster" className="mt-5 rounded-card bg-surface p-5 shadow-soft sm:p-6">
+        <Cluster compact />
+      </section>
     </div>
   );
 }
