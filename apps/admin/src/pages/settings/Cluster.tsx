@@ -132,7 +132,7 @@ function Link({ from, to, ok, busy, note }: { from: string; to: string; ok: bool
 }
 
 /** Settings › Cluster (Infra manager): load per API copy, and how far the second Postgres, Redis and MinIO have caught up. Read-only, and it refreshes itself. */
-export function Cluster() {
+export function Cluster({ compact = false }: { compact?: boolean }) {
   const query = useQuery<Cluster>('/infra/cluster');
   const data = query.data;
   const series = useRef(new Map<string, number[]>());
@@ -194,21 +194,23 @@ export function Cluster() {
   const ago = Math.max(0, Math.round((Date.now() - at) / 1000));
   const stale = ago > 20;
 
-  return (
-    <div className="max-w-5xl">
-      <style>{`@media (prefers-reduced-motion: no-preference){@keyframes cl-flow{to{stroke-dashoffset:-24}}.cl-flow{animation:cl-flow 1s linear infinite}@keyframes cl-live{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--success) 55%,transparent)}100%{box-shadow:0 0 0 8px transparent}}.cl-live{animation:cl-live 1.6s ease-out infinite}}`}</style>
-      <PaneHeader
-        title="Cluster"
-        help="Which copy of the site is doing what, and how far the second database, cache and file store have caught up. Counts only; nothing from a client."
-        action={
-          <span className="flex items-center gap-2 text-[13px] text-ink-muted" role="status">
-            <span className={`h-2.5 w-2.5 rounded-full ${stale ? 'bg-warning' : 'bg-success cl-live'}`} aria-hidden="true" />
-            {stale ? `No update for ${ago} s` : `Live · updated ${ago} s ago`}
-          </span>
-        }
-      />
+  const liveTag = (
+    <span className="flex items-center gap-2 text-[13px] text-ink-muted" role="status">
+      <span className={`h-2.5 w-2.5 rounded-full ${stale ? 'bg-warning' : 'bg-success cl-live'}`} aria-hidden="true" />
+      {stale ? `No update for ${ago} s` : `Live · updated ${ago} s ago`}
+    </span>
+  );
 
-      <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
+  return (
+    <div className={compact ? '' : 'max-w-5xl'}>
+      <style>{`@media (prefers-reduced-motion: no-preference){@keyframes cl-flow{to{stroke-dashoffset:-24}}.cl-flow{animation:cl-flow 1s linear infinite}@keyframes cl-live{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--success) 55%,transparent)}100%{box-shadow:0 0 0 8px transparent}}.cl-live{animation:cl-live 1.6s ease-out infinite}}`}</style>
+      {compact ? (
+        <div className="flex justify-end">{liveTag}</div>
+      ) : (
+        <PaneHeader title="Cluster" help="Which copy of the site is doing what, and how far the second database, cache and file store have caught up. Counts only; nothing from a client." action={liveTag} />
+      )}
+
+      <div className={`${compact ? 'mt-2' : 'mt-6'} grid grid-cols-2 gap-3 lg:grid-cols-4`}>
         {[
           { label: 'Site copies', value: `${upCount} of ${instances.length} up`, ok: instances.length > 0 && upCount === instances.length },
           { label: 'Database', value: !data.postgres.reachable ? 'No answer' : pgBehind ? 'Catching up' : 'In sync', ok: data.postgres.reachable && !pgBehind },
@@ -261,6 +263,7 @@ export function Cluster() {
         )}
       </Panel>
 
+      <div className={compact ? 'grid items-start gap-x-5 lg:grid-cols-2' : undefined}>
       <Panel title="Database (PostgreSQL)">
         <div className={`${CARD} space-y-4`}>
           {data.postgres.reachable ? (
@@ -338,6 +341,8 @@ export function Cluster() {
         </div>
       </Panel>
 
+      </div>
+
       <Panel title="Files (MinIO)">
         <div className={`${CARD} space-y-4`}>
           {buckets.length && two ? (
@@ -378,7 +383,7 @@ export function Cluster() {
         </div>
       </Panel>
 
-      <p className="mt-10 text-xs text-ink-muted">This page refreshes itself every few seconds while it is open. A returning node shows how far behind it is; the time left is worked out from the last few readings, so it appears once the gap has started to shrink. The graphs start when you open the page.</p>
+      <p className={`${compact ? 'mt-6' : 'mt-10'} text-xs text-ink-muted`}>This page refreshes itself every few seconds while it is open. A returning node shows how far behind it is; the time left is worked out from the last few readings, so it appears once the gap has started to shrink. The graphs start when you open the page.</p>
     </div>
   );
 }
