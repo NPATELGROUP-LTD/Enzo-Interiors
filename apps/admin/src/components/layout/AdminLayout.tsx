@@ -479,7 +479,7 @@ export function AdminLayout() {
   // An Editor keeps the catalogue (specs and photos) in step with the website's quote maker.
   const isEditor = user?.role === 'Editor';
   // Settings: an Admin has every pane, an Infra manager the ones that run the platform.
-  const canSettings = isAdmin;
+  const canSettings = isAdmin || isInfra;
   const canSeeClients = can(...CLIENT_ROLES);
   const canCms = can(...CMS_ROLES);
   // Mail is in the menu only once the server has Google's keys for it.

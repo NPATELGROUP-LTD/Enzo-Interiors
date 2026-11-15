@@ -107,7 +107,7 @@ export function App() {
         <Route path="/account" element={<AccountPage />} />
         <Route
           path="/settings/:section?"
-          element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
+          element={user.role === 'Admin' || user.role === 'Infra' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
         />
         {/* Admin, and Designers for the clients of their projects; never Editors. */}
         <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to={home} replace />} />
