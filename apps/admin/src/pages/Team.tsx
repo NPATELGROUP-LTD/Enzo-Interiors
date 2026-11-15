@@ -3,7 +3,7 @@ import { CaretLeft, Plus } from '@phosphor-icons/react';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
-import { TeamThread } from '@/components/TeamThread';
+import { TeamThread, type ThreadDocument } from '@/components/TeamThread';
 import { Button, Card, EmptyState, ErrorState, LoadingState, Modal, Select } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
@@ -27,6 +27,9 @@ export function TeamPage() {
   const [starting, setStarting] = useState(false);
   const active = params.get('thread');
   const { refetch } = threads;
+  const projectId = threads.data?.find((thread) => thread.id === active)?.project_id ?? null;
+  // A project thread offers that project's uploaded files next to the paperclip.
+  const projectFiles = useQuery<{ documents: ThreadDocument[] }>(projectId ? `/projects/${projectId}` : null);
 
   // A new message anywhere refreshes the list (unread dots, order).
   useEffect(() => {
@@ -125,7 +128,7 @@ export function TeamPage() {
                 </button>
                 <p className="min-w-0 truncate font-semibold text-ink">{current.title}</p>
               </div>
-              <TeamThread key={current.id} threadId={current.id} className="flex-1" />
+              <TeamThread key={current.id} threadId={current.id} documents={projectFiles.data?.documents} className="flex-1" />
             </>
           ) : (
             <EmptyState title="Select a conversation" message="Choose a person or a project to read the thread." />

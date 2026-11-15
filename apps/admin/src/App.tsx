@@ -14,6 +14,7 @@ import { AppointmentsPage } from './pages/Appointments';
 import { ClientDetailPage } from './pages/ClientDetail';
 import { ClientsPage } from './pages/Clients';
 import { DashboardPage } from './pages/Dashboard';
+import { InfraDashboard } from './pages/InfraDashboard';
 import { EnquiriesPage } from './pages/Enquiries';
 import { InvoicesPage } from './pages/Invoices';
 import { QuotesPage } from './pages/Quotes';
@@ -95,18 +96,18 @@ export function App() {
   const canSeeClients = can(...CLIENT_ROLES);
   const canCms = can(...CMS_ROLES);
   // Where a page someone may not open sends them: their own landing page.
-  const home = canSeeClients ? '/' : user.role === 'Infra' ? '/settings' : '/cms';
+  const home = canSeeClients || user.role === 'Infra' ? '/' : '/cms';
 
   return (
     <Routes>
       <Route path="/login" element={<Navigate to="/" replace />} />
       <Route element={<AdminLayout />}>
-        {/* Admin, Designers and Installers land on the dashboard; an Editor has none and lands on the CMS; an Infra manager on Settings. */}
-        <Route path="/" element={canSeeClients ? <DashboardPage /> : <Navigate to={home} replace />} />
+        {/* Admin, Designers and Installers land on the dashboard; an Editor has none and lands on the CMS; an Infra manager on its own dashboard. */}
+        <Route path="/" element={canSeeClients ? <DashboardPage /> : user.role === 'Infra' ? <InfraDashboard /> : <Navigate to={home} replace />} />
         <Route path="/account" element={<AccountPage />} />
         <Route
           path="/settings/:section?"
-          element={user.role === 'Admin' || user.role === 'Infra' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
+          element={user.role === 'Admin' ? <SiteSettingsPage /> : <Navigate to={home} replace />}
         />
         {/* Admin, and Designers for the clients of their projects; never Editors. */}
         <Route path="/clients" element={canSeeClients ? <ClientsPage /> : <Navigate to={home} replace />} />

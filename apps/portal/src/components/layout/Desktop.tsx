@@ -221,20 +221,19 @@ export function Desktop({ appName, apps }: { appName: string; apps: DesktopApp[]
           {theme === 'dark' ? <Sun size={15} aria-hidden="true" /> : <Moon size={15} aria-hidden="true" />}
           {themeLabel}
         </button>
-        <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger hover:text-white')}>
+        <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger-bg hover:text-danger')}>
           <SignOut size={15} aria-hidden="true" />
           Sign out
         </button>
-        <div className="my-1 h-px bg-border" />
-        <LegalLinks className="px-2 text-xs text-ink-muted" />
-        <a
-          href="https://www.npatelgroup.ltd"
-          target="_blank"
-          rel="noopener"
-          className="block rounded-[7px] px-2 py-1.5 text-xs text-ink-muted hover:text-ink"
-        >
-          Made by NPATEL GROUP LTD
-        </a>
+        <div className="mt-1 space-y-1 border-t border-border px-2 pb-1 pt-2.5">
+          <LegalLinks className="text-[13px] font-medium text-ink" />
+          <p className="text-[12.5px] text-ink-muted">
+            Made by{' '}
+            <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-bold text-ink hover:underline">
+              NPATEL GROUP LTD
+            </a>
+          </p>
+        </div>
       </div>
 
       {/* ------------------------------------------------------- Page heading */}

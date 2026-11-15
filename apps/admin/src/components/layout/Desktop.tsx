@@ -2,7 +2,6 @@ import clsx from 'clsx';
 import {
   ArrowSquareOut,
   CaretLeft,
-  MagnifyingGlass,
   Moon,
   SignOut,
   Sun,
@@ -14,7 +13,6 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 
 import { BottomBar, type BarPage } from './BottomBar';
 import { LegalLinks } from './LegalLinks';
-import { MODIFIER } from './SearchPalette';
 
 import { useAuth } from '@/lib/auth';
 import { initials, roleLabel } from '@/lib/format';
@@ -105,7 +103,7 @@ export function Desktop({
   back,
   context,
   windowActions,
-  onSearch,
+  search,
   settingsTo,
   status,
 }: {
@@ -122,8 +120,8 @@ export function Desktop({
   context?: unknown;
   /** Shell-wide buttons at the right of the heading row (Publish all). */
   windowActions?: ReactNode;
-  /** Opens the search palette; shows the menu-bar magnifier when set. */
-  onSearch?: (seed?: string) => void;
+  /** The menu-bar search (SearchPalette). */
+  search?: ReactNode;
   /** Where Ctrl/⌘ , goes. Omitted for accounts that cannot change settings. */
   settingsTo?: string;
   /** Menu-bar extras left of the account menu (the notification bell). */
@@ -171,26 +169,7 @@ export function Desktop({
 
         {/* The search bar sits in the middle and takes what room the menus and the right-hand cluster leave. */}
         <div className="flex min-w-0 flex-1 justify-center px-2">
-          {onSearch ? (
-            <button
-              type="button"
-              onClick={() => onSearch()}
-              // Typing straight onto the bar opens the results with those letters already in.
-              onKeyDown={(event) => {
-                if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey && event.key !== ' ') {
-                  event.preventDefault();
-                  onSearch(event.key);
-                }
-              }}
-              aria-label={`Search (${MODIFIER} K)`}
-              title={`Search (${MODIFIER} K)`}
-              className="flex h-7 w-full max-w-md min-w-8 items-center justify-center gap-2 rounded-[8px] border border-glass-border bg-ink/[0.04] px-2.5 font-normal text-ink-muted transition-colors hover:bg-ink/10 hover:text-ink md:justify-start pointer-coarse:h-10"
-            >
-              <MagnifyingGlass size={14} weight="bold" aria-hidden="true" className="shrink-0" />
-              <span className="hidden min-w-0 flex-1 truncate text-left md:inline">Search clients, projects, pages…</span>
-              <kbd className="hidden shrink-0 rounded-[5px] border border-border px-1.5 text-[11px] xl:block">{MODIFIER} K</kbd>
-            </button>
-          ) : null}
+          {search}
         </div>
 
         <span className="flex shrink-0 items-center gap-1">
@@ -264,17 +243,19 @@ export function Desktop({
           {themeLabel}
         </button>
         <div className="my-1 h-px bg-border" />
-        <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger hover:text-white')}>
+        <button type="button" onClick={logout} className={clsx(menuItem, 'hover:bg-danger-bg hover:text-danger')}>
           <SignOut size={15} aria-hidden="true" />
           Sign out
         </button>
-        <LegalLinks className="px-2 pt-2 text-[11.5px] text-ink-muted" />
-        <p className="px-2 pb-1 text-[11.5px] text-ink-muted">
-          Made by{' '}
-          <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-semibold hover:text-ink hover:underline">
-            NPATEL GROUP LTD
-          </a>
-        </p>
+        <div className="mt-1 space-y-1 border-t border-border px-2 pb-1 pt-2.5">
+          <LegalLinks className="text-[13px] font-medium text-ink" />
+          <p className="text-[12.5px] text-ink-muted">
+            Made by{' '}
+            <a href="https://www.npatelgroup.ltd" target="_blank" rel="noopener" className="font-bold text-ink hover:underline">
+              NPATEL GROUP LTD
+            </a>
+          </p>
+        </div>
       </div>
 
       {/* ------------------------------------------------------- Page heading */}

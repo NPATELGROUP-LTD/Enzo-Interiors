@@ -595,7 +595,7 @@ export function ProjectsPage() {
             onChange={(id) => update({ view: id })}
           />
         </div>
-        <div className="relative min-w-0 basis-full sm:flex-1 sm:basis-0">
+        <div className="relative order-last min-w-0 basis-full sm:order-none sm:flex-1 sm:basis-0">
           <div className="relative mx-auto w-full sm:max-w-sm">
             <MagnifyingGlass
               size={16}
@@ -615,7 +615,7 @@ export function ProjectsPage() {
         {canCreate ? (
           <Button
             variant="primary"
-            className={clsx(tall, 'max-sm:w-full')}
+            className={clsx(tall, 'max-sm:ml-auto')}
             icon={<Plus size={16} aria-hidden="true" />}
             onClick={openCreate}
           >

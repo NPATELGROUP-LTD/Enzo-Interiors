@@ -151,6 +151,14 @@ export async function documentAccess(id: string, inline = false): Promise<{ url:
   return { url, canSave: client_can_download };
 }
 
+/** A PDF's bytes, through the API (the private bucket is not readable from the page). */
+export async function documentPdf(id: string): Promise<ArrayBuffer> {
+  const token = tokenStore.get();
+  const response = await fetch(`${BASE_URL}/documents/${encodeURIComponent(id)}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw new ApiError(response.status, 'Could not open this PDF. Try again.');
+  return response.arrayBuffer();
+}
+
 export async function downloadDocument(id: string): Promise<void> {
   window.location.assign(await documentLink(id));
 }

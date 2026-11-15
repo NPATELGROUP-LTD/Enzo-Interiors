@@ -1,9 +1,9 @@
-import { ArrowDown, ArrowLeft, ArrowUp, PaperPlaneRight, Plus, Printer, Receipt, TextHOne, Trash } from '@phosphor-icons/react';
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, PaperPlaneRight, Plus, Printer, Receipt, TextHOne, Trash, X } from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { InvoicePreview, InvoicePrint, printWhenReady, quoteSheet } from '@/components/invoice/InvoiceSheet';
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, Input, LoadingState, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, FIELD_BASE, Input, LoadingState, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
@@ -71,7 +71,21 @@ function QuoteList() {
   return (
     <>
       <div className="mb-4">
-        <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: id })} />
+        <div className="max-sm:hidden">
+          <Tabs tabs={FILTERS} active={filter} onChange={(id) => setParams(id === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: id })} />
+        </div>
+        <select
+          aria-label="Filter quotes"
+          value={filter}
+          onChange={(event) => setParams(event.target.value === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: event.target.value })}
+          className={`${FIELD_BASE} w-full sm:hidden`}
+        >
+          {FILTERS.map((entry) => (
+            <option key={entry.id} value={entry.id}>
+              {entry.label}
+            </option>
+          ))}
+        </select>
       </div>
       {shown.length === 0 ? (
         <EmptyState title="No quotes" message="A quote is made from a design: open a design and choose Make quote. It lands here, ready to check and send." />
@@ -197,6 +211,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   const [notes, setNotes] = useState(quote.notes ?? '');
   const [rows, setRows] = useState<Row[]>(() => (quote.items.length ? toRows(quote.items) : [blankLine()]));
   const [view, setView] = useState('studio');
+  const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -314,8 +329,14 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
             <td>
               <div className="inv-edit-cell">
                 <div className="inv-edit-stack">
-                  <input type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} onChange={(event) => setRow(row.key, { cost: event.target.value })} aria-label={`Line ${index + 1} cost each, in pounds`} placeholder="£ cost" className="inv-num" />
-                  <input type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} onChange={(event) => setRow(row.key, { margin: event.target.value })} aria-label={`Line ${index + 1} margin, in percent`} placeholder="% margin" className="inv-num" />
+                  <label className="inv-lbl" title="What one costs you. The client never sees it.">
+                    <span>Cost £</span>
+                    <input type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} onChange={(event) => setRow(row.key, { cost: event.target.value })} aria-label={`Line ${index + 1} cost each, in pounds`} placeholder="0.00" className="inv-num" />
+                  </label>
+                  <label className="inv-lbl" title="Added on top of the cost to give the price. The client never sees it.">
+                    <span>Margin %</span>
+                    <input type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} onChange={(event) => setRow(row.key, { margin: event.target.value })} aria-label={`Line ${index + 1} margin, in percent`} placeholder="0" className="inv-num" />
+                  </label>
                   <span className="inv-num inv-edit-sum">{money(((Number(row.quantity) || 0) * sellPence(row)) / 100)}</span>
                 </div>
                 <div className="inv-edit-stack inv-edit-tools">
@@ -463,7 +484,10 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
       </div>
 
       <div className="grid items-start gap-6 xl:min-h-0 xl:flex-1 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] xl:items-stretch">
-        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1" noValidate>
+        <form id="quote-form" onSubmit={submit} className="flex flex-col gap-4 xl:min-h-0 xl:overflow-y-auto xl:pb-6 xl:pr-1 [&>*]:shrink-0" noValidate>
+          <div className="max-xl:hidden">
+            <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
+          </div>
           {!canEdit ? (
             <p className="rounded-control border border-border bg-surface-muted px-3 py-2 text-sm text-ink-muted">
               {quote.status === 'Sent' ? 'This quote is with the client. Withdraw it to edit it.' : 'An accepted quote is final. Create the invoice from it.'}
@@ -486,6 +510,47 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
             <Textarea label="Notes for the client" rows={3} maxLength={4000} value={notes} disabled={!canEdit} onChange={(event) => setNotes(event.target.value)} />
           </Card>
 
+          {/* Below xl: lines as a plain list; the sheet opens full screen from Preview. */}
+          <Card className="flex flex-col gap-4 xl:hidden">
+            <div className="flex items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-ink">Lines</h2>
+              <Button type="button" variant="secondary" icon={<Eye size={16} aria-hidden="true" />} onClick={() => setPreviewing(true)}>
+                Preview
+              </Button>
+            </div>
+            {rows.map((row, index) => (
+              <div key={row.key} className="flex flex-col gap-3 rounded-control border border-border p-3">
+                {row.kind === 'heading' ? (
+                  <Input label="Section heading" value={row.text} maxLength={120} disabled={!canEdit} placeholder="e.g. Materials" onChange={(event) => setRow(row.key, { text: event.target.value })} />
+                ) : (
+                  <>
+                    <Input label="Item" value={row.description} maxLength={300} disabled={!canEdit} onChange={(event) => setRow(row.key, { description: event.target.value })} />
+                    <Input label="Description" value={row.detail} maxLength={300} disabled={!canEdit} onChange={(event) => setRow(row.key, { detail: event.target.value })} />
+                    <div className="grid grid-cols-3 gap-3">
+                      <Input label="Qty" type="number" inputMode="numeric" min={1} step={1} value={row.quantity} disabled={!canEdit} onChange={(event) => setRow(row.key, { quantity: event.target.value.split(/[.,]/)[0]!.replace(/\D/g, '') })} />
+                      <Input label="Cost £" type="number" inputMode="decimal" min={0} step="0.01" value={row.cost} disabled={!canEdit} onChange={(event) => setRow(row.key, { cost: event.target.value })} />
+                      <Input label="Margin %" type="number" inputMode="decimal" min={0} max={1000} step="0.01" value={row.margin} disabled={!canEdit} onChange={(event) => setRow(row.key, { margin: event.target.value })} />
+                    </div>
+                    <p className="text-sm text-ink-muted">Line total <span className="tabular font-semibold text-ink">{money(((Number(row.quantity) || 0) * sellPence(row)) / 100)}</span></p>
+                  </>
+                )}
+                {canEdit ? (
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" icon={<ArrowUp size={16} aria-hidden="true" />} disabled={index === 0} onClick={() => shift(index, -1)} aria-label="Move up" />
+                    <Button type="button" variant="ghost" icon={<ArrowDown size={16} aria-hidden="true" />} disabled={index === rows.length - 1} onClick={() => shift(index, 1)} aria-label="Move down" />
+                    <Button type="button" variant="ghost" className="ml-auto" icon={<Trash size={16} aria-hidden="true" />} onClick={() => removeRow(row.key)}>Remove</Button>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+            {canEdit ? (
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" icon={<Plus size={16} aria-hidden="true" />} disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankLine(items.at(-1)?.margin_pct ? String(items.at(-1)!.margin_pct) : '')])}>Add line</Button>
+                <Button type="button" variant="secondary" icon={<TextHOne size={16} aria-hidden="true" />} disabled={items.length >= 50} onClick={() => setRows((current) => [...current, blankHeading(), blankLine()])}>Add section</Button>
+              </div>
+            ) : null}
+          </Card>
+
           <Card className="flex flex-col gap-2">
             <h2 className="text-lg font-semibold text-ink">Studio only</h2>
             <dl className="flex flex-col gap-1 text-sm">
@@ -502,8 +567,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           ) : null}
         </form>
 
-        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 xl:min-h-0 xl:overflow-y-auto xl:pb-6">
-          <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
+        <section aria-label="Quote preview" className="flex min-w-0 flex-col gap-3 max-xl:hidden xl:min-h-0 xl:overflow-y-auto xl:pb-6">
           {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} editBody={linesOnSheet} kind="quote" />}
           {stock.length ? (
             <datalist id="quote-stock-items">
@@ -514,6 +578,18 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           ) : null}
         </section>
       </div>
+
+      {previewing ? (
+        <div role="dialog" aria-modal="true" aria-label="Quote preview" className="fixed inset-0 z-[110] flex flex-col bg-canvas xl:hidden">
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border px-4 py-2">
+            <Tabs tabs={[{ id: 'studio', label: 'Studio sheet' }, { id: 'client', label: 'Client copy' }]} active={view} onChange={setView} />
+            <Button type="button" variant="secondary" icon={<X size={16} aria-hidden="true" />} onClick={() => setPreviewing(false)}>Close</Button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {view === 'client' ? <InvoicePreview invoice={clientSheet} kind="quote" /> : <InvoicePreview invoice={studioSheet} kind="quote" />}
+          </div>
+        </div>
+      ) : null}
 
       <InvoicePrint invoices={[clientSheet]} kind="quote" />
 

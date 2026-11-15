@@ -126,7 +126,7 @@ export function Alerts() {
   };
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PaneHeader
         title="Alerts"
         help={

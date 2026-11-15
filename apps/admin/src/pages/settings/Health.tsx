@@ -53,7 +53,7 @@ export function Health() {
   const peak = Math.max(1, ...traffic.hours.map((row) => row.errors + row.refused));
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <PaneHeader
         title="Health"
         help="How the platform is doing: storage, the database, the cache and the last day of errors. Counts and sizes only; nothing from a client."

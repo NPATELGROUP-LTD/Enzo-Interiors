@@ -184,7 +184,7 @@ function Shortcuts() {
   return (
     <>
       {items.map(([long, short, to]) => (
-        <Button key={to} icon={<Plus size={14} weight="bold" aria-hidden="true" />} onClick={() => navigate(to)}>
+        <Button key={to} className="max-md:hidden" icon={<Plus size={14} weight="bold" aria-hidden="true" />} onClick={() => navigate(to)}>
           <span className="sm:hidden">{short}</span>
           <span className="max-sm:hidden">{long}</span>
         </Button>

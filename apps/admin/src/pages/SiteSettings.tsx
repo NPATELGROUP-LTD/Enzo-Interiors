@@ -22,7 +22,7 @@ import {
   X,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 
 import { MediaField, WEB_URL } from '@/components/cms/MediaPicker';
@@ -147,7 +147,16 @@ export function SiteSettingsPage() {
   const { section = '' } = useParams();
   const { isInfra } = useAuth();
   const groups = settingsGroups(isInfra);
-  if (!section) return <SettingsIndex groups={groups} />;
+  // Wide screens go straight to a pane beside the list; a phone keeps the list of groups.
+  const wide = useSyncExternalStore(
+    (notify) => {
+      const query = window.matchMedia('(min-width: 1024px)');
+      query.addEventListener('change', notify);
+      return () => query.removeEventListener('change', notify);
+    },
+    () => window.matchMedia('(min-width: 1024px)').matches,
+  );
+  if (!section) return wide && groups[0]?.sections[0] ? <Navigate to={`/settings/${groups[0].sections[0].id}`} replace /> : <SettingsIndex groups={groups} />;
   if (!settingsSections(isInfra).some((row) => row.id === section)) return <Navigate to="/settings" replace />;
 
   let pane: ReactNode;
@@ -213,7 +222,7 @@ function SettingsIndex({ groups }: { groups: SettingsNavGroup[] }) {
 }
 
 /** Website, Pages, Logo & icon and Emails: four views of the one site_settings row. */
-function GeneralPane({ section }: { section: 'website' | 'pages' | 'brand' | 'emails' }) {
+export function GeneralPane({ section }: { section: 'website' | 'pages' | 'brand' | 'emails' }) {
   const toast = useToast();
   const settings = useQuery<SiteSettings>('/settings');
   const assets = useQuery<MediaAsset[]>(section === 'brand' ? '/cms/media' : null);
@@ -337,7 +346,7 @@ function GeneralPane({ section }: { section: 'website' | 'pages' | 'brand' | 'em
   const pick = (key: keyof typeof brand) => (ids: string[]) => setBrand({ ...brand, [key]: ids[ids.length - 1] ?? null });
 
   return (
-    <div className="max-w-3xl">
+    <div>
       {section === 'website' ? (
         <>
           <PaneHeader title="Website" help="Whether visitors see the full website or the coming-soon page." action={saveButton} />
