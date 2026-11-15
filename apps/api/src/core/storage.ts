@@ -87,6 +87,12 @@ export class PrivateStorage {
     );
   }
 
+  /** The object's bytes, for the API to copy it (a chat attachment made from a project document). */
+  async get(key: string): Promise<Buffer> {
+    const out = await this.require().client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    return Buffer.from(await out.Body!.transformToByteArray());
+  }
+
   /**
    * A GET link for `key` that downloads as `filename` and dies in five minutes.
    * Given `inlineType`, the browser shows it as that type instead (the portal's viewer).

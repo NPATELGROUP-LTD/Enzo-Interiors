@@ -294,10 +294,14 @@ export function UploadButton({
     <>
       <button
         type="button"
-        onClick={() => input.current?.click()}
-        disabled={busy || projects.length === 0}
+        onClick={() =>
+          projects.length
+            ? input.current?.click()
+            : toast.info('Turn on “Send to client” on one of their projects first. Files are attached through a project the client can see.')
+        }
+        disabled={busy}
         aria-label="Attach a file from this device"
-        title={projects.length ? 'Attach a file' : 'Files go on a project shared with the client; there is none yet'}
+        title={projects.length ? 'Attach a file' : 'Needs a project sent to the client'}
         className={TOOL}
       >
         <Paperclip size={20} aria-hidden="true" className={busy ? 'animate-pulse' : undefined} />

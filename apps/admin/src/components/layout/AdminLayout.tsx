@@ -34,7 +34,6 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { flushSync } from 'react-dom';
 import { NavLink, useLocation, useOutletContext } from 'react-router-dom';
 
 import { PAGES } from '@/components/cms/guide';
@@ -55,7 +54,7 @@ import { InstallPrompt } from '@/components/InstallPrompt';
 import { PullToRefresh } from '@/components/PullToRefresh';
 import { PushPrompt } from '@/components/PushToggle';
 import { Notifications } from './Notifications';
-import { SearchPalette } from './SearchPalette';
+import { SearchPalette, focusSearch } from './SearchPalette';
 
 /**
  * The Enzo Interiors admin. In this version it manages the public website:
@@ -457,7 +456,7 @@ function usePageTitle(): { title: string; back: { to: string; label: string } | 
   if (known) return { title: known, back: null };
   if (pathname.startsWith('/settings/')) {
     const pane = SETTINGS_SECTIONS.find(({ id }) => pathname === `/settings/${id}`);
-    return { title: pane?.label ?? 'Settings', back: pane ? { to: '/settings', label: 'Settings' } : null };
+    return { title: pane?.label ?? 'Settings', back: null };
   }
   // A client's and a project's own page carry their way back inside their header card.
   if (pathname.startsWith('/clients/')) return { title: 'Client', back: null };
@@ -475,7 +474,7 @@ export function AdminLayout() {
   const toast = useToast();
   const { isAdmin, isInfra, logout, can } = useAuth();
   // Settings: an Admin has every pane, an Infra manager the ones that run the platform.
-  const canSettings = isAdmin || isInfra;
+  const canSettings = isAdmin;
   const canSeeClients = can(...CLIENT_ROLES);
   const canCms = can(...CMS_ROLES);
   // Mail is in the menu only once the server has Google's keys for it.
@@ -490,26 +489,7 @@ export function AdminLayout() {
   const enquiries = useQuery<{ new_count: number }>(isAdmin ? '/enquiries?limit=1' : null);
   const refreshEnquiries = enquiries.refetch;
   const [publishing, setPublishing] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const [seed, setSeed] = useState('');
-  // The menu-bar search may hand over the first letters typed on it.
-  const openSearch = useCallback((first?: string) => {
-    setSeed(typeof first === 'string' ? first : '');
-    setSearching(true);
-  }, []);
-
-  // Ctrl/⌘ K, from anywhere in the app.
-  useEffect(() => {
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        // Rendered now rather than on the next frame, for the same reason.
-        flushSync(() => setSearching(true));
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
+  const openSearch = focusSearch;
   const { title, back } = usePageTitle();
   const { pathname } = useLocation();
 
@@ -540,7 +520,7 @@ export function AdminLayout() {
   // Every screen this person may open, in the menu bar's groups.
   const at = (to: string) => pathname === to || pathname.startsWith(`${to}/`);
   const page = (to: string, label: string, Icon: PhosphorIcon, badge = 0): BarPage => ({ to, label, Icon, active: at(to), badge });
-  const home = canSeeClients ? [page('/', 'Dashboard', SquaresFour)] : [];
+  const home = canSeeClients || isInfra ? [page('/', 'Dashboard', SquaresFour)] : [];
   const work = [
     ...(canSeeClients ? [page('/clients', 'Clients', User), page('/projects', 'Projects', Kanban)] : []),
     ...(isAdmin
@@ -569,23 +549,14 @@ export function AdminLayout() {
 
   return (
     <>
-    <SearchPalette
-      open={searching}
-      seed={seed}
-      onClose={() => {
-        setSearching(false);
-        setSeed('');
-      }}
-      actions={{ isAdmin, clients: canSeeClients, cms: canCms, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }}
-    />
     <Desktop
       appName="Enzo Interiors"
       pages={pages}
-      onSearch={openSearch}
+      search={<SearchPalette actions={{ isAdmin, clients: canSeeClients, cms: canCms, unpublished, publishAll: () => void publishAll(), toggleTheme, signOut: logout }} />}
       settingsTo={canSettings ? '/settings' : '/account'}
       menus={
         <>
-          {canSeeClients ? <MenuBarLink to="/" label="Dashboard" end /> : null}
+          {canSeeClients || isInfra ? <MenuBarLink to="/" label="Dashboard" end /> : null}
           <GroupMenu id="work-menu" label="Work" pages={work} />
           <GroupMenu id="inbox-menu" label="Inbox" pages={inbox} />
           {canCms ? <CmsMenu counts={counts} active={onWebsite} /> : null}

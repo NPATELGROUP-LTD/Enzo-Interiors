@@ -567,7 +567,7 @@ export function AttachPicker({
       ) : documents.error ? (
         <ErrorState message={documents.error} onRetry={documents.refetch} />
       ) : !documents.data?.length ? (
-        <EmptyState title="Nothing shared yet" message={`No files are shared with ${clientName} yet.`} />
+        <EmptyState title="Nothing shared yet" message={`A file shows here once it is marked “Client sees” and its project is sent to ${clientName}. Check both on the project’s Documents tab.`} />
       ) : (
         <ul className="flex flex-col">
           {documents.data.map((doc) => (

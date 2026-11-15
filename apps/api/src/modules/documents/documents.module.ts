@@ -17,6 +17,7 @@ import {
   Post,
   Put,
   Query,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -308,6 +309,16 @@ export class DocumentsService {
     return this.findOne(principal, id);
   }
 
+  /**
+   * A PDF's bytes through the API, for the portal's in-page viewer on browsers with no PDF reader of
+   * their own (phones). Same access as an inline link; only PDFs, only what the viewer may see.
+   */
+  async pdfBytes(principal: AuthPrincipal, id: string): Promise<StreamableFile> {
+    const document = await this.require(principal, id);
+    if (inlineType(document.storage_url) !== 'application/pdf') throw new BadRequestException('Only PDFs can be shown this way.');
+    return new StreamableFile(await this.storage.get(document.storage_url), { type: 'application/pdf', disposition: 'inline' });
+  }
+
   /** "Client can download" on and off. Admin only (controller). */
   async setClientDownload(principal: AuthPrincipal, id: string, dto: DocumentDownloadDto): Promise<DocumentView> {
     const document = await this.require(principal, id);
@@ -444,6 +455,14 @@ export class DocumentsController {
   }
 
   /** A fresh short-lived link per call; the response itself must not be cached either. */
+  @Get(':id/pdf')
+  @Roles('Admin', 'Designer', 'Installer', 'Client')
+  @Throttle({ default: { limit: 60, ttl: 60_000 } })
+  @Header('Cache-Control', 'private, no-store')
+  pdf(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    return this.documents.pdfBytes(principal, id);
+  }
+
   @Get(':id/download')
   @Roles('Admin', 'Designer', 'Installer', 'Client')
   @Header('Cache-Control', 'no-store')

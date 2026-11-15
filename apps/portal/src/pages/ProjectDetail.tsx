@@ -1,5 +1,5 @@
 import clsx from 'clsx';
-import { CaretRight } from '@phosphor-icons/react';
+import { CaretLeft, CaretRight } from '@phosphor-icons/react';
 import { useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
@@ -11,7 +11,6 @@ import {
   LoadingState,
   Modal,
   PageHeader,
-  Progress,
   StatusTag,
   Tabs,
   Textarea,
@@ -104,10 +103,7 @@ export function ProjectDetailPage() {
 
   return (
     <>
-      <PageHeader
-        title={project.name}
-        actions={<StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>}
-      />
+      <PageHeader title="" />
 
       {/*
         The design-approval loop. The brief requires Approve and Request Changes
@@ -146,10 +142,32 @@ export function ProjectDetailPage() {
         </Card>
       ) : null}
 
-      <Card className="mb-4">
-        <p className="label-eyebrow">Where your project is up to</p>
+      {/* Back, name, where it stands: one card, as in the studio's own project page. */}
+      <Card className="mb-5">
+        <Link
+          to="/projects"
+          className="-ml-2 flex min-h-9 w-fit items-center gap-0.5 rounded-[7px] pl-1 pr-2 text-sm font-semibold text-ink-muted hover:bg-surface-muted hover:text-ink pointer-coarse:min-h-11"
+        >
+          <CaretLeft size={16} aria-hidden="true" />
+          Projects
+        </Link>
+        <div className="mt-3 flex flex-wrap items-start justify-between gap-x-6 gap-y-2">
+          <div className="min-w-0">
+            <h1 className="text-2xl font-bold tracking-tight text-ink [overflow-wrap:anywhere]">{project.name}</h1>
+            <p className="mt-1 text-sm text-ink-muted">
+              {SERVICE_LABELS[project.type]} · {project.assigned_designer_name ?? 'Designer to be assigned'} · Started {date(project.created_at)}
+            </p>
+          </div>
+          <StatusTag tone={projectTone(project.status, stages)}>{project.status}</StatusTag>
+        </div>
+        <div className="mt-5 border-t border-border pt-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="label-eyebrow">Stage</p>
+            <p className="tabular text-xs font-semibold text-ink-muted">{project.progress_pct}% complete</p>
+          </div>
+        </div>
 
-        <ol className="mt-4 flex items-start">
+        <ol className="mt-2 flex items-start">
           {timeline.map((step, index) => (
             <li key={step.stage} className="flex min-w-0 flex-1 items-start last:flex-none">
               <div className="flex flex-col items-center gap-1.5">
@@ -189,10 +207,6 @@ export function ProjectDetailPage() {
           ))}
         </ol>
 
-        <div className="mt-5">
-          <Progress value={project.progress_pct} label="Project progress" />
-        </div>
-
         <p className="mt-3 text-ink">{STAGE_DESCRIPTIONS[project.status]}</p>
         {project.current_stage ? (
           <p className="mt-2 rounded-control bg-surface-muted px-2.5 py-2 text-ink">
@@ -213,7 +227,7 @@ export function ProjectDetailPage() {
       />
 
       {tab === 'timeline' ? (
-        <div className="max-w-2xl">
+        <div className="grid gap-4 lg:grid-cols-2">
           <Card>
             <p className="label-eyebrow">Project details</p>
             <dl className="mt-3 rows">

@@ -1230,7 +1230,7 @@ export function SettingsShell({
   const navigate = useNavigate();
   const shown = groups ?? [{ id: 'all', label, detail: '', sections: sections ?? [] }];
   return (
-    <div className="mx-auto flex max-w-[84rem] items-start gap-6 px-5 pb-16 pt-3 sm:px-8">
+    <div className="flex items-start gap-6 px-5 pb-16 pt-3 sm:px-8">
       <aside className="sticky top-3 hidden max-h-[calc(100vh-7rem)] w-64 shrink-0 overflow-y-auto rounded-card bg-surface p-2.5 shadow-soft lg:block">
         <nav aria-label={label} className="flex flex-col gap-4">
           {shown.map((group) => (

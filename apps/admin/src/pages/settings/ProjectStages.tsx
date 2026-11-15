@@ -59,7 +59,7 @@ export function ProjectStages() {
   };
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h2 className="text-lg font-semibold tracking-tight text-ink">Project stages</h2>
