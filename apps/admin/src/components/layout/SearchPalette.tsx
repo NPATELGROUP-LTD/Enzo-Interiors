@@ -17,9 +17,10 @@ import {
   SignOut,
   SquaresFour,
   TextAlignLeft,
+  X,
   type Icon as PhosphorIcon,
 } from '@phosphor-icons/react';
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { PAGES } from '@/components/cms/guide';
@@ -82,23 +83,21 @@ function matches(query: string, text: string): boolean {
 }
 
 /**
- * Spotlight for the admin: every page, every section of every page, the shared
- * content types, Settings and the common actions, plus a search through the
- * words themselves. Opened from the menu bar or with Ctrl/⌘ K.
- *
- * A native <dialog>, so it sits in the top layer above the glass menu bar and
- * gets Escape, focus trapping and the backdrop for free.
+ * The menu bar's search: the bar is the input and the results drop under it
+ * (no dialog). Every page, section, shared content type, Settings pane, action,
+ * record and a search through the words. Ctrl/⌘ K focuses it from anywhere
+ * (`focusSearch`). Below md it is a magnifier that opens the bar across the menu bar.
  */
-export function SearchPalette({ open, onClose, actions, seed = '' }: {
-  open: boolean;
-  /** Letters already typed on the menu-bar search when it opened. */
-  seed?: string;
-  onClose: () => void;
-  actions: PaletteActions;
-}) {
+export function focusSearch(first?: string) {
+  window.dispatchEvent(new CustomEvent('enzo:search', { detail: first ?? '' }));
+}
+
+export function SearchPalette({ actions }: { actions: PaletteActions }) {
   const navigate = useNavigate();
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [wide, setWide] = useState(false);
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<{ entries: Hit[]; media: Array<{ id: string; alt: string }> } | null>(null);
   const [active, setActive] = useState(0);
@@ -107,21 +106,43 @@ export function SearchPalette({ open, onClose, actions, seed = '' }: {
   const [recordsFor, setRecordsFor] = useState('');
   const [records, setRecords] = useState<Array<{ type: string; id: string; title: string; detail: string; link: string }>>([]);
 
-  // A layout effect, so the input has focus before the next keystroke lands:
-  // people press Ctrl K and start typing in the same breath.
-  useLayoutEffect(() => {
-    const dialog = dialogRef.current;
-    if (!dialog) return;
-    if (open && !dialog.open) {
-      dialog.showModal();
-      setQuery(seed);
-      setHits(null);
-      setActive(0);
+  const onClose = useCallback(() => {
+    setOpen(false);
+    setWide(false);
+    setQuery('');
+    setHits(null);
+    setActive(0);
+    inputRef.current?.blur();
+  }, []);
+
+  // Ctrl/⌘ K (and the 404 page's button) focus the bar, with any letters already typed.
+  useEffect(() => {
+    const focus = (first: string) => {
+      setWide(true);
+      setOpen(true);
+      if (first) setQuery(first);
       inputRef.current?.focus();
-    }
-    if (!open && dialog.open) dialog.close();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when it opens; the seed is only read then
-  }, [open]);
+    };
+    const onEvent = (event: Event) => focus((event as CustomEvent<string>).detail);
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        focus('');
+      }
+    };
+    window.addEventListener('enzo:search', onEvent);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('enzo:search', onEvent);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  // The phone's bar appears on tap, so focus it once it is on screen.
+  useEffect(() => {
+    if (wide) inputRef.current?.focus();
+  }, [wide]);
+
 
   // Records by reference or a small detail ("PRJ-0012", a name, an email, a phone number); Admin and Designers.
   useEffect(() => {
@@ -335,107 +356,113 @@ export function SearchPalette({ open, onClose, actions, seed = '' }: {
   let lastGroup = '';
 
   return (
-    <dialog
-      ref={dialogRef}
-      aria-label="Search"
-      onClose={onClose}
-      // A click on the backdrop lands on the dialog element itself.
-      onClick={(event) => event.target === dialogRef.current && onClose()}
-      className="glass m-auto mt-[max(3.25rem,8vh)] w-[min(40rem,calc(100vw-2rem))] overflow-hidden rounded-[14px] border border-glass-border p-0 text-ink shadow-window backdrop:bg-black/25 backdrop:backdrop-blur-[2px]"
-    >
-      <div className="flex items-center gap-3 border-b border-border px-4">
-        <MagnifyingGlass size={18} aria-hidden="true" className="shrink-0 text-ink-muted" />
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => {
-            setQuery(event.target.value);
-            setActive(0);
-          }}
-          onKeyDown={onKeyDown}
-          placeholder="Search pages, sections and words…"
-          aria-label="Search"
-          role="combobox"
-          aria-expanded="true"
-          aria-controls="palette-results"
-          aria-activedescendant={results.length ? `palette-${clamped}` : undefined}
-          className="h-14 min-w-0 flex-1 bg-transparent text-[17px] outline-none placeholder:text-ink-muted"
-        />
-        <kbd className="hidden rounded-[5px] border border-border px-1.5 py-0.5 text-[11px] text-ink-muted sm:block">Esc</kbd>
-      </div>
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setWide(true);
+          setOpen(true);
+        }}
+        aria-label="Search"
+        className="flex h-9 w-9 items-center justify-center rounded-[8px] text-ink-muted hover:bg-ink/10 hover:text-ink md:hidden pointer-coarse:h-11 pointer-coarse:w-11"
+      >
+        <MagnifyingGlass size={18} weight="bold" aria-hidden="true" />
+      </button>
+      <div
+        ref={wrapRef}
+        onBlur={(event) => {
+          if (!wrapRef.current?.contains(event.relatedTarget as Node | null)) onClose();
+        }}
+        className={clsx(
+          'w-full max-w-md md:relative md:block',
+          wide ? 'max-md:absolute max-md:inset-0 max-md:z-10 max-md:flex max-md:items-center max-md:bg-canvas max-md:px-2' : 'max-md:hidden',
+        )}
+      >
+        <label className="flex h-8 w-full items-center gap-2 rounded-[8px] border border-glass-border bg-ink/[0.04] px-2.5 font-normal text-ink-muted transition-colors focus-within:border-green-700 focus-within:bg-surface focus-within:text-ink hover:bg-ink/10 pointer-coarse:h-10">
+          <MagnifyingGlass size={15} weight="bold" aria-hidden="true" className="shrink-0" />
+          <input
+            ref={inputRef}
+            value={query}
+            onFocus={() => setOpen(true)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setActive(0);
+              setOpen(true);
+            }}
+            onKeyDown={(event) => (event.key === 'Escape' ? onClose() : onKeyDown(event))}
+            placeholder="Search clients, projects, pages…"
+            aria-label={`Search (${MODIFIER} K)`}
+            role="combobox"
+            aria-expanded={open}
+            aria-controls="palette-results"
+            aria-activedescendant={open && results.length ? `palette-${clamped}` : undefined}
+            autoComplete="off"
+            className="h-full min-w-0 flex-1 bg-transparent text-[14px] text-ink outline-none placeholder:text-ink-muted"
+          />
+          <kbd className="hidden shrink-0 rounded-[5px] border border-border px-1.5 py-px text-[12px] leading-5 md:block">{MODIFIER} K</kbd>
+          <button type="button" onClick={onClose} aria-label="Close search" className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full hover:bg-ink/10 md:hidden">
+            <X size={14} aria-hidden="true" />
+          </button>
+        </label>
 
-      <ul id="palette-results" role="listbox" aria-label="Results" className="max-h-[min(60vh,28rem)] overflow-y-auto p-1.5">
-        {results.length === 0 ? (
-          <li className="px-3 py-8 text-center text-sm text-ink-muted">
-            {query.trim().length >= 2 && hits === null
-              ? 'Searching…'
-              : failed
-                ? 'Could not search the content just now. Try again in a moment.'
-                : `Nothing matches "${query.trim()}".`}
-          </li>
-        ) : null}
-        {results.map((row, index) => {
-          const heading = row.group !== lastGroup ? row.group : null;
-          lastGroup = row.group;
-          const Icon = row.Icon;
-          return (
-            <li key={row.id} role="presentation">
-              {heading ? (
-                <p className="px-2.5 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">
-                  {heading}
-                </p>
-              ) : null}
-              <div
-                id={`palette-${index}`}
-                role="option"
-                aria-selected={index === clamped}
-                onMouseMove={() => setActive(index)}
-                onClick={row.run}
-                className={clsx(
-                  'flex cursor-default items-center gap-3 rounded-[8px] px-2.5 py-2',
-                  index === clamped ? 'bg-green-900 text-on-primary' : 'text-ink',
-                )}
-              >
-                <Icon size={17} aria-hidden="true" className="shrink-0 opacity-80" />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{row.label}</span>
-                  {row.detail ? (
-                    <span
-                      className={clsx(
-                        'block truncate text-xs',
-                        index === clamped ? 'text-on-primary/75' : 'text-ink-muted',
-                      )}
-                    >
-                      {row.detail}
-                    </span>
+        {open ? (
+          <ul
+            id="palette-results"
+            role="listbox"
+            aria-label="Results"
+            // Keeps the input focused while a row is pressed.
+            onMouseDown={(event) => event.preventDefault()}
+            className="absolute left-0 right-0 top-full mt-1.5 max-h-[min(70dvh,30rem)] overflow-y-auto rounded-[12px] border border-border bg-surface p-1.5 text-left text-ink shadow-window max-md:left-2 max-md:right-2"
+          >
+            {results.length === 0 ? (
+              <li className="px-3 py-6 text-center text-sm text-ink-muted">
+                {query.trim().length >= 2 && hits === null
+                  ? 'Searching…'
+                  : failed
+                    ? 'Could not search the content just now. Try again in a moment.'
+                    : query.trim()
+                      ? `Nothing matches "${query.trim()}".`
+                      : 'Start typing to search.'}
+              </li>
+            ) : null}
+            {results.map((row, index) => {
+              const heading = row.group !== lastGroup ? row.group : null;
+              lastGroup = row.group;
+              const Icon = row.Icon;
+              return (
+                <li key={row.id} role="presentation">
+                  {heading ? (
+                    <p className="px-2.5 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-ink-muted">{heading}</p>
                   ) : null}
-                </span>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="flex items-center justify-between border-t border-border px-4 py-2 text-[11px] text-ink-muted">
-        <span>↑ ↓ to move · Enter to open</span>
-        <span>{MODIFIER} K</span>
-      </p>
-    </dialog>
+                  <div
+                    id={`palette-${index}`}
+                    role="option"
+                    aria-selected={index === clamped}
+                    onMouseMove={() => setActive(index)}
+                    onClick={row.run}
+                    className={clsx(
+                      'flex cursor-default items-center gap-3 rounded-[8px] px-2.5 py-2',
+                      index === clamped ? 'bg-green-900 text-on-primary' : 'text-ink',
+                    )}
+                  >
+                    <Icon size={17} aria-hidden="true" className="shrink-0 opacity-80" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{row.label}</span>
+                      {row.detail ? (
+                        <span className={clsx('block truncate text-xs', index === clamped ? 'text-on-primary/75' : 'text-ink-muted')}>
+                          {row.detail}
+                        </span>
+                      ) : null}
+                    </span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : null}
+      </div>
+    </>
   );
-}
-
-/** Opens the palette on Ctrl/⌘ K from anywhere in the admin. */
-export function usePaletteShortcut(open: () => void): void {
-  useEffect(() => {
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
-        event.preventDefault();
-        open();
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [open]);
 }
 
 export { MODIFIER };

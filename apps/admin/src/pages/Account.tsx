@@ -1,11 +1,10 @@
-import { Bell, EnvelopeSimple, GoogleLogo, Key, PaintBrush, ShieldCheck, UserCircle, type Icon as PhosphorIcon } from '@phosphor-icons/react';
+import { Bell, EnvelopeSimple, GoogleLogo, Key, ShieldCheck, UserCircle, type Icon as PhosphorIcon } from '@phosphor-icons/react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 
 import { ConnectButton } from '@/components/mail/ConnectButton';
 import { PushToggle } from '@/components/PushToggle';
 import {
-  AppearancePicker,
   Button,
   FIELD_BASE,
   Input,
@@ -17,7 +16,6 @@ import { useQuery } from '@/hooks/useApi';
 import { ApiError, api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { dateTime, initials, roleLabel } from '@/lib/format';
-import { useTheme } from '@/lib/theme';
 import type { LoginResponse, Me, Principal, TrustedDevice } from '@/types/api';
 import type { MailStatus } from '@/types/mail';
 
@@ -34,7 +32,6 @@ const GOOGLE_ERRORS: Record<string, string> = {
 export function AccountPage() {
   const toast = useToast();
   const { user, adopt, update, can } = useAuth();
-  const { theme, set } = useTheme();
   const [params, setParams] = useSearchParams();
   const [name, setName] = useState(user?.name ?? '');
   const [savingName, setSavingName] = useState(false);
@@ -205,12 +202,6 @@ export function AccountPage() {
                 </Button>
               </div>
             </form>
-          </Panel>
-
-          <Panel Icon={PaintBrush} title="Appearance" help="Only on this device.">
-            <div className="p-4">
-              <AppearancePicker value={theme} onChange={set} />
-            </div>
           </Panel>
         </div>
 

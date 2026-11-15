@@ -169,10 +169,10 @@ export function AppointmentsPage() {
             />
           </div>
         ) : null}
-        <div className="max-sm:w-full sm:ml-auto">
+        <div className="ml-auto">
           <Button
             variant="primary"
-            className={clsx(tall, 'max-sm:w-full')}
+            className={tall}
             icon={<Plus size={16} aria-hidden="true" />}
             onClick={() => update({ new: '1' })}
           >
