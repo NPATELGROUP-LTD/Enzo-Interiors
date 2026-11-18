@@ -16,7 +16,7 @@ import './invoice-sheet.css';
 
 export type SheetKind = 'invoice' | 'quote';
 
-/** A quote as the sheet's record. A client's quote has no lines, so it prints "Installation charges" and the totals. */
+/** A quote as the sheet's record. A client's quote shows its lines and prices, never cost or margin. */
 export function quoteSheet(quote: Quote): Invoice {
   return {
     id: quote.id,

@@ -614,7 +614,8 @@ export function Modal({
   description?: string;
   children: ReactNode;
   footer?: ReactNode;
-  width?: 'sm' | 'md' | 'lg';
+  /** full: the whole screen on a phone, a wide panel from sm. */
+  width?: 'sm' | 'md' | 'lg' | 'full';
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
@@ -662,6 +663,7 @@ export function Modal({
           width === 'sm' && 'sm:max-w-md',
           width === 'md' && 'sm:max-w-2xl',
           width === 'lg' && 'sm:max-w-4xl',
+          width === 'full' && 'h-dvh max-h-dvh rounded-t-none sm:h-auto sm:max-h-[92dvh] sm:max-w-5xl',
         )}
       >
         <div className="flex items-start justify-between gap-4 px-5 pb-2 pt-5">

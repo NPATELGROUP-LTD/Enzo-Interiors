@@ -239,9 +239,9 @@ function AdminView() {
         </Card>
       ) : null}
 
-      {/* Bento: two columns from sm, four from xl (2+1+1 over 1+2+1); one column on a phone. */}
+      {/* Bento: two columns from sm, four from xl (1+1+1+1 over 1+2+1); one column on a phone. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile title="Today’s consultations" value={padCount(appointments.today)} to="/bookings" className="xl:col-span-2">
+        <Tile title="Today’s consultations" value={padCount(appointments.today)} to="/bookings">
           <p className={SUB}>
             {appointments.next
               ? `Next up: ${appointments.next.name}, ${relative(appointments.next.starts_at).toLowerCase()}.`
@@ -255,6 +255,11 @@ function AdminView() {
 
         <Tile title="New enquiries" value={padCount(enquiries.new)} to="/enquiries?view=New">
           <p className={SUB}>{enquiries.since_yesterday} received since yesterday.</p>
+        </Tile>
+
+        <Tile title="Total quoted" value={moneyCompact(quotes.quoted_total)} to="/quotes">
+          <p className={SUB}>{moneyCompact(quotes.accepted_total)} accepted.</p>
+          {quotes.draft_total > 0 ? <p className="text-sm text-ink-muted">{moneyCompact(quotes.draft_total)} in drafts, not sent yet.</p> : null}
         </Tile>
 
         <Tile

@@ -104,7 +104,10 @@ function QuoteList() {
           <tbody>
             {rows.map((quote) => (
               <tr key={quote.id} onClick={() => navigate(`/quotes/${quote.id}`)} className="cursor-pointer hover:bg-ink/[0.03]">
-                <Td className="font-semibold text-ink">{quote.number}</Td>
+                <Td className="font-semibold text-ink">
+                  {quote.number}
+                  <span className="block truncate text-xs font-normal text-ink-muted md:hidden">{quote.client_name}</span>
+                </Td>
                 <Td col="md">{quote.client_name}</Td>
                 <Td col="xl">{quote.project_name ?? '—'}</Td>
                 <Td>
@@ -224,7 +227,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   const dirty = canEdit && JSON.stringify(body) !== JSON.stringify({ title: quote.title, notes: quote.notes, valid_until: quote.valid_until?.slice(0, 10) ?? null, vat_rate: quote.vat_rate, discount: quote.discount, items: toItems(toRows(quote.items)) });
   const cost = rows.reduce((total, row) => (row.kind === 'line' ? total + (Number(row.quantity) || 0) * pennies(Number(row.cost) || 0) : total), 0) / 100;
 
-  // What the sheet shows: the saved quote with this form's edits laid over it; the client's copy has no lines.
+  // What the sheet shows: the saved quote with this form's edits laid over it; the client's copy is the same sheet without the fields.
   const live: Quote = canEdit
     ? {
         ...quote,
@@ -241,7 +244,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
       }
     : quote;
   const studioSheet = quoteSheet(live);
-  const clientSheet = quoteSheet({ ...live, items: [] });
+  const clientSheet = studioSheet;
 
   const setRow = (key: number, change: Partial<LineRow> | { text: string }) =>
     setRows((current) => current.map((row) => (row.key === key ? ({ ...row, ...change } as Row) : row)));
