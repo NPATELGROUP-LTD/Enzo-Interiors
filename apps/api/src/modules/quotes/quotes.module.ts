@@ -313,7 +313,7 @@ export class QuotesService {
     return `${prefix}${String(highest + 1).padStart(4, '0')}`;
   }
 
-  /** Quotes with their lines and names, in a handful of queries however many there are. A client gets totals only: no lines, so no cost or margin. */
+  /** Quotes with their lines and names, in a handful of queries however many there are. A client gets the lines as priced to them, never their cost or margin. */
   private async views(quotes: ProjectQuote[], forClient = false): Promise<QuoteView[]> {
     if (quotes.length === 0) return [];
     const ids = (pick: (q: ProjectQuote) => string) => [...new Set(quotes.map(pick))];
@@ -332,7 +332,8 @@ export class QuotesService {
       const project = projectOf.get(quote.project_id);
       return {
         ...quote,
-        items: forClient ? [] : own,
+        // Allow-list: a client never receives cost_price or margin_pct.
+        items: forClient ? own.map(({ id, quote_id, description, section, detail, quantity, unit_price, position }) => ({ id, quote_id, description, section, detail, quantity, unit_price, cost_price: null, margin_pct: null, position })) : own,
         client_name: client?.name ?? 'Unknown client',
         project_name: project?.name ?? null,
         issuer,

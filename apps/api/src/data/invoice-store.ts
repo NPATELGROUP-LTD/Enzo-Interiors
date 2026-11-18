@@ -68,6 +68,12 @@ export class InvoiceStore {
     return total._sum.amount ?? new Prisma.Decimal(0);
   }
 
+  /** Every project quote added up by status, in one query (the dashboard's "Total quoted"). */
+  async quotedByStatus(): Promise<Map<string, Prisma.Decimal>> {
+    const rows = await this.prisma.projectQuote.groupBy({ by: ['status'], _sum: { amount: true } });
+    return new Map(rows.map((row) => [row.status, row._sum.amount ?? new Prisma.Decimal(0)]));
+  }
+
   /**
    * Money actually received over `where` (an invoice filter) since `from`: every paid stage, plus
    * Paid invoices that have no stages. A part-paid invoice counts for what has been paid so far.

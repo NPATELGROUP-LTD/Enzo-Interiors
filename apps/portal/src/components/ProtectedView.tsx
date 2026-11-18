@@ -3,7 +3,10 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { useAuth } from '@/lib/auth';
 
-/** The text laid over a protected page, tiled: who is looking, and when. */
+/** Who is looking, and when: the words of the watermark. */
+export const markText = (name?: string | null) => `${name ?? 'Enzo client'} · ${new Date().toLocaleDateString('en-GB')}`;
+
+/** The text laid over a protected page, tiled. */
 function watermark(text: string): string {
   const safe = text.replace(/[&<>"']/g, '');
   const svg =
@@ -24,7 +27,7 @@ export function ProtectedView({ children, className }: { children: ReactNode; cl
   const { user } = useAuth();
   const [covered, setCovered] = useState(false);
   const mark = useMemo(
-    () => watermark(`${user?.name ?? 'Enzo client'} · ${new Date().toLocaleDateString('en-GB')}`),
+    () => watermark(markText(user?.name)),
     [user?.name],
   );
 
