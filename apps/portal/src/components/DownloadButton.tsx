@@ -5,8 +5,9 @@ import { useState } from 'react';
 import { Button, Modal } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { PdfPages } from '@/components/PdfPages';
-import { ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
+import { markText, ProtectedView, VIEW_ONLY_NOTE } from '@/components/ProtectedView';
 import { ApiError, documentAccess, downloadDocument } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import type { DocumentRecord } from '@/types/api';
 
 /** "Download" for one document, named for screen readers by the file it fetches. */
@@ -55,12 +56,14 @@ type Shown = { file: Openable; preview: Preview; link: string; canSave: boolean 
 /**
  * Opens a PDF or image in a dialog, from a fresh five-minute link made on
  * click; anything else is saved, if an Admin allowed it. A file the client may only
- * view is shown behind a watermark (ProtectedView) with no Download. A browser with no PDF reader of its own in a
- * page (Chrome on Android) gets a link that opens the PDF in the phone's
- * viewer instead. Render `viewer` once; call `show` from any row.
+ * view is shown behind a watermark (ProtectedView) with no Download; a view-only PDF is always drawn page by page
+ * (PdfPages) with the watermark painted into each page, since many phone browsers say they can show a PDF in a
+ * frame and then cannot. A browser with no PDF reader in a page gets a link to the phone's viewer only when
+ * saving is allowed. Render `viewer` once; call `show` from any row.
  */
 export function useFileViewer() {
   const toast = useToast();
+  const { user } = useAuth();
   const [shown, setShown] = useState<Shown | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
 
@@ -87,15 +90,14 @@ export function useFileViewer() {
           draggable={false}
           className="mx-auto max-h-[70dvh] w-auto max-w-full rounded-control"
         />
+      ) : !shown.canSave ? (
+        <PdfPages id={shown.file.id} mark={markText(user?.name)} />
       ) : navigator.pdfViewerEnabled ? (
         <iframe
-          // View only: ask the browser's PDF viewer to leave out its save and print toolbar.
-          src={shown.canSave ? shown.link : `${shown.link}#toolbar=0&navpanes=0`}
+          src={shown.link}
           title={shown.file.name}
           className="h-[70dvh] w-full rounded-control border border-border bg-white"
         />
-      ) : !shown.canSave ? (
-        <PdfPages id={shown.file.id} />
       ) : (
         <p className="text-ink">
           This browser cannot show a PDF inside the page.{' '}
@@ -116,7 +118,7 @@ export function useFileViewer() {
       open={shown !== null}
       onClose={() => setShown(null)}
       title={shown?.file.name ?? ''}
-      width="lg"
+      width="full"
       footer={
         shown ? (
           shown.canSave ? (
