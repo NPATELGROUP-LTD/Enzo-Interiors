@@ -381,6 +381,8 @@
 .inv-frame {
   width: 100%;
   min-width: 0;
+  /* In a scrolling flex column, keep its height: overflow hidden would let it shrink and clip the page. */
+  flex-shrink: 0;
   overflow: hidden;
   padding: 4px 0 16px;
 }

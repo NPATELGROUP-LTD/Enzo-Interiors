@@ -27,7 +27,7 @@ interface Admin {
   enquiries: { new: number };
   invoices: { outstanding_total: number; paid_total: number; overdue_count: number };
   clients: { total: number };
-  quotes: { sent: number };
+  quotes: { sent: number; quoted_total: number; draft_total: number };
   appointments_chart: unknown[];
   revenue_chart: unknown[];
 }
@@ -142,6 +142,8 @@ test('an Admin sees the money, the leads, the consultations and every project', 
   assert.equal(now.projects.by_stage.Approval! - baseline.projects.by_stage.Approval!, 1);
   assert.equal(now.clients.total - baseline.clients.total, 2);
   assert.equal(now.quotes.sent - baseline.quotes.sent, 1, 'only a Sent quote waits on the client');
+  assert.equal(cents(now.quotes.quoted_total - baseline.quotes.quoted_total), cents(10), 'quoted counts the Sent quote, never the Draft');
+  assert.equal(cents(now.quotes.draft_total - baseline.quotes.draft_total), cents(10));
   assert.equal(now.appointments_chart.length, 12);
   assert.equal(now.revenue_chart.length, 12);
 });
