@@ -1,4 +1,5 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, Injectable, Module, NotFoundException, Param, Post, Put, Query } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { Prisma } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -23,6 +24,7 @@ import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
 import { QuoteItemInput } from '../../data/quote-store';
+import { confirmPassword, PasswordConfirmDto } from '../auth/reauth';
 import { InvoicesModule } from '../invoices/invoices.controller';
 import { hasEmail } from '../clients/no-email';
 import { InvoiceItemDto, InvoicesService, type Issuer } from '../invoices/invoices.service';
@@ -278,12 +280,19 @@ export class QuotesService {
     return this.findOne(principal, id);
   }
 
-  async remove(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
+  async remove(principal: AuthPrincipal, id: string, password?: string): Promise<{ id: string; deleted: true }> {
     const quote = await this.db.projectQuotes.findById(id);
     if (!quote) throw new NotFoundException('Quote not found');
-    if (!EDITABLE.includes(quote.status)) throw new BadRequestException(`A ${quote.status} quote cannot be deleted.`);
-    await this.db.projectQuotes.deleteWhere({ id, status: { in: EDITABLE } });
-    await this.activity.record({ principal, action: 'quote_delete', targetTable: 'project_quotes', targetId: id, details: { number: quote.number, status: quote.status } });
+    // A quote whose client was deleted ("Unknown client") may go in any status, with the Admin's password.
+    const orphan = !(await this.db.clients.findById(quote.client_id));
+    if (orphan) {
+      await confirmPassword(this.db, principal, password);
+      await this.db.projectQuotes.deleteWhere({ id });
+    } else {
+      if (!EDITABLE.includes(quote.status)) throw new BadRequestException(`A ${quote.status} quote cannot be deleted.`);
+      await this.db.projectQuotes.deleteWhere({ id, status: { in: EDITABLE } });
+    }
+    await this.activity.record({ principal, action: 'quote_delete', targetTable: 'project_quotes', targetId: id, details: { number: quote.number, status: quote.status, ...(orphan ? { client_deleted: true } : {}) } });
     return { id, deleted: true };
   }
 
@@ -335,6 +344,7 @@ export class QuotesService {
         // Allow-list: a client never receives cost_price or margin_pct.
         items: forClient ? own.map(({ id, quote_id, description, section, detail, quantity, unit_price, position }) => ({ id, quote_id, description, section, detail, quantity, unit_price, cost_price: null, margin_pct: null, position })) : own,
         client_name: client?.name ?? 'Unknown client',
+        client_missing: !client,
         project_name: project?.name ?? null,
         issuer,
         client_email: client && hasEmail(client.email) ? client.email : null,
@@ -413,8 +423,9 @@ export class QuotesController {
 
   @Delete(':id')
   @Roles('Admin')
-  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
-    return this.quotes.remove(principal, id);
+  @Throttle({ default: { limit: 10, ttl: 15 * 60_000 } })
+  remove(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: PasswordConfirmDto) {
+    return this.quotes.remove(principal, id, dto?.password);
   }
 }
 
