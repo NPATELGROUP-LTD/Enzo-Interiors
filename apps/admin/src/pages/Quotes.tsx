@@ -440,10 +440,10 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
     }
   };
 
-  const remove = async () => {
+  const remove = async (password?: string) => {
     setBusy('delete');
     try {
-      await api.delete(`/quotes/${quote.id}`);
+      await api.delete(`/quotes/${quote.id}`, quote.client_missing ? { password } : undefined);
       toast.success('Deleted.');
       navigate('/quotes');
     } catch (caught) {
@@ -477,7 +477,7 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
             Print / Save as PDF
           </Button>
-          {canEdit ? (
+          {canEdit || quote.client_missing ? (
             <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
               Delete
             </Button>
@@ -616,10 +616,11 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
       <ConfirmDialog
         open={deleting}
         title={`Delete ${quote.number}?`}
-        message="It is removed for good."
+        message={quote.client_missing ? 'This quote’s client has been deleted. Deleting it removes it for good, whatever its status.' : 'It is removed for good.'}
         confirmLabel="Delete"
+        password={quote.client_missing}
         pending={busy === 'delete'}
-        onConfirm={() => void remove()}
+        onConfirm={(password) => void remove(password)}
         onCancel={() => setDeleting(false)}
       />
     </div>
