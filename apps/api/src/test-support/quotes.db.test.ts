@@ -158,3 +158,13 @@ test('an accepted quote becomes one Draft invoice with the payment stages', asyn
   assert.deepEqual(invoice.stages.map((s) => s.amount), [600, 480, 120], '50 / 40 / 10');
   assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin)).status, 400, 'an accepted quote stays');
 });
+
+test('a quote whose client is gone is deleted in any status, only with the Admin password', async () => {
+  await prisma.projectQuote.updateMany({ where: { id: quoteId }, data: { client_id: `gone-${run}` } });
+  const quote = await json<Quote & { client_missing: boolean }>(await call('GET', `/quotes/${quoteId}`, tokens.admin));
+  assert.equal(quote.client_missing, true);
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin)).status, 403, 'no password');
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin, { password: 'wrong' })).status, 403);
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin, { password: ADMIN.password })).status, 200);
+  assert.equal((await call('GET', `/quotes/${quoteId}`, tokens.admin)).status, 404);
+});
