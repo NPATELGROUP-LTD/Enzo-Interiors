@@ -73,7 +73,7 @@ export class DashboardService {
       projects, nextAppointment, appointmentsToday, appointmentsUpcoming, appointmentRows,
       enquiriesTotal, enquiriesNew, enquiriesRecent,
       outstanding, dueThisWeek, overdue, paid, paidThisMonth, paidRows,
-      clientsTotal, clientsActive, quotesSent, quoted,
+      clientsTotal, clientsActive, quotesSent, quoted, profit,
     ] = await Promise.all([
       this.projectCounts({}),
       this.db.appointments.findFirstWhere(upcoming, { starts_at: 'asc' }),
@@ -96,6 +96,7 @@ export class DashboardService {
       this.db.clients.countWhere({ status: 'Active' }),
       this.db.projectQuotes.countWhere({ status: 'Sent' }), // with the client, not yet answered
       store.quotedByStatus(),
+      store.potentialProfit(),
     ]);
     const quotedOf = (...statuses: string[]) => statuses.reduce((sum, s) => sum.add(quoted.get(s) ?? 0), new Prisma.Decimal(0)).toNumber();
 
@@ -139,6 +140,7 @@ export class DashboardService {
         quoted_total: quotedOf('Sent', 'Accepted', 'Declined'),
         accepted_total: quotedOf('Accepted'),
         draft_total: quotedOf('Draft'),
+        potential_profit: profit.toNumber(),
       },
       appointments_chart,
       revenue_chart,

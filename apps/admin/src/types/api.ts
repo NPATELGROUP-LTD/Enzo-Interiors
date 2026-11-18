@@ -523,7 +523,7 @@ export interface AdminDashboard {
   clients: { total: number; active: number };
   /** Quotes sent and not yet answered. */
   /** quoted_total: every quote put to a client (Sent, Accepted, Declined). */
-  quotes: { sent: number; quoted_total: number; accepted_total: number; draft_total: number };
+  quotes: { sent: number; quoted_total: number; accepted_total: number; draft_total: number; potential_profit: number };
   appointments_chart: Array<{ month: string; label: string; value: number }>;
   revenue_chart: Array<{ month: string; label: string; value: number }>;
 }

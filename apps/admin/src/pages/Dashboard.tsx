@@ -262,6 +262,10 @@ function AdminView() {
           {quotes.draft_total > 0 ? <p className="text-sm text-ink-muted">{moneyCompact(quotes.draft_total)} in drafts, not sent yet.</p> : null}
         </Tile>
 
+        <Tile title="Potential profit" value={moneyCompact(quotes.potential_profit)} to="/quotes">
+          <p className={SUB}>On sent and accepted quotes, after costs and discounts.</p>
+        </Tile>
+
         <Tile
           title="Outstanding invoices"
           value={moneyCompact(invoices.outstanding_total)}
