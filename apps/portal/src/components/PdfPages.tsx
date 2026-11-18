@@ -5,8 +5,9 @@ import { documentPdf } from '@/lib/api';
 /**
  * A PDF drawn page by page onto canvases, for browsers that cannot show one in a frame (phones). pdf.js is
  * loaded only when this opens. Canvases carry no save or print toolbar, which is what view-only needs.
+ * With `mark`, that text is painted across every page many times, so a screenshot of any part carries it.
  */
-export function PdfPages({ id }: { id: string }) {
+export function PdfPages({ id, mark }: { id: string; mark?: string }) {
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<'loading' | 'ready' | 'failed'>('loading');
 
@@ -33,7 +34,9 @@ export function PdfPages({ id }: { id: string }) {
           canvas.height = viewport.height;
           canvas.style.cssText = 'width:100%;height:auto;background:#fff;margin-bottom:8px;border-radius:6px';
           host.current.appendChild(canvas);
-          await page.render({ canvasContext: canvas.getContext('2d')!, viewport }).promise;
+          const context = canvas.getContext('2d')!;
+          await page.render({ canvasContext: context, viewport }).promise;
+          if (mark) stamp(context, canvas.width, canvas.height, mark, ratio);
         }
         if (!cancelled) setState('ready');
       } catch {
@@ -49,7 +52,26 @@ export function PdfPages({ id }: { id: string }) {
     <>
       {state === 'loading' ? <p className="py-6 text-center text-sm text-ink-muted">Opening the PDF…</p> : null}
       {state === 'failed' ? <p className="text-ink">Could not open this PDF. Try again, or ask the studio to send it another way.</p> : null}
-      <div ref={host} className="max-h-[70dvh] overflow-y-auto" />
+      <div ref={host} className="max-h-[calc(100dvh-12rem)] overflow-y-auto sm:max-h-[70dvh]" />
     </>
   );
+}
+
+/** Tiles `text` diagonally over a rendered page, burned into its pixels. */
+function stamp(context: CanvasRenderingContext2D, width: number, height: number, text: string, ratio: number) {
+  const size = 14 * ratio;
+  const stepX = 260 * ratio;
+  const stepY = 120 * ratio;
+  context.save();
+  context.font = `600 ${size}px sans-serif`;
+  context.fillStyle = 'rgba(0,0,0,0.13)';
+  context.translate(width / 2, height / 2);
+  context.rotate(-Math.PI / 7.5);
+  const reach = Math.hypot(width, height) / 2;
+  for (let y = -reach; y < reach; y += stepY) {
+    // Every other row shifted half a step, so the marks never line up into a column that is easy to crop.
+    const offset = Math.round(y / stepY) % 2 ? stepX / 2 : 0;
+    for (let x = -reach - offset; x < reach; x += stepX) context.fillText(text, x, y);
+  }
+  context.restore();
 }
