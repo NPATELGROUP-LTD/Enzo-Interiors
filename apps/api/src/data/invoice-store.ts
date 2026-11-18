@@ -74,6 +74,17 @@ export class InvoiceStore {
     return new Map(rows.map((row) => [row.status, row._sum.amount ?? new Prisma.Decimal(0)]));
   }
 
+  /** Net profit still to come: Sent + Accepted quotes, costed lines only (price - cost) x qty, less each quote's discount. */
+  async potentialProfit(): Promise<Prisma.Decimal> {
+    const [row] = await this.prisma.$queryRaw<Array<{ profit: Prisma.Decimal | null }>>`
+      SELECT COALESCE(SUM(q.lines - q.discount), 0) AS profit FROM (
+        SELECT pq.discount,
+          COALESCE((SELECT SUM(i.quantity * (i.unit_price - i.cost_price)) FROM project_quote_items i
+                    WHERE i.quote_id = pq.id AND i.cost_price IS NOT NULL), 0) AS lines
+        FROM project_quotes pq WHERE pq.status IN ('Sent', 'Accepted')) q`;
+    return new Prisma.Decimal(row?.profit ?? 0);
+  }
+
   /**
    * Money actually received over `where` (an invoice filter) since `from`: every paid stage, plus
    * Paid invoices that have no stages. A part-paid invoice counts for what has been paid so far.
