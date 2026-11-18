@@ -120,7 +120,9 @@ test('sending shows it to its client only; an edit is refused until it is withdr
   assert.equal((await call('GET', `/quotes/${quoteId}`, tokens.other)).status, 404);
   const seen = await json<Quote>(await call('GET', `/quotes/${quoteId}`, tokens.client));
   assert.equal(seen.status, 'Sent');
-  assert.deepEqual(seen.items, [], 'a client gets totals only: no lines, so no cost or margin');
+  const lines = seen.items as { description: string; unit_price: number; cost_price: unknown; margin_pct: unknown }[];
+  assert.equal(lines.length, 2, 'a client sees the lines');
+  assert.ok(lines.every((l) => l.cost_price === null && l.margin_pct === null && l.unit_price > 0), 'never their cost or margin');
   assert.equal((await json<Quote>(await call('GET', `/quotes/${quoteId}`, tokens.admin))).items.length, 2);
   assert.equal((await call('POST', `/quotes/${quoteId}/respond`, tokens.admin, { decision: 'accept' })).status, 403, 'staff do not answer for the client');
   assert.equal((await call('POST', `/quotes/${quoteId}/respond`, tokens.other, { decision: 'accept' })).status, 404);

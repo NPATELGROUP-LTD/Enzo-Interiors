@@ -1,4 +1,5 @@
 import { Controller, Get, Injectable, Module } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { AccessService } from '../../common/access/access.service';
 import { CurrentUser, Roles } from '../../common/decorators';
@@ -72,7 +73,7 @@ export class DashboardService {
       projects, nextAppointment, appointmentsToday, appointmentsUpcoming, appointmentRows,
       enquiriesTotal, enquiriesNew, enquiriesRecent,
       outstanding, dueThisWeek, overdue, paid, paidThisMonth, paidRows,
-      clientsTotal, clientsActive, quotesSent,
+      clientsTotal, clientsActive, quotesSent, quoted,
     ] = await Promise.all([
       this.projectCounts({}),
       this.db.appointments.findFirstWhere(upcoming, { starts_at: 'asc' }),
@@ -94,7 +95,9 @@ export class DashboardService {
       this.db.clients.countWhere({}),
       this.db.clients.countWhere({ status: 'Active' }),
       this.db.projectQuotes.countWhere({ status: 'Sent' }), // with the client, not yet answered
+      store.quotedByStatus(),
     ]);
+    const quotedOf = (...statuses: string[]) => statuses.reduce((sum, s) => sum.add(quoted.get(s) ?? 0), new Prisma.Decimal(0)).toNumber();
 
     const appointments_chart = lastMonths(today.slice(0, 7), 12);
     for (const row of appointmentRows) {
@@ -130,7 +133,13 @@ export class DashboardService {
         paid_this_month: paidThisMonth.toNumber(),
       },
       clients: { total: clientsTotal, active: clientsActive },
-      quotes: { sent: quotesSent },
+      quotes: {
+        sent: quotesSent,
+        // Quoted = every quote put to a client (Sent, Accepted, Declined); Drafts are counted apart.
+        quoted_total: quotedOf('Sent', 'Accepted', 'Declined'),
+        accepted_total: quotedOf('Accepted'),
+        draft_total: quotedOf('Draft'),
+      },
       appointments_chart,
       revenue_chart,
     };
