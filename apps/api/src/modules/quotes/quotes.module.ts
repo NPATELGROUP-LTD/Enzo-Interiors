@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, Injectable, Module, NotFoundException, Param, Post, Put, Query } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
@@ -13,12 +15,13 @@ import {
   Max,
   MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 
 import { AccessService } from '../../common/access/access.service';
 import { CurrentUser, Roles } from '../../common/decorators';
-import { ProjectQuote, ProjectQuoteItem, QuoteStatus } from '../../common/types/domain';
+import { ProjectQuote, ProjectQuoteItem, QuotePreset, QuoteStatus } from '../../common/types/domain';
 import { AuthPrincipal } from '../../common/types/principal';
 import { ActivityLogService } from '../../core/activity-log.service';
 import { DatabaseService } from '../../data/database.service';
@@ -68,6 +71,13 @@ export class UpdateQuoteDto extends QuoteFields {
   @IsOptional()
   @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => QuoteItemDto)
   items?: QuoteItemDto[];
+}
+
+/** A preset: a name and what a new quote starts with. */
+export class QuotePresetDto extends QuoteFields {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value)) @IsString() @MinLength(1, { message: 'Name the preset' }) @MaxLength(120) name!: string;
+  @IsArray() @ArrayMinSize(1, { message: 'Add at least one line' }) @ArrayMaxSize(50, { message: 'A quote can have at most 50 lines' }) @ValidateNested({ each: true }) @Type(() => QuoteItemDto)
+  items!: QuoteItemDto[];
 }
 
 export class RespondDto {
@@ -288,6 +298,36 @@ export class QuotesService {
     return { id, deleted: true };
   }
 
+  /* Presets ---------------------------------------------------------- */
+
+  listPresets(): Promise<QuotePreset[]> {
+    return this.db.quotePresets.findWhere({}, { orderBy: { name: 'asc' } });
+  }
+
+  async savePreset(principal: AuthPrincipal, dto: QuotePresetDto, id?: string): Promise<QuotePreset> {
+    const items = this.lines(dto.items);
+    const vat_rate = dto.vat_rate ?? (await this.db.settings()).vat_rate;
+    const discount = dto.discount ?? 0;
+    this.gross(items, vat_rate, discount); // the same checks a quote gets, so a preset always makes a valid quote
+    const body = { title: dto.title ?? null, notes: dto.notes ?? null, vat_rate, discount, items };
+    const now = new Date().toISOString();
+    if (id) {
+      const moved = await this.db.quotePresets.updateWhere({ id }, { name: dto.name, body, updated_at: now });
+      if (moved === 0) throw new NotFoundException('Preset not found');
+    } else {
+      id = randomUUID();
+      await this.db.quotePresets.create({ id, name: dto.name, body, created_by: principal.name, created_at: now, updated_at: now });
+    }
+    await this.activity.record({ principal, action: 'quote_preset_save', targetTable: 'quote_presets', targetId: id, details: { name: dto.name } });
+    return (await this.db.quotePresets.findById(id))!;
+  }
+
+  async removePreset(principal: AuthPrincipal, id: string): Promise<{ id: string; deleted: true }> {
+    if ((await this.db.quotePresets.deleteWhere({ id })) === 0) throw new NotFoundException('Preset not found');
+    await this.activity.record({ principal, action: 'quote_preset_delete', targetTable: 'quote_presets', targetId: id });
+    return { id, deleted: true };
+  }
+
   /* ------------------------------------------------------------------ */
 
   private lines(dtos: QuoteItemDto[]): QuoteItemInput[] {
@@ -363,6 +403,31 @@ export class QuotesController {
   @Roles('Admin', 'Client')
   list(@CurrentUser() principal: AuthPrincipal, @Query() query: QuoteListQuery) {
     return this.quotes.list(principal, query);
+  }
+
+  /** Presets come before `:id`, so "presets" is never read as a quote id. Admin only. */
+  @Get('presets')
+  @Roles('Admin')
+  presets() {
+    return this.quotes.listPresets();
+  }
+
+  @Post('presets')
+  @Roles('Admin')
+  createPreset(@CurrentUser() principal: AuthPrincipal, @Body() dto: QuotePresetDto) {
+    return this.quotes.savePreset(principal, dto);
+  }
+
+  @Put('presets/:id')
+  @Roles('Admin')
+  updatePreset(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string, @Body() dto: QuotePresetDto) {
+    return this.quotes.savePreset(principal, dto, id);
+  }
+
+  @Delete('presets/:id')
+  @Roles('Admin')
+  removePreset(@CurrentUser() principal: AuthPrincipal, @Param('id') id: string) {
+    return this.quotes.removePreset(principal, id);
   }
 
   @Get(':id')

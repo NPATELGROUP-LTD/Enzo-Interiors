@@ -628,3 +628,21 @@ export interface Quote {
   client_phone: string | null;
   job_address: string | null;
 }
+
+/** What a new quote starts with: the fields and lines as POST /quotes takes them. */
+export interface QuoteBody {
+  title: string | null;
+  notes: string | null;
+  vat_rate: number;
+  discount: number;
+  items: Array<Pick<QuoteItem, 'description' | 'section' | 'detail' | 'quantity' | 'unit_price' | 'cost_price' | 'margin_pct'>>;
+}
+
+/** A named starting point for quotes (migration 41). Admin only. */
+export interface QuotePreset {
+  id: string;
+  name: string;
+  body: QuoteBody;
+  created_by: string | null;
+  updated_at: string;
+}

@@ -158,3 +158,23 @@ test('an accepted quote becomes one Draft invoice with the payment stages', asyn
   assert.deepEqual(invoice.stages.map((s) => s.amount), [600, 480, 120], '50 / 40 / 10');
   assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin)).status, 400, 'an accepted quote stays');
 });
+
+test('a preset is Admin only, priced like a quote, and starts a new quote', async () => {
+  const body = { name: `Preset ${run}`, title: 'Wardrobes', vat_rate: 20, items: [{ section: 'Units', description: 'Door', quantity: 2, unit_price: 1, cost_price: 80, margin_pct: 25 }] };
+  assert.equal((await call('POST', '/quotes/presets', tokens.designer, body)).status, 403);
+  assert.equal((await call('GET', '/quotes/presets', tokens.client)).status, 403);
+  assert.equal((await call('POST', '/quotes/presets', tokens.admin, { ...body, name: ' ' })).status, 400, 'a name is needed');
+  type Preset = { id: string; name: string; body: { title: string; items: Array<{ unit_price: number; section: string }> } };
+  const preset = await json<Preset>(await call('POST', '/quotes/presets', tokens.admin, body), 201);
+  assert.equal(preset.body.items[0]!.unit_price, 100, 'cost 80 + 25%, worked out by the API');
+  const listed = await json<Preset[]>(await call('GET', '/quotes/presets', tokens.admin));
+  assert.ok(listed.some((entry) => entry.id === preset.id), '"presets" is not read as a quote id');
+  const renamed = await json<Preset>(await call('PUT', `/quotes/presets/${preset.id}`, tokens.admin, { ...body, name: `Renamed ${run}` }));
+  assert.equal(renamed.name, `Renamed ${run}`);
+  // The admin starts a quote from it (or copies a quote) by sending its fields to POST /quotes for any client's project.
+  const quote = await json<Quote>(await call('POST', '/quotes', tokens.admin, { client_id: CLIENT.id, project_id: PROJECT, ...renamed.body }), 201);
+  assert.equal(quote.amount, 240);
+  assert.equal((await call('DELETE', `/quotes/${quote.id}`, tokens.admin)).status, 200);
+  assert.equal((await call('DELETE', `/quotes/presets/${preset.id}`, tokens.admin)).status, 200);
+  assert.equal((await call('DELETE', `/quotes/presets/${preset.id}`, tokens.admin)).status, 404);
+});
