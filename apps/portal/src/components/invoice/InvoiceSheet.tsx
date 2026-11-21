@@ -298,9 +298,18 @@ export function InvoiceSheet({ invoice, editBody, kind = 'invoice' }: { invoice:
 
 /** One A4 page's height in CSS pixels (297mm). */
 const PAGE_PX = 1122.5;
+const MM = PAGE_PX / 297;
+/**
+ * The printed page's top and bottom margins (`@page invoice` in invoice-sheet.css). The preview cuts its
+ * pages with the same margins, so it shows the pages the printer makes. The first page's top margin is the
+ * sheet's own 12mm padding.
+ */
+const PAGE_TOP = 12 * MM;
+const PAGE_BOTTOM = 14 * MM;
+const usable = (pageIndex: number) => PAGE_PX - PAGE_BOTTOM - (pageIndex === 0 ? 0 : PAGE_TOP);
 const ZOOM_STEPS = [0.6, 0.8, 1, 1.25, 1.5, 2, 2.5];
 /** Blocks the preview never cuts through (the printed copy keeps them whole the same way). */
-const UNBREAKABLE = '.inv-table tr, .inv-totals, .inv-schedule, .inv-bank, .inv-parties, .inv-notes';
+const UNBREAKABLE = '.inv-table tr, .inv-totals, .inv-schedule, .inv-bank, .inv-parties, .inv-notes, .inv-foot';
 
 /**
  * Where each preview page starts: A4 height apart, pulled up to the top of any
@@ -317,7 +326,7 @@ function pageStarts(sheet: HTMLElement): number[] {
   const starts = [0];
   for (;;) {
     const start = starts[starts.length - 1]!;
-    const limit = start + PAGE_PX;
+    const limit = start + usable(starts.length - 1);
     if (limit >= total - 1) return starts;
     const straddling = blocks.filter((b) => b.top > start + 1 && b.top < limit && b.bottom > limit);
     starts.push(straddling.length ? Math.min(...straddling.map((b) => b.top)) : limit);
@@ -395,7 +404,7 @@ export function InvoicePreview({ invoice, editBody, kind }: { invoice: Invoice; 
         <div className="inv-pane" style={{ zoom: scale }}>
           <div style={{ height: PAGE_PX, overflow: 'hidden', background: '#fff' }}>
             {/* Only this page's slice shows: from its start to the next page's start. */}
-            <div style={{ height: Math.min(PAGE_PX, (starts[current + 1] ?? total) - starts[current]!), overflow: 'hidden' }}>
+            <div style={{ marginTop: current === 0 ? 0 : PAGE_TOP, height: Math.min(usable(current), (starts[current + 1] ?? total) - starts[current]!), overflow: 'hidden' }}>
               <div ref={sheet} style={{ transform: `translateY(-${starts[current]}px)` }}>
                 <InvoiceSheet invoice={invoice} editBody={editBody} kind={kind} />
               </div>

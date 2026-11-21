@@ -38,6 +38,16 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // Home-screen shortcuts: long-press the installed app's icon (Android, Windows, macOS) to open one, or
+        // drag it to the home screen as its own icon. A page the role cannot open sends them to their home page.
+        shortcuts: [
+          { name: 'Home', short_name: 'Home', description: 'Your dashboard', url: '/dashboard', icons: [{ src: 'icons/shortcuts/dashboard.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Projects', short_name: 'Projects', description: 'Your projects', url: '/projects', icons: [{ src: 'icons/shortcuts/projects.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Messages', short_name: 'Messages', description: 'Talk to the studio', url: '/messages', icons: [{ src: 'icons/shortcuts/messages.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Documents', short_name: 'Documents', description: 'Your files', url: '/documents', icons: [{ src: 'icons/shortcuts/documents.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Quotes', short_name: 'Quotes', description: 'Your quotes', url: '/quotes', icons: [{ src: 'icons/shortcuts/quotes.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Invoices', short_name: 'Invoices', description: 'Your invoices', url: '/invoices', icons: [{ src: 'icons/shortcuts/invoices.png', sizes: '192x192', type: 'image/png' }] },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],

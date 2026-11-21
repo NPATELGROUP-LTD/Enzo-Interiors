@@ -363,6 +363,21 @@ export interface ProjectQuoteItem extends BaseRecord {
   position: number;
 }
 
+/** A named starting point for a new quote. `body` holds the quote's fields and lines as POST /quotes takes them. */
+export interface QuotePreset extends BaseRecord {
+  name: string;
+  body: {
+    title: string | null;
+    notes: string | null;
+    vat_rate: number;
+    discount: number;
+    items: Array<{ description: string; section: string | null; detail: string | null; quantity: number; unit_price: number; cost_price: number | null; margin_pct: number | null }>;
+  };
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 /** Schema 3.8 */
 export interface Booking extends BaseRecord {
   client_id: string;

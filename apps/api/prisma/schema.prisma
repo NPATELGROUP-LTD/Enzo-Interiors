@@ -333,6 +333,18 @@ model ProjectQuote {
   @@map("project_quotes")
 }
 
+/// A named starting point for a quote: lines, VAT, discount, title and notes (migration 41).
+model QuotePreset {
+  id         String   @id
+  name       String
+  body       Json
+  created_by String?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("quote_presets")
+}
+
 model ProjectQuoteItem {
   id          String       @id
   quote_id    String
