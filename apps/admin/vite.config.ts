@@ -39,6 +39,18 @@ export default defineConfig({
             purpose: 'maskable',
           },
         ],
+        // Home-screen shortcuts: long-press the installed app's icon (Android, Windows, macOS) to open one, or
+        // drag it to the home screen as its own icon. A page the role cannot open sends them to their home page.
+        shortcuts: [
+          { name: 'Dashboard', short_name: 'Dashboard', description: 'Today, money and the pipeline', url: '/', icons: [{ src: 'icons/shortcuts/dashboard.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Clients', short_name: 'Clients', description: 'Client records', url: '/clients', icons: [{ src: 'icons/shortcuts/clients.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Projects', short_name: 'Projects', description: 'The projects board', url: '/projects', icons: [{ src: 'icons/shortcuts/projects.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Bookings', short_name: 'Bookings', description: 'Consultations this week', url: '/bookings', icons: [{ src: 'icons/shortcuts/bookings.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Quotes', short_name: 'Quotes', description: 'Quotes and presets', url: '/quotes', icons: [{ src: 'icons/shortcuts/quotes.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Invoices', short_name: 'Invoices', description: 'Invoices and payments', url: '/invoices', icons: [{ src: 'icons/shortcuts/invoices.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Enquiries', short_name: 'Enquiries', description: 'New enquiries from the website', url: '/enquiries', icons: [{ src: 'icons/shortcuts/enquiries.png', sizes: '192x192', type: 'image/png' }] },
+          { name: 'Messages', short_name: 'Messages', description: 'Conversations with clients', url: '/messages', icons: [{ src: 'icons/shortcuts/messages.png', sizes: '192x192', type: 'image/png' }] },
+        ],
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],

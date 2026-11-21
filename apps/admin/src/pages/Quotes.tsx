@@ -1,15 +1,15 @@
-import { ArrowDown, ArrowLeft, ArrowUp, Eye, PaperPlaneRight, Plus, Printer, Receipt, TextHOne, Trash, X } from '@phosphor-icons/react';
+import { ArrowDown, ArrowLeft, ArrowUp, BookmarkSimple, Copy, Eye, PaperPlaneRight, Plus, Printer, Receipt, TextHOne, Trash, X } from '@phosphor-icons/react';
 import { useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 
 import { InvoicePreview, InvoicePrint, printWhenReady, quoteSheet } from '@/components/invoice/InvoiceSheet';
-import { Button, Card, ConfirmDialog, EmptyState, ErrorState, FIELD_BASE, Input, LoadingState, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
+import { Button, Card, ConfirmDialog, EmptyState, ErrorState, FIELD_BASE, Input, LoadingState, Modal, Select, StatusTag, TableWrap, Tabs, Td, Textarea, Th, type StatusTone } from '@/components/ui';
 import { useToast } from '@/components/ui/Toast';
 import { useQuery } from '@/hooks/useApi';
 import { useSort } from '@/hooks/useSort';
 import { ApiError, api } from '@/lib/api';
 import { date, money } from '@/lib/format';
-import type { Quote, QuoteItem, QuoteStatus } from '@/types/api';
+import type { Client, Project, Quote, QuoteBody, QuoteItem, QuotePreset, QuoteStatus } from '@/types/api';
 
 import { DesignsView, LibraryView, PricingView } from './QuoteMaker';
 
@@ -20,6 +20,7 @@ const FILTERS = [
   { id: 'Sent', label: 'Sent' },
   { id: 'Accepted', label: 'Accepted' },
   { id: 'Declined', label: 'Declined' },
+  { id: 'presets', label: 'Presets' },
 ];
 const TABS = [
   { id: 'designs', label: 'Designs' },
@@ -67,6 +68,8 @@ function QuoteList() {
   });
   if (quotes.error && !quotes.data) return <ErrorState message={quotes.error} onRetry={() => void quotes.refetch()} />;
   if (!quotes.data) return <LoadingState label="Loading quotes…" />;
+  // Opened by a preset's Use (`?preset=`): pick the client and project, and the quote starts with its lines.
+  const newDialog = <NewQuoteDialog key={params.get('preset') ?? 'blank'} open={params.get('new') === '1'} client={params.get('client')} project={params.get('project')} preset={params.get('preset')} onClose={() => setParams(filter === 'all' ? { tab: 'quotes' } : { tab: 'quotes', view: filter })} />;
 
   return (
     <>
@@ -87,7 +90,9 @@ function QuoteList() {
           ))}
         </select>
       </div>
-      {shown.length === 0 ? (
+      {filter === 'presets' ? (
+        <PresetList onUse={(id) => setParams({ tab: 'quotes', view: 'presets', new: '1', preset: id })} />
+      ) : shown.length === 0 ? (
         <EmptyState title="No quotes" message="A quote is made from a design: open a design and choose Make quote. It lands here, ready to check and send." />
       ) : (
         <TableWrap>
@@ -120,9 +125,192 @@ function QuoteList() {
           </tbody>
         </TableWrap>
       )}
+      {newDialog}
     </>
   );
 }
+
+/** `/quotes?view=presets`: the saved starting points. Use one to start a quote; a preset is made with a quote's Save as preset. */
+function PresetList({ onUse }: { onUse: (id: string) => void }) {
+  const toast = useToast();
+  const presets = useQuery<QuotePreset[]>('/quotes/presets');
+  const [removing, setRemoving] = useState<QuotePreset | null>(null);
+  const [busy, setBusy] = useState(false);
+  if (presets.error && !presets.data) return <ErrorState message={presets.error} onRetry={() => void presets.refetch()} />;
+  if (!presets.data) return <LoadingState label="Loading presets…" />;
+  if (presets.data.length === 0) return <EmptyState title="No presets yet" message="Open a quote and choose Save as preset. New quote then offers it under Start from." />;
+  const remove = async () => {
+    if (!removing) return;
+    setBusy(true);
+    try {
+      await api.delete(`/quotes/presets/${removing.id}`);
+      presets.setData(presets.data!.filter((entry) => entry.id !== removing.id));
+      toast.success(`${removing.name} deleted.`);
+    } catch (caught) {
+      toast.error(caught instanceof ApiError ? caught.message : 'Could not delete the preset.');
+    } finally {
+      setBusy(false);
+      setRemoving(null);
+    }
+  };
+  return (
+    <>
+      <TableWrap>
+        <thead>
+          <tr>
+            <Th>Preset</Th>
+            <Th col="md">Lines</Th>
+            <Th col="lg">Updated</Th>
+            <Th className="text-right">Before VAT</Th>
+            <Th className="text-right"><span className="sr-only">Actions</span></Th>
+          </tr>
+        </thead>
+        <tbody>
+          {presets.data.map((preset) => (
+            <tr key={preset.id}>
+              <Td className="font-semibold text-ink">
+                {preset.name}
+                {preset.body.title ? <span className="block truncate text-xs font-normal text-ink-muted">{preset.body.title}</span> : null}
+              </Td>
+              <Td col="md">{preset.body.items.length}</Td>
+              <Td col="lg">{date(preset.updated_at)}</Td>
+              <Td className="tabular text-right">{money(totalsOf(preset.body.items, 0, preset.body.discount).net)}</Td>
+              <Td className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button variant="secondary" onClick={() => onUse(preset.id)}>Use</Button>
+                  <Button variant="ghost" icon={<Trash size={16} aria-hidden="true" />} aria-label={`Delete ${preset.name}`} onClick={() => setRemoving(preset)} />
+                </div>
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </TableWrap>
+      <ConfirmDialog open={!!removing} title={`Delete ${removing?.name ?? 'preset'}?`} message="Quotes already made from it are not changed." confirmLabel="Delete" pending={busy} onConfirm={() => void remove()} onCancel={() => setRemoving(null)} />
+    </>
+  );
+}
+
+/** Save the sheet as it stands as a new preset, or over one already saved. */
+function SavePresetDialog({ open, body, defaultName, onClose }: { open: boolean; body: QuoteBody; defaultName: string; onClose: () => void }) {
+  const toast = useToast();
+  const presets = useQuery<QuotePreset[]>('/quotes/presets');
+  const [name, setName] = useState(defaultName);
+  const [replace, setReplace] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const save = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!name.trim()) return setError('Name the preset.');
+    setSaving(true);
+    setError(null);
+    try {
+      const saved = replace ? await api.put<QuotePreset>(`/quotes/presets/${replace}`, { ...body, name }) : await api.post<QuotePreset>('/quotes/presets', { ...body, name });
+      toast.success(`Saved as the preset “${saved.name}”.`);
+      onClose();
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.fieldMessages[0] ?? caught.message : 'Could not save the preset.');
+      setSaving(false);
+    }
+  };
+  const pick = (id: string) => {
+    setReplace(id);
+    const old = presets.data?.find((entry) => entry.id === id);
+    if (old) setName(old.name);
+  };
+  return (
+    <Modal open={open} onClose={onClose} title="Save as preset" width="md">
+      <form onSubmit={save} className="flex flex-col gap-4" noValidate>
+        <p className="text-sm text-ink-muted">Keeps the lines with their costs and margins, the VAT, discount, title and notes, so a new quote can start from them. Not the client, project or dates.</p>
+        {(presets.data ?? []).length ? (
+          <Select label="Save as" value={replace} onChange={(event) => pick(event.target.value)}>
+            <option value="">A new preset</option>
+            {(presets.data ?? []).map((entry) => (
+              <option key={entry.id} value={entry.id}>Replace “{entry.name}”</option>
+            ))}
+          </Select>
+        ) : null}
+        <Input label="Preset name" value={name} maxLength={120} placeholder="e.g. Two-door wardrobe" onChange={(event) => setName(event.target.value)} />
+        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={saving}>Save preset</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+/**
+ * Pick the client and project, then land on the sheet. It starts with one blank line to write over, or with
+ * the lines of a preset (`preset` / the Start from list) or of the quote being copied (`from`).
+ */
+function NewQuoteDialog({ open, client, project, preset: presetId, from, onClose }: { open: boolean; client: string | null; project: string | null; preset?: string | null; from?: { number: string; body: QuoteBody }; onClose: () => void }) {
+  const navigate = useNavigate();
+  const clients = useQuery<Client[]>('/clients');
+  const projects = useQuery<Project[]>('/projects');
+  const presets = useQuery<QuotePreset[]>('/quotes/presets');
+  const picked = (projects.data ?? []).find((entry) => entry.id === project);
+  const [clientId, setClientId] = useState(client ?? picked?.client_id ?? '');
+  const [projectId, setProjectId] = useState(project ?? '');
+  const [startFrom, setStartFrom] = useState(presetId ?? '');
+  const [title, setTitle] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const own = (projects.data ?? []).filter((entry) => entry.client_id === (clientId || picked?.client_id));
+  const source = from?.body ?? (presets.data ?? []).find((entry) => entry.id === startFrom)?.body;
+  // The title follows the copied quote or the preset until it is typed over.
+  const shownTitle = title ?? source?.title ?? '';
+  const create = async (event: FormEvent) => {
+    event.preventDefault();
+    const owner = clientId || picked?.client_id || '';
+    if (!owner || !projectId) return setError('Choose the client and the project this quote is for.');
+    setSaving(true);
+    try {
+      // The API wants a line; without a source this one is a placeholder to write over on the sheet.
+      const body = source ?? { items: [{ description: 'Item', quantity: 1, unit_price: 0 }] };
+      const saved = await api.post<Quote>('/quotes', { ...body, client_id: owner, project_id: projectId, title: shownTitle.trim() || null });
+      navigate(`/quotes/${saved.id}`);
+    } catch (caught) {
+      setError(caught instanceof ApiError ? caught.fieldMessages[0] ?? caught.message : 'Could not start the quote.');
+      setSaving(false);
+    }
+  };
+  return (
+    <Modal open={open} onClose={onClose} title={from ? `Copy ${from.number}` : 'New quote'} width="md">
+      <form onSubmit={create} className="flex flex-col gap-4" noValidate>
+        {from ? (
+          <p className="text-sm text-ink-muted">The copy is a new draft with the same lines, costs, margins, VAT, discount and notes, for the client and project you choose. The valid-until date is left blank.</p>
+        ) : (presets.data ?? []).length ? (
+          <Select label="Start from" value={startFrom} onChange={(event) => { setStartFrom(event.target.value); setTitle(null); }}>
+            <option value="">A blank sheet</option>
+            {(presets.data ?? []).map((entry) => (
+              <option key={entry.id} value={entry.id}>{entry.name}</option>
+            ))}
+          </Select>
+        ) : null}
+        <Select label="Client" value={clientId || picked?.client_id || ''} onChange={(event) => { setClientId(event.target.value); setProjectId(''); }}>
+          <option value="">Choose a client…</option>
+          {(clients.data ?? []).map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.name}</option>
+          ))}
+        </Select>
+        <Select label="Project" value={projectId} disabled={!(clientId || picked?.client_id)} onChange={(event) => setProjectId(event.target.value)}>
+          <option value="">{clientId || picked ? (own.length ? 'Choose a project…' : 'This client has no project') : 'Choose a client first'}</option>
+          {own.map((entry) => (
+            <option key={entry.id} value={entry.id}>{entry.name}</option>
+          ))}
+        </Select>
+        <Input label="Title" value={shownTitle} maxLength={200} placeholder="e.g. Kitchen and utility" onChange={(event) => setTitle(event.target.value)} />
+        {error ? <p role="alert" className="text-sm text-danger">{error}</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button type="submit" variant="primary" loading={saving}>{from ? 'Make the copy' : 'Start quote'}</Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 
 /* ---------------------------------------------------------------------------
  * The form works in strings (a half-typed price is allowed) and the sums are a
@@ -218,12 +406,15 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [savingPreset, setSavingPreset] = useState(false);
 
   const items = toItems(rows);
   const rate = Number(vatRate) || 0;
   const off = Number(discount) || 0;
   const preview = totalsOf(items, rate, off);
   const body = { title: title.trim() || null, notes: notes.trim() || null, valid_until: validUntil || null, vat_rate: rate, discount: off, items };
+  const template: QuoteBody = { title: body.title, notes: body.notes, vat_rate: rate, discount: off, items };
   const dirty = canEdit && JSON.stringify(body) !== JSON.stringify({ title: quote.title, notes: quote.notes, valid_until: quote.valid_until?.slice(0, 10) ?? null, vat_rate: quote.vat_rate, discount: quote.discount, items: toItems(toRows(quote.items)) });
   const cost = rows.reduce((total, row) => (row.kind === 'line' ? total + (Number(row.quantity) || 0) * pennies(Number(row.cost) || 0) : total), 0) / 100;
 
@@ -453,6 +644,12 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
           <Button variant="secondary" icon={<Printer size={16} aria-hidden="true" />} onClick={() => void printWhenReady()}>
             Print / Save as PDF
           </Button>
+          <Button variant="secondary" icon={<Copy size={16} aria-hidden="true" />} onClick={() => setCopying(true)}>
+            Copy
+          </Button>
+          <Button variant="secondary" icon={<BookmarkSimple size={16} aria-hidden="true" />} onClick={() => setSavingPreset(true)}>
+            Save as preset
+          </Button>
           {canEdit || quote.client_missing ? (
             <Button variant="secondary" icon={<Trash size={16} aria-hidden="true" />} onClick={() => setDeleting(true)}>
               Delete
@@ -595,6 +792,10 @@ function QuoteEditor({ quote, onChange }: { quote: Quote; onChange: (next: Quote
       ) : null}
 
       <InvoicePrint invoices={[clientSheet]} kind="quote" />
+
+      {/* What is on the sheet now, unsaved edits included: that is what the Admin means to copy. */}
+      {copying ? <NewQuoteDialog open from={{ number: quote.number, body: template }} client={quote.client_missing ? null : quote.client_id} project={null} onClose={() => setCopying(false)} /> : null}
+      {savingPreset ? <SavePresetDialog open body={template} defaultName={title.trim() || quote.number} onClose={() => setSavingPreset(false)} /> : null}
 
       <ConfirmDialog
         open={deleting}

@@ -386,6 +386,13 @@
   margin: 0 auto;
 }
 
+/* The on-screen preview pages like the printer: the bottom margin is the page's, not the sheet's, so a
+   short sheet ends (its footer at the foot) where the printed page's area ends. 297mm less the 14mm margin. */
+.inv-pane .inv-sheet {
+  min-height: 283mm;
+  padding-bottom: 0;
+}
+
 /* Print: only the sheets, one per page. */
 .inv-print {
   display: none;
