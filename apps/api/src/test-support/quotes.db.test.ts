@@ -159,6 +159,16 @@ test('an accepted quote becomes one Draft invoice with the payment stages', asyn
   assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin)).status, 400, 'an accepted quote stays');
 });
 
+test('a quote whose client is gone is deleted in any status, only with the Admin password', async () => {
+  await prisma.projectQuote.updateMany({ where: { id: quoteId }, data: { client_id: `gone-${run}` } });
+  const quote = await json<Quote & { client_missing: boolean }>(await call('GET', `/quotes/${quoteId}`, tokens.admin));
+  assert.equal(quote.client_missing, true);
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin)).status, 403, 'no password');
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin, { password: 'wrong' })).status, 403);
+  assert.equal((await call('DELETE', `/quotes/${quoteId}`, tokens.admin, { password: ADMIN.password })).status, 200);
+  assert.equal((await call('GET', `/quotes/${quoteId}`, tokens.admin)).status, 404);
+});
+
 test('a preset is Admin only, priced like a quote, and starts a new quote', async () => {
   const body = { name: `Preset ${run}`, title: 'Wardrobes', vat_rate: 20, items: [{ section: 'Units', description: 'Door', quantity: 2, unit_price: 1, cost_price: 80, margin_pct: 25 }] };
   assert.equal((await call('POST', '/quotes/presets', tokens.designer, body)).status, 403);

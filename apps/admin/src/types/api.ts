@@ -603,6 +603,8 @@ export interface Quote {
   client_id: string;
   project_id: string;
   client_name: string;
+  /** The client was deleted; the quote can be removed with the Admin password. */
+  client_missing?: boolean;
   project_name: string | null;
   title: string | null;
   status: QuoteStatus;
