@@ -26,6 +26,7 @@ import {
   InvoiceItem,
   ProjectQuote,
   ProjectQuoteItem,
+  QuotePreset,
   InvoiceStage,
   MediaAsset,
   Message,
@@ -86,6 +87,7 @@ export class DatabaseService {
   readonly projectQuotes: PrismaRepository<ProjectQuote>;
   readonly projectQuoteItems: PrismaRepository<ProjectQuoteItem>;
   readonly quoteStore: QuoteStore;
+  readonly quotePresets: PrismaRepository<QuotePreset>;
   readonly bookings: PrismaRepository<Booking>;
   readonly availabilitySettings: PrismaRepository<AvailabilitySetting>;
   readonly conversations: PrismaRepository<Conversation>;
@@ -145,6 +147,7 @@ export class DatabaseService {
     this.projectQuotes = new PrismaRepository(prisma.projectQuote, 'project_quotes', QUOTE_FIELDS);
     this.projectQuoteItems = new PrismaRepository(prisma.projectQuoteItem, 'project_quote_items', QUOTE_ITEM_FIELDS);
     this.quoteStore = new QuoteStore(prisma);
+    this.quotePresets = new PrismaRepository(prisma.quotePreset, 'quote_presets', { dates: ['created_at', 'updated_at'] });
     this.invoiceStages = new PrismaRepository(prisma.invoiceStage, 'invoice_stages', INVOICE_STAGE_FIELDS);
     this.invoiceStore = new InvoiceStore(prisma);
     this.bookings = new PrismaRepository(prisma.booking, 'bookings', {
